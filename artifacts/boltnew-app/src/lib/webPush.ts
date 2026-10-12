@@ -43,11 +43,13 @@ export function isStandaloneWebApp(): boolean {
 }
 
 export function currentPushStatus(): PushSetupStatus {
-  if (!('serviceWorker' in navigator) || !('PushManager' in window) || !('Notification' in window)) {
-    return { code: 'unsupported', message: '이 브라우저는 휴대폰 푸시 알림을 지원하지 않습니다.' };
+  const appleMobile = /iPad|iPhone|iPod/.test(navigator.userAgent)
+    || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+  if (appleMobile && !isStandaloneWebApp()) {
+    return { code: 'install-required', message: '아이폰·아이패드는 홈 화면에 BINPC2를 추가한 뒤 설치된 아이콘으로 열어 주세요.' };
   }
-  if (!isStandaloneWebApp()) {
-    return { code: 'install-required', message: '휴대폰 홈 화면에 BINPC2를 추가한 뒤, 설치된 아이콘으로 열어 주세요.' };
+  if (!('serviceWorker' in navigator) || !('PushManager' in window) || !('Notification' in window)) {
+    return { code: 'unsupported', message: '이 브라우저는 휴대폰 푸시를 지원하지 않아요. 웹 안의 하트·채팅 알림은 계속 표시됩니다.' };
   }
   if (Notification.permission === 'denied') {
     return { code: 'blocked', message: '휴대폰 또는 BINPC2 앱 설정에서 알림 권한을 허용해 주세요.' };
@@ -80,7 +82,7 @@ function sameKey(a: ArrayBuffer | null, b: Uint8Array): boolean {
 async function subscribeGranted(userId: string): Promise<PushSetupStatus> {
   try {
     const scope = import.meta.env.BASE_URL as string;
-    const swUrl = scope.replace(/\/$/, '') + '/sw.js';
+    const swUrl = scope.replace(/\/$/, '') + '/sw.js?v=20261013-push-links-v2';
     const reg = await navigator.serviceWorker.register(swUrl, { scope });
     await navigator.serviceWorker.ready;
 

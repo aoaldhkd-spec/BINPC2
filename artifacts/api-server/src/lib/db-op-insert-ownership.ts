@@ -16,6 +16,9 @@ export type InsertOwnershipPlan =
   | { ok: false; reject: OpOwnershipReject; earlyEmpty?: undefined }
   | { ok: false; earlyEmpty: true; reject?: undefined };
 
+// All ownership checks except self profile-view have an explicit reject branch.
+type StrictInsertOwnershipPlan = Exclude<InsertOwnershipPlan, { earlyEmpty: true }>;
+
 function authReject(logMsg: string): OpOwnershipReject {
   return {
     status: 403,
@@ -31,7 +34,7 @@ function authReject(logMsg: string): OpOwnershipReject {
 export function planMessagesInsertOwnership(
   row: Record<string, unknown>,
   requesterId: string | null | undefined,
-): InsertOwnershipPlan {
+): StrictInsertOwnershipPlan {
   if (!requesterId) {
     return { ok: false, reject: authReject('[SECURITY] IDOR: messages INSERT without requesterId blocked') };
   }
@@ -63,7 +66,7 @@ export function planMessagesInsertOwnership(
 export function planChatsInsertOwnership(
   row: Record<string, unknown>,
   requesterId: string | null | undefined,
-): InsertOwnershipPlan {
+): StrictInsertOwnershipPlan {
   if (!requesterId) {
     return { ok: false, reject: authReject('') };
   }
@@ -109,7 +112,7 @@ export function planChatsInsertOwnership(
 export function planGroupMessagesInsertOwnership(
   row: Record<string, unknown>,
   requesterId: string | null | undefined,
-): InsertOwnershipPlan {
+): StrictInsertOwnershipPlan {
   if (!requesterId) {
     return { ok: false, reject: authReject('') };
   }
@@ -134,7 +137,7 @@ export function planGroupMessagesInsertOwnership(
 export function planGroupParticipantsInsertOwnership(
   row: Record<string, unknown>,
   requesterId: string | null | undefined,
-): InsertOwnershipPlan {
+): StrictInsertOwnershipPlan {
   if (!requesterId) {
     return {
       ok: false,
@@ -187,7 +190,7 @@ export function groupChatsInsertReject(
 export function planChatReadsInsertOwnership(
   row: Record<string, unknown>,
   requesterId: string | null | undefined,
-): InsertOwnershipPlan {
+): StrictInsertOwnershipPlan {
   if (!requesterId) {
     return { ok: false, reject: authReject('') };
   }
@@ -198,7 +201,7 @@ export function planChatReadsInsertOwnership(
 export function planLikesInsertOwnership(
   row: Record<string, unknown>,
   requesterId: string | null | undefined,
-): InsertOwnershipPlan {
+): StrictInsertOwnershipPlan {
   if (!requesterId) {
     return { ok: false, reject: authReject('[SECURITY] IDOR: likes INSERT without requesterId blocked') };
   }
@@ -212,7 +215,7 @@ export function planLikesInsertOwnership(
 export function planSignalSendsInsertOwnership(
   row: Record<string, unknown>,
   requesterId: string | null | undefined,
-): InsertOwnershipPlan {
+): StrictInsertOwnershipPlan {
   if (!requesterId) {
     return {
       ok: false,
@@ -291,7 +294,7 @@ export function planBlockedUsersInsertOwnership(
   row: Record<string, unknown>,
   requesterId: string | null | undefined,
   existingById: Record<string, unknown> | undefined,
-): InsertOwnershipPlan {
+): StrictInsertOwnershipPlan {
   if (!requesterId) {
     return { ok: false, reject: authReject('') };
   }
@@ -334,7 +337,7 @@ export function planContactSharesInsertOwnership(
   row: Record<string, unknown>,
   requesterId: string | null | undefined,
   existingById: Record<string, unknown> | undefined,
-): InsertOwnershipPlan {
+): StrictInsertOwnershipPlan {
   if (!requesterId) {
     return { ok: false, reject: authReject('') };
   }
@@ -377,7 +380,7 @@ export function planContactShareEventsInsertOwnership(
   row: Record<string, unknown>,
   requesterId: string | null | undefined,
   existingById: Record<string, unknown> | undefined,
-): InsertOwnershipPlan {
+): StrictInsertOwnershipPlan {
   if (!requesterId) {
     return { ok: false, reject: authReject('') };
   }

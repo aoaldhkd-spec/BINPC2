@@ -337,19 +337,19 @@ export function WaitingOverlay({ sessionActive, onEnter, onRecover }: {
               {/* 본문 */}
               <div className="px-6 py-6">
                 <p className="text-white text-[15px] font-bold leading-7 text-center break-keep mb-6">
-                  본 서비스는 원활한 모임 진행만을 위하여 입력되며,{' '}
-                  모든 개인 정보는 저장·수집하지 않습니다.{' '}
-                  모임 종료 시 즉시 파기합니다.
+                  본 서비스는 모임 참여를 위해 프로필과 활동 정보를 처리합니다.{' '}
+                  행사 프로필·하트·채팅은 매일 17:00 전체 초기화 시 삭제 대상입니다.{' '}
+                  사진 원본·일부 운영기록 및 별도 백업은 별도 보관·삭제 정책을 따릅니다.
                 </p>
                 <p className="text-slate-400 text-xs text-center leading-relaxed break-keep mb-6">
-                  동의하지 않을 시 본 모임에 불이익이 있을 수 있습니다.
+                  다음 프로필 등록 화면에서 수집·이용 및 참여자 공개 내용을 확인하고 직접 동의 여부를 선택해 주세요.
                 </p>
                 <div className="flex flex-col gap-3">
                   <button
                     onClick={() => { setShowConsentModal(false); onEnter(); }}
                     className="w-full py-4 bg-gradient-to-r from-teal-500 to-cyan-500 hover:from-teal-400 hover:to-cyan-400 text-white font-black text-base rounded-2xl shadow-lg shadow-teal-500/30 transition-all active:scale-98"
                   >
-                    위 내용에 동의합니다
+                    안내 확인 · 프로필 설정
                   </button>
                   <button
                     onClick={() => setShowConsentModal(false)}

@@ -3518,6 +3518,13 @@ router.post('/op', async (req: Request, res: Response) => {
         }
 
         if (table === 'profiles') {
+          if (effectiveRow.registration_consent != null) {
+            const c = effectiveRow.registration_consent as Record<string, unknown>;
+            if (typeof c !== 'object' || Array.isArray(c) || c.collection !== true || c.sharing !== true || c.version !== '2026-10-13-v1') {
+              return res.status(400).json({ data: null, error: { message: '필수 개인정보 동의를 확인해 주세요.', code: 'CONSENT_REQUIRED' } });
+            }
+            effectiveRow = { ...effectiveRow, registration_consent: { collection: true, sharing: true, version: '2026-10-13-v1', accepted_at: ts() } };
+          }
           if (profileBirthYearRejected(res, effectiveRow.birth_year)) return;
           const { use5Digit, poolSize } = _pinParams!;
           const usedPins = _insertPinSet!; // 루프 밖 빌드 Set 재사용 — O(1) 조회
@@ -4092,7 +4099,7 @@ router.post('/rpc/:name', async (req: Request, res: Response) => {
     const nameRej = validateRpcName(name);
     if (nameRej) return res.status(nameRej.status).json(nameRej.body);
   }
-  if (!ALLOWED_RPCS.has(name)) {
+  if (!ALLOWED_RPCS.has(String(name))) {
     logger.warn({ name, ip: req.ip }, '[SECURITY] Unknown RPC call rejected');
     const rej = rpcUnknownReject(String(name));
     return res.status(rej.status).json(rej.body);

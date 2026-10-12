@@ -51,7 +51,7 @@ export function PushNotificationSettings({ userId, enabled, darkMode }: {
       {checked && status && status.code !== 'ready' && (
         <p role="status" aria-live="polite" className={`text-[11px] pl-7 ${status.code === 'error' ? 'text-rose-500' : darkMode ? 'text-amber-200' : 'text-amber-700'}`}>
           {status.message}
-          {status.code === 'install-required' && ' 아이폰은 Safari 공유 → 홈 화면에 추가, 안드로이드는 Chrome 앱 설치 후 아이콘으로 열어 주세요.'}
+          {status.code === 'install-required' && ' 아이폰은 Safari 공유 → 홈 화면에 추가, 지원되는 안드로이드 브라우저는 웹에서도 허용할 수 있어요.'}
         </p>
       )}
       {checked && enabled && userId && status?.code === 'permission-required' && (

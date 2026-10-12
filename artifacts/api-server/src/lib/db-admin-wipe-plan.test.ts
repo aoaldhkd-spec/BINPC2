@@ -72,7 +72,6 @@ describe('db-admin-wipe-plan', () => {
 });
 
 import {
-  planClearAdminNpcRelationships,
   planApplyAdminNpcRelStore,
 } from './db-admin-wipe-plan.js';
 

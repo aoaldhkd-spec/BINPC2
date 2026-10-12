@@ -1,3 +1,4 @@
+import { DisplayScaleControls } from './DisplayScaleControls';
 import { EventScheduleBanner } from './EventScheduleBanner';
 import { useState, useEffect, useRef, useCallback, useMemo, memo, type ReactNode } from 'react';
 /**
@@ -1520,6 +1521,7 @@ export function MainScreen({
                 </button>
               </div>
               <p className={`mt-2 px-1 text-[10px] ${darkMode ? 'text-slate-500' : 'text-gray-400'}`}>도움말은 현재 화면의 사용법을, 다크 모드는 화면 색상을 바꿔요.</p>
+              <div className="mt-3 flex justify-end"><DisplayScaleControls dark={darkMode} /></div>
               <div className="mt-3"><PushNotificationSettings userId={currentUserId} enabled={moduleFlags.push} darkMode={darkMode} /></div>
             </div>
 

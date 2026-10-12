@@ -3,6 +3,7 @@ import React from 'react';
 import { cleanup, fireEvent, render, screen } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { DashboardTab } from './DashboardTab';
+import { OpsOverviewPanel } from './OpsOverviewPanel';
 import type { AppSettings, DbHealthData } from './shared';
 import type { DetachableModuleId } from '../lib/module-flags';
 
@@ -11,16 +12,12 @@ const noop = async () => {};
 
 function renderDash(settings: AppSettings | null, opts?: {
   onToggleSession?: () => void;
-  onSulbunOpen?: () => void | Promise<void>;
   dbHealth?: DbHealthData | null;
   onToggleModule?: (id: DetachableModuleId) => void;
 }) {
   const onToggleSession = opts?.onToggleSession ?? vi.fn<() => void>();
-  const onSulbunOpen = opts?.onSulbunOpen ?? vi.fn<() => void>();
-  const onToggleModule = opts?.onToggleModule ?? vi.fn();
   return {
     onToggleSession,
-    onSulbunOpen,
     ...render(
       <DashboardTab
         settings={settings}
@@ -33,13 +30,14 @@ function renderDash(settings: AppSettings | null, opts?: {
         onClearProfiles={noop}
         onClearHistory={noop}
         restoreMap={new Map()}
-        onSulbunOpen={onSulbunOpen}
-        onToggleModule={onToggleModule}
-        dbHealth={opts?.dbHealth ?? null}
-        dbHealthLoading={false}
       />,
     ),
   };
+}
+
+function renderOps(settings: AppSettings, opts: { dbHealth?: DbHealthData; onToggleModule?: (id: DetachableModuleId) => void } = {}) {
+  return render(<OpsOverviewPanel settings={settings} profiles={[]} dbHealth={opts.dbHealth ?? null}
+    dbHealthLoading={false} onToggleModule={opts.onToggleModule ?? vi.fn()} />);
 }
 
 const activeSettings = {
@@ -54,17 +52,16 @@ const activeSettings = {
 } as unknown as AppSettings;
 
 describe('DashboardTab automatic operations', () => {
-  it('shows fixed 23/24/01/17 plan and keeps sulbun-open button', () => {
-    const { onSulbunOpen } = renderDash({ session_active: false } as AppSettings);
+  it('keeps fixed 23/24/01/17 plan without the redundant manual open button', () => {
+    renderDash({ session_active: false } as AppSettings);
     const card = screen.getByTestId('daily-cycle-card');
     expect(card.textContent).toContain('23:00');
     expect(card.textContent).toContain('24:00');
     expect(card.textContent).toContain('01:00');
     expect(card.textContent).toContain('17:00');
-    const open = screen.getByTestId('sulbun-open-btn');
-    expect(open.textContent).toContain('술번개 오픈');
-    fireEvent.click(open);
-    expect(onSulbunOpen).toHaveBeenCalledTimes(1);
+    expect(screen.queryByTestId('sulbun-open-btn')).toBeNull();
+    expect(screen.queryByTestId('ops-overview-card')).toBeNull();
+    expect(screen.queryByTestId('module-switches-card')).toBeNull();
   });
 
   it('inactive: start enabled, end disabled', () => {
@@ -94,7 +91,7 @@ describe('DashboardTab automatic operations', () => {
 
   it('shows detachable modules and toggles without deleting core modules', () => {
     const onToggleModule = vi.fn();
-    renderDash({ session_active: true, module_flags: JSON.stringify({ hearts: false }) } as AppSettings, { onToggleModule });
+    renderOps({ session_active: true, module_flags: JSON.stringify({ hearts: false }) } as AppSettings, { onToggleModule });
     const card = screen.getByTestId('module-switches-card');
     expect(card.textContent).toContain('기능 붙이기 · 떼기');
     expect(card.textContent).toContain('하트');
@@ -112,7 +109,7 @@ describe('DashboardTab automatic operations', () => {
 
   it('requires confirmation before turning an enabled module off', () => {
     const onToggleModule = vi.fn();
-    renderDash({ session_active: true } as AppSettings, { onToggleModule });
+    renderOps({ session_active: true } as AppSettings, { onToggleModule });
     fireEvent.click(screen.getByTestId('module-toggle-direct_chat'));
     expect(onToggleModule).not.toHaveBeenCalled();
     expect(screen.getByText('1:1 채팅 기능을 잠시 떼시겠습니까?')).toBeTruthy();
@@ -121,7 +118,7 @@ describe('DashboardTab automatic operations', () => {
   });
 
   it('shows one-glance live development and operations status', () => {
-    renderDash(activeSettings, {
+    renderOps(activeSettings, {
       dbHealth: {
         persistErrors: 0,
         recentErrors: [],

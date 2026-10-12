@@ -1,3 +1,4 @@
+import { RainbowUnlockGuide } from './components/RainbowUnlockGuide';
 import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { supabase, setLocalDbUserId, fetchAndSetSseToken, ensureWriteSession, onSseReconnect } from './lib/supabase';
 import { useParticipantSoTResync } from './hooks/useParticipantSoTResync';
@@ -1135,6 +1136,11 @@ function App() {
 
   return (
     <ParticipantNavProvider nav={participantNav}>
+      <RainbowUnlockGuide userId={currentUserId} now={scheduleNow}
+        available={view === 'main' && profileBoot === 'ok' && moduleFlags.hearts && !functionsLocked
+          && participantHearts.unlocked.has('rainbow') && !showTutorialModal && !likeConfirmTarget
+          && !showResetPassword && !contactShareTarget && !showContactQr && !showQrScanner}
+        remaining={participantHearts.rainbowRemaining} dark={darkMode} />
       <AppOverlays
         isSubScreen={isSubScreen}
         mainTab={mainTab}

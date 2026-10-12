@@ -80,18 +80,18 @@ export function forceUpdateOwnershipPatch(
   requesterId: string,
 ): Record<string, unknown> {
   if (table === 'blocked_users') {
-    const next = { ...patch, user_id: requesterId };
+    const next: Record<string, unknown> = { ...patch, user_id: requesterId };
     delete next.id;
     return next;
   }
   if (table === 'contact_shares') {
-    const next = { ...patch, liked_id: requesterId };
+    const next: Record<string, unknown> = { ...patch, liked_id: requesterId };
     delete next.id;
     delete next.liker_id;
     return next;
   }
   if (table === 'contact_share_events') {
-    const next = { ...patch, from_user_id: requesterId };
+    const next: Record<string, unknown> = { ...patch, from_user_id: requesterId };
     delete next.id;
     delete next.to_user_id;
     return next;

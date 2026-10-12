@@ -13,7 +13,7 @@ export const ALLOWED_RPCS = new Set([
 
 export type RpcGateReject = {
   status: number;
-  body: { data: null; error: { message: string; code?: string } };
+  body: { data: null | { ok: false }; error: { message: string; code?: string } };
 };
 
 export const RPC_ADMIN_PASSWORD_UNSET_MESSAGE =

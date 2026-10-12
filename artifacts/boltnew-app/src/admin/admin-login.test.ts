@@ -110,7 +110,9 @@ describe('credentials tab copy', () => {
     expect(adminApp).not.toMatch(/onSaveSchedule/);
     expect(adminApp).not.toMatch(/onSaveNotices/);
     expect(adminApp).not.toMatch(/direct_notice_presets/);
-    expect(adminApp).toMatch(/onSulbunOpen=\{handleSulbunOpen\}/);
+    // 2026-10-13: user removed the redundant manual-open UI, not the server schedule.
+    expect(adminApp).not.toMatch(/onSulbunOpen=\{handleSulbunOpen\}/);
+    expect(adminApp).toMatch(/onToggleSession=\{handleToggleSession\}/);
   });
 
   it('plants a local operator session only in Vite DEV, never as a public skip', () => {
