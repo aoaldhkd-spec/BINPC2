@@ -253,9 +253,9 @@ export function AppOverlays(p: AppOverlaysProps) {
             onGoToChats={() => {
               const senderId = bottomNotif.profileId;
               const sender = senderId && (profiles.find(p => p.id === senderId) ?? receivedLikers.find(p => p.id === senderId));
-              if ((bottomNotif.type === 'message' || (bottomNotif.type === 'chat' && !bottomNotif.message)) && sender && sender.id !== currentUserId) {
+              if ((bottomNotif.type === 'message' || bottomNotif.type === 'chat') && sender && sender.id !== currentUserId) {
                 void openChatGuarded(sender);
-              } else if ((bottomNotif.type === 'message' || (bottomNotif.type === 'chat' && !bottomNotif.message)) && senderId && senderId !== currentUserId) {
+              } else if ((bottomNotif.type === 'message' || bottomNotif.type === 'chat') && senderId && senderId !== currentUserId) {
                 // A realtime message can arrive before the corresponding profile catalog loads.
                 void supabase.from('profiles').select(PROFILE_ROW_SELECT).eq('id', senderId).maybeSingle()
                   .then(({ data }) => {
