@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
-import { supabase, setLocalDbUserId, fetchAndSetSseToken, ensureWriteSession } from './lib/supabase';
+import { supabase, setLocalDbUserId, fetchAndSetSseToken, ensureWriteSession, onSseReconnect } from './lib/supabase';
 import { useParticipantSoTResync } from './hooks/useParticipantSoTResync';
 import { useSseFallbackPoll } from './hooks/useSseFallbackPoll';
 import { useDarkModeStorageSync } from './hooks/useDarkModeStorageSync';
@@ -62,7 +62,7 @@ import { useHearts } from './hooks/useHearts';
 import { useChat } from './hooks/useChat';
 import { createParticipantNav, isParticipantAppPath } from './lib/participant-nav-history';
 import { ParticipantNavProvider } from './hooks/useParticipantNav';
-import { registerPushSub } from './lib/webPush';
+import { getPushOptIn, registerPushSub } from './lib/webPush';
 import { DEFAULT_MODULE_FLAGS, type ModuleFlags } from './lib/module-flags';
 import {
   type BottomNotificationData,
@@ -915,10 +915,12 @@ function App() {
     loadContactShareData: loadContactShareDataForModules,
   });
 
-  // Web push 구독 — 로그인 완료 후 알림 권한 요청 및 구독 등록
+  // Only already-allowed push subscriptions are automatically restored on app boot.
+  // Initial permission is requested synchronously from the registration checkbox tap.
   useEffect(() => {
-    if (!currentUserId || !moduleFlags.push) return;
-    registerPushSub(currentUserId);
+    if (!currentUserId || !moduleFlags.push || !getPushOptIn(currentUserId)) return;
+    void registerPushSub(currentUserId);
+    return onSseReconnect(() => { void registerPushSub(currentUserId); });
   }, [currentUserId, moduleFlags.push]);
 
 
@@ -967,7 +969,7 @@ function App() {
     const cleanUrl = () => {
       for (const key of ['push', 'from', 'peer', 'chat']) params.delete(key);
       const q = params.toString();
-      window.history.replaceState({}, '', `${window.location.pathname}${q ? `?${q}` : ''}${window.location.hash}`);
+      window.history.replaceState(window.history.state, '', `${window.location.pathname}${q ? `?${q}` : ''}${window.location.hash}`);
     };
 
     if (pushKind === 'heart') {
@@ -985,15 +987,38 @@ function App() {
       if (!moduleFlags.direct_chat) { cleanUrl(); return; }
       const peerId = params.get('peer');
       const peer = peerId ? profileMap.get(peerId) : undefined;
-      if (peer) {
-        openChatGuarded(peer);
+      if (peer && peer.id !== currentUserId) {
+        void openChatGuarded(peer);
+        cleanUrl();
+      } else if (peerId && peerId !== currentUserId) {
+        // Direct PWA launch may happen before the profile catalog is loaded.
+        // Look up only that peer, not every participant's private messages.
+        void supabase.from('profiles').select(PROFILE_ROW_SELECT).eq('id', peerId).maybeSingle()
+          .then(({ data }) => {
+            if (userIdRef.current !== currentUserId) return;
+            if (data) void openChatGuarded(data as Profile);
+            else {
+              setView('main');
+              setMainTab('my');
+              setMySubTabHint('chats');
+              void loadChatList(currentUserId);
+            }
+          })
+          .catch(() => {
+            if (userIdRef.current !== currentUserId) return;
+            setView('main');
+            setMainTab('my');
+            setMySubTabHint('chats');
+            void loadChatList(currentUserId);
+          })
+          .finally(cleanUrl);
       } else {
         setView('main');
         setMainTab('my');
         setMySubTabHint('chats');
         void loadChatList(currentUserId);
+        cleanUrl();
       }
-      cleanUrl();
     }
   }, [
     currentUserId, profileBoot, profileMap, openChatGuarded,
