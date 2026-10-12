@@ -30,14 +30,17 @@ jobs:
           p = pathlib.Path('.github/review-transfer')
           encoded = ''.join((p / f'part-{n}.txt').read_text().strip() for n in range(1,5))
           raw = lzma.decompress(base64.b64decode(encoded, validate=True))
-          expected = 'e60a3eb13e982fd24ea917992d2b47bfccb7527efd9040ac47e934417b53498f'
-          assert hashlib.sha256(raw).hexdigest() == expected, 'PATCH_SHA256_MISMATCH'
+          assert hashlib.sha256(raw).hexdigest() == 'e60a3eb13e982fd24ea917992d2b47bfccb7527efd9040ac47e934417b53498f', 'PATCH_SHA256_MISMATCH'
           pathlib.Path('/tmp/binpc2-reviewed.patch').write_bytes(raw)
-          print('Reviewed patch SHA256 verified; bytes:', len(raw))
+          supplement = (p / 'supplement.patch').read_bytes()
+          assert hashlib.sha256(supplement).hexdigest() == '60fec35eaff38691c5d9d8858f10666a4b219864a9919ebdbbcd5c954925a9e2', 'SUPPLEMENT_SHA256_MISMATCH'
+          print('Both reviewed patches verified')
           PY
           git apply --check /tmp/binpc2-reviewed.patch
           git apply /tmp/binpc2-reviewed.patch
-          rm .github/review-transfer/part-{1,2,3,4}.txt
+          git apply --check .github/review-transfer/supplement.patch
+          git apply .github/review-transfer/supplement.patch
+          rm .github/review-transfer/part-{1,2,3,4}.txt .github/review-transfer/supplement.patch
           rmdir .github/review-transfer
           rm .github/workflows/apply-ui-review-once.yml
           git diff --check
@@ -48,20 +51,35 @@ jobs:
           cache: pnpm
       - run: corepack enable
       - run: pnpm install --frozen-lockfile
-      - name: Complete regression suite without production credentials
+      - name: Complete checks without production credentials
         shell: bash
         run: |
-          set -euo pipefail
-          pnpm run verify:ci 2>&1 | tee "$RUNNER_TEMP/binpc2-reports/verify-ci.log"
-      - name: Typecheck, lint, and build frontend and API
-        shell: bash
-        run: |
-          set -euo pipefail
-          for package in @workspace/boltnew-app @workspace/api-server; do
-            for command in typecheck lint build; do
-              pnpm --filter "$package" "$command" 2>&1 | tee -a "$RUNNER_TEMP/binpc2-reports/build-checks.log"
-            done
+          set -uo pipefail
+          failed=0
+          commands=(
+            'pnpm run verify:records'
+            'pnpm run verify:guards'
+            'pnpm run audit:code'
+            'pnpm --filter @workspace/api-server test:unit'
+            'pnpm --filter @workspace/boltnew-app test:unit'
+            'pnpm --filter @workspace/boltnew-app typecheck'
+            'pnpm --filter @workspace/boltnew-app lint'
+            'pnpm --filter @workspace/boltnew-app build'
+            'pnpm --filter @workspace/api-server typecheck'
+            'pnpm --filter @workspace/api-server lint'
+            'pnpm --filter @workspace/api-server build'
+          )
+          i=0
+          for command in "${commands[@]}"; do
+            i=$((i+1))
+            echo "::group::$command"
+            bash -o pipefail -c "$command" 2>&1 | tee "$RUNNER_TEMP/binpc2-reports/check-$i.log"
+            code=${PIPESTATUS[0]}
+            printf '%s\t%s\t%s\n' "$i" "$code" "$command" >> "$RUNNER_TEMP/binpc2-reports/results.tsv"
+            if [ "$code" -ne 0 ]; then failed=1; fi
+            echo '::endgroup::'
           done
+          exit "$failed"
       - name: Commit only after tests and reject concurrent branch changes
         shell: bash
         run: |
