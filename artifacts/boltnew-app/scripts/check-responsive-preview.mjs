@@ -66,6 +66,17 @@ try {
         await page.goto('http://127.0.0.1:8766/',{waitUntil:'networkidle'});
         const nav=page.getByRole('navigation',{name:'참여자 메뉴'});await nav.waitFor();
         await page.getByTestId('profile-card-photo').first().waitFor();
+        // The new unlock guide is intentionally modal. Exercise its real close
+        // control rather than clicking through it or disabling it in the fixture.
+        const guide=page.getByRole('dialog',{name:'🌈 무지개하트가 열렸어요'});
+        if(await guide.isVisible()) {
+          const box=await guide.boundingBox();
+          assert(box.x>=-1&&box.y>=-1&&box.x+box.width<=width+1&&box.y+box.height<=height+1,'rainbow guide clips viewport');
+          await page.screenshot({path:join(out,`rainbow-guide-${stamp}.png`)});
+          await guide.getByRole('button',{name:'확인했어요',exact:true}).click();
+          await guide.waitFor({state:'hidden'});
+          record.checks.push('rainbow-guide-fits-and-dismisses');
+        }
         await checkWidth('profiles');
         await page.screenshot({path:join(out,`participants-${stamp}.png`)});
         if(width<768){
@@ -87,6 +98,7 @@ try {
         await page.screenshot({path:join(out,`settings-110-${stamp}.png`),fullPage:true});
         await page.reload({waitUntil:'networkidle'});await nav.waitFor();
         assert(await page.evaluate(()=>localStorage.getItem('binpc2-display-scale-v1'))==='1.1','display scale lost on reload');
+        assert(!(await guide.isVisible()),'dismissed rainbow guide reappeared after reload');
         await checkWidth('profiles-110%-reopened');
         for(const name of ['하트, 채팅','통계','랭킹']){
           await nav.getByRole('button',{name,exact:true}).click();await checkWidth(name+'-110%');
