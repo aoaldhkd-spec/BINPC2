@@ -50,18 +50,31 @@ self.addEventListener('push', (event) => {
 self.addEventListener('notificationclick', (event) => {
   event.notification.close();
   if (event.action === 'dismiss') return;
-  const target = new URL(event.notification.data?.url || '/', self.location.origin).href;
+
+  // Only local BINPC2 routes may be opened from a push payload.
+  const destination = new URL(event.notification.data?.url || '/', self.location.origin);
+  const target = destination.origin === self.location.origin
+    ? destination.href : new URL('/', self.location.origin).href;
 
   event.waitUntil(
     self.clients.matchAll({ type: 'window', includeUncontrolled: true })
-      .then((clients) => {
-        const existing = clients.find((client) => {
-          try { return new URL(client.url).origin === self.location.origin; } catch { return false; }
+      .then(async (clients) => {
+        const appClient = clients.find((client) => {
+          try {
+            const url = new URL(client.url);
+            return url.origin === self.location.origin
+              && !url.pathname.startsWith('/admin') && !url.pathname.startsWith('/test');
+          } catch { return false; }
         });
-        if (existing) {
-          return existing.navigate(target).then(() => existing.focus());
+        if (!appClient) return self.clients.openWindow(target);
+        try {
+          const navigated = await appClient.navigate(target);
+          return (navigated || appClient).focus();
+        } catch {
+          // On mobile platforms where navigate() is not available, open the
+          // exact deep link rather than focusing a stale chat screen.
+          return self.clients.openWindow(target);
         }
-        return self.clients.openWindow(target);
       })
       .catch((err) => console.warn('[sw] notificationclick failed:', err)),
   );
