@@ -33,6 +33,7 @@ function fakePool(fail?: string) {
     if (q === 'ROLLBACK') { if (snapshot) db = snapshot; snapshot = null; return { rows: [] }; }
     if (q === 'COMMIT') { snapshot = null; return { rows: [] }; }
     if (q.includes('pg_advisory_xact_lock')) return { rows: [] };
+    if (q.startsWith('SET LOCAL lock_timeout') || q.startsWith('LOCK TABLE app_kv_rows')) return { rows: [] };
     if (q.startsWith('SELECT row_id, data') || q.startsWith('SELECT data FROM app_kv_rows')) {
       const entry = [...(db.get('app_settings') ?? new Map()).entries()][0];
       return { rows: entry ? [{ row_id: entry[0], data: entry[1] }] : [] };
