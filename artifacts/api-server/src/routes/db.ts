@@ -3388,6 +3388,7 @@ router.post('/op', async (req: Request, res: Response) => {
         // const row는 재할당 불가이므로 effectiveRow로 분리; 텍스트 필드 sanitization 적용
         let effectiveRow: Record<string, unknown> = sanitizeRow(table, row);
         let npcAtomicSender = false;
+        let npcEventArchiveId = '';
 
         // ─ IDOR: INSERT ownership (db-op-insert-ownership) ────────────────
         if (table === 'messages') {
@@ -3696,6 +3697,7 @@ router.post('/op', async (req: Request, res: Response) => {
           // Prior likes and per-recipient/type duplicate checks are NEVER bypassed.
           const npcSender = getTable('profiles').some(p => String(p.id) === likeLiker && isAdminProfileRow(p));
           npcAtomicSender = npcSender && process.env.NODE_ENV !== 'test';
+          if (npcAtomicSender) npcEventArchiveId = String((getTable('app_settings')[0] ?? {}).event_cycle_archive_id ?? '');
           const eventSettings = (getTable('app_settings')[0] ?? {}) as Record<string, unknown>;
           const npcUsage = npcSender ? npcHeartAllowance({
             marker: eventSettings.npc_heart_refill,
@@ -3794,7 +3796,9 @@ router.post('/op', async (req: Request, res: Response) => {
         }
 
         const deferParticipantVisibility = table === 'profiles' && !isAdmin && process.env.NODE_ENV !== 'test';
-        if (!deferParticipantVisibility) tableData.push(newRow);
+        // Like a new participant, an NPC heart is hidden until PostgreSQL
+        // approves the global remaining allowance and commits its original row.
+        if (!deferParticipantVisibility && !npcAtomicSender) tableData.push(newRow);
         inserted.push(newRow);
         // 배치 삽입 시 다음 항목의 중복 검사가 정확하도록 Set 증분 업데이트
         if (table === 'profiles') {
@@ -3811,10 +3815,7 @@ router.post('/op', async (req: Request, res: Response) => {
               await persistNewParticipantForCycle(pool, newRow, profileEventArchiveId, pendingParticipantSecret);
               if (pendingParticipantSecret) getTable('device_secrets').push(pendingParticipantSecret);
             } else if (table === 'likes' && npcAtomicSender) {
-              const latest = (getTable('app_settings')[0] ?? {}) as Record<string, unknown>;
-              const committed = await persistNpcHeartAtomically(
-                pool, newRow, String(latest.event_cycle_archive_id ?? ''),
-              );
+              const committed = await persistNpcHeartAtomically(pool, newRow, npcEventArchiveId);
               if (committed.kind !== 'inserted') {
                 const index = tableData.findIndex(r => r.id === newRow.id);
                 if (index >= 0) tableData.splice(index, 1);
@@ -3856,14 +3857,17 @@ router.post('/op', async (req: Request, res: Response) => {
             logger.error({ err: e, table, rowId: newRow.id }, '[db] critical persist failed — rolled back memory');
             return sendReject(opPersistFailedReject());
           }
-          // A concurrent reset may have completed immediately after this insert
-          // committed. Do not re-expose an old-event profile in RAM or SSE.
-          const presentInCurrentEvent = !deferParticipantVisibility || (
-            (getTable('app_settings')[0] ?? {}).event_cycle_archive_id === profileEventArchiveId
-            && (getTable('app_settings')[0] ?? {}).event_cycle_reset_complete !== true
-          );
-          if (deferParticipantVisibility && presentInCurrentEvent) getTable('profiles').push(newRow);
-          if (presentInCurrentEvent) smartBroadcast(table, newRow, { type: 'change', table, event: 'INSERT', newRow, oldRow: null });
+          // Reset may have committed immediately after this write. Never
+          // re-expose a previous event's profile or NPC heart through RAM/SSE.
+          const settingsAfterWrite = (getTable('app_settings')[0] ?? {}) as Record<string, unknown>;
+          const sameActiveCycle = (archiveId: string) =>
+            settingsAfterWrite.event_cycle_archive_id === archiveId
+            && settingsAfterWrite.event_cycle_reset_complete !== true;
+          const visible = npcAtomicSender ? sameActiveCycle(npcEventArchiveId)
+            : !deferParticipantVisibility || sameActiveCycle(profileEventArchiveId);
+          if (deferParticipantVisibility && visible) getTable('profiles').push(newRow);
+          if (npcAtomicSender && visible) getTable('likes').push(newRow);
+          if (visible) smartBroadcast(table, newRow, { type: 'change', table, event: 'INSERT', newRow, oldRow: null });
         } else {
           smartBroadcast(table, newRow, { type: 'change', table, event: 'INSERT', newRow, oldRow: null });
           dbPersistRow(table, newRow).catch(e => logger.error({ err: e }, '[db] background task error'));
