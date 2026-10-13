@@ -2,6 +2,42 @@ import { describe, expect, it } from 'vitest';
 import { newAnonymousEventArchiveIdentity, summarizeAnonymousEvent } from './db-event-anonymous-history.js';
 
 describe('privacy-minimised event history', () => {
+  it('counts rainbow colours, unique senders, chat rooms and operations without raw personal data', () => {
+    const result = summarizeAnonymousEvent({
+      eventKey: '2026-10-13', adminProfileId: 'npc',
+      profiles: [{ id: 'npc', nickname: 'operator' }, { id: 'private-account', nickname: 'secret-person' }],
+      likes: [
+        { liker_id: 'private-account', liked_id: 'npc', heart_type: 'red', like_source: 'rainbow' },
+        { liker_id: 'private-account', liked_id: 'npc', heart_type: 'blue', like_source: 'grant' },
+      ],
+      messages: [{ content: 'secret dm' }],
+      groupMessages: [{ content: 'secret group' }], signals: [{ sender_id: 'private-account' }],
+      contactShares: [],
+      chats: [{ id: 'secret-chat-room' }],
+      groupChats: [{ id: 'secret-group-room' }],
+      groupParticipants: [{ profile_id: 'private-account' }],
+      adminActions: { start: 1, end: 1, autoEnd: 0, lock: 2, settings: 3 },
+      dbPersistErrorCount: null,
+      startedAt: '2026-10-13T18:00:00+09:00',
+      archivedAt: '2026-10-14T17:00:00+09:00',
+    });
+    expect(result.rainbowByColor.red).toBe(1);
+    expect(result.heartCounts.rainbow).toBe(1);
+    expect(result.heartCounts.blue).toBe(1);
+    expect(result.uniqueHeartSenderCount).toBe(1);
+    expect(result.uniqueHeartRecipientCount).toBe(1);
+    expect(result.directChatRoomCount).toBe(1);
+    expect(result.groupRoomCount).toBe(1);
+    expect(result.groupParticipantCount).toBe(1);
+    expect(result.adminActions.lock).toBe(2);
+    expect(result.adminActions.reset).toBe(1);
+    expect(result.dbPersistErrorCount).toBeNull(); // unknown, never pretend 0
+    const encoded = JSON.stringify(result);
+    for (const privateValue of ['private-account','secret-person','secret-chat-room','secret-group-room','secret dm','secret group']) {
+      expect(encoded).not.toContain(privateValue);
+    }
+  });
+
   it('reuses the same archive ID for repeated snapshots of the same event', () => {
     const identity = newAnonymousEventArchiveIdentity('2026-10-13');
     const input = {
