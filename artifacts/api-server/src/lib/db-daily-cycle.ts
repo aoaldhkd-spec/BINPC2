@@ -10,6 +10,8 @@
  * 01/17 use durable per-Seoul-date markers so a server restart can catch up once.
  */
 
+import { newAnonymousEventArchiveIdentity } from './db-event-anonymous-history.js';
+
 export const FIXED_DAILY_EVENT_SCHEDULE = JSON.stringify({
   timezone: 'Asia/Seoul',
   version: 2,
@@ -126,8 +128,9 @@ export function dueDailyCycleActions(
   const startedDate = seoulDateKey(started);
   const endDate = minuteOfDay(started) >= DAILY_SESSION_END_HOUR * 60
     ? key(addDays(parts(started), 1)) : startedDate;
-  const resetDate = minuteOfDay(started) >= DAILY_RESET_HOUR * 60
-    ? key(addDays(parts(started), 1)) : startedDate;
+  // The 17:00 reset must follow this event's next 01:00 admission close.
+  // A daytime start (e.g. 13:00) must never wipe that event at 17:00 the same day.
+  const resetDate = endDate;
   return {
     sessionEndDate:
       minute >= DAILY_SESSION_END_HOUR * 60
@@ -141,6 +144,27 @@ export function dueDailyCycleActions(
       && String(settings.daily_reset_date ?? '') !== today
         ? today
         : null,
+  };
+}
+
+/**
+ * Starting the same, not-yet-reset event again must keep its original archive ID
+ * and fixed 01:00/17:00 boundaries; a new identity is minted only after reset.
+ */
+export function planEventCycleStartPatch(settings: Record<string, unknown>, now = new Date()) {
+  const previousStart = typeof settings.event_cycle_started_at === 'string'
+    ? settings.event_cycle_started_at : '';
+  const archiveId = typeof settings.event_cycle_archive_id === 'string'
+    ? settings.event_cycle_archive_id : '';
+  const existingCycle = Number.isFinite(Date.parse(previousStart))
+    && settings.event_cycle_reset_complete !== true;
+  const validArchive = /^binpc2:event-anon:v1:\d{4}-\d{2}-\d{2}:[a-f0-9-]{36}$/.test(archiveId);
+  return {
+    session_active: true,
+    event_cycle_started_at: existingCycle ? previousStart : now.toISOString(),
+    event_cycle_reset_complete: false,
+    event_cycle_archive_id: existingCycle && validArchive
+      ? archiveId : newAnonymousEventArchiveIdentity(seoulDateKey(now)).archiveId,
   };
 }
 

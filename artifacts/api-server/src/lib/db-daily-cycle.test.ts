@@ -3,6 +3,7 @@ import {
   FIXED_DAILY_EVENT_SCHEDULE,
   dailyCycleBootstrapPatch,
   dueDailyCycleActions,
+  planEventCycleStartPatch,
   nextDailyCycleDelayMs,
 } from './db-daily-cycle.js';
 
@@ -69,6 +70,44 @@ describe('db-daily-cycle', () => {
       { ...started, event_cycle_reset_complete: true },
       new Date('2026-10-15T19:00:00+09:00'),
     )).toEqual({ sessionEndDate: null, resetDate: null });
+  });
+
+  it('preserves the same archive identity when a stopped event is reopened', () => {
+    const started = planEventCycleStartPatch({}, new Date('2026-10-13T19:00:00+09:00'));
+    expect(started.session_active).toBe(true);
+    expect(started.event_cycle_archive_id).toMatch(/^binpc2:event-anon:v1:2026-10-13:/);
+    const reopened = planEventCycleStartPatch(
+      { ...started, session_active: false },
+      new Date('2026-10-13T22:00:00+09:00'),
+    );
+    expect(reopened.event_cycle_started_at).toBe(started.event_cycle_started_at);
+    expect(reopened.event_cycle_archive_id).toBe(started.event_cycle_archive_id);
+    const next = planEventCycleStartPatch(
+      { ...started, event_cycle_reset_complete: true },
+      new Date('2026-10-14T19:00:00+09:00'),
+    );
+    expect(next.event_cycle_archive_id).not.toBe(started.event_cycle_archive_id);
+    expect(next.event_cycle_started_at).not.toBe(started.event_cycle_started_at);
+  });
+
+  it('never resets a daytime-started event before the next 01:00 close', () => {
+    const settings = planEventCycleStartPatch({}, new Date('2026-10-13T13:00:00+09:00'));
+    expect(dueDailyCycleActions(settings, new Date('2026-10-13T17:00:00+09:00')))
+      .toEqual({ sessionEndDate: null, resetDate: null });
+    expect(dueDailyCycleActions(settings, new Date('2026-10-14T01:00:00+09:00')))
+      .toEqual({ sessionEndDate: '2026-10-14', resetDate: null });
+    expect(dueDailyCycleActions({ ...settings, daily_session_end_date: '2026-10-14' },
+      new Date('2026-10-14T17:00:00+09:00')))
+      .toEqual({ sessionEndDate: null, resetDate: '2026-10-14' });
+  });
+
+  it('closes and resets a 00:30 start on that same calendar day', () => {
+    const settings = planEventCycleStartPatch({}, new Date('2026-10-14T00:30:00+09:00'));
+    expect(dueDailyCycleActions(settings, new Date('2026-10-14T01:00:00+09:00')))
+      .toEqual({ sessionEndDate: '2026-10-14', resetDate: null });
+    expect(dueDailyCycleActions({ ...settings, daily_session_end_date: '2026-10-14' },
+      new Date('2026-10-14T17:00:00+09:00')))
+      .toEqual({ sessionEndDate: null, resetDate: '2026-10-14' });
   });
 
   it('arms the next exact destructive boundary', () => {

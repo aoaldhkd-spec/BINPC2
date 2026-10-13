@@ -461,6 +461,7 @@ import {
 import {
   FIXED_DAILY_EVENT_SCHEDULE,
   dailyCycleBootstrapPatch,
+  planEventCycleStartPatch,
   dueDailyCycleActions,
   nextDailyCycleDelayMs,
 } from '../lib/db-daily-cycle';
@@ -4239,11 +4240,10 @@ router.post('/rpc/:name', async (req: Request, res: Response) => {
         checkPassword();
         const active = args.p_active === true;
         const current = (getTable('app_settings')[0] ?? {}) as Record<string, unknown>;
-        const merged = mergeAppSettings(current, {
-          session_active: active,
-          ...(active ? { event_cycle_started_at: new Date().toISOString(), event_cycle_reset_complete: false,
-            event_cycle_archive_id: `binpc2:event-anon:v1:${new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Seoul' })}:${crypto.randomUUID()}` } : {}),
-        });
+        const merged = mergeAppSettings(
+          current,
+          active ? planEventCycleStartPatch(current, new Date()) : { session_active: false },
+        );
         const updated = await overlayDbSecrets(merged, new Set());
         store['app_settings'] = [updated];
         try {
