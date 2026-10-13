@@ -2,7 +2,7 @@ import '../lib/dns-ipv4-first.js';
 import { atomicEventReset } from '../lib/db-event-reset-transaction.js';
 import { eventActionsAfter } from '../lib/db-event-admin-audit.js';
 import { planNpcHeartRefill, npcHeartAllowance } from '../lib/db-npc-heart-recharge.js';
-import { eventCycleUnlocked } from '../lib/db-event-cycle-heart.js';
+import { eventCycleUnlocked, eventCycleCanOpenAdmission } from '../lib/db-event-cycle-heart.js';
 import { newParticipantAdmissionReject } from '../lib/db-event-admission.js';
 import { Router, type Request, type Response } from 'express';
 import pg from 'pg';
@@ -940,9 +940,11 @@ async function catchUpDailyCycleAutomation(): Promise<void> {
         daily_session_end_date: due.sessionEndDate,
         event_schedule: FIXED_DAILY_EVENT_SCHEDULE,
         ...(refill ? { npc_heart_refill: refill } : {}),
-        event_cycle_admin_actions: eventActionsAfter({
-          previous: settings.event_cycle_admin_actions, action: 'autoEnd',
-        }),
+        ...(settings.session_active === true ? {
+          event_cycle_admin_actions: eventActionsAfter({
+            previous: settings.event_cycle_admin_actions, action: 'autoEnd',
+          }),
+        } : {}),
       });
       logger.info({ date: due.sessionEndDate }, '[daily-cycle] 01:00 session auto-ended');
     }
@@ -4302,6 +4304,12 @@ router.post('/rpc/:name', async (req: Request, res: Response) => {
         const current = (getTable('app_settings')[0] ?? {}) as Record<string, unknown>;
         if (current.session_active === active) {
           return res.json({ data: { session_active: active }, error: null });
+        }
+        if (active && !eventCycleCanOpenAdmission(current, new Date())) {
+          return res.status(409).json({ data: null, error: {
+            code: 'EVENT_CLOSED_UNTIL_RESET',
+            message: '01시 신규 입장이 마감되었습니다. 안전한 다음 17시 초기화가 끝난 뒤 시작할 수 있습니다.',
+          } });
         }
         try {
           const npc = await ensureAdminProfile();
