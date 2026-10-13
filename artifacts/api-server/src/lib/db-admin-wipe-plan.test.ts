@@ -66,7 +66,7 @@ describe('db-admin-wipe-plan', () => {
     expect(planWipeTableBroadcast('profiles', [{ id: 1 }]).mode).toBe('profile_delete');
     expect(planWipeTableBroadcast('notifications', [{ id: 1 }]).mode).toBe('row_delete');
     expect([...TEST_WIPE_ALL_TABLES]).toEqual(['likes', 'messages', 'chats', 'profiles']);
-    expect([...ADMIN_EVENT_END_PRESERVE_TABLES]).toEqual(['event_sales_reports']);
+    expect([...ADMIN_EVENT_END_PRESERVE_TABLES]).toEqual(['event_sales_reports', 'event_anonymous_archives']);
     expect(ADMIN_EVENT_END_CLEAR_TABLES).not.toContain('event_sales_reports');
   });
 });
