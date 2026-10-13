@@ -107,7 +107,7 @@ export function planWipeTableBroadcast(
 export const TEST_WIPE_ALL_TABLES = ['likes', 'messages', 'chats', 'profiles'] as const;
 
 /** Durable aggregate reports are intentionally not included in either wipe plan. */
-export const ADMIN_EVENT_END_PRESERVE_TABLES = ['event_sales_reports'] as const;
+export const ADMIN_EVENT_END_PRESERVE_TABLES = ['event_sales_reports', 'event_anonymous_archives'] as const;
 
 export type AdminNpcRelStorePatch = {
   messages?: Record<string, unknown>[];
