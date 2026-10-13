@@ -4172,7 +4172,11 @@ router.post('/op', async (req: Request, res: Response) => {
       }
       if (table === 'profiles') {
         for (const row of upserted) {
-          await autoMatchGroupChatGuarded(String(row.id), row);
+          // A reset may have committed while an in-flight registration was
+          // finishing; do not revive its group membership after reset.
+          if (getTable('profiles').some(p => String(p.id) === String(row.id))) {
+            await autoMatchGroupChatGuarded(String(row.id), row);
+          }
         }
       }
       if (selectAfterWrite) return res.json({ data: upserted, error: null });
