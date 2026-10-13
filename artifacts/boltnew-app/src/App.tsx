@@ -77,6 +77,7 @@ import {
   type ScannedContact,
 } from './lib/profile-contact-helpers';
 
+import { eventCycleUnlocked } from './lib/event-cycle-heart';
 const loadMainScreen = () => import('./components/MainScreen').then(m => ({ default: m.MainScreen }));
 const loadChatScreen = () => import('./components/ChatScreen');
 
@@ -210,6 +211,20 @@ function App() {
   const [timerEndAt, setTimerEndAt] = useState<string | null>(null);
   const [timerLabel, setTimerLabel] = useState<string | null>(null);
   const [eventScheduleRaw, setEventScheduleRaw] = useState<string | null>(null);
+  const [cycleMeta, setCycleMeta] = useState<{
+    startedAt: string | null; resetComplete: boolean; archiveId: string | null; npcRefill: unknown;
+  }>({ startedAt: null, resetComplete: true, archiveId: null, npcRefill: null });
+  const acceptCycleMeta = useCallback((data: Record<string, unknown>) => {
+    setCycleMeta(previous => ({
+      startedAt: 'event_cycle_started_at' in data
+        ? (typeof data.event_cycle_started_at === 'string' ? data.event_cycle_started_at : null) : previous.startedAt,
+      resetComplete: 'event_cycle_reset_complete' in data
+        ? data.event_cycle_reset_complete === true : previous.resetComplete,
+      archiveId: 'event_cycle_archive_id' in data
+        ? (typeof data.event_cycle_archive_id === 'string' ? data.event_cycle_archive_id : null) : previous.archiveId,
+      npcRefill: 'npc_heart_refill' in data ? data.npc_heart_refill : previous.npcRefill,
+    }));
+  }, []);
   const [, setSulbunEvent] = useState<SulbunEventState | null>(null);
   // Quotas change at clock-slot boundaries even when the schedule JSON is unchanged.
   const [eventScheduleMinute, setEventScheduleMinute] = useState(() => Math.floor(Date.now() / 60_000));
@@ -236,6 +251,13 @@ function App() {
       }, 2100);
     }, 30);
   }, []);
+  const eventScheduleRawForCycle = useMemo(() => {
+    const minute = eventScheduleMinute > 0 ? eventScheduleMinute * 60_000 : Date.now();
+    const keys = [...eventCycleUnlocked({
+      startedAt: cycleMeta.startedAt, resetComplete: cycleMeta.resetComplete, now: new Date(minute),
+    })];
+    return JSON.stringify({ timezone: 'Asia/Seoul', version: 2, slots: [], instant_unlock: keys });
+  }, [cycleMeta.startedAt, cycleMeta.resetComplete, eventScheduleMinute]);
   const [blockedUsers, setBlockedUsers] = useState<BlockedUser[]>([]);
   const [profileVisitors, setProfileVisitors] = useState<ProfileView[]>([]);
   const [newVisitCount, setNewVisitCount] = useState(0);
@@ -391,7 +413,8 @@ function App() {
     loadLikes, loadReceivedLikes, loadContactShareData, getHeartUsage,
     handleLike, executeLike, handleHeartResponse, handleContactShare,
     likeError, setLikeError,
-  } = useHearts(moduleFlags.hearts ? currentUserId : null, profiles, profileMap, openChat, eventScheduleRaw);
+  } = useHearts(moduleFlags.hearts ? currentUserId : null, profiles, profileMap, openChat,
+    eventScheduleRawForCycle, cycleMeta.npcRefill, cycleMeta.archiveId);
 
   const loadChatListForModules = useCallback((userId: string) => {
     if (!moduleFlags.direct_chat) return Promise.resolve();
@@ -430,8 +453,8 @@ function App() {
     [eventScheduleMinute],
   );
   const heartOpsConfig = useMemo(
-    () => parseHeartOps(eventScheduleRaw),
-    [eventScheduleRaw],
+    () => parseHeartOps(eventScheduleRawForCycle),
+    [eventScheduleRawForCycle],
   );
   const heartUsage = useMemo(() => getHeartUsage(), [getHeartUsage]);
   const participantHearts = useMemo(
@@ -803,6 +826,7 @@ function App() {
     setTimerEndAt,
     setTimerLabel,
     setEventSchedule: setEventScheduleRaw,
+    setEventCycleMeta: acceptCycleMeta,
     setSulbunEvent,
     setFunctionsLocked,
     setModuleFlags,
@@ -856,6 +880,7 @@ function App() {
       setFunctionsLocked(parseFunctionsLocked(patch.functionsLockedRaw));
     }
     if (patch.sulbunEvent !== undefined) setSulbunEvent(patch.sulbunEvent);
+    if (patch.eventCycleMeta !== undefined) acceptCycleMeta(patch.eventCycleMeta);
     if (patch.moduleFlags) setModuleFlags(patch.moduleFlags);
     if (patch.includeTimers) {
       setTimerEndAt(patch.timerEndAt ?? null);
@@ -896,6 +921,7 @@ function App() {
     setTimerEndAt,
     setTimerLabel,
     setEventScheduleRaw,
+    setEventCycleMeta: acceptCycleMeta,
     setSulbunEvent,
     setFunctionsLocked,
     setModuleFlags,
@@ -1278,6 +1304,8 @@ function App() {
           heartOpsConfig={heartOpsConfig}
           heartUsage={heartUsage}
           eventScheduleRaw={eventScheduleRaw}
+          eventCycleStartedAt={cycleMeta.startedAt}
+          eventCycleResetComplete={cycleMeta.resetComplete}
           onRefreshStatus={refreshStatusTab}
           onRefreshChat={refreshChatTab}
           onUpdateProfile={handleUpdateProfile}
