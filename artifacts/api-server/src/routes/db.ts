@@ -507,7 +507,6 @@ import {
   heartUsageFromLikeRows,
   parseHeartOps,
   serializeEventSchedule,
-  unlockedHeartKeys,
 } from '../lib/db-heart-ops';
 import {
   disableDirectNoticePresets,
