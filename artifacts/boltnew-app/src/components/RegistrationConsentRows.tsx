@@ -8,6 +8,13 @@ export function RegistrationConsentRows({ value, onChange, children }: {
 }) {
   const [detail, setDetail] = useState<'collection' | 'sharing' | null>(null);
   return <section aria-label="개인정보 및 알림 동의" className="rounded-2xl border border-gray-200 bg-gray-50 overflow-hidden">
+    <div className="flex items-center justify-between gap-2 border-b border-gray-200 px-3 py-2">
+      <p className="text-xs font-bold text-gray-700">필수 동의를 직접 선택해 주세요</p>
+      <button type="button" aria-label="필수 약관 모두 동의" onClick={() => onChange({ ...value, collection: true, sharing: true })}
+        className="shrink-0 rounded-lg border border-teal-300 bg-white px-3 py-2 text-xs font-bold text-teal-800">
+        필수 약관 모두 동의
+      </button>
+    </div>
     {([
       ['collection', '[필수] 개인정보 수집 및 이용 동의'],
       ['sharing', '[필수] 개인정보 제3자 제공 동의'],

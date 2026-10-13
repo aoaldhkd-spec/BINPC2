@@ -555,6 +555,19 @@ export function NicknameSetupScreen({ onSubmit, loading, registrationError, onRe
                 </div>
               </div>
 
+              <button type="button"
+                aria-label="필수 약관과 선택 알림 한 번에 동의"
+                onClick={() => {
+                  setPrivacyConsent({ collection: true, sharing: true, version: REGISTRATION_CONSENT_VERSION });
+                  setPushOptIn(true);
+                  // Explicit participant gesture only; OS permission still requires its own approval.
+                  void requestPushPermissionFromClick().then(setPushStatus);
+                }}
+                className="w-full rounded-xl border border-teal-300 bg-teal-50 px-3 py-3 text-sm font-bold text-teal-800 active:scale-[0.99]">
+                ✓ 필수 약관 동의 + 알림 받기 한 번에 선택
+              </button>
+              <p className="text-xs text-gray-500">직접 선택한 경우에만 체크됩니다. 아래에서 각각 해제할 수 있고, 휴대폰 알림 권한은 기기에서 따로 허용해야 합니다.</p>
+
               <RegistrationConsentRows value={privacyConsent} onChange={setPrivacyConsent}>
               <div>
                 <label className="flex items-start gap-2.5 cursor-pointer text-sm font-bold text-gray-700">
