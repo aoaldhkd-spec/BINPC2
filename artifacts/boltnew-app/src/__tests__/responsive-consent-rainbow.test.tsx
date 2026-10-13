@@ -45,6 +45,16 @@ describe('explicit consent rows', () => {
     fireEvent.click(boxes[1]); expect(next.disabled).toBe(false); expect(boxes[2].checked).toBe(false);
     fireEvent.click(boxes[0]); expect(next.disabled).toBe(true);
   });
+  it('one explicit tap accepts only required privacy terms and never preselects OS notifications', () => {
+    render(<ConsentDemo />);
+    const boxes = screen.getAllByRole('checkbox') as HTMLInputElement[];
+    expect(boxes.every(x => !x.checked)).toBe(true);
+    fireEvent.click(screen.getByRole('button', { name: '필수 약관 모두 동의' }));
+    expect(boxes[0].checked).toBe(true);
+    expect(boxes[1].checked).toBe(true);
+    expect(boxes[2].checked).toBe(false);
+    expect((screen.getByRole('button', { name: '계속' }) as HTMLButtonElement).disabled).toBe(false);
+  });
   it('viewing details does not grant consent and closes with Escape', () => {
     render(<ConsentDemo />);
     fireEvent.click(screen.getByRole('button', { name: '[필수] 개인정보 수집 및 이용 동의 내용 보기' }));
