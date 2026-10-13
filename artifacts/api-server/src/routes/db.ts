@@ -1,5 +1,6 @@
 import '../lib/dns-ipv4-first.js';
 import { atomicEventReset } from '../lib/db-event-reset-transaction.js';
+import { eventActionsAfter } from '../lib/db-event-admin-audit.js';
 import { planNpcHeartRefill, npcHeartAllowance } from '../lib/db-npc-heart-recharge.js';
 import { eventCycleUnlocked } from '../lib/db-event-cycle-heart.js';
 import { newParticipantAdmissionReject } from '../lib/db-event-admission.js';
@@ -939,6 +940,9 @@ async function catchUpDailyCycleAutomation(): Promise<void> {
         daily_session_end_date: due.sessionEndDate,
         event_schedule: FIXED_DAILY_EVENT_SCHEDULE,
         ...(refill ? { npc_heart_refill: refill } : {}),
+        event_cycle_admin_actions: eventActionsAfter({
+          previous: settings.event_cycle_admin_actions, action: 'autoEnd',
+        }),
       });
       logger.info({ date: due.sessionEndDate }, '[daily-cycle] 01:00 session auto-ended');
     }
@@ -4304,6 +4308,20 @@ router.post('/rpc/:name', async (req: Request, res: Response) => {
           if (!npc?.id) throw new Error('범일NPC restoration/identity verification failed');
           const now = new Date();
           const patch: Record<string, unknown> = active ? planEventCycleStartPatch(current, now) : { session_active: false };
+          const freshStart = active && (current.event_cycle_reset_complete === true
+            || !Number.isFinite(Date.parse(String(current.event_cycle_started_at ?? ''))));
+          let dbErrorBaseline: number | null = null;
+          if (freshStart) {
+            // Read the durable counter, never estimate missing log events as zero.
+            const errorRows = await pool.query(buildKvSelectByTableRowIdSql(), ['db_error_log', 'counter']);
+            const rawCount = (errorRows.rows[0]?.data as Record<string, unknown> | undefined)?.count;
+            if (Number.isSafeInteger(rawCount) && Number(rawCount) >= 0) dbErrorBaseline = Number(rawCount);
+          }
+          const adminActions = eventActionsAfter({
+            previous: current.event_cycle_admin_actions,
+            action: active ? 'start' : 'end',
+            isNewEvent: freshStart,
+          });
           const recharge = planNpcHeartRefill({
             previous: current.npc_heart_refill,
             archiveId: String(active ? patch.event_cycle_archive_id : current.event_cycle_archive_id),
@@ -4311,7 +4329,11 @@ router.post('/rpc/:name', async (req: Request, res: Response) => {
             likes: getTable('likes'), now: now.toISOString(),
           });
           // Use rollback-safe persistence: event transition + NPC allowance in one row.
-          await persistAppSettingsPatch({ ...patch, npc_heart_refill: recharge });
+          await persistAppSettingsPatch({
+            ...patch, npc_heart_refill: recharge,
+            event_cycle_admin_actions: adminActions,
+            ...(freshStart ? { event_cycle_db_error_baseline: dbErrorBaseline } : {}),
+          });
         } catch (e) {
           logger.error({ err: e }, '[db] admin_toggle_session persist failed');
           const rej = rpcSessionPersistFailedReject();
@@ -4331,7 +4353,15 @@ router.post('/rpc/:name', async (req: Request, res: Response) => {
           event_schedule: FIXED_DAILY_EVENT_SCHEDULE,
         };
         const current = (getTable('app_settings')[0] ?? {}) as Record<string, unknown>;
-        const merged = mergeAppSettings(current, sanitizedSettingsPayload);
+        const eventStarted = Number.isFinite(Date.parse(String(current.event_cycle_started_at ?? '')))
+          && current.event_cycle_reset_complete !== true;
+        const auditAction = Object.prototype.hasOwnProperty.call(sanitizedSettingsPayload, 'functions_locked')
+          ? 'lock' : 'settings';
+        const auditPatch = eventStarted
+          ? { event_cycle_admin_actions: eventActionsAfter({
+            previous: current.event_cycle_admin_actions, action: auditAction,
+          }) } : {};
+        const merged = mergeAppSettings(current, { ...sanitizedSettingsPayload, ...auditPatch });
         const updated = await overlayDbSecrets(merged, explicitSecretKeys(sanitizedSettingsPayload));
         store['app_settings'] = [updated];
         try {
