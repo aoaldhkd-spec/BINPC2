@@ -1,0 +1,123 @@
+import { beforeEach, afterAll, describe, expect, it } from 'vitest';
+import pg from 'pg';
+import { atomicEventReset, type ResetPgPool, type ResetPgClient } from './db-event-reset-transaction.js';
+
+const url = process.env.TEST_DATABASE_URL;
+const test = url ? it : it.skip; // GitHub ephemeral PostgreSQL CI supplies this URL; no production credentials.
+const pool = url ? new pg.Pool({ connectionString: url, max: 4 }) : null;
+const id = 'binpc2:event-anon:v1:2026-10-13:aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
+const now = new Date('2026-10-14T17:00:00+09:00');
+const SQL = `CREATE TABLE IF NOT EXISTS app_kv_rows (
+  table_name text NOT NULL, row_id text NOT NULL, data jsonb NOT NULL,
+  updated_at timestamptz NOT NULL DEFAULT now(),
+  PRIMARY KEY (table_name, row_id)
+)`;
+const settings = { id: 'settings', event_cycle_started_at: '2026-10-13T18:00:00+09:00',
+  event_cycle_archive_id: id, session_active: false, event_cycle_reset_complete: false };
+const npc = { id: 'npc', nickname: '범일NPC', pin_code: '1234' };
+async function insert(table: string, rowId: string, data: object) {
+  await pool!.query('INSERT INTO app_kv_rows (table_name,row_id,data) VALUES ($1,$2,$3)', [table,rowId,JSON.stringify(data)]);
+}
+async function rows(table: string) {
+  return (await pool!.query('SELECT data FROM app_kv_rows WHERE table_name=$1', [table])).rows.map(r => r.data as Record<string, unknown>);
+}
+function adapter(fail?: (query: string) => boolean): ResetPgPool {
+  return {
+    connect: async (): Promise<ResetPgClient> => {
+      const real = await pool!.connect();
+      return {
+        query: async (sql, values = []) => {
+          if (fail?.(sql)) throw new Error('forced PostgreSQL failure');
+          const result = await real.query(sql, values);
+          return { rows: result.rows as Record<string, unknown>[] };
+        },
+        release: () => real.release(),
+      };
+    },
+    query: async (sql, values = []) => {
+      const result = await pool!.query(sql, values);
+      return { rows: result.rows as Record<string, unknown>[] };
+    },
+  };
+}
+function options() {
+  return {
+    now, clearTables: ['profiles','likes','messages'],
+    planAdmin: (profiles: Record<string,unknown>[]) => {
+      const found = profiles.find(p => p.id === 'npc');
+      if (!found) throw new Error('Missing test NPC');
+      return found;
+    },
+    adminIsProfile: (profile: Record<string, unknown>) => profile.id === 'npc',
+    buildNextSettings: (saved: Record<string,unknown>, signal: string) => ({
+      ...saved, session_active:false,event_cycle_reset_complete:true,reset_signal:signal,
+    }),
+  };
+}
+describe('real ephemeral PostgreSQL reset and rollback (no production data)', () => {
+  beforeEach(async () => {
+    if (!pool) return;
+    await pool.query(SQL);
+    await pool.query('TRUNCATE app_kv_rows');
+    await insert('app_settings','settings',settings);
+    await insert('profiles','npc',npc);
+    await insert('profiles','participant',{id:'participant',nickname:'PRIVATE_ALIAS'});
+    await insert('likes','like',{id:'like',liker_id:'participant',liked_id:'npc',heart_type:'red'});
+    await insert('messages','message',{id:'message',content:'DO_NOT_ARCHIVE'});
+  });
+  afterAll(async () => { await pool?.end(); });
+  for (const failSql of ['ON CONFLICT (table_name, row_id) DO NOTHING','DELETE FROM app_kv_rows','INSERT INTO app_kv_rows']) {
+    test('rolls back ALL rows and archive if SQL fails at ' + failSql, async () => {
+      let armed = failSql === 'INSERT INTO app_kv_rows';
+      const fail = (sql: string) => {
+        if (!armed) armed = true;
+        return armed && sql.includes(failSql);
+      };
+      await expect(atomicEventReset(adapter(fail), options())).rejects.toThrow('forced');
+      expect(await rows('profiles')).toHaveLength(2);
+      expect(await rows('likes')).toHaveLength(1);
+      expect(await rows('messages')).toHaveLength(1);
+      expect(await rows('event_anonymous_archives')).toHaveLength(0);
+      expect((await rows('app_settings'))[0]?.event_cycle_reset_complete).toBe(false);
+    });
+  }
+  test('commits archive, NPC and completion marker in the same transaction', async () => {
+    const outcome = await atomicEventReset(adapter(), options());
+    expect(outcome.status).toBe('committed');
+    expect((await rows('profiles')).map(r=>r.id)).toEqual(['npc']);
+    expect(await rows('likes')).toHaveLength(0);
+    expect(await rows('messages')).toHaveLength(0);
+    const archive = await rows('event_anonymous_archives');
+    expect(archive).toHaveLength(1);
+    expect(archive[0]?.participantCount).toBe(1);
+    expect(JSON.stringify(archive)).not.toMatch(/DO_NOT_ARCHIVE|PRIVATE_ALIAS/);
+    expect((await rows('app_settings'))[0]?.event_cycle_reset_complete).toBe(true);
+  });
+  test('serialises two competing API instances and writes one archive', async () => {
+    const [a,b] = await Promise.all([atomicEventReset(adapter(),options()), atomicEventReset(adapter(),options())]);
+    expect([a.status,b.status].sort()).toEqual(['already','committed']);
+    expect(await rows('event_anonymous_archives')).toHaveLength(1);
+    expect((await rows('profiles')).map(r=>r.id)).toEqual(['npc']);
+  });
+  test('reconciles a COMMIT that succeeded but whose acknowledgement was lost', async () => {
+    const first = adapter();
+    const lostReply: ResetPgPool = {
+      ...first,
+      connect: async () => {
+        const real = await first.connect();
+        return {
+          ...real,
+          query: async (sql, values) => {
+            const result = await real.query(sql, values);
+            if (sql === 'COMMIT') throw new Error('lost COMMIT acknowledgement');
+            return result;
+          },
+        };
+      },
+    };
+    const outcome = await atomicEventReset(lostReply, options());
+    expect(outcome.status).toBe('committed');
+    expect(await rows('event_anonymous_archives')).toHaveLength(1);
+    expect((await rows('app_settings'))[0]?.event_cycle_reset_complete).toBe(true);
+  });
+});
