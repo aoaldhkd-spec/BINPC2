@@ -3789,7 +3789,8 @@ router.post('/op', async (req: Request, res: Response) => {
           }
         }
 
-        tableData.push(newRow);
+        const deferParticipantVisibility = table === 'profiles' && !isAdmin && process.env.NODE_ENV !== 'test';
+        if (!deferParticipantVisibility) tableData.push(newRow);
         inserted.push(newRow);
         // 배치 삽입 시 다음 항목의 중복 검사가 정확하도록 Set 증분 업데이트
         if (table === 'profiles') {
@@ -3822,13 +3823,20 @@ router.post('/op', async (req: Request, res: Response) => {
             logger.error({ err: e, table, rowId: newRow.id }, '[db] critical persist failed — rolled back memory');
             return sendReject(opPersistFailedReject());
           }
-          smartBroadcast(table, newRow, { type: 'change', table, event: 'INSERT', newRow, oldRow: null });
+          // A concurrent reset may have completed immediately after this insert
+          // committed. Do not re-expose an old-event profile in RAM or SSE.
+          const presentInCurrentEvent = !deferParticipantVisibility || (
+            (getTable('app_settings')[0] ?? {}).event_cycle_archive_id === profileEventArchiveId
+            && (getTable('app_settings')[0] ?? {}).event_cycle_reset_complete !== true
+          );
+          if (deferParticipantVisibility && presentInCurrentEvent) getTable('profiles').push(newRow);
+          if (presentInCurrentEvent) smartBroadcast(table, newRow, { type: 'change', table, event: 'INSERT', newRow, oldRow: null });
         } else {
           smartBroadcast(table, newRow, { type: 'change', table, event: 'INSERT', newRow, oldRow: null });
           dbPersistRow(table, newRow).catch(e => logger.error({ err: e }, '[db] background task error'));
         }
         // #33: 신규 프로필 등록 시 PIN 풀 사용량 확인 — 85% 초과 시 관리자 푸시 알림
-        if (table === 'profiles') {
+        if (table === 'profiles' && getTable('profiles').some(p => String(p.id) === String(newRow.id))) {
           checkAndNotifyAdminPinPool().catch(e => logger.error({ err: e }, '[db] background task error'));
           await autoMatchGroupChatGuarded(String(newRow.id), newRow);
         }
@@ -4114,8 +4122,11 @@ router.post('/op', async (req: Request, res: Response) => {
             base.birth_month = Math.ceil(Math.random() * 12);
             base.birth_day = Math.ceil(Math.random() * 28);
           }
-          tableData.push(base);
-          _idxById?.set(base.id, tableData.length - 1); // Map 갱신 (배치 내 후속 항목 O(1) 조회)
+          const deferParticipantVisibility = table === 'profiles' && !isAdmin && process.env.NODE_ENV !== 'test';
+          if (!deferParticipantVisibility) {
+            tableData.push(base);
+            _idxById?.set(base.id, tableData.length - 1); // Map 갱신 (배치 내 후속 항목 O(1) 조회)
+          }
           upserted.push(base);
           if (CRITICAL_PERSIST_TABLES.has(table)) {
             try {
@@ -4138,7 +4149,18 @@ router.post('/op', async (req: Request, res: Response) => {
               logger.error({ err: e, table, rowId: base.id }, '[db] critical UPSERT insert persist failed');
               return sendReject(opPersistFailedReject());
             }
-            smartBroadcast(table, base, { type: 'change', table, event: 'INSERT', newRow: base, oldRow: null });
+            // The profile becomes visible only after a committed save, and
+            // never if the preceding event was already reset in this process.
+            const presentInCurrentEvent = !deferParticipantVisibility || (
+              (getTable('app_settings')[0] ?? {}).event_cycle_archive_id === profileEventArchiveId
+              && (getTable('app_settings')[0] ?? {}).event_cycle_reset_complete !== true
+            );
+            if (deferParticipantVisibility && presentInCurrentEvent) {
+              const live = getTable('profiles');
+              live.push(base);
+              if (live === tableData) _idxById?.set(base.id, live.length - 1);
+            }
+            if (presentInCurrentEvent) smartBroadcast(table, base, { type: 'change', table, event: 'INSERT', newRow: base, oldRow: null });
           } else {
             smartBroadcast(table, base, { type: 'change', table, event: 'INSERT', newRow: base, oldRow: null });
             dbPersistRow(table, base).catch(e => logger.error({ err: e }, '[db] background task error'));
