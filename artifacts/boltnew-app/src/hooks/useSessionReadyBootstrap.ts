@@ -145,13 +145,16 @@ export function useSessionReadyBootstrap(args: UseSessionReadyBootstrapArgs): vo
 
     void loadSettings();
     let lastReadyAt = 0;
+    let settingsPollInFlight = false;
     const settingsPoll = setInterval(() => {
       const now = Date.now();
       if (!shouldRunSettingsReadyPoll({
         now,
         lastReadyAt,
         sseHealthy: isSseHealthy(),
+        inFlight: settingsPollInFlight,
       })) return;
+      settingsPollInFlight = true;
       lastReadyAt = now;
       const startedSeq = eventScheduleRealtimeSeqValue();
       const sseHealthyAtStart = isSseHealthy();
@@ -163,7 +166,8 @@ export function useSessionReadyBootstrap(args: UseSessionReadyBootstrapArgs): vo
           if (!settings) return;
           applySettings(settings, sseHealthyAtStart || !fetchedScheduleIsCurrent(startedSeq));
         })
-        .catch(() => {});
+        .catch(() => {})
+        .finally(() => { settingsPollInFlight = false; });
     }, READY_BOOTSTRAP_POLL_MS);
 
     return () => {
