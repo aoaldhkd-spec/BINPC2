@@ -2,6 +2,8 @@ import { beforeEach, afterAll, describe, expect, it } from 'vitest';
 import pg from 'pg';
 import { atomicEventReset, type ResetPgPool, type ResetPgClient } from './db-event-reset-transaction.js';
 import { EventAdmissionClosedDuringWrite, persistNewParticipantForCycle } from './db-event-profile-write.js';
+import { persistNpcHeartAtomically } from './db-npc-heart-atomic.js';
+import { planNpcHeartRefill } from './db-npc-heart-recharge.js';
 
 const url = process.env.TEST_DATABASE_URL;
 const test = url ? it : it.skip; // GitHub ephemeral PostgreSQL CI supplies this URL; no production credentials.
@@ -241,6 +243,78 @@ describe('real ephemeral PostgreSQL reset and rollback (no production data)', ()
     expect(completed.archive?.participantCount).toBe(2);
     expect((await rows('profiles')).map(x => x.id)).toEqual(['npc']);
     expect(JSON.stringify(await rows('event_anonymous_archives'))).not.toContain('arrived-before-reset');
+  });
+
+  test('two API instances cannot both consume the same NPC classic-heart quota', async () => {
+    const marker = planNpcHeartRefill({
+      previous: null, archiveId: id, npcId: 'npc', phase: 'start',
+      likes: await rows('likes'), now: '2026-10-13T18:00:00+09:00',
+    });
+    await pool!.query("UPDATE app_kv_rows SET data = jsonb_set(data, '{npc_heart_refill}', $1::jsonb) WHERE table_name = 'app_settings'",
+      [JSON.stringify(marker)]);
+    const make = (suffix: string) => ({
+      id: 'npc-grant-' + suffix, liker_id: 'npc', liked_id: 'synthetic-' + suffix,
+      heart_type: 'red', like_source: 'grant',
+    });
+    const [a,b] = await Promise.all([
+      persistNpcHeartAtomically(adapter(), make('a'), id),
+      persistNpcHeartAtomically(adapter(), make('b'), id),
+    ]);
+    expect([a.kind,b.kind].sort()).toEqual(['exhausted','inserted']);
+    expect((await rows('likes')).filter(r => r.liker_id === 'npc' && r.like_source === 'grant')).toHaveLength(1);
+  });
+
+  test('six parallel NPC rainbow requests cannot exceed four durable uses', async () => {
+    const marker = planNpcHeartRefill({
+      previous: null, archiveId: id, npcId: 'npc', phase: 'start',
+      likes: await rows('likes'), now: '2026-10-13T18:00:00+09:00',
+    });
+    await pool!.query("UPDATE app_kv_rows SET data = jsonb_set(data, '{npc_heart_refill}', $1::jsonb) WHERE table_name = 'app_settings'",
+      [JSON.stringify(marker)]);
+    const jobs = Array.from({ length: 6 }, (_, i) => persistNpcHeartAtomically(adapter(), {
+      id: 'npc-rainbow-' + i, liker_id: 'npc', liked_id: 'synthetic-' + i,
+      heart_type: 'red', like_source: 'rainbow',
+    }, id));
+    const outcomes = await Promise.all(jobs);
+    expect(outcomes.filter(x => x.kind === 'inserted')).toHaveLength(4);
+    expect(outcomes.filter(x => x.kind === 'exhausted')).toHaveLength(2);
+    expect((await rows('likes')).filter(r => r.liker_id === 'npc' && r.like_source === 'rainbow')).toHaveLength(4);
+  });
+
+  test('duplicate NPC sends across instances remain idempotent, reset blocks late sends', async () => {
+    const marker = planNpcHeartRefill({
+      previous: null, archiveId: id, npcId: 'npc', phase: 'start',
+      likes: await rows('likes'), now: '2026-10-13T18:00:00+09:00',
+    });
+    await pool!.query("UPDATE app_kv_rows SET data = jsonb_set(data, '{npc_heart_refill}', $1::jsonb) WHERE table_name = 'app_settings'",
+      [JSON.stringify(marker)]);
+    const make = (suffix: string) => ({
+      id: 'npc-duplicate-' + suffix, liker_id: 'npc', liked_id: 'one-target',
+      heart_type: 'blue', like_source: 'grant',
+    });
+    const [a,b] = await Promise.all([
+      persistNpcHeartAtomically(adapter(), make('first'), id),
+      persistNpcHeartAtomically(adapter(), make('second'), id),
+    ]);
+    expect([a.kind,b.kind].sort()).toEqual(['duplicate','inserted']);
+    expect((await rows('likes')).filter(r => r.liker_id === 'npc' && r.heart_type === 'blue')).toHaveLength(1);
+    await atomicEventReset(adapter(), options());
+    expect((await persistNpcHeartAtomically(adapter(), make('after-reset'), id)).kind).toBe('inactive');
+    expect(await rows('likes')).toHaveLength(0);
+  });
+
+  test('forced NPC insert failure rolls back without consuming allowance', async () => {
+    const marker = planNpcHeartRefill({
+      previous: null, archiveId: id, npcId: 'npc', phase: 'start',
+      likes: await rows('likes'), now: '2026-10-13T18:00:00+09:00',
+    });
+    await pool!.query("UPDATE app_kv_rows SET data = jsonb_set(data, '{npc_heart_refill}', $1::jsonb) WHERE table_name = 'app_settings'",
+      [JSON.stringify(marker)]);
+    const row = { id: 'npc-fault', liker_id: 'npc', liked_id: 'isolated-recipient', heart_type: 'green', like_source: 'grant' };
+    const fault = adapter(sql => sql.startsWith('INSERT INTO app_kv_rows') && sql.includes("VALUES ('likes'"));
+    await expect(persistNpcHeartAtomically(fault, row, id)).rejects.toThrow('forced');
+    expect((await rows('likes')).filter(r => r.liker_id === 'npc')).toHaveLength(0);
+    expect((await persistNpcHeartAtomically(adapter(), row, id)).kind).toBe('inserted');
   });
 
 });

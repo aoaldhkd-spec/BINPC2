@@ -5,6 +5,8 @@ on:
       - 'artifacts/api-server/src/lib/db-event-reset-transaction*'
       - 'artifacts/api-server/src/lib/db-event-profile-write*'
       - 'artifacts/api-server/src/lib/db-event-admission*'
+      - 'artifacts/api-server/src/lib/db-npc-heart-atomic*'
+      - 'artifacts/api-server/src/lib/db-npc-heart-recharge*'
       - 'artifacts/api-server/src/routes/db.ts'
       - '.github/workflows/reset-db-integration.yml'
   workflow_dispatch:
