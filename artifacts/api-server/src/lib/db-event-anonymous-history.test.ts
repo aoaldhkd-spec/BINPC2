@@ -2,6 +2,20 @@ import { describe, expect, it } from 'vitest';
 import { newAnonymousEventArchiveIdentity, summarizeAnonymousEvent } from './db-event-anonymous-history.js';
 
 describe('privacy-minimised event history', () => {
+  it('reuses the same archive ID for repeated snapshots of the same event', () => {
+    const identity = newAnonymousEventArchiveIdentity('2026-10-13');
+    const input = {
+      eventKey: '2026-10-13', eventArchiveId: identity.archiveId,
+      profiles: [], likes: [], messages: [], groupMessages: [],
+      signals: [], contactShares: [],
+    };
+    const first = summarizeAnonymousEvent(input);
+    const second = summarizeAnonymousEvent(input);
+    expect(first.archiveId).toBe(identity.archiveId);
+    expect(second.archiveId).toBe(identity.archiveId);
+    expect(second.archiveLabel).toBe(first.archiveLabel);
+  });
+
   it('generates unique namespaced IDs even for the same event date', () => {
     const first = newAnonymousEventArchiveIdentity('2026-10-13');
     const second = newAnonymousEventArchiveIdentity('2026-10-13');
