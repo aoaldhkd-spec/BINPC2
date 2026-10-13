@@ -24,6 +24,14 @@ describe('BINPC2 PWA opt-in and recipient-only push guards', () => {
     expect(push).toContain('if (!response.ok)');
     expect(panel).toContain('status.message');
     expect(push).toContain("fetch('/api/db/push/unsubscribe'");
+    expect(push).toContain("fetch('/api/db/push/self-test'");
+    expect(panel).toContain('sendSelfPushTest(userId)');
+    const routes = read('../../api-server/src/routes/db.ts');
+    const selfTest = routes.split("router.post('/push/self-test',")[1]?.split("// ─── Push notify endpoint")[0] ?? '';
+    expect(selfTest).toContain('verifySseToken(userId, token)');
+    expect(selfTest).toContain('s.user_id === userId && s.endpoint === endpoint');
+    expect(selfTest).not.toContain("dbPersistRow('likes'");
+    expect(selfTest).not.toContain("dbPersistRow('messages'");
   });
 
   it('in-app direct chat toast carries peer id and opens the exact conversation', () => {

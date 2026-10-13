@@ -210,3 +210,39 @@ export async function disablePushForUser(userId: string): Promise<PushSetupStatu
     return publish({ code: 'error', message: '알림 끄기를 서버에 반영하지 못했습니다. 다시 시도해 주세요.' });
   }
 }
+
+// Send one fixed-content test notification to this logged-in device only.
+// A real user tap is required; nothing is added to likes/messages and
+// a 200 response does not prove that the phone actually displayed the push.
+export async function sendSelfPushTest(userId: string): Promise<PushSetupStatus> {
+  if (!userId || !getPushOptIn(userId)) {
+    return { code: 'error', message: '먼저 이 기기의 알림 받기를 켜 주세요.' };
+  }
+  if (currentPushStatus().code !== 'registering') {
+    return currentPushStatus();
+  }
+  try {
+    const registration = await navigator.serviceWorker.ready;
+    const sub = await registration.pushManager.getSubscription();
+    if (!sub?.endpoint) return { code: 'error', message: '이 기기의 푸시 구독이 없습니다. 알림 연결을 다시 실행해 주세요.' };
+    if (!getSseToken()) await fetchAndSetSseToken(userId);
+    const token = getSseToken();
+    if (!token) return { code: 'error', message: '로그인 인증이 갱신 중입니다. 잠시 뒤 다시 시도해 주세요.' };
+    const response = await fetch('/api/db/push/self-test', {
+      method: 'POST',
+      credentials: 'same-origin',
+      headers: { 'Content-Type': 'application/json', 'x-sse-token': token },
+      body: JSON.stringify({ userId, endpoint: sub.endpoint }),
+    });
+    if (!response.ok) {
+      const result = await response.json().catch(() => ({})) as { error?: string };
+      return { code: 'error', message: result.error || '시험 알림을 보내지 못했습니다.' };
+    }
+    return {
+      code: 'ready',
+      message: '시험 알림 전송 요청 완료. 휴대폰 알림 표시와 클릭을 직접 확인해 주세요. 요청 성공은 수신 보장이 아닙니다.',
+    };
+  } catch {
+    return { code: 'error', message: '시험 알림 요청에 실패했습니다. 인터넷 연결을 확인해 주세요.' };
+  }
+}

@@ -5297,6 +5297,75 @@ router.post('/push/unsubscribe', async (req: Request, res: Response): Promise<vo
   }
 });
 
+// ─── Opted-in device self-test — only the token owner's exact endpoint ─────
+const _selfPushLastByUser = new Map<string, number>();
+router.post('/push/self-test', async (req: Request, res: Response): Promise<void> => {
+  try {
+    if (!moduleEnabled(currentModuleFlags(), 'push') || !vapidConfigured) {
+      res.status(503).json({ ok: false, error: '휴대폰 알림 기능을 사용할 수 없습니다.' });
+      return;
+    }
+    const body = req.body && typeof req.body === 'object' && !Array.isArray(req.body)
+      ? req.body as Record<string, unknown> : {};
+    const userId = typeof body.userId === 'string' ? body.userId : '';
+    const endpoint = typeof body.endpoint === 'string' ? body.endpoint : '';
+    if (!userId || userId.length > 128 || !endpoint.startsWith('https://') || endpoint.length > 2048) {
+      res.status(400).json({ ok: false, error: 'Invalid device test request' });
+      return;
+    }
+    // No admin override and no ability to select another account.
+    const token = req.headers['x-sse-token'];
+    if (typeof token !== 'string' || !verifySseToken(userId, token)) {
+      res.status(401).json({ ok: false, error: 'Unauthorized device test' });
+      return;
+    }
+    const sub = getTable('push_subscriptions').find(s =>
+      s.user_id === userId && s.endpoint === endpoint);
+    if (!sub) {
+      res.status(409).json({ ok: false, error: '이 기기의 알림 등록이 없습니다. 먼저 알림 연결을 완료해 주세요.' });
+      return;
+    }
+    const now = Date.now();
+    const last = _selfPushLastByUser.get(userId) ?? 0;
+    const remaining = 30_000 - (now - last);
+    if (remaining > 0) {
+      res.setHeader('Retry-After', String(Math.ceil(remaining / 1000)));
+      res.status(429).json({ ok: false, error: '시험 알림은 30초에 한 번만 보낼 수 있습니다.' });
+      return;
+    }
+    // Bound memory usage, even if many one-time accounts test their device.
+    if (_selfPushLastByUser.size >= 2_000) {
+      for (const [id, at] of _selfPushLastByUser) {
+        if (now - at >= 30_000) _selfPushLastByUser.delete(id);
+      }
+      if (_selfPushLastByUser.size >= 2_000) {
+        res.status(503).json({ ok: false, error: '시험 요청이 많습니다. 다시 시도해 주세요.' });
+        return;
+      }
+    }
+    _selfPushLastByUser.set(userId, now);
+    const possible = await sendPush(
+      { endpoint: String(sub.endpoint), keys: { auth: String(sub.auth), p256dh: String(sub.p256dh) } },
+      {
+        title: '🔔 BINPC2 시험 알림',
+        body: '이 기기의 알림 표시를 확인해 주세요. 실제 하트·채팅은 전송하지 않았습니다.',
+        tag: 'binpc2-device-self-test',
+        url: '/',
+      },
+    );
+    // sendPush indicates an expired subscription only; provider acceptance
+    // cannot prove the OS showed the push. Never report "delivered".
+    if (!possible) {
+      res.status(409).json({ ok: false, error: '기기 구독이 만료되었습니다. 알림을 다시 연결해 주세요.' });
+      return;
+    }
+    res.json({ ok: true, requested: 1, deliveredVerified: false });
+  } catch (error) {
+    logger.warn({ err: error }, '[push/self-test] Request failed');
+    res.status(503).json({ ok: false, error: '시험 알림 요청에 실패했습니다.' });
+  }
+});
+
 // ─── Push notify endpoint (서버 내부 또는 인증된 호출만 허용) ────────────────
 const PUSH_NOTIFY_SECRET = process.env.SESSION_SECRET ?? 'internal';
 router.post('/push/notify', async (req: Request, res: Response): Promise<void> => {
