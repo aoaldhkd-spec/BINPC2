@@ -7,6 +7,12 @@ import {
 } from './db-daily-cycle.js';
 
 describe('db-daily-cycle', () => {
+  it('does not run the automatic reset before an administrator starts an event', () => {
+    const now = new Date('2026-10-13T19:00:00+09:00');
+    expect(dueDailyCycleActions({ daily_reset_date: '2026-10-12' }, now))
+      .toEqual({ sessionEndDate: null, resetDate: null });
+  });
+
   it('fixes normal hearts at 23:00 and rainbow at 24:00', () => {
     const cfg = JSON.parse(FIXED_DAILY_EVENT_SCHEDULE) as {
       slots: Array<{ at: string; unlock: string[] }>;
