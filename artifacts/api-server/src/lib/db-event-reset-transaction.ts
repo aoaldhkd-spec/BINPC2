@@ -33,7 +33,7 @@ const SELECT_ARCHIVE = "SELECT row_id FROM app_kv_rows WHERE table_name = 'event
 
 /**
  * All-or-nothing reset across multiple API instances:
- * - PostgreSQL advisory transaction lock serialises competing reset calls.
+ * - PostgreSQL advisory lock serialises resets, short exclusive table lock serialises concurrent KV writes.
  * - Authoritative rows are read FROM DB inside the lock (never RAM only).
  * - Archive, deletion, NPC restoration, and completion/settings marker commit together.
  * - On error, ROLLBACK retains source rows; no caller SSE may run on failure.
@@ -49,6 +49,12 @@ export async function atomicEventReset(pool: ResetPgPool, opts: EventResetOption
     await client.query('BEGIN');
     inTx = true;
     await client.query('SELECT pg_advisory_xact_lock(hashtext($1))', [LOCK_KEY]);
+    // Block new KV writes while taking the complete archive snapshot and
+    // clearing the event; prevents phantom participant/message inserts that
+    // would otherwise fall between the snapshot and the DELETE.
+    // On lock contention fail closed, retain all data, retry via the 60s guard.
+    await client.query("SET LOCAL lock_timeout = '5000ms'");
+    await client.query('LOCK TABLE app_kv_rows IN EXCLUSIVE MODE');
     const currentResult = await client.query(SELECT_SETTINGS);
     const saved = currentResult.rows[0];
     if (!saved || !saved.data || typeof saved.data !== 'object') {
