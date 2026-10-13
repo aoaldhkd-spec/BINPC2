@@ -71,6 +71,13 @@ export function buildKvUpsertSql(): string {
        DO UPDATE SET data = EXCLUDED.data, updated_at = NOW()`;
 }
 
+/** Immutable archive write: a retry must never replace an existing event snapshot. */
+export function buildKvInsertIfAbsentSql(): string {
+  return `INSERT INTO app_kv_rows (table_name, row_id, data, updated_at)
+       VALUES ($1, $2, $3, NOW())
+       ON CONFLICT (table_name, row_id) DO NOTHING`;
+}
+
 /** Delete one KV row. Params: $1=table_name, $2=row_id. */
 export function buildKvDeleteRowSql(): string {
   return 'DELETE FROM app_kv_rows WHERE table_name = $1 AND row_id = $2';

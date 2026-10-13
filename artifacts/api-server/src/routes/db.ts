@@ -99,6 +99,7 @@ import {
   ACTIVE_KV_TABLES,
   isCriticalWriteLog,
   buildKvUpsertSql,
+  buildKvInsertIfAbsentSql,
   buildKvDeleteRowSql,
   buildKvDeleteRowsSql,
   buildKvDeleteTableSql,
@@ -821,7 +822,8 @@ async function runAdminEventEndResetCore(extraPatch: Record<string, unknown> = {
   try {
     await wipeClient.query('BEGIN');
     const archiveRow = { ...archive, id: archive.archiveId, createdAt: new Date().toISOString() };
-    await wipeClient.query(buildKvUpsertSql(), [
+    // First archived snapshot wins. A partial reset retry cannot overwrite it with zero counts.
+    await wipeClient.query(buildKvInsertIfAbsentSql(), [
       'event_anonymous_archives', archive.archiveId, JSON.stringify(archiveRow),
     ]);
     for (const t of ADMIN_EVENT_END_CLEAR_TABLES) {
