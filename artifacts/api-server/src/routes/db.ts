@@ -2,6 +2,7 @@ import '../lib/dns-ipv4-first.js';
 import { atomicEventReset } from '../lib/db-event-reset-transaction.js';
 import { eventActionsAfter } from '../lib/db-event-admin-audit.js';
 import { planNpcHeartRefill, npcHeartAllowance } from '../lib/db-npc-heart-recharge.js';
+import { persistNpcHeartAtomically } from '../lib/db-npc-heart-atomic.js';
 import { eventCycleUnlocked, eventCycleCanOpenAdmission } from '../lib/db-event-cycle-heart.js';
 import { newParticipantAdmissionReject } from '../lib/db-event-admission.js';
 import { EventAdmissionClosedDuringWrite, persistNewParticipantForCycle } from '../lib/db-event-profile-write.js';
@@ -3386,6 +3387,7 @@ router.post('/op', async (req: Request, res: Response) => {
         }
         // const row는 재할당 불가이므로 effectiveRow로 분리; 텍스트 필드 sanitization 적용
         let effectiveRow: Record<string, unknown> = sanitizeRow(table, row);
+        let npcAtomicSender = false;
 
         // ─ IDOR: INSERT ownership (db-op-insert-ownership) ────────────────
         if (table === 'messages') {
@@ -3693,6 +3695,7 @@ router.post('/op', async (req: Request, res: Response) => {
           // NPC sends are bounded by the most recent authorised start/end refill.
           // Prior likes and per-recipient/type duplicate checks are NEVER bypassed.
           const npcSender = getTable('profiles').some(p => String(p.id) === likeLiker && isAdminProfileRow(p));
+          npcAtomicSender = npcSender && process.env.NODE_ENV !== 'test';
           const eventSettings = (getTable('app_settings')[0] ?? {}) as Record<string, unknown>;
           const npcUsage = npcSender ? npcHeartAllowance({
             marker: eventSettings.npc_heart_refill,
@@ -3710,7 +3713,8 @@ router.post('/op', async (req: Request, res: Response) => {
             grantUsed: npcUsage?.grantUsed ?? usage.grantUsed,
             rainbowUsed: npcUsage?.rainbowUsed ?? usage.rainbowUsed,
           });
-          if (capReject) return sendReject(capReject);
+          // Cross-instance NPC quota is checked from the durable ledger in one transaction.
+          if (capReject && !npcAtomicSender) return sendReject(capReject);
           effectiveRow = { ...effectiveRow, like_source: likeSource };
 
           // Time-bucket rate limiter: at most 1 like per 500 ms per (liker, liked, type, source)
@@ -3806,6 +3810,35 @@ router.post('/op', async (req: Request, res: Response) => {
             if (table === 'profiles' && !isAdmin && process.env.NODE_ENV !== 'test') {
               await persistNewParticipantForCycle(pool, newRow, profileEventArchiveId, pendingParticipantSecret);
               if (pendingParticipantSecret) getTable('device_secrets').push(pendingParticipantSecret);
+            } else if (table === 'likes' && npcAtomicSender) {
+              const latest = (getTable('app_settings')[0] ?? {}) as Record<string, unknown>;
+              const committed = await persistNpcHeartAtomically(
+                pool, newRow, String(latest.event_cycle_archive_id ?? ''),
+              );
+              if (committed.kind !== 'inserted') {
+                const index = tableData.findIndex(r => r.id === newRow.id);
+                if (index >= 0) tableData.splice(index, 1);
+                const pending = inserted.findIndex(r => r.id === newRow.id);
+                if (pending >= 0) inserted.splice(pending, 1);
+                if (committed.kind === 'duplicate') {
+                  return res.json({ data: selectAfterWrite
+                    ? (single ? committed.row : [committed.row]) : null, error: null });
+                }
+                if (committed.kind === 'exhausted') {
+                  const rejection = likesHeartOpsReject({
+                    source: normalizeLikeSource(newRow.like_source),
+                    heartType: String(newRow.heart_type ?? ''),
+                    unlockedKeys: new Set(['red','blue','pink','green','rainbow']),
+                    grantUsed: committed.usage.grantUsed,
+                    rainbowUsed: committed.usage.rainbowUsed,
+                  });
+                  if (rejection) return sendReject(rejection);
+                }
+                return res.status(409).json({ data: null, error: {
+                  code: 'NPC_ALLOWANCE_INACTIVE',
+                  message: 'NPC 하트 충전 정보가 현재 행사와 일치하지 않습니다.',
+                } });
+              }
             } else {
               await dbPersistRow(table, newRow);
             }
