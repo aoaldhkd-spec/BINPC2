@@ -1,5 +1,17 @@
 # BINPC2 CURRENT STATUS — 2026-10-06
 
+## 2026-10-13 프로젝트4 운영 반영 — CURRENT (이전 미배포 기록보다 우선)
+
+- **GitHub:** PR #9가 `main`에 병합됨. 운영 승인 범위는 기존 정상코드 보호, 실 DB 초기화/메시지·하트 발송/Secret 변경 금지. 병합 SHA `c2a2156821864a38fe4f6e22bb03ca0165b818d5`; 이전 정상 SHA `99393b47a06fe903ea9eb68b4e7bc64c863a654c`.
+- **Render:** `My Workspace / BINPC2` (srv-d9v9gme417fc73cf6gq0) 배포 ID `dep-db6q2k8jo6nc7382uja0`에 병합 SHA가 `live` 상태인 것을 확인. 공개 `/api/healthz` HTTP 200, 배포 이후 오류 로그 검색 결과 없음(검색한 시간 범위 기준).
+- **Netlify:** `binpc2.netlify.app`의 시작 화면, 관리자 경로, API 프록시, `sw.js`가 HTTP 200. 서비스 워커 MIME `application/javascript`. `/manifest.webmanifest`는 실제 점검 시 `application/octet-stream`을 반환하여 PR #10에서 Netlify 정적 헤더 교정 중이다. Netlify 운영 deploy ID/실기기 설치는 아직 확인 필요.
+- **실제 운영 DB 읽기 전용 확인:** Supabase `BINPC2` DB에서 `session_active=false`, `event_cycle_started_at` 없음, 새 `event_cycle_reset_complete` 없음. 프로필 1, `device_secrets` 2,641, `push_subscriptions` 1, `session_history` 36행으로 배포 전후 수치 동일. 실제 운영 DB 초기화·테스트 하트/채팅 발송·Secret 교체는 시행하지 않았다. 기존 개인정보 자동 완전삭제는 보장되지 않는다.
+- **실제 CI:** PR #9의 마지막 원격 HEAD `79a6d686`에서 GitHub Verify, 임시 PostgreSQL16, 합성 Chromium UI 모두 PASS. 합성 인증 SSE 150연결 성공, p95 145ms는 **가짜 DB/CI 성능 수치**이며 실제 현장 150명 SLA나 휴대폰 PUSH 검증이 아니다. `main` 병합 커밋 Verify도 PASS.
+- **미완료·UNKNOWN:** Android/iPhone 실기기 2대 알림 수신·클릭 딥링크, 참가자 실전 하트/채팅, 행사 17시 실제 초기화/복구(별도 승인 필요), 개인정보 보관기간·처리방침·이미지/장치정보/백업 파기, 현장 네트워크 150명 지연, Drive 자동백업 PR #6 활성화. 확인 불가능한 것은 PASS로 표시하지 않는다.
+- 아래의 `PR #9 미병합 / 운영 미배포` 문구는 그 당시의 역사 기록(SUPERSEDED)이다. 변경 이유: 사용자 승인 → 자동검증 → GitHub 병합 → Render 운영 live 순으로 전환. 기존 기록은 삭제하지 않는다.
+
+---
+
 ## 2026-10-13 프로젝트4 추가 안전강화 — CURRENT 작업 브랜치 (운영 미배포)
 
 > 직전 PR #9 구현 위에 적용한 추가 보호입니다. 기존 기록은 아래에 그대로 남깁니다.
