@@ -33,12 +33,20 @@ function wall(ymd: Ymd, hour: number): Date {
 }
 
 export type DailyCycleBannerState = {
-  phase: 'rainbow-open' | 'ended' | 'waiting-hearts' | 'grant-open';
+  phase: 'rainbow-open' | 'ended' | 'waiting-hearts' | 'grant-open' | 'idle';
   message: string;
   countdownSec: number;
 };
 
-export function dailyCycleBannerState(now = new Date()): DailyCycleBannerState {
+export function dailyCycleBannerState(
+  now = new Date(), eventCycleStartedAt?: string | null, eventCycleResetComplete = false,
+): DailyCycleBannerState {
+  if (eventCycleStartedAt !== undefined && (
+    !eventCycleStartedAt || !Number.isFinite(Date.parse(eventCycleStartedAt))
+    || Date.parse(eventCycleStartedAt) > now.getTime() || eventCycleResetComplete
+  )) {
+    return { phase: 'idle', message: '🚪 관리자가 회식을 시작하기 전에는 신규 입장이 열리지 않습니다', countdownSec: 0 };
+  }
   const p = parts(now);
   const today: Ymd = { y: p.y, m: p.m, d: p.d };
   let target: Date;
@@ -51,7 +59,7 @@ export function dailyCycleBannerState(now = new Date()): DailyCycleBannerState {
     target = wall(today, 1);
   } else if (p.hour < 17) {
     phase = 'ended';
-    message = '🌙 술번개가 종료됐습니다 · 17시에 전체 초기화됩니다';
+    message = '🚪 신규 입장 마감 · 기존 참가자 하트·채팅 유지 · 17시에 초기화됩니다';
     target = wall(today, 17);
   } else if (p.hour < 23) {
     phase = 'waiting-hearts';
