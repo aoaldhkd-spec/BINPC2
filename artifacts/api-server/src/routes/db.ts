@@ -1,5 +1,6 @@
 import '../lib/dns-ipv4-first.js';
 import { summarizeAnonymousEvent } from '../lib/db-event-anonymous-history.js';
+import { newParticipantAdmissionReject } from '../lib/db-event-admission.js';
 import { Router, type Request, type Response } from 'express';
 import pg from 'pg';
 import { VAPID_PUBLIC_KEY, vapidConfigured, sendPush, type PushPayload } from '../lib/push';
@@ -3309,6 +3310,13 @@ router.post('/op', async (req: Request, res: Response) => {
     // ── INSERT ──────────────────────────────────────────────────────────────
     if (op === 'insert') {
       if (payload == null) return sendReject(opPayloadRequiredReject());
+      if (table === 'profiles') {
+        const admission = newParticipantAdmissionReject(
+          (getTable('app_settings')[0] ?? {}) as Record<string, unknown>,
+          { isAdmin, isTestRuntime: process.env.NODE_ENV === 'test' },
+        );
+        if (admission) return sendReject(admission);
+      }
       if (!isAdmin && isFunctionsLocked() && FUNCTIONS_LOCKED_INSERT_TABLES.has(table)) {
         return sendReject(opFunctionsLockedReject(FUNCTIONS_LOCKED_ERROR));
       }
@@ -4002,6 +4010,11 @@ router.post('/op', async (req: Request, res: Response) => {
         } else {
           let base: Record<string, unknown> = { id: genId(), created_at: ts(), ...row };
           if (table === 'profiles') {
+            const admission = newParticipantAdmissionReject(
+              (getTable('app_settings')[0] ?? {}) as Record<string, unknown>,
+              { isAdmin, isTestRuntime: process.env.NODE_ENV === 'test' },
+            );
+            if (admission) return sendReject(admission);
             if (profileBirthYearRejected(res, base.birth_year)) return;
             const usedPins = collectUsedPinCodes(tableData);
             const { use5Digit, poolSize } = pinPoolParams(tableData.length);

@@ -72,11 +72,11 @@ export function DashboardTab({ settings, profiles, onToggleSession, onEventEndRe
         <div className="grid grid-cols-2 gap-2 text-[11px] font-bold text-violet-800">
           <div className="rounded-xl bg-white/80 p-2">23:00 · ❤️💙💗💚 일반 하트 자동 해금</div>
           <div className="rounded-xl bg-white/80 p-2">24:00 · 🌈 무지개하트 자동 해금</div>
-          <div className="rounded-xl bg-white/80 p-2">01:00 · 🍻 술번개 자동 종료</div>
-          <div className="rounded-xl bg-white/80 p-2">17:00 · ♻️ 전체 자동 초기화</div>
+          <div className="rounded-xl bg-white/80 p-2">01:00 · 🚪 신규 입장 자동 마감</div>
+          <div className="rounded-xl bg-white/80 p-2">다음 17:00 · ♻️ 시작된 회식만 초기화</div>
         </div>
         <p className="mt-2 text-[10px] font-semibold text-violet-600">
-          하트시간·공지시간은 따로 설정하지 않습니다. 매일 자동으로 반복됩니다.
+          하트시간·공지시간은 따로 설정하지 않습니다. 관리자가 회식을 시작한 행사에만 적용됩니다.
         </p>
       </div>
 
@@ -184,7 +184,7 @@ export function DashboardTab({ settings, profiles, onToggleSession, onEventEndRe
         <ConfirmDialog
           title={confirmToggle === 'end' ? '회식을 종료하시겠습니까?' : '회식을 시작하시겠습니까?'}
           message={confirmToggle === 'end'
-            ? (isActive ? '종료 시 모든 유저 화면이 "회식 종료 대기 화면"으로 전환됩니다.' : '이미 대기 중입니다.')
+            ? (isActive ? '새 참가자의 입장만 닫습니다. 기존 참가자는 하트·채팅을 계속 사용할 수 있고, 수동 기능잠금은 유지됩니다.' : '이미 대기 중입니다.')
             : (isActive ? '이미 진행 중입니다.' : '시작 시 유저들이 앱에 입장할 수 있습니다.')}
           onConfirm={() => {
             const action = confirmToggle;
