@@ -13,7 +13,9 @@ const SQL = `CREATE TABLE IF NOT EXISTS app_kv_rows (
   PRIMARY KEY (table_name, row_id)
 )`;
 const settings = { id: 'settings', event_cycle_started_at: '2026-10-13T18:00:00+09:00',
-  event_cycle_archive_id: id, session_active: false, event_cycle_reset_complete: false };
+  event_cycle_archive_id: id, session_active: false, event_cycle_reset_complete: false,
+  event_cycle_admin_actions: { start: 1, end: 1, autoEnd: 0, lock: 2, settings: 3 },
+  event_cycle_db_error_baseline: 4 };
 const npc = { id: 'npc', nickname: '범일NPC', pin_code: '1234' };
 async function insert(table: string, rowId: string, data: object) {
   await pool!.query('INSERT INTO app_kv_rows (table_name,row_id,data) VALUES ($1,$2,$3)', [table,rowId,JSON.stringify(data)]);
@@ -64,6 +66,7 @@ describe('real ephemeral PostgreSQL reset and rollback (no production data)', ()
     await insert('profiles','participant',{id:'participant',nickname:'PRIVATE_ALIAS'});
     await insert('likes','like',{id:'like',liker_id:'participant',liked_id:'npc',heart_type:'red'});
     await insert('messages','message',{id:'message',content:'DO_NOT_ARCHIVE'});
+    await insert('db_error_log','counter',{count: 6});
   });
   afterAll(async () => { await pool?.end(); });
   for (const failSql of ['ON CONFLICT (table_name, row_id) DO NOTHING','DELETE FROM app_kv_rows','INSERT INTO app_kv_rows']) {
@@ -90,6 +93,10 @@ describe('real ephemeral PostgreSQL reset and rollback (no production data)', ()
     const archive = await rows('event_anonymous_archives');
     expect(archive).toHaveLength(1);
     expect(archive[0]?.participantCount).toBe(1);
+    expect(archive[0]?.adminActions).toMatchObject({ start: 1, end: 1, lock: 2, settings: 3, reset: 1 });
+    expect(archive[0]?.dbPersistErrorCount).toBe(2);
+    expect(archive[0]?.uniqueHeartSenderCount).toBe(1);
+    expect(archive[0]?.directMessageCount).toBe(1);
     expect(JSON.stringify(archive)).not.toMatch(/DO_NOT_ARCHIVE|PRIVATE_ALIAS/);
     expect((await rows('app_settings'))[0]?.event_cycle_reset_complete).toBe(true);
   });
