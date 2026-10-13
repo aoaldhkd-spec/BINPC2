@@ -1,6 +1,7 @@
 import '../lib/dns-ipv4-first.js';
 import { atomicEventReset } from '../lib/db-event-reset-transaction.js';
 import { planNpcHeartRefill, npcHeartAllowance } from '../lib/db-npc-heart-recharge.js';
+import { eventCycleUnlocked } from '../lib/db-event-cycle-heart.js';
 import { newParticipantAdmissionReject } from '../lib/db-event-admission.js';
 import { Router, type Request, type Response } from 'express';
 import pg from 'pg';
@@ -3675,8 +3676,12 @@ router.post('/op', async (req: Request, res: Response) => {
           // API/security/load tests exercise write invariants independent of wall-clock heart windows.
           // Production always uses the fixed 23:00/24:00 schedule.
           const unlockedKeys = process.env.NODE_ENV === 'test'
-            ? new Set(['red', 'blue', 'pink', 'green', 'rainbow'])
-            : unlockedHeartKeys(heartOps, now);
+            ? new Set(['red', 'blue', 'pink', 'green', 'rainbow'] as const)
+            : eventCycleUnlocked({
+              startedAt: (getTable('app_settings')[0] ?? {}).event_cycle_started_at,
+              resetComplete: (getTable('app_settings')[0] ?? {}).event_cycle_reset_complete,
+              now,
+            });
           // NPC sends are bounded by the most recent authorised start/end refill.
           // Prior likes and per-recipient/type duplicate checks are NEVER bypassed.
           const npcSender = getTable('profiles').some(p => String(p.id) === likeLiker && isAdminProfileRow(p));
