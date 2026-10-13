@@ -101,9 +101,11 @@ export async function atomicEventReset(pool: ResetPgPool, opts: EventResetOption
     );
     const persistedErrorCount = (errorMeta.rows[0]?.data as Record<string, unknown> | undefined)?.count;
     const errorBaseline = settings.event_cycle_db_error_baseline;
-    const eventErrorCount = Number.isSafeInteger(persistedErrorCount) && Number.isSafeInteger(errorBaseline)
-      ? Math.max(0, Number(persistedErrorCount) - Number(errorBaseline))
-      : null;
+    const eventErrorCount = Number.isSafeInteger(persistedErrorCount)
+      && Number.isSafeInteger(errorBaseline)
+      && Number(persistedErrorCount) >= Number(errorBaseline)
+      ? Number(persistedErrorCount) - Number(errorBaseline)
+      : null; // counter was cleared/restarted: history is unknown, not zero
     const archive = summarizeAnonymousEvent({
       eventKey: key, eventArchiveId: expectedArchiveId,
       profiles, likes: previous.likes ?? [],
