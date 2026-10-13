@@ -1151,6 +1151,8 @@ function App() {
   const entryGate = renderAppEntryGates({
     appLoading,
     sessionActive,
+    eventCycleStartedAt: cycleMeta.startedAt,
+    eventCycleResetComplete: cycleMeta.resetComplete,
     showWaiting,
     showRecovery,
     showNicknameSetup,
