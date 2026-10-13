@@ -4,18 +4,18 @@ import { atomicEventReset, type ResetPgPool, type ResetPgClient } from './db-eve
 const archiveId = 'binpc2:event-anon:v1:2026-10-13:aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
 type DbState = Map<string, Map<string, Record<string, unknown>>>;
 function sourceDb(): DbState {
-  return new Map([
-    ['app_settings', new Map([['settings', {
+  return new Map<string, Map<string, Record<string, unknown>>>([
+    ['app_settings', new Map<string, Record<string, unknown>>([['settings', {
       id: 'settings', event_cycle_started_at: '2026-10-13T18:00:00+09:00',
       event_cycle_archive_id: archiveId, session_active: false, event_cycle_reset_complete: false,
       admin_phone: 'REDACTED_TEST',
     }]])],
-    ['profiles', new Map([
+    ['profiles', new Map<string, Record<string, unknown>>([
       ['npc', { id: 'npc', nickname: '범일NPC', pin_code: '1111', role: 'admin' }],
       ['visitor', { id: 'visitor', nickname: 'DELETE_ME' }],
     ])],
-    ['likes', new Map([['heart', { id: 'heart', liker_id: 'visitor', liked_id: 'npc', heart_type: 'red' }]])],
-    ['messages', new Map([['message', { id: 'message', content: 'private body' }]])],
+    ['likes', new Map<string, Record<string, unknown>>([['heart', { id: 'heart', liker_id: 'visitor', liked_id: 'npc', heart_type: 'red' }]])],
+    ['messages', new Map<string, Record<string, unknown>>([['message', { id: 'message', content: 'private body' }]])],
   ]);
 }
 function deepCopy(db: DbState): DbState {
