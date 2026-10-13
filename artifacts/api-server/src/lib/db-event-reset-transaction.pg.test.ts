@@ -100,6 +100,30 @@ describe('real ephemeral PostgreSQL reset and rollback (no production data)', ()
     expect(JSON.stringify(archive)).not.toMatch(/DO_NOT_ARCHIVE|PRIVATE_ALIAS/);
     expect((await rows('app_settings'))[0]?.event_cycle_reset_complete).toBe(true);
   });
+  test('includes an in-flight participant write in the archive before reset deletes it', async () => {
+    const writer = await pool!.connect();
+    try {
+      await writer.query('BEGIN');
+      await writer.query(
+        'INSERT INTO app_kv_rows (table_name,row_id,data) VALUES ($1,$2,$3)',
+        ['profiles','late-profile',JSON.stringify({id:'late-profile',nickname:'ONLY_TEST_PERSON'})],
+      );
+      // A writer holding ROW EXCLUSIVE must finish before our full-table
+      // snapshot starts. A reset without this lock would miss the profile.
+      const resetPromise = atomicEventReset(adapter(), options());
+      await new Promise(resolve => setTimeout(resolve, 60));
+      await writer.query('COMMIT');
+      const reset = await resetPromise;
+      expect(reset.status).toBe('committed');
+      expect(reset.archive?.participantCount).toBe(2);
+      expect((await rows('profiles')).map(row => row.id)).toEqual(['npc']);
+      expect(JSON.stringify(await rows('event_anonymous_archives'))).not.toContain('ONLY_TEST_PERSON');
+    } finally {
+      await writer.query('ROLLBACK').catch(() => {});
+      writer.release();
+    }
+  });
+
   test('serialises two competing API instances and writes one archive', async () => {
     const [a,b] = await Promise.all([atomicEventReset(adapter(),options()), atomicEventReset(adapter(),options())]);
     expect([a.status,b.status].sort()).toEqual(['already','committed']);
