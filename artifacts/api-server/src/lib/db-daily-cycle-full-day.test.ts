@@ -16,6 +16,7 @@ describe('fixed daily cycle — fake-clock full day', () => {
     const settings: Record<string, unknown> = {
       daily_session_end_date: '2026-10-05',
       daily_reset_date: '2026-10-05',
+      event_cycle_started_at: '2026-10-05T18:00:00+09:00',
       event_schedule: FIXED_DAILY_EVENT_SCHEDULE,
     };
 
