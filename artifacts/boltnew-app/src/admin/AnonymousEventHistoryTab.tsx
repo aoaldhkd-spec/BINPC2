@@ -40,7 +40,7 @@ export function AnonymousEventHistoryTab() {
       <p>1:1 메시지 {row.directMessageCount}건 · 단체 메시지 {row.groupMessageCount}건</p>
       <p>시그널 {row.signalCount}건 · 연락처 교환 {row.contactExchangeCount}건</p>
       {row.rainbowByColor && <p>무지개 하트 · ❤️ {row.rainbowByColor.red ?? 0} · 💙 {row.rainbowByColor.blue ?? 0} · 💗 {row.rainbowByColor.pink ?? 0} · 💚 {row.rainbowByColor.green ?? 0}</p>}
-      {row.uniqueHeartSenderCount !== undefined && <p>하트 보낸 참가자 {row.uniqueHeartSenderCount}명 · 받은 참가자 {row.uniqueHeartRecipientCount ?? 0}명</p>}
+      {row.uniqueHeartSenderCount !== undefined && <p>하트 발신 계정 {row.uniqueHeartSenderCount}개 · 수신 계정 {row.uniqueHeartRecipientCount ?? 0}명</p>}
       {row.directChatRoomCount !== undefined && <p>1:1 대화방 {row.directChatRoomCount}개 · 단체방 {row.groupRoomCount ?? 0}개 · 단체방 참여기록 {row.groupParticipantCount ?? 0}건</p>}
       {row.adminActions && <p>관리자 작업 · 시작 {row.adminActions.start ?? 0} · 종료 {row.adminActions.end ?? 0} · 자동마감 {row.adminActions.autoEnd ?? 0} · 설정 {row.adminActions.settings ?? 0} · 잠금 {row.adminActions.lock ?? 0} · 초기화 {row.adminActions.reset ?? 0}</p>}
       {row.dbPersistErrorCount !== undefined && <p>행사 중 DB 저장 오류 · {row.dbPersistErrorCount === null ? '미확인' : `${row.dbPersistErrorCount}건`}</p>}
