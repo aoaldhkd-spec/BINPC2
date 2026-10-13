@@ -12,9 +12,15 @@ import { resolve, dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..');
+const sourceRefArg = process.argv.indexOf('--ref');
+const snapshotRef = sourceRefArg >= 0 ? process.argv[sourceRefArg + 1] : 'HEAD';
+if (!snapshotRef || !/^(HEAD|origin\/main)$/.test(snapshotRef)) {
+  console.error('Source ref must be HEAD or origin/main');
+  process.exit(2);
+}
 const outputFlag = process.argv.indexOf('--out');
 if (outputFlag < 0 || !process.argv[outputFlag + 1]) {
-  console.error('Usage: node scripts/backup-cloud-snapshot.mjs --out <destination-directory>');
+  console.error('Usage: node scripts/backup-cloud-snapshot.mjs --out <destination-directory> [--ref origin/main]');
   process.exit(2);
 }
 const OUT = resolve(process.argv[outputFlag + 1]);
@@ -31,9 +37,9 @@ function shaFile(file) {
   return sha256(readFileSync(file));
 }
 
-const head = git('rev-parse', 'HEAD');
+const head = git('rev-parse', snapshotRef);
 if (!/^[a-f0-9]{40}$/.test(head)) throw new Error('Invalid HEAD commit');
-const listedFiles = git('ls-tree', '-r', '--name-only', 'HEAD').split('\n').filter(Boolean);
+const listedFiles = git('ls-tree', '-r', '--name-only', head).split('\n').filter(Boolean);
 if (!listedFiles.length) throw new Error('Refusing empty source snapshot');
 const refs = git('for-each-ref', '--format=%(refname) %(objectname)', 'refs/heads', 'refs/remotes/origin', 'refs/tags')
   .split('\n').filter(Boolean).sort();
@@ -60,6 +66,7 @@ const manifest = {
   project: 'BINPC2',
   repository: 'aoaldhkd-spec/BINPC2',
   head,
+  source_ref: snapshotRef,
   git_refs_sha256: refsHash,
   git_ref_count: refs.length,
   source_file_count: listedFiles.length,
