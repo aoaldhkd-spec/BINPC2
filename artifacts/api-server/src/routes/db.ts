@@ -4258,23 +4258,16 @@ router.post('/rpc/:name', async (req: Request, res: Response) => {
         checkPassword();
         const active = args.p_active === true;
         const current = (getTable('app_settings')[0] ?? {}) as Record<string, unknown>;
-        const merged = mergeAppSettings(
-          current,
-          active ? planEventCycleStartPatch(current, new Date()) : { session_active: false },
-        );
-        const updated = await overlayDbSecrets(merged, new Set());
-        store['app_settings'] = [updated];
+        const patch = active ? planEventCycleStartPatch(current, new Date()) : { session_active: false };
         try {
-          await dbPersistRow('app_settings', updated);
+          // Reuse the existing persist/rollback/broadcast sequence. A failed
+          // DB write must not leave a ghost-started event in the RAM cache.
+          await persistAppSettingsPatch(patch);
         } catch (e) {
           logger.error({ err: e }, '[db] admin_toggle_session persist failed');
           const rej = rpcSessionPersistFailedReject();
           return res.status(rej.status).json(rej.body);
         }
-        smartBroadcast('app_settings', updated, {
-          type: 'change', table: 'app_settings', event: 'UPDATE',
-          newRow: updated, oldRow: current,
-        });
         return res.json({ data: { session_active: active }, error: null });
       }
 
