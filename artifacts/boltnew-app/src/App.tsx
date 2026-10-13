@@ -253,11 +253,19 @@ function App() {
   }, []);
   const eventScheduleRawForCycle = useMemo(() => {
     const minute = eventScheduleMinute > 0 ? eventScheduleMinute * 60_000 : Date.now();
-    const keys = [...eventCycleUnlocked({
-      startedAt: cycleMeta.startedAt, resetComplete: cycleMeta.resetComplete, now: new Date(minute),
-    })];
+    const npc = cycleMeta.npcRefill && typeof cycleMeta.npcRefill === 'object'
+      && !Array.isArray(cycleMeta.npcRefill)
+      ? cycleMeta.npcRefill as Record<string, unknown> : null;
+    const verifiedNpc = !cycleMeta.resetComplete && Boolean(
+      npc && currentUserId && npc.npcId === currentUserId && npc.archiveId === cycleMeta.archiveId
+    );
+    const keys = verifiedNpc
+      ? ['red', 'blue', 'pink', 'green', 'rainbow']
+      : [...eventCycleUnlocked({
+        startedAt: cycleMeta.startedAt, resetComplete: cycleMeta.resetComplete, now: new Date(minute),
+      })];
     return JSON.stringify({ timezone: 'Asia/Seoul', version: 2, slots: [], instant_unlock: keys });
-  }, [cycleMeta.startedAt, cycleMeta.resetComplete, eventScheduleMinute]);
+  }, [cycleMeta.startedAt, cycleMeta.resetComplete, cycleMeta.npcRefill, cycleMeta.archiveId, currentUserId, eventScheduleMinute]);
   const [blockedUsers, setBlockedUsers] = useState<BlockedUser[]>([]);
   const [profileVisitors, setProfileVisitors] = useState<ProfileView[]>([]);
   const [newVisitCount, setNewVisitCount] = useState(0);
