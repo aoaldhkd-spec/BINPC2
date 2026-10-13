@@ -801,6 +801,8 @@ async function persistAppSettingsPatch(patch: Record<string, unknown>): Promise<
 /** Same wipe as 회식 종료 전체 초기화. Optional extra settings patch is merged into reset_signal SSE. */
 async function runAdminEventEndResetCore(extraPatch: Record<string, unknown> = {}): Promise<void> {
   const settingsRow = (getTable('app_settings')[0] ?? {}) as Record<string, unknown>;
+  // Idempotent reset: never overwrite a preserved archive with an empty second snapshot.
+  if (settingsRow.event_cycle_reset_complete === true) return;
   const oldProfiles = store['profiles'] ?? [];
   const archive = summarizeAnonymousEvent({
     eventKey: new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Seoul' }),
