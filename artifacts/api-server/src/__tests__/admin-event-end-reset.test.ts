@@ -115,6 +115,10 @@ describe('[Admin] admin_event_end_reset wipes group chats', () => {
 
   it('sets reset_signal on app_settings after wipe', async () => {
     await op({ op: 'insert', table: 'profiles', payload: { id: 'sig-user', nickname: 'sig-user-nick' } });
+    // This case must own its event; do not pass because a prior test left a reset marker.
+    const start = await request(app).post('/api/db/rpc/admin_toggle_session')
+      .send({ p_admin_password: '116606', p_active: true });
+    expect(start.status).toBe(200);
     const reset = await request(app)
       .post('/api/db/rpc/admin_event_end_reset')
       .send({ p_admin_password: '116606' });
