@@ -41,6 +41,8 @@ export function useHearts(
   _profileMap: Map<string, Profile>,
   _onOpenChat: (profile: Profile) => void,
   eventScheduleRaw: string | null = null,
+  npcHeartRefill: unknown = null,
+  eventArchiveId: string | null = null,
 ) {
   const [likedIds, setLikedIds] = useState<Set<string>>(new Set());
   const [sentHeartTypes, setSentHeartTypes] = useState<Map<string, HeartType>>(new Map());
@@ -239,7 +241,29 @@ export function useHearts(
 
   const heartUsage = (): HeartUsage => {
     if (!currentUserId) return emptyHeartUsage();
-    return heartUsageFromLikeRows(likeRows, currentUserId);
+    const regular = heartUsageFromLikeRows(likeRows, currentUserId);
+    if (!npcHeartRefill || typeof npcHeartRefill !== 'object' || Array.isArray(npcHeartRefill)) return regular;
+    const refill = npcHeartRefill as Record<string, unknown>;
+    if (refill.npcId !== currentUserId || refill.archiveId !== eventArchiveId
+      || !refill.usedBefore || typeof refill.usedBefore !== 'object') return regular;
+    const old = refill.usedBefore as Record<string, unknown>;
+    const counts: Record<string, number> = { red: 0, blue: 0, pink: 0, green: 0, rainbow: 0 };
+    for (const row of likeRows) {
+      if (String(row.liker_id) !== currentUserId) continue;
+      const key = row.like_source === 'rainbow' ? 'rainbow' : String(row.heart_type ?? '');
+      if (key in counts) counts[key]++;
+    }
+    const number = (key: string) => Number.isSafeInteger(old[key]) && Number(old[key]) >= 0
+      ? Number(old[key]) : Number.POSITIVE_INFINITY;
+    return {
+      grantUsed: {
+        red: counts.red - number('red') >= 1,
+        blue: counts.blue - number('blue') >= 1,
+        pink: counts.pink - number('pink') >= 1,
+        green: counts.green - number('green') >= 1,
+      },
+      rainbowUsed: Math.max(0, counts.rainbow - number('rainbow')),
+    };
   };
 
   const handleLike = (profileId: string, hint?: Profile) => {
