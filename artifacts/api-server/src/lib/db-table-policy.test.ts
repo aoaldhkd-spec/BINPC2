@@ -37,10 +37,10 @@ describe('db-table-policy', () => {
     }
   });
 
-  it('allows profiles/settings but does not mark them critical-persist', () => {
+  it('persists profiles before broadcasting, while app_settings retains its separate RPC path', () => {
     expect(ALLOWED_OP_TABLES.has('profiles')).toBe(true);
     expect(ALLOWED_OP_TABLES.has('app_settings')).toBe(true);
-    expect(CRITICAL_PERSIST_TABLES.has('profiles')).toBe(false);
+    expect(CRITICAL_PERSIST_TABLES.has('profiles')).toBe(true);
     expect(CRITICAL_PERSIST_TABLES.has('app_settings')).toBe(false);
   });
 

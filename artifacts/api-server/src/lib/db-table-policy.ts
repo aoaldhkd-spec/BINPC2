@@ -18,6 +18,7 @@ export const ALLOWED_OP_TABLES = new Set([
 
 /** Durability-required tables — persist must succeed before SSE/response. */
 export const CRITICAL_PERSIST_TABLES = new Set([
+  'profiles', // New entries must never be broadcast before DB admission + persistence.
   'messages', 'likes', 'chats', 'chat_reads',
   'contact_shares', 'contact_share_events',
   'group_messages', 'group_chats', 'group_participants',

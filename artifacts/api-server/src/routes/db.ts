@@ -4,6 +4,7 @@ import { eventActionsAfter } from '../lib/db-event-admin-audit.js';
 import { planNpcHeartRefill, npcHeartAllowance } from '../lib/db-npc-heart-recharge.js';
 import { eventCycleUnlocked, eventCycleCanOpenAdmission } from '../lib/db-event-cycle-heart.js';
 import { newParticipantAdmissionReject } from '../lib/db-event-admission.js';
+import { EventAdmissionClosedDuringWrite, persistNewParticipantForCycle } from '../lib/db-event-profile-write.js';
 import { Router, type Request, type Response } from 'express';
 import pg from 'pg';
 import { VAPID_PUBLIC_KEY, vapidConfigured, sendPush, type PushPayload } from '../lib/push';
@@ -3345,6 +3346,8 @@ router.post('/op', async (req: Request, res: Response) => {
     // ── INSERT ──────────────────────────────────────────────────────────────
     if (op === 'insert') {
       if (payload == null) return sendReject(opPayloadRequiredReject());
+      const profileEventArchiveId = table === 'profiles'
+        ? String((getTable('app_settings')[0] ?? {}).event_cycle_archive_id ?? '') : '';
       if (table === 'profiles') {
         const admission = newParticipantAdmissionReject(
           (getTable('app_settings')[0] ?? {}) as Record<string, unknown>,
@@ -3758,6 +3761,7 @@ router.post('/op', async (req: Request, res: Response) => {
           table,
         );
 
+        let pendingParticipantSecret: Record<string, unknown> | null = null;
         // 프로필 생성 시 device secret을 원자적으로 바인딩 — TOFU 레이스 윈도우 제거
         // 클라이언트가 _device_secret 필드를 포함해 INSERT하면 서버가 HMAC 해시를 저장하고
         // 해당 필드를 프로필 데이터에서 제거합니다(공개 쿼리에 노출되지 않음).
@@ -3773,8 +3777,13 @@ router.post('/op', async (req: Request, res: Response) => {
                 secretHash: bind.secretHash,
                 createdAt: ts(),
               });
-              getTable('device_secrets').push(dsRow);
-              dbPersistRow('device_secrets', dsRow).catch(e => logger.error({ err: e }, '[db] background task error'));
+              if (table === 'profiles' && !isAdmin && process.env.NODE_ENV !== 'test') {
+                // Persist the hashed binding in the same PostgreSQL transaction as the profile.
+                pendingParticipantSecret = dsRow;
+              } else {
+                getTable('device_secrets').push(dsRow);
+                dbPersistRow('device_secrets', dsRow).catch(e => logger.error({ err: e }, '[db] background task error'));
+              }
             }
             delete newRow._device_secret; // 프로필 응답·DB에서 제거
           }
@@ -3793,12 +3802,23 @@ router.post('/op', async (req: Request, res: Response) => {
         // 핵심 테이블: DB 저장 성공 후에만 SSE 전파 — "전달됐는데 저장 안 됨" 방지
         if (CRITICAL_PERSIST_TABLES.has(table)) {
           try {
-            await dbPersistRow(table, newRow);
+            if (table === 'profiles' && !isAdmin && process.env.NODE_ENV !== 'test') {
+              await persistNewParticipantForCycle(pool, newRow, profileEventArchiveId, pendingParticipantSecret);
+              if (pendingParticipantSecret) getTable('device_secrets').push(pendingParticipantSecret);
+            } else {
+              await dbPersistRow(table, newRow);
+            }
           } catch (e) {
             const idx = tableData.findIndex(r => r.id === newRow.id);
             if (idx >= 0) tableData.splice(idx, 1);
             const iidx = inserted.findIndex(r => r.id === newRow.id);
             if (iidx >= 0) inserted.splice(iidx, 1);
+            if (e instanceof EventAdmissionClosedDuringWrite) {
+              return res.status(403).json({ data: null, error: {
+                message: '신규 입장이 마감되어 등록하지 못했습니다. 기존 계정은 고유번호로 복구할 수 있습니다.',
+                code: 'EVENT_ADMISSION_CLOSED',
+              } });
+            }
             logger.error({ err: e, table, rowId: newRow.id }, '[db] critical persist failed — rolled back memory');
             return sendReject(opPersistFailedReject());
           }
@@ -3965,6 +3985,8 @@ router.post('/op', async (req: Request, res: Response) => {
       const inputs = (Array.isArray(payload) ? payload as Record<string, unknown>[] : [payload as Record<string, unknown>])
         .map(row => sanitizeRow(table, row)); // XSS 방어: UPSERT payload도 sanitize
       const upserted: Record<string, unknown>[] = [];
+      const profileEventArchiveId = table === 'profiles'
+        ? String((getTable('app_settings')[0] ?? {}).event_cycle_archive_id ?? '') : '';
 
       // ─ IDOR guard: UPSERT ownership (db-op-upsert-ownership) ───────────
       {
@@ -4058,6 +4080,7 @@ router.post('/op', async (req: Request, res: Response) => {
           }
         } else {
           let base: Record<string, unknown> = { id: genId(), created_at: ts(), ...row };
+          let pendingParticipantSecret: Record<string, unknown> | null = null;
           if (table === 'profiles') {
             const admission = newParticipantAdmissionReject(
               (getTable('app_settings')[0] ?? {}) as Record<string, unknown>,
@@ -4077,8 +4100,12 @@ router.post('/op', async (req: Request, res: Response) => {
               const profileId = String(base.id);
               if (!getTable('device_secrets').find(r => r.user_id === profileId)) {
                 const dsRow = { id: genId(), user_id: profileId, secret_hash: secretHash, created_at: ts() };
-                getTable('device_secrets').push(dsRow);
-                dbPersistRow('device_secrets', dsRow).catch(e => logger.error({ err: e }, '[db] background task error'));
+                if (!isAdmin && process.env.NODE_ENV !== 'test') {
+                  pendingParticipantSecret = dsRow;
+                } else {
+                  getTable('device_secrets').push(dsRow);
+                  dbPersistRow('device_secrets', dsRow).catch(e => logger.error({ err: e }, '[db] background task error'));
+                }
               }
               delete base._device_secret;
             }
@@ -4092,11 +4119,22 @@ router.post('/op', async (req: Request, res: Response) => {
           upserted.push(base);
           if (CRITICAL_PERSIST_TABLES.has(table)) {
             try {
-              await dbPersistRow(table, base);
+              if (table === 'profiles' && !isAdmin && process.env.NODE_ENV !== 'test') {
+                await persistNewParticipantForCycle(pool, base, profileEventArchiveId, pendingParticipantSecret);
+                if (pendingParticipantSecret) getTable('device_secrets').push(pendingParticipantSecret);
+              } else {
+                await dbPersistRow(table, base);
+              }
             } catch (e) {
               const bi = tableData.findIndex(r => r.id === base.id);
               if (bi >= 0) tableData.splice(bi, 1);
               upserted.pop();
+              if (e instanceof EventAdmissionClosedDuringWrite) {
+                return res.status(403).json({ data: null, error: {
+                  message: '신규 입장이 마감되어 등록하지 못했습니다. 기존 계정은 고유번호로 복구할 수 있습니다.',
+                  code: 'EVENT_ADMISSION_CLOSED',
+                } });
+              }
               logger.error({ err: e, table, rowId: base.id }, '[db] critical UPSERT insert persist failed');
               return sendReject(opPersistFailedReject());
             }

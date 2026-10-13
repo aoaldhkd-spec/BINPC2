@@ -27,7 +27,7 @@ export type EventResetOptions = {
   onStage?: (stage: 'begin' | 'archive' | 'delete' | 'restore-admin' | 'settings' | 'commit') => void;
 };
 
-const LOCK_KEY = 'binpc2:event-anonymous-archive-reset:v1';
+export const EVENT_RESET_LOCK_KEY = 'binpc2:event-anonymous-archive-reset:v1';
 const SELECT_SETTINGS = "SELECT row_id, data FROM app_kv_rows WHERE table_name = 'app_settings' ORDER BY updated_at DESC LIMIT 1 FOR UPDATE";
 const SELECT_ARCHIVE = "SELECT row_id FROM app_kv_rows WHERE table_name = 'event_anonymous_archives' AND row_id = $1 LIMIT 1";
 
@@ -48,7 +48,7 @@ export async function atomicEventReset(pool: ResetPgPool, opts: EventResetOption
   try {
     await client.query('BEGIN');
     inTx = true;
-    await client.query('SELECT pg_advisory_xact_lock(hashtext($1))', [LOCK_KEY]);
+    await client.query('SELECT pg_advisory_xact_lock(hashtext($1))', [EVENT_RESET_LOCK_KEY]);
     // Block new KV writes while taking the complete archive snapshot and
     // clearing the event; prevents phantom participant/message inserts that
     // would otherwise fall between the snapshot and the DELETE.
