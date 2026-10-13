@@ -3,8 +3,10 @@ import { Users, CheckCircle, Clock, ShieldAlert } from 'lucide-react';
 import { navigateToAppPath, PANEL_PIN_INPUT_PROPS, PIN_DIGIT_INPUT_PROPS, verifyPanelPassword } from '../lib/panel-password';
 import { EventScheduleBanner } from './EventScheduleBanner';
 
-export function WaitingOverlay({ sessionActive, onEnter, onRecover }: {
+export function WaitingOverlay({ sessionActive, eventCycleStartedAt, eventCycleResetComplete, onEnter, onRecover }: {
   sessionActive: boolean | null;
+  eventCycleStartedAt?: string | null;
+  eventCycleResetComplete?: boolean;
   onEnter: () => void;
   onRecover?: (profileId: string, pinCode: string) => void;
 }) {
@@ -260,7 +262,7 @@ export function WaitingOverlay({ sessionActive, onEnter, onRecover }: {
           </div>
         )}
         <div className="w-full mb-2">
-          <EventScheduleBanner raw={null} showStatus={false} />
+          <EventScheduleBanner raw={null} showStatus={false} eventCycleStartedAt={eventCycleStartedAt} eventCycleResetComplete={eventCycleResetComplete} />
         </div>
 
         {/* 안내 문구 — 배지와 중복되지 않는 내용만 */}
