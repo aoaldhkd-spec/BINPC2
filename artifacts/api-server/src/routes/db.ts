@@ -822,7 +822,7 @@ async function runAdminEventEndResetCore(extraPatch: Record<string, unknown> = {
   await Promise.all(persistDeletes);
   await ensureOptInGroupRooms();
   await restoreAdminProfileAfterWipeInStore(oldProfiles, settingsRow);
-  await bumpResetSignalAndBroadcast(extraPatch);
+  await bumpResetSignalAndBroadcast({ ...extraPatch, session_active: false, event_cycle_reset_complete: true });
 }
 
 let dailyCycleTimer: ReturnType<typeof setTimeout> | null = null;
@@ -4189,7 +4189,10 @@ router.post('/rpc/:name', async (req: Request, res: Response) => {
         checkPassword();
         const active = args.p_active === true;
         const current = (getTable('app_settings')[0] ?? {}) as Record<string, unknown>;
-        const merged = mergeAppSettings(current, { session_active: active });
+        const merged = mergeAppSettings(current, {
+          session_active: active,
+          ...(active ? { event_cycle_started_at: new Date().toISOString(), event_cycle_reset_complete: false } : {}),
+        });
         const updated = await overlayDbSecrets(merged, new Set());
         store['app_settings'] = [updated];
         try {
