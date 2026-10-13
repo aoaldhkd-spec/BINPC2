@@ -2,6 +2,13 @@ import { describe, expect, it } from 'vitest';
 import { dailyCycleBannerState } from './daily-cycle';
 
 describe('fixed daily participant notices', () => {
+  it('shows no false heart unlock/countdown before an administrator starts, or after reset', () => {
+    const now = new Date('2026-10-13T23:30:00+09:00');
+    expect(dailyCycleBannerState(now, null, false).phase).toBe('idle');
+    expect(dailyCycleBannerState(now, '2026-10-13T18:00:00+09:00', true).countdownSec).toBe(0);
+    expect(dailyCycleBannerState(new Date('2026-10-14T10:00:00+09:00'),
+      '2026-10-13T18:00:00+09:00', false).message).toContain('기존 참가자');
+  });
   it('17~23 counts down to normal hearts', () => {
     const s = dailyCycleBannerState(new Date('2026-10-05T22:00:00+09:00'));
     expect(s.phase).toBe('waiting-hearts');
