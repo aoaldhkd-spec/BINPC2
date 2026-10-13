@@ -453,8 +453,12 @@ function App() {
     [eventScheduleMinute],
   );
   const heartOpsConfig = useMemo(
-    () => parseHeartOps(eventScheduleRawForCycle),
-    [eventScheduleRawForCycle],
+    () => {
+      const canonical = parseHeartOps(eventScheduleRaw);
+      const cycle = parseHeartOps(eventScheduleRawForCycle);
+      return { ...canonical, slots: [], instant_unlock: cycle.instant_unlock, auto_unlock_from: undefined };
+    },
+    [eventScheduleRaw, eventScheduleRawForCycle],
   );
   const heartUsage = useMemo(() => getHeartUsage(), [getHeartUsage]);
   const participantHearts = useMemo(
