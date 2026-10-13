@@ -116,14 +116,28 @@ export function dueDailyCycleActions(
 ): { sessionEndDate: string | null; resetDate: string | null } {
   const today = seoulDateKey(now);
   const minute = minuteOfDay(now);
+  const startedAt = typeof settings.event_cycle_started_at === 'string'
+    ? Date.parse(settings.event_cycle_started_at) : NaN;
+  if (!Number.isFinite(startedAt) || startedAt > now.getTime()
+    || settings.event_cycle_reset_complete === true) {
+    return { sessionEndDate: null, resetDate: null };
+  }
+  const started = new Date(startedAt);
+  const startedDate = seoulDateKey(started);
+  const endDate = minuteOfDay(started) >= DAILY_SESSION_END_HOUR * 60
+    ? key(addDays(parts(started), 1)) : startedDate;
+  const resetDate = minuteOfDay(started) >= DAILY_RESET_HOUR * 60
+    ? key(addDays(parts(started), 1)) : startedDate;
   return {
     sessionEndDate:
       minute >= DAILY_SESSION_END_HOUR * 60
+      && today >= endDate
       && String(settings.daily_session_end_date ?? '') !== today
         ? today
         : null,
     resetDate:
       minute >= DAILY_RESET_HOUR * 60
+      && today >= resetDate
       && String(settings.daily_reset_date ?? '') !== today
         ? today
         : null,
