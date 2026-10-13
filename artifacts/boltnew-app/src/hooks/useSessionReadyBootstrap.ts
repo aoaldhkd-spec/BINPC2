@@ -88,6 +88,15 @@ export function useSessionReadyBootstrap(args: UseSessionReadyBootstrapArgs): vo
       });
       argsRef.current.setEventCycleMeta(data);
       applyReadyPlan(plan, argsRef.current);
+      // On a first visit the stored reset signal may be missing. Applying
+      // that one-time client reset must not discard the active event state
+      // obtained in the same authoritative settings response.
+      if (plan.kind === 'reset') {
+        const afterReset = planReadyBootstrapApply(data, {
+          localReset: plan.resetSignal, omitEventSchedule,
+        });
+        applyReadyPlan(afterReset, argsRef.current);
+      }
     };
 
     async function loadSettings(attempt = 0): Promise<void> {

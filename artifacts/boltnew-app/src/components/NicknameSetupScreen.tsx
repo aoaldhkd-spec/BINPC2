@@ -143,6 +143,9 @@ export function NicknameSetupScreen({ onSubmit, loading, registrationError, onRe
   const [bioFilter, setBioFilter] = useState<string>(BIO_CATEGORY_GROUPS[0].label);
   const [privacyConsent, setPrivacyConsent] = useState<RegistrationConsent>({ collection: false, sharing: false, version: REGISTRATION_CONSENT_VERSION });
   const [pushOptIn, setPushOptIn] = useState(false);
+  // A decision is mandatory, receiving notifications is not. Browsers require
+  // a real gesture and users must retain the ability to decline permission.
+  const [pushDecision, setPushDecision] = useState<'enable' | 'skip' | null>(null);
   const [pushStatus, setPushStatus] = useState<PushSetupStatus | null>(null);
 
   // contact (숨김 — 입장 후 설정)
@@ -209,7 +212,8 @@ export function NicknameSetupScreen({ onSubmit, loading, registrationError, onRe
     if (s === 1) return !!mbti;
     if (s === 2) return !!birthYear && !!location;
     if (s === 3) return selectedBio.length >= 2;
-    if (s === 4) return positionScore !== null && hasRequiredConsent(privacyConsent);
+    if (s === 4) return positionScore !== null && hasRequiredConsent(privacyConsent)
+      && pushDecision !== null;
     if (s === 5) return customValid;
     return false;
   };
@@ -560,6 +564,7 @@ export function NicknameSetupScreen({ onSubmit, loading, registrationError, onRe
                 onClick={() => {
                   setPrivacyConsent({ collection: true, sharing: true, version: REGISTRATION_CONSENT_VERSION });
                   setPushOptIn(true);
+                  setPushDecision('enable');
                   // Explicit participant gesture only; OS permission still requires its own approval.
                   void requestPushPermissionFromClick().then(setPushStatus);
                 }}
@@ -575,6 +580,7 @@ export function NicknameSetupScreen({ onSubmit, loading, registrationError, onRe
                     onChange={(event) => {
                       const checked = event.target.checked;
                       setPushOptIn(checked);
+                      setPushDecision(checked ? 'enable' : 'skip');
                       if (checked) {
                         // Direct user gesture: iOS installed PWA requires a synchronous prompt.
                         void requestPushPermissionFromClick().then(setPushStatus);
@@ -583,7 +589,21 @@ export function NicknameSetupScreen({ onSubmit, loading, registrationError, onRe
                     className="mt-0.5 h-4 w-4 accent-teal-600 shrink-0" />
                   <span>🔔 <strong className="text-teal-700">[선택]</strong> 하트·1:1 채팅 알림 받기</span>
                 </label>
-                <p className="text-[11px] text-gray-500 pl-7 mt-1">보낸 본인과 단체채팅은 알리지 않아요. 선택하지 않아도 등록할 수 있어요.</p>
+                <p className="text-[11px] text-gray-500 pl-7 mt-1">
+                  보낸 본인과 단체채팅은 알리지 않아요. 알림 받기 여부는 반드시 선택하고, 허용하지 않아도 참가할 수 있어요.
+                </p>
+                <button type="button" aria-label="알림 없이 계속" aria-pressed={pushDecision === 'skip'}
+                  onClick={() => { setPushDecision('skip'); setPushOptIn(false); setPushStatus(null); }}
+                  className={`mt-2 ml-7 rounded-lg border px-3 py-2 text-xs font-bold ${pushDecision === 'skip'
+                    ? 'bg-slate-700 border-slate-700 text-white'
+                    : 'bg-white border-gray-300 text-slate-700'}`}>
+                  알림 없이 계속
+                </button>
+                {pushDecision === null && (
+                  <p role="status" className="text-[11px] text-amber-700 pl-7 mt-1">
+                    알림 받기 또는 알림 없이 계속을 선택해 주세요.
+                  </p>
+                )}
                 {pushOptIn && (pushStatus?.code === 'install-required' || (!pushStatus && currentPushStatus().code === 'install-required')) && (
                   <p className="text-[11px] text-amber-700 pl-7 mt-1">아이폰·아이패드는 Safari 공유 → 홈 화면에 추가 후 BINPC2 아이콘으로 열어 주세요. 지원되는 안드로이드 브라우저에서는 웹에서도 알림을 허용할 수 있어요.</p>
                 )}
@@ -596,6 +616,7 @@ export function NicknameSetupScreen({ onSubmit, loading, registrationError, onRe
               </div>
               </RegistrationConsentRows>
               {!hasRequiredConsent(privacyConsent) && <p role="status" className="text-xs text-rose-700">필수 동의 두 항목을 직접 선택해야 다음 단계로 이동할 수 있어요.</p>}
+              {pushDecision === null && <p role="status" className="text-xs text-amber-700">알림 수신 여부를 한 번 선택해야 다음 단계로 이동할 수 있어요.</p>}
 
               {registrationError && (
                 <div className="p-3 bg-rose-50 border border-rose-200 rounded-2xl flex items-start gap-2">
