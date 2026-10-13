@@ -3,6 +3,8 @@ on:
   pull_request:
     paths:
       - 'artifacts/api-server/src/lib/db-event-reset-transaction*'
+      - 'artifacts/api-server/src/lib/db-event-profile-write*'
+      - 'artifacts/api-server/src/lib/db-event-admission*'
       - 'artifacts/api-server/src/routes/db.ts'
       - '.github/workflows/reset-db-integration.yml'
   workflow_dispatch:

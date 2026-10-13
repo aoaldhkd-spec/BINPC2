@@ -1,6 +1,7 @@
 import { beforeEach, afterAll, describe, expect, it } from 'vitest';
 import pg from 'pg';
 import { atomicEventReset, type ResetPgPool, type ResetPgClient } from './db-event-reset-transaction.js';
+import { EventAdmissionClosedDuringWrite, persistNewParticipantForCycle } from './db-event-profile-write.js';
 
 const url = process.env.TEST_DATABASE_URL;
 const test = url ? it : it.skip; // GitHub ephemeral PostgreSQL CI supplies this URL; no production credentials.
@@ -151,4 +152,95 @@ describe('real ephemeral PostgreSQL reset and rollback (no production data)', ()
     expect(await rows('event_anonymous_archives')).toHaveLength(1);
     expect((await rows('app_settings'))[0]?.event_cycle_reset_complete).toBe(true);
   });
+  test('guarded new participant persists profile and hashed device binding together', async () => {
+    await pool!.query("UPDATE app_kv_rows SET data = jsonb_set(data, '{session_active}', 'true'::jsonb) WHERE table_name = 'app_settings'");
+    await persistNewParticipantForCycle(adapter(),
+      { id: 'registered', nickname: 'synthetic-only' }, id,
+      { id: 'registered-device', user_id: 'registered', secret_hash: 'synthetic-hash' },
+      () => new Date('2026-10-13T20:00:00+09:00'));
+    expect((await rows('profiles')).map(x => x.id)).toContain('registered');
+    expect((await rows('device_secrets')).map(x => x.user_id)).toContain('registered');
+  });
+
+  test('a failed device binding rolls back the new profile as well', async () => {
+    await pool!.query("UPDATE app_kv_rows SET data = jsonb_set(data, '{session_active}', 'true'::jsonb) WHERE table_name = 'app_settings'");
+    const base = adapter();
+    const fault: ResetPgPool = {
+      ...base,
+      connect: async () => {
+        const real = await base.connect();
+        return {
+          ...real,
+          query: async (sql, values) => {
+            if (values?.[0] === 'device_secrets') throw new Error('synthetic device write failure');
+            return real.query(sql, values);
+          },
+        };
+      },
+    };
+    await expect(persistNewParticipantForCycle(fault,
+      { id: 'rollback-person', nickname: 'do-not-save' }, id,
+      { id: 'rollback-device', user_id: 'rollback-person', secret_hash: 'synthetic' },
+      () => new Date('2026-10-13T20:00:00+09:00'))).rejects.toThrow('synthetic device');
+    expect((await rows('profiles')).some(x => x.id === 'rollback-person')).toBe(false);
+    expect((await rows('device_secrets'))).toHaveLength(0);
+  });
+
+  test('a stale active flag cannot resurrect a participant after 01:00 or after reset', async () => {
+    await pool!.query("UPDATE app_kv_rows SET data = jsonb_set(data, '{session_active}', 'true'::jsonb) WHERE table_name = 'app_settings'");
+    await expect(persistNewParticipantForCycle(adapter(), { id: 'too-late' }, id, null,
+      () => new Date('2026-10-14T01:00:00+09:00'))).rejects.toBeInstanceOf(EventAdmissionClosedDuringWrite);
+    expect((await rows('profiles')).some(x => x.id === 'too-late')).toBe(false);
+    await atomicEventReset(adapter(), options());
+    await expect(persistNewParticipantForCycle(adapter(), { id: 'after-reset' }, id, null,
+      () => new Date('2026-10-13T23:00:00+09:00'))).rejects.toBeInstanceOf(EventAdmissionClosedDuringWrite);
+    expect((await rows('profiles')).map(x => x.id)).toEqual(['npc']);
+  });
+
+  test('a new-profile write queued behind a reset cannot recreate old event data', async () => {
+    let releaseReset!: () => void;
+    let signalLocked!: () => void;
+    const held = new Promise<void>(resolve => { releaseReset = resolve; });
+    const locked = new Promise<void>(resolve => { signalLocked = resolve; });
+    const base = adapter();
+    const delaying: ResetPgPool = {
+      ...base,
+      connect: async () => {
+        const real = await base.connect();
+        return {
+          ...real,
+          query: async (sql, values) => {
+            const result = await real.query(sql, values);
+            if (sql === 'LOCK TABLE app_kv_rows IN EXCLUSIVE MODE') {
+              signalLocked();
+              await held;
+            }
+            return result;
+          },
+        };
+      },
+    };
+    const resetPending = atomicEventReset(delaying, options());
+    await locked; // reset owns the advisory lock and the app_kv_rows EXCLUSIVE lock
+    const newProfile = persistNewParticipantForCycle(adapter(),
+      { id: 'ghost-after-reset', nickname: 'synthetic' }, id, null,
+      () => new Date('2026-10-13T23:00:00+09:00'));
+    await new Promise(resolve => setTimeout(resolve, 40));
+    releaseReset();
+    expect((await resetPending).status).toBe('committed');
+    await expect(newProfile).rejects.toBeInstanceOf(EventAdmissionClosedDuringWrite);
+    expect((await rows('profiles')).map(x => x.id)).toEqual(['npc']);
+    expect((await rows('event_anonymous_archives'))).toHaveLength(1);
+  });
+
+  test('a profile committed just before reset is included in its preserved aggregate', async () => {
+    await pool!.query("UPDATE app_kv_rows SET data = jsonb_set(data, '{session_active}', 'true'::jsonb) WHERE table_name = 'app_settings'");
+    await persistNewParticipantForCycle(adapter(), { id: 'arrived-before-reset', nickname: 'synthetic' },
+      id, null, () => new Date('2026-10-13T20:00:00+09:00'));
+    const completed = await atomicEventReset(adapter(), options());
+    expect(completed.archive?.participantCount).toBe(2);
+    expect((await rows('profiles')).map(x => x.id)).toEqual(['npc']);
+    expect(JSON.stringify(await rows('event_anonymous_archives'))).not.toContain('arrived-before-reset');
+  });
+
 });
