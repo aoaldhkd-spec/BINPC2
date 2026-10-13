@@ -28,6 +28,7 @@ import {
   APP_SETTINGS_ADMIN_SELECT,
 } from './lib/profile-select';
 import { DashboardTab } from './admin/DashboardTab';
+import { AnonymousEventHistoryTab } from './admin/AnonymousEventHistoryTab';
 import { ADMIN_FIXED_NICKNAME } from './lib/panel-password';
 import { NPC_TEXT_AVATAR_SENTINEL } from './lib/profile';
 import { parseModuleFlags, serializeModuleFlags, type DetachableModuleId } from './lib/module-flags';
@@ -719,7 +720,7 @@ function AdminDashboard({ onLogout }: { onLogout: () => void }) {
                   <DbHealthTab health={dbHealth} loading={dbHealthLoading} onRefresh={fetchDbHealth} onClearErrors={handleClearDbErrors} />
                 </>
               )}
-              {settingsSubTab === 'reports' && <SalesReportsTab />}
+              {settingsSubTab === 'reports' && <><AnonymousEventHistoryTab /><SalesReportsTab /></>}
             </Suspense>
           </div>
         )}
