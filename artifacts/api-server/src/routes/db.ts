@@ -1,5 +1,6 @@
 import '../lib/dns-ipv4-first.js';
 import { atomicEventReset } from '../lib/db-event-reset-transaction.js';
+import { planNpcHeartRefill, npcHeartAllowance } from '../lib/db-npc-heart-recharge.js';
 import { newParticipantAdmissionReject } from '../lib/db-event-admission.js';
 import { Router, type Request, type Response } from 'express';
 import pg from 'pg';
@@ -924,11 +925,20 @@ async function catchUpDailyCycleAutomation(): Promise<void> {
     const due = dueDailyCycleActions(settings, new Date());
 
     if (due.sessionEndDate) {
+      const npc = getTable('profiles').find(row => isAdminProfileRow(row));
+      const refill = npc?.id && settings.session_active === true
+        ? planNpcHeartRefill({
+          previous: settings.npc_heart_refill,
+          archiveId: String(settings.event_cycle_archive_id ?? ''),
+          npcId: String(npc.id), phase: 'end',
+          likes: getTable('likes'), now: new Date().toISOString(),
+        }) : null;
       settings = await persistAppSettingsPatch({
         session_active: false,
         // Ending admission must not silently lock existing participants' hearts or chats.
         daily_session_end_date: due.sessionEndDate,
         event_schedule: FIXED_DAILY_EVENT_SCHEDULE,
+        ...(refill ? { npc_heart_refill: refill } : {}),
       });
       logger.info({ date: due.sessionEndDate }, '[daily-cycle] 01:00 session auto-ended');
     }
@@ -3667,15 +3677,25 @@ router.post('/op', async (req: Request, res: Response) => {
           const unlockedKeys = process.env.NODE_ENV === 'test'
             ? new Set(['red', 'blue', 'pink', 'green', 'rainbow'])
             : unlockedHeartKeys(heartOps, now);
-          // The operator-owned NPC is a test fixture with replenished hearts.
-          // This bypass is scoped to its authenticated, server-identified profile only.
+          // NPC sends are bounded by the most recent authorised start/end refill.
+          // Prior likes and per-recipient/type duplicate checks are NEVER bypassed.
           const npcSender = getTable('profiles').some(p => String(p.id) === likeLiker && isAdminProfileRow(p));
-          const capReject = npcSender ? null : likesHeartOpsReject({
+          const eventSettings = (getTable('app_settings')[0] ?? {}) as Record<string, unknown>;
+          const npcUsage = npcSender ? npcHeartAllowance({
+            marker: eventSettings.npc_heart_refill,
+            archiveId: eventSettings.event_cycle_archive_id,
+            npcId: likeLiker, likes: tableData,
+          }) : null;
+          const effectiveUnlocks = new Set(unlockedKeys);
+          if (npcUsage?.active) {
+            for (const kind of ['red', 'blue', 'pink', 'green', 'rainbow'] as const) effectiveUnlocks.add(kind);
+          }
+          const capReject = likesHeartOpsReject({
             source: likeSource,
             heartType: likeType,
-            unlockedKeys,
-            grantUsed: usage.grantUsed,
-            rainbowUsed: usage.rainbowUsed,
+            unlockedKeys: effectiveUnlocks,
+            grantUsed: npcUsage?.grantUsed ?? usage.grantUsed,
+            rainbowUsed: npcUsage?.rainbowUsed ?? usage.rainbowUsed,
           });
           if (capReject) return sendReject(capReject);
           effectiveRow = { ...effectiveRow, like_source: likeSource };
@@ -4272,11 +4292,22 @@ router.post('/rpc/:name', async (req: Request, res: Response) => {
         checkPassword();
         const active = args.p_active === true;
         const current = (getTable('app_settings')[0] ?? {}) as Record<string, unknown>;
-        const patch = active ? planEventCycleStartPatch(current, new Date()) : { session_active: false };
+        if (current.session_active === active) {
+          return res.json({ data: { session_active: active }, error: null });
+        }
         try {
-          // Reuse the existing persist/rollback/broadcast sequence. A failed
-          // DB write must not leave a ghost-started event in the RAM cache.
-          await persistAppSettingsPatch(patch);
+          const npc = await ensureAdminProfile();
+          if (!npc?.id) throw new Error('범일NPC restoration/identity verification failed');
+          const now = new Date();
+          const patch = active ? planEventCycleStartPatch(current, now) : { session_active: false };
+          const recharge = planNpcHeartRefill({
+            previous: current.npc_heart_refill,
+            archiveId: String(active ? patch.event_cycle_archive_id : current.event_cycle_archive_id),
+            npcId: String(npc.id), phase: active ? 'start' : 'end',
+            likes: getTable('likes'), now: now.toISOString(),
+          });
+          // Use rollback-safe persistence: event transition + NPC allowance in one row.
+          await persistAppSettingsPatch({ ...patch, npc_heart_refill: recharge });
         } catch (e) {
           logger.error({ err: e }, '[db] admin_toggle_session persist failed');
           const rej = rpcSessionPersistFailedReject();
