@@ -37,6 +37,7 @@
 - 이 워크플로는 **GitHub 소스·브랜치·태그·과거 Git 이력만** 대상으로 한다. Supabase Free 운영 DB의 개인정보/이미지/기기 인증정보 원본은 백업하지 않는다.
 - 실제 DB 전체 자동 백업은 암호화, 본인 소유 인증정보 보호, 별도 복원 시험이 필요한 후속 작업이다. 현재 DB 자동 백업 미설정.
 - 기존 Render/Netlify 배포·환경변수·Secret, 참가자 하트·채팅·PWA·SSE에는 아무런 변경이 없다.
+- **Drive 업로드 전 안전상한 추가:** `rclone about --json`으로 사용자 Drive의 남은 저장공간을 읽고, 전체 버전 크기 **+2GiB 이상 여유가 없으면 STOP**. 기존 사본 임의 삭제 금지, 용량을 확인할 수 없으면 실패(성공으로 위장하지 않음). 이 규칙은 향후 실제 OAuth 연결 시에만 실행되므로 이번 PR CI에서 실제 Drive quota 체크가 통과했다고 주장하지 않는다.
 - `main` 브랜치가 자동 Render 배포와 연동되어 있어서 이 문서/워크플로는 **별도 브랜치의 Draft PR**로만 준비한다. 병합 전에는 코드 리뷰·CI 확인을 마쳐야 하며, 실제 병합·배포는 사용자 별도 승인 후 진행한다.
 - GitHub Actions 자격증명은 `contents: read`이고 checkout의 `persist-credentials`도 끈다. Google 인증은 GitHub Secret으로만 공급해 실행 뒤 즉시 폐기한다.
 - 장기간 백업은 Google Drive 무료 용량을 소모할 수 있다. 임의로 과거 복구점을 삭제하지 않고 용량 경보/보관 정책을 따로 결정한다.
