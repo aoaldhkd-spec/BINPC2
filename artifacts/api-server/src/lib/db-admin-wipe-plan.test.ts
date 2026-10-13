@@ -68,6 +68,10 @@ describe('db-admin-wipe-plan', () => {
     expect([...TEST_WIPE_ALL_TABLES]).toEqual(['likes', 'messages', 'chats', 'profiles']);
     expect([...ADMIN_EVENT_END_PRESERVE_TABLES]).toEqual(['event_sales_reports', 'event_anonymous_archives']);
     expect(ADMIN_EVENT_END_CLEAR_TABLES).not.toContain('event_sales_reports');
+    expect(ADMIN_EVENT_END_CLEAR_TABLES).not.toContain('event_anonymous_archives');
+    for (const t of ['chat_reads', 'blocked_users', 'profile_views', 'user_signals']) {
+      expect(ADMIN_EVENT_END_CLEAR_TABLES).toContain(t);
+    }
   });
 });
 

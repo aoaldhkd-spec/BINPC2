@@ -1,5 +1,5 @@
 import '../lib/dns-ipv4-first.js';
-import { summarizeAnonymousEvent } from '../lib/db-event-anonymous-history.js';
+import { atomicEventReset } from '../lib/db-event-reset-transaction.js';
 import { newParticipantAdmissionReject } from '../lib/db-event-admission.js';
 import { Router, type Request, type Response } from 'express';
 import pg from 'pg';
@@ -802,68 +802,82 @@ async function persistAppSettingsPatch(patch: Record<string, unknown>): Promise<
   return updated;
 }
 
-/** Same wipe as 회식 종료 전체 초기화. Optional extra settings patch is merged into reset_signal SSE. */
+/** Durable event close. All destructive SQL, the archive, NPC and settings commit together. */
 async function runAdminEventEndResetCore(extraPatch: Record<string, unknown> = {}): Promise<void> {
-  const settingsRow = (getTable('app_settings')[0] ?? {}) as Record<string, unknown>;
-  // Idempotent reset: never overwrite a preserved archive with an empty second snapshot.
-  if (settingsRow.event_cycle_reset_complete === true) return;
-  const oldProfiles = store['profiles'] ?? [];
-  const archive = summarizeAnonymousEvent({
-    // Report the event's START date, not the following day's 17:00 reset date.
-    eventKey: typeof settingsRow.event_cycle_started_at === 'string'
-      && Number.isFinite(Date.parse(settingsRow.event_cycle_started_at))
-      ? seoulDateKey(new Date(settingsRow.event_cycle_started_at))
-      : seoulDateKey(new Date()),
-    eventArchiveId: typeof settingsRow.event_cycle_archive_id === 'string' ? settingsRow.event_cycle_archive_id : undefined,
-    profiles: oldProfiles,
-    likes: getTable('likes'),
-    messages: getTable('messages'),
-    groupMessages: getTable('group_messages'),
-    signals: getTable('signal_sends'),
-    contactShares: getTable('contact_share_events'),
-    adminProfileId: String(oldProfiles.find(row => isAdminProfileRow(row))?.id ?? ''),
+  const beforeProfiles = [...(store['profiles'] ?? [])];
+  const priorSettings = (getTable('app_settings')[0] ?? {}) as Record<string, unknown>;
+  const now = new Date();
+  const result = await atomicEventReset(pool, {
+    now,
+    clearTables: ADMIN_EVENT_END_CLEAR_TABLES,
+    adminIsProfile: (row, settings) => isAdminProfileRow(row, adminPhoneDigitsFromSettings(settings)),
+    planAdmin: (oldProfiles, settingsRow) => {
+      const plan = planRestoreAdminProfileAfterWipe({
+        oldProfiles, settingsRow, now: now.toISOString(),
+        fallbackId: crypto.randomUUID(), npcAvatarSentinel: NPC_TEXT_AVATAR_SENTINEL,
+      });
+      if (plan.action !== 'restore' || !plan.row.pin_code) {
+        throw new Error('NPC has no durable restorable identity/PIN; refusing reset');
+      }
+      return plan.row;
+    },
+    buildNextSettings: (savedSettings, resetSignal) => mergeAppSettings(savedSettings, {
+      ...extraPatch,
+      session_active: false,
+      event_cycle_reset_complete: true,
+      reset_signal: resetSignal,
+      updated_at: resetSignal,
+    }),
   });
-  // Archive and deletion are one DB transaction: either both commit or neither does.
-  // Never announce RESET or clear the in-memory store until PostgreSQL commits.
-  const wipeClient = await pool.connect();
-  try {
-    await wipeClient.query('BEGIN');
-    const archiveRow = { ...archive, id: archive.archiveId, createdAt: new Date().toISOString() };
-    // First archived snapshot wins. A partial reset retry cannot overwrite it with zero counts.
-    await wipeClient.query(buildKvInsertIfAbsentSql(), [
-      'event_anonymous_archives', archive.archiveId, JSON.stringify(archiveRow),
-    ]);
-    for (const t of ADMIN_EVENT_END_CLEAR_TABLES) {
-      if (WIPE_PRESERVED_TABLES.has(t)) continue;
-      await wipeClient.query(buildKvDeleteTableSql(), [t]);
-    }
-    await wipeClient.query('COMMIT');
-  } catch (error) {
-    try { await wipeClient.query('ROLLBACK'); }
-    catch (rollbackError) { logger.error({ err: rollbackError }, '[event-reset] rollback failed'); }
-    throw error;
-  } finally {
-    wipeClient.release();
+  // A different API instance may already have completed the transaction.
+  // Its DB result is authoritative; never replay a second delete.
+  if (result.status === 'already') {
+    const refreshed = await pool.query(
+      "SELECT data FROM app_kv_rows WHERE table_name = 'profiles'",
+    );
+    for (const table of ADMIN_EVENT_END_CLEAR_TABLES) store[table] = [];
+    store['profiles'] = refreshed.rows.map(row => row.data as Record<string, unknown>);
+    store['app_settings'] = [result.nextSettings];
+    _likesLastInsert.clear();
+    broadcastAll({ type: 'change', table: 'app_settings', event: 'UPDATE',
+      newRow: sanitizeSettings(result.nextSettings), oldRow: sanitizeSettings(priorSettings) });
+    return;
   }
-  for (const t of ADMIN_EVENT_END_CLEAR_TABLES) {
-    if (WIPE_PRESERVED_TABLES.has(t)) continue;
-    const old = store[t] ?? [];
-    store[t] = [];
-    const bplan = planWipeTableBroadcast(t, old);
-    if (bplan.mode === 'reset') {
-      broadcastAll({ type: 'change', table: t, event: 'RESET', newRow: null, oldRow: null });
-    } else if (bplan.mode === 'profile_delete') {
-      for (const row of bplan.rows) broadcastAll({ type: 'change', table: t, event: 'DELETE', newRow: null, oldRow: sanitizeProfile(row) });
-    } else {
-      for (const row of bplan.rows) broadcastAll({ type: 'change', table: t, event: 'DELETE', newRow: null, oldRow: row });
-    }
-  }
+
+  // PostgreSQL has committed; update all RAM slices BEFORE broadcasting.
+  for (const table of ADMIN_EVENT_END_CLEAR_TABLES) store[table] = [];
+  store['profiles'] = result.restoredAdmin ? [result.restoredAdmin] : [];
+  store['app_settings'] = [result.nextSettings];
+  _likesLastInsert.clear();
   _mergedGroupIds.clear();
   _mergedChatIds.clear();
   autoMatchInFlight.clear();
-  await ensureOptInGroupRooms();
-  await restoreAdminProfileAfterWipeInStore(oldProfiles, settingsRow);
-  await bumpResetSignalAndBroadcast({ ...extraPatch, session_active: false, event_cycle_reset_complete: true });
+  for (const table of ADMIN_EVENT_END_CLEAR_TABLES) {
+    const before = result.previous[table] ?? [];
+    const plan = planWipeTableBroadcast(table, before);
+    if (plan.mode === 'reset') {
+      broadcastAll({ type: 'change', table, event: 'RESET', newRow: null, oldRow: null });
+    } else if (plan.mode === 'profile_delete') {
+      for (const row of plan.rows) broadcastAll({ type: 'change', table, event: 'DELETE',
+        newRow: null, oldRow: sanitizeProfile(row) });
+    } else {
+      for (const row of plan.rows) broadcastAll({ type: 'change', table, event: 'DELETE',
+        newRow: null, oldRow: row });
+    }
+  }
+  if (result.restoredAdmin) broadcastAll({
+    type: 'change', table: 'profiles', event: 'INSERT',
+    newRow: sanitizeProfile(result.restoredAdmin), oldRow: null,
+  });
+  smartBroadcast('app_settings', result.nextSettings, {
+    type: 'change', table: 'app_settings', event: 'UPDATE',
+    newRow: result.nextSettings, oldRow: priorSettings,
+  });
+  // Non-destructive catalog-room setup is recoverable on next boot.
+  try { await ensureOptInGroupRooms(); }
+  catch (e) { logger.error({ err: e }, '[event-reset] group-room recovery pending after committed reset'); }
+  logger.info({ archiveId: result.archive?.archiveId, previousProfiles: beforeProfiles.length },
+    '[event-reset] archive/reset/NPC/settings durably committed');
 }
 
 let dailyCycleTimer: ReturnType<typeof setTimeout> | null = null;

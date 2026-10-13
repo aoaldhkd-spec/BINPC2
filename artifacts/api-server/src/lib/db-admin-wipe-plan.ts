@@ -76,6 +76,8 @@ export const ADMIN_EVENT_END_CLEAR_TABLES = [
   'notifications',
   'signal_sends',
   'group_chats', 'group_participants', 'group_messages', 'group_opt_outs',
+  // Privacy-sensitive session residue must not survive the next event.
+  'chat_reads', 'blocked_users', 'profile_views', 'user_signals',
 ] as const;
 
 /**
