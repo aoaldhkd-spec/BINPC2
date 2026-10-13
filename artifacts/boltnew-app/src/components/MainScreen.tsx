@@ -87,7 +87,7 @@ export function MainScreen({
   receivedLikers, receivedHeartTypes, sentLikedProfiles, contactSharedWithIds, acknowledgedComplimentIds,
   receivedContactShares, pendingHeartsCount, chatList,
   onContactShareOpen: _onContactShareOpen, onContactViewOpen, onHeartResponse, onDeleteChat, onDeleteAllChats, onOpenChat,
-  timerEndAt, timerLabel, heartOpsConfig, heartUsage, eventScheduleRaw, onRefreshStatus, onRefreshChat, onRefreshProfiles, darkMode, onToggleDark, scannedContacts, onClearScannedContact, functionsLocked = false, onShowTutorial,
+  timerEndAt, timerLabel, heartOpsConfig, heartUsage, eventScheduleRaw, eventCycleStartedAt = null, eventCycleResetComplete = false, onRefreshStatus, onRefreshChat, onRefreshProfiles, darkMode, onToggleDark, scannedContacts, onClearScannedContact, functionsLocked = false, onShowTutorial,
   unreadChatCounts, onClearChatUnread: _onClearChatUnread,
   onUpdateProfile,
   groupChats = [], unreadGroupCounts = {}, onOpenGroupChat, onJoinGroupChat, onLeaveGroupChat, joiningGroupId = null,
@@ -125,6 +125,8 @@ export function MainScreen({
   heartOpsConfig: HeartOpsConfig;
   heartUsage: HeartUsage;
   eventScheduleRaw: string | null;
+  eventCycleStartedAt?: string | null;
+  eventCycleResetComplete?: boolean;
   onRefreshStatus: () => void;
   onRefreshChat: () => void;
   onRefreshProfiles: () => void;
@@ -769,7 +771,7 @@ export function MainScreen({
           </div>}
         </div>
         {timerEndAt && <TimerBanner endAt={timerEndAt} label={timerLabel ?? ''} />}
-        {moduleFlags.hearts && <EventScheduleBanner raw={eventScheduleRaw} functionsLocked={functionsLocked} heartsLocked={participantHearts.heartsLocked} />}
+        {moduleFlags.hearts && <EventScheduleBanner raw={eventScheduleRaw} eventCycleStartedAt={eventCycleStartedAt} eventCycleResetComplete={eventCycleResetComplete} functionsLocked={functionsLocked} heartsLocked={participantHearts.heartsLocked} />}
       </header>
 
       <main

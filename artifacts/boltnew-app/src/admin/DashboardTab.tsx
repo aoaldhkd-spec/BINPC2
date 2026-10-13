@@ -68,15 +68,15 @@ export function DashboardTab({ settings, profiles, onToggleSession, onEventEndRe
       </div>
 
       <div data-testid="daily-cycle-card" className="rounded-2xl border-2 border-violet-200 bg-violet-50 p-4">
-        <h3 className="text-sm font-black text-violet-900 mb-2">⏰ 매일 자동 운영</h3>
+        <h3 className="text-sm font-black text-violet-900 mb-2">⏰ 회식 시작 후 자동 운영</h3>
         <div className="grid grid-cols-2 gap-2 text-[11px] font-bold text-violet-800">
           <div className="rounded-xl bg-white/80 p-2">23:00 · ❤️💙💗💚 일반 하트 자동 해금</div>
           <div className="rounded-xl bg-white/80 p-2">24:00 · 🌈 무지개하트 자동 해금</div>
-          <div className="rounded-xl bg-white/80 p-2">01:00 · 🍻 술번개 자동 종료</div>
-          <div className="rounded-xl bg-white/80 p-2">17:00 · ♻️ 전체 자동 초기화</div>
+          <div className="rounded-xl bg-white/80 p-2">01:00 · 🚪 신규 입장 자동 마감</div>
+          <div className="rounded-xl bg-white/80 p-2">다음 17:00 · ♻️ 시작된 회식만 초기화</div>
         </div>
         <p className="mt-2 text-[10px] font-semibold text-violet-600">
-          하트시간·공지시간은 따로 설정하지 않습니다. 매일 자동으로 반복됩니다.
+          하트시간·공지시간은 따로 설정하지 않습니다. 관리자가 회식을 시작한 행사에만 적용됩니다.
         </p>
       </div>
 
@@ -129,7 +129,7 @@ export function DashboardTab({ settings, profiles, onToggleSession, onEventEndRe
             { key: 'likes', emoji: '❤️', label: '하트', desc: '모든 하트 기록 삭제', bg: 'bg-pink-50 border-pink-200 hover:bg-pink-100', title: '하트 초기화', msg: '모든 하트(좋아요) 기록을 삭제합니다.', fn: onClearLikes },
             { key: 'chats', emoji: '💬', label: '채팅', desc: '채팅·메시지 전체 삭제', bg: 'bg-teal-50 border-teal-200 hover:bg-teal-100', title: '채팅 초기화', msg: '모든 채팅방과 메시지를 삭제합니다.', fn: onClearChats },
             { key: 'profiles', emoji: '👤', label: '참여자', desc: '모든 프로필 삭제', bg: 'bg-indigo-50 border-indigo-200 hover:bg-indigo-100', title: '참여자 초기화', msg: '모든 참여자 프로필을 삭제합니다.', fn: onClearProfiles },
-            { key: 'history', emoji: '📋', label: '이력', desc: '회식 이력 모두 삭제', bg: 'bg-emerald-50 border-emerald-200 hover:bg-emerald-100', title: '이력 초기화', msg: '저장된 회식 이력을 모두 삭제합니다.', fn: onClearHistory },
+            { key: 'history', emoji: '📋', label: '기존 이력', desc: '옛 session_history만 삭제 · 익명 행사기록은 유지', bg: 'bg-emerald-50 border-emerald-200 hover:bg-emerald-100', title: '기존 이력 초기화', msg: '옛 session_history 기록만 삭제합니다. 새 익명 행사기록과 매출 집계는 보존됩니다.', fn: onClearHistory },
           ] as const).map(item => {
             const hasRestore = restoreMap.has(item.key);
             return (
@@ -170,7 +170,7 @@ export function DashboardTab({ settings, profiles, onToggleSession, onEventEndRe
               <span className="text-xs font-black text-red-600 bg-red-100 border border-red-300 px-2 py-0.5 rounded-full">위험</span>
               <h3 className="font-bold text-red-900 text-sm">회식 종료 전체 초기화</h3>
             </div>
-            <p className="text-xs text-red-600 mt-0.5 font-semibold">참여자·하트·채팅·단체채팅·공지·이력 모두 삭제 — 복구 불가 · 매일 17:00 자동 초기화는 계속 유지</p>
+            <p className="text-xs text-red-600 mt-0.5 font-semibold">현재 참여자·하트·채팅·단체채팅 등 삭제 — 익명 행사 합계·매출 집계는 보존. 시작된 회식만 다음 17:00 자동 초기화</p>
           </div>
           <button onClick={() => setConfirmEventEnd(true)}
             className="flex-shrink-0 flex items-center gap-2 px-4 py-2.5 bg-red-600 text-white rounded-xl font-semibold text-sm hover:bg-red-700 transition-all border-2 border-red-800">
@@ -184,7 +184,7 @@ export function DashboardTab({ settings, profiles, onToggleSession, onEventEndRe
         <ConfirmDialog
           title={confirmToggle === 'end' ? '회식을 종료하시겠습니까?' : '회식을 시작하시겠습니까?'}
           message={confirmToggle === 'end'
-            ? (isActive ? '종료 시 모든 유저 화면이 "회식 종료 대기 화면"으로 전환됩니다.' : '이미 대기 중입니다.')
+            ? (isActive ? '새 참가자의 입장만 닫습니다. 기존 참가자는 하트·채팅을 계속 사용할 수 있고, 수동 기능잠금은 유지됩니다.' : '이미 대기 중입니다.')
             : (isActive ? '이미 진행 중입니다.' : '시작 시 유저들이 앱에 입장할 수 있습니다.')}
           onConfirm={() => {
             const action = confirmToggle;
@@ -205,7 +205,7 @@ export function DashboardTab({ settings, profiles, onToggleSession, onEventEndRe
       )}
       {confirmEventEnd && (
         <ConfirmDialog title="회식 종료 전체 초기화"
-          message={`참여자 · 하트 · 채팅 · 단체채팅 · 공지 · 이력\n모든 데이터를 초기화합니다.\n\n진짜로 전체 초기화하시겠습니까?`}
+          message={`참여자 · 하트 · 채팅 · 단체채팅 등 현재 행사 데이터가 초기화됩니다.\n익명 행사기록과 매출 집계는 보존합니다.\n\n운영 데이터를 복구하지 못할 수 있습니다. 계속하시겠습니까?`}
           danger
           onConfirm={() => { setConfirmEventEnd(false); onEventEndReset(); }}
           onCancel={() => setConfirmEventEnd(false)}

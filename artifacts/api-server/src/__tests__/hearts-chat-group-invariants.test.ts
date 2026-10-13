@@ -810,5 +810,34 @@ describe('[NPC] 범일NPC profile seed + heart send', () => {
     expect(heart.status).toBe(200);
     expect(heart.body.data?.liker_id).toBe(userId);
     expect(heart.body.data?.liked_id).toBe(npc!.id);
+
+    // Isolated API test (not live push): exercise a real chat insert and message
+    // persist/read path directed to the seeded NPC, plus private SSE targeting.
+    const conversation = await op({
+      op: 'insert', table: 'chats', requesterId: userId,
+      payload: { user1_id: userId, user2_id: npc!.id },
+      selectAfterWrite: true, single: true,
+    });
+    expect(conversation.status).toBe(200);
+    const chatId = conversation.body.data?.id as string;
+    expect(chatId).toBeTruthy();
+    const message = await op({
+      op: 'insert', table: 'messages', requesterId: userId,
+      payload: { chat_id: chatId, sender_id: userId, content: 'SYNTHETIC_NPC_TEST_ONLY',
+        client_id: randomUUID() },
+      selectAfterWrite: true, single: true,
+    });
+    expect(message.status).toBe(200);
+    const npcInbox = await op({
+      op: 'select', table: 'messages', requesterId: npc!.id,
+      filters: [{ type: 'eq', col: 'chat_id', val: chatId }],
+    });
+    expect(npcInbox.status).toBe(200);
+    expect(npcInbox.body.data.some((row: {content?: string}) =>
+      row.content === 'SYNTHETIC_NPC_TEST_ONLY')).toBe(true);
+    const fanout = collectBroadcastTargets('messages',
+      { ...message.body.data, chat_user1_id: userId, chat_user2_id: npc!.id },
+      () => ({ id: chatId, user1_id: userId, user2_id: npc!.id }));
+    expect(fanout.sort()).toEqual([userId, npc!.id].sort());
   });
 });

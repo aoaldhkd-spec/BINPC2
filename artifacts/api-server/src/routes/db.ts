@@ -1,4 +1,11 @@
 import '../lib/dns-ipv4-first.js';
+import { atomicEventReset } from '../lib/db-event-reset-transaction.js';
+import { eventActionsAfter } from '../lib/db-event-admin-audit.js';
+import { planNpcHeartRefill, npcHeartAllowance } from '../lib/db-npc-heart-recharge.js';
+import { persistNpcHeartAtomically } from '../lib/db-npc-heart-atomic.js';
+import { eventCycleUnlocked, eventCycleCanOpenAdmission } from '../lib/db-event-cycle-heart.js';
+import { newParticipantAdmissionReject } from '../lib/db-event-admission.js';
+import { EventAdmissionClosedDuringWrite, persistNewParticipantForCycle } from '../lib/db-event-profile-write.js';
 import { Router, type Request, type Response } from 'express';
 import pg from 'pg';
 import { VAPID_PUBLIC_KEY, vapidConfigured, sendPush, type PushPayload } from '../lib/push';
@@ -98,6 +105,7 @@ import {
   ACTIVE_KV_TABLES,
   isCriticalWriteLog,
   buildKvUpsertSql,
+  buildKvInsertIfAbsentSql,
   buildKvDeleteRowSql,
   buildKvDeleteRowsSql,
   buildKvDeleteTableSql,
@@ -459,6 +467,8 @@ import {
 import {
   FIXED_DAILY_EVENT_SCHEDULE,
   dailyCycleBootstrapPatch,
+  seoulDateKey,
+  planEventCycleStartPatch,
   dueDailyCycleActions,
   nextDailyCycleDelayMs,
 } from '../lib/db-daily-cycle';
@@ -500,7 +510,6 @@ import {
   heartUsageFromLikeRows,
   parseHeartOps,
   serializeEventSchedule,
-  unlockedHeartKeys,
 } from '../lib/db-heart-ops';
 import {
   disableDirectNoticePresets,
@@ -797,32 +806,82 @@ async function persistAppSettingsPatch(patch: Record<string, unknown>): Promise<
   return updated;
 }
 
-/** Same wipe as 회식 종료 전체 초기화. Optional extra settings patch is merged into reset_signal SSE. */
+/** Durable event close. All destructive SQL, the archive, NPC and settings commit together. */
 async function runAdminEventEndResetCore(extraPatch: Record<string, unknown> = {}): Promise<void> {
-  const settingsRow = (getTable('app_settings')[0] ?? {}) as Record<string, unknown>;
-  const oldProfiles = store['profiles'] ?? [];
-  const persistDeletes: Promise<void>[] = [];
-  for (const t of ADMIN_EVENT_END_CLEAR_TABLES) {
-    if (WIPE_PRESERVED_TABLES.has(t)) continue;
-    const old = store[t] ?? [];
-    store[t] = [];
-    const bplan = planWipeTableBroadcast(t, old);
-    if (bplan.mode === 'reset') {
-      broadcastAll({ type: 'change', table: t, event: 'RESET', newRow: null, oldRow: null });
-    } else if (bplan.mode === 'profile_delete') {
-      for (const row of bplan.rows) broadcastAll({ type: 'change', table: t, event: 'DELETE', newRow: null, oldRow: sanitizeProfile(row) });
-    } else {
-      for (const row of bplan.rows) broadcastAll({ type: 'change', table: t, event: 'DELETE', newRow: null, oldRow: row });
-    }
-    persistDeletes.push(dbDeleteTable(t).catch(e => logger.error({ err: e }, '[db] background task error')));
+  const beforeProfiles = [...(store['profiles'] ?? [])];
+  const priorSettings = (getTable('app_settings')[0] ?? {}) as Record<string, unknown>;
+  const now = new Date();
+  const result = await atomicEventReset(pool, {
+    now,
+    clearTables: ADMIN_EVENT_END_CLEAR_TABLES,
+    adminIsProfile: (row, settings) => isAdminProfileRow(row, adminPhoneDigitsFromSettings(settings)),
+    planAdmin: (oldProfiles, settingsRow) => {
+      const plan = planRestoreAdminProfileAfterWipe({
+        oldProfiles, settingsRow, now: now.toISOString(),
+        fallbackId: crypto.randomUUID(), npcAvatarSentinel: NPC_TEXT_AVATAR_SENTINEL,
+      });
+      if (plan.action !== 'restore' || !plan.row.pin_code) {
+        throw new Error('NPC has no durable restorable identity/PIN; refusing reset');
+      }
+      return plan.row;
+    },
+    buildNextSettings: (savedSettings, resetSignal) => mergeAppSettings(savedSettings, {
+      ...extraPatch,
+      session_active: false,
+      event_cycle_reset_complete: true,
+      reset_signal: resetSignal,
+      updated_at: resetSignal,
+    }),
+  });
+  // A different API instance may already have completed the transaction.
+  // Its DB result is authoritative; never replay a second delete.
+  if (result.status === 'already') {
+    const refreshed = await pool.query(
+      "SELECT data FROM app_kv_rows WHERE table_name = 'profiles'",
+    );
+    for (const table of ADMIN_EVENT_END_CLEAR_TABLES) store[table] = [];
+    store['profiles'] = refreshed.rows.map(row => row.data as Record<string, unknown>);
+    store['app_settings'] = [result.nextSettings];
+    _likesLastInsert.clear();
+    broadcastAll({ type: 'change', table: 'app_settings', event: 'UPDATE',
+      newRow: sanitizeSettings(result.nextSettings), oldRow: sanitizeSettings(priorSettings) });
+    return;
   }
+
+  // PostgreSQL has committed; update all RAM slices BEFORE broadcasting.
+  for (const table of ADMIN_EVENT_END_CLEAR_TABLES) store[table] = [];
+  store['profiles'] = result.restoredAdmin ? [result.restoredAdmin] : [];
+  store['app_settings'] = [result.nextSettings];
+  _likesLastInsert.clear();
   _mergedGroupIds.clear();
   _mergedChatIds.clear();
   autoMatchInFlight.clear();
-  await Promise.all(persistDeletes);
-  await ensureOptInGroupRooms();
-  await restoreAdminProfileAfterWipeInStore(oldProfiles, settingsRow);
-  await bumpResetSignalAndBroadcast(extraPatch);
+  for (const table of ADMIN_EVENT_END_CLEAR_TABLES) {
+    const before = result.previous[table] ?? [];
+    const plan = planWipeTableBroadcast(table, before);
+    if (plan.mode === 'reset') {
+      broadcastAll({ type: 'change', table, event: 'RESET', newRow: null, oldRow: null });
+    } else if (plan.mode === 'profile_delete') {
+      for (const row of plan.rows) broadcastAll({ type: 'change', table, event: 'DELETE',
+        newRow: null, oldRow: sanitizeProfile(row) });
+    } else {
+      for (const row of plan.rows) broadcastAll({ type: 'change', table, event: 'DELETE',
+        newRow: null, oldRow: row });
+    }
+  }
+  if (result.restoredAdmin) broadcastAll({
+    type: 'change', table: 'profiles', event: 'INSERT',
+    newRow: sanitizeProfile(result.restoredAdmin), oldRow: null,
+  });
+  smartBroadcast('app_settings', result.nextSettings, {
+    type: 'change', table: 'app_settings', event: 'UPDATE',
+    newRow: result.nextSettings, oldRow: priorSettings,
+  });
+  // Non-destructive catalog-room setup is recoverable on next boot.
+  try { await ensureOptInGroupRooms(); }
+  catch (e) { logger.error({ err: e }, '[event-reset] group-room recovery pending after committed reset'); }
+  logger.info({ archiveId: result.archive?.archiveId, previousProfiles: beforeProfiles.length },
+    '[event-reset] archive/reset/NPC/settings durably committed');
 }
 
 let dailyCycleTimer: ReturnType<typeof setTimeout> | null = null;
@@ -869,11 +928,25 @@ async function catchUpDailyCycleAutomation(): Promise<void> {
     const due = dueDailyCycleActions(settings, new Date());
 
     if (due.sessionEndDate) {
+      const npc = getTable('profiles').find(row => isAdminProfileRow(row));
+      const refill = npc?.id && settings.session_active === true
+        ? planNpcHeartRefill({
+          previous: settings.npc_heart_refill,
+          archiveId: String(settings.event_cycle_archive_id ?? ''),
+          npcId: String(npc.id), phase: 'end',
+          likes: getTable('likes'), now: new Date().toISOString(),
+        }) : null;
       settings = await persistAppSettingsPatch({
         session_active: false,
-        functions_locked: true,
+        // Ending admission must not silently lock existing participants' hearts or chats.
         daily_session_end_date: due.sessionEndDate,
         event_schedule: FIXED_DAILY_EVENT_SCHEDULE,
+        ...(refill ? { npc_heart_refill: refill } : {}),
+        ...(settings.session_active === true ? {
+          event_cycle_admin_actions: eventActionsAfter({
+            previous: settings.event_cycle_admin_actions, action: 'autoEnd',
+          }),
+        } : {}),
       });
       logger.info({ date: due.sessionEndDate }, '[daily-cycle] 01:00 session auto-ended');
     }
@@ -2816,6 +2889,19 @@ router.post('/sales-reports', async (req: Request, res: Response) => {
   }
 });
 
+router.get('/event-anonymous-archives', async (req: Request, res: Response) => {
+  if (!verifyAdminToken(salesReportAdminToken(req))) return salesReportUnauthorized(res);
+  try {
+    const { rows } = await pool.query<{ data: unknown }>(
+      buildKvSelectLatestLimitedSql(), ['event_anonymous_archives', 500],
+    );
+    return res.json({ data: rows.map(row => row.data), error: null });
+  } catch (e) {
+    logger.error({ err: e }, '[event-archives] list failed');
+    return res.status(500).json({ data: null, error: { message: '행사 이력 조회 실패' } });
+  }
+});
+
 router.get('/sales-reports', async (req: Request, res: Response) => {
   if (!verifyAdminToken(salesReportAdminToken(req))) return salesReportUnauthorized(res);
   try {
@@ -3261,6 +3347,15 @@ router.post('/op', async (req: Request, res: Response) => {
     // ── INSERT ──────────────────────────────────────────────────────────────
     if (op === 'insert') {
       if (payload == null) return sendReject(opPayloadRequiredReject());
+      const profileEventArchiveId = table === 'profiles'
+        ? String((getTable('app_settings')[0] ?? {}).event_cycle_archive_id ?? '') : '';
+      if (table === 'profiles') {
+        const admission = newParticipantAdmissionReject(
+          (getTable('app_settings')[0] ?? {}) as Record<string, unknown>,
+          { isAdmin, isTestRuntime: process.env.NODE_ENV === 'test' },
+        );
+        if (admission) return sendReject(admission);
+      }
       if (!isAdmin && isFunctionsLocked() && FUNCTIONS_LOCKED_INSERT_TABLES.has(table)) {
         return sendReject(opFunctionsLockedReject(FUNCTIONS_LOCKED_ERROR));
       }
@@ -3292,6 +3387,8 @@ router.post('/op', async (req: Request, res: Response) => {
         }
         // const row는 재할당 불가이므로 effectiveRow로 분리; 텍스트 필드 sanitization 적용
         let effectiveRow: Record<string, unknown> = sanitizeRow(table, row);
+        let npcAtomicSender = false;
+        let npcEventArchiveId = '';
 
         // ─ IDOR: INSERT ownership (db-op-insert-ownership) ────────────────
         if (table === 'messages') {
@@ -3590,16 +3687,36 @@ router.post('/op', async (req: Request, res: Response) => {
           // API/security/load tests exercise write invariants independent of wall-clock heart windows.
           // Production always uses the fixed 23:00/24:00 schedule.
           const unlockedKeys = process.env.NODE_ENV === 'test'
-            ? new Set(['red', 'blue', 'pink', 'green', 'rainbow'])
-            : unlockedHeartKeys(heartOps, now);
+            ? new Set(['red', 'blue', 'pink', 'green', 'rainbow'] as const)
+            : eventCycleUnlocked({
+              startedAt: (getTable('app_settings')[0] ?? {}).event_cycle_started_at,
+              resetComplete: (getTable('app_settings')[0] ?? {}).event_cycle_reset_complete,
+              now,
+            });
+          // NPC sends are bounded by the most recent authorised start/end refill.
+          // Prior likes and per-recipient/type duplicate checks are NEVER bypassed.
+          const npcSender = getTable('profiles').some(p => String(p.id) === likeLiker && isAdminProfileRow(p));
+          npcAtomicSender = npcSender && process.env.NODE_ENV !== 'test';
+          if (npcAtomicSender) npcEventArchiveId = String((getTable('app_settings')[0] ?? {}).event_cycle_archive_id ?? '');
+          const eventSettings = (getTable('app_settings')[0] ?? {}) as Record<string, unknown>;
+          const npcUsage = npcSender ? npcHeartAllowance({
+            marker: eventSettings.npc_heart_refill,
+            archiveId: eventSettings.event_cycle_archive_id,
+            npcId: likeLiker, likes: tableData,
+          }) : null;
+          const effectiveUnlocks = new Set(unlockedKeys);
+          if (npcUsage?.active) {
+            for (const kind of ['red', 'blue', 'pink', 'green', 'rainbow'] as const) effectiveUnlocks.add(kind);
+          }
           const capReject = likesHeartOpsReject({
             source: likeSource,
             heartType: likeType,
-            unlockedKeys,
-            grantUsed: usage.grantUsed,
-            rainbowUsed: usage.rainbowUsed,
+            unlockedKeys: effectiveUnlocks,
+            grantUsed: npcUsage?.grantUsed ?? usage.grantUsed,
+            rainbowUsed: npcUsage?.rainbowUsed ?? usage.rainbowUsed,
           });
-          if (capReject) return sendReject(capReject);
+          // Cross-instance NPC quota is checked from the durable ledger in one transaction.
+          if (capReject && !npcAtomicSender) return sendReject(capReject);
           effectiveRow = { ...effectiveRow, like_source: likeSource };
 
           // Time-bucket rate limiter: at most 1 like per 500 ms per (liker, liked, type, source)
@@ -3650,6 +3767,7 @@ router.post('/op', async (req: Request, res: Response) => {
           table,
         );
 
+        let pendingParticipantSecret: Record<string, unknown> | null = null;
         // 프로필 생성 시 device secret을 원자적으로 바인딩 — TOFU 레이스 윈도우 제거
         // 클라이언트가 _device_secret 필드를 포함해 INSERT하면 서버가 HMAC 해시를 저장하고
         // 해당 필드를 프로필 데이터에서 제거합니다(공개 쿼리에 노출되지 않음).
@@ -3665,14 +3783,22 @@ router.post('/op', async (req: Request, res: Response) => {
                 secretHash: bind.secretHash,
                 createdAt: ts(),
               });
-              getTable('device_secrets').push(dsRow);
-              dbPersistRow('device_secrets', dsRow).catch(e => logger.error({ err: e }, '[db] background task error'));
+              if (table === 'profiles' && !isAdmin && process.env.NODE_ENV !== 'test') {
+                // Persist the hashed binding in the same PostgreSQL transaction as the profile.
+                pendingParticipantSecret = dsRow;
+              } else {
+                getTable('device_secrets').push(dsRow);
+                dbPersistRow('device_secrets', dsRow).catch(e => logger.error({ err: e }, '[db] background task error'));
+              }
             }
             delete newRow._device_secret; // 프로필 응답·DB에서 제거
           }
         }
 
-        tableData.push(newRow);
+        const deferParticipantVisibility = table === 'profiles' && !isAdmin && process.env.NODE_ENV !== 'test';
+        // Like a new participant, an NPC heart is hidden until PostgreSQL
+        // approves the global remaining allowance and commits its original row.
+        if (!deferParticipantVisibility && !npcAtomicSender) tableData.push(newRow);
         inserted.push(newRow);
         // 배치 삽입 시 다음 항목의 중복 검사가 정확하도록 Set 증분 업데이트
         if (table === 'profiles') {
@@ -3685,22 +3811,69 @@ router.post('/op', async (req: Request, res: Response) => {
         // 핵심 테이블: DB 저장 성공 후에만 SSE 전파 — "전달됐는데 저장 안 됨" 방지
         if (CRITICAL_PERSIST_TABLES.has(table)) {
           try {
-            await dbPersistRow(table, newRow);
+            if (table === 'profiles' && !isAdmin && process.env.NODE_ENV !== 'test') {
+              await persistNewParticipantForCycle(pool, newRow, profileEventArchiveId, pendingParticipantSecret);
+              if (pendingParticipantSecret) getTable('device_secrets').push(pendingParticipantSecret);
+            } else if (table === 'likes' && npcAtomicSender) {
+              const committed = await persistNpcHeartAtomically(pool, newRow, npcEventArchiveId);
+              if (committed.kind !== 'inserted') {
+                const index = tableData.findIndex(r => r.id === newRow.id);
+                if (index >= 0) tableData.splice(index, 1);
+                const pending = inserted.findIndex(r => r.id === newRow.id);
+                if (pending >= 0) inserted.splice(pending, 1);
+                if (committed.kind === 'duplicate') {
+                  return res.json({ data: selectAfterWrite
+                    ? (single ? committed.row : [committed.row]) : null, error: null });
+                }
+                if (committed.kind === 'exhausted') {
+                  const rejection = likesHeartOpsReject({
+                    source: normalizeLikeSource(newRow.like_source),
+                    heartType: String(newRow.heart_type ?? ''),
+                    unlockedKeys: new Set(['red','blue','pink','green','rainbow']),
+                    grantUsed: committed.usage.grantUsed,
+                    rainbowUsed: committed.usage.rainbowUsed,
+                  });
+                  if (rejection) return sendReject(rejection);
+                }
+                return res.status(409).json({ data: null, error: {
+                  code: 'NPC_ALLOWANCE_INACTIVE',
+                  message: 'NPC 하트 충전 정보가 현재 행사와 일치하지 않습니다.',
+                } });
+              }
+            } else {
+              await dbPersistRow(table, newRow);
+            }
           } catch (e) {
             const idx = tableData.findIndex(r => r.id === newRow.id);
             if (idx >= 0) tableData.splice(idx, 1);
             const iidx = inserted.findIndex(r => r.id === newRow.id);
             if (iidx >= 0) inserted.splice(iidx, 1);
+            if (e instanceof EventAdmissionClosedDuringWrite) {
+              return res.status(403).json({ data: null, error: {
+                message: '신규 입장이 마감되어 등록하지 못했습니다. 기존 계정은 고유번호로 복구할 수 있습니다.',
+                code: 'EVENT_ADMISSION_CLOSED',
+              } });
+            }
             logger.error({ err: e, table, rowId: newRow.id }, '[db] critical persist failed — rolled back memory');
             return sendReject(opPersistFailedReject());
           }
-          smartBroadcast(table, newRow, { type: 'change', table, event: 'INSERT', newRow, oldRow: null });
+          // Reset may have committed immediately after this write. Never
+          // re-expose a previous event's profile or NPC heart through RAM/SSE.
+          const settingsAfterWrite = (getTable('app_settings')[0] ?? {}) as Record<string, unknown>;
+          const sameActiveCycle = (archiveId: string) =>
+            settingsAfterWrite.event_cycle_archive_id === archiveId
+            && settingsAfterWrite.event_cycle_reset_complete !== true;
+          const visible = npcAtomicSender ? sameActiveCycle(npcEventArchiveId)
+            : !deferParticipantVisibility || sameActiveCycle(profileEventArchiveId);
+          if (deferParticipantVisibility && visible) getTable('profiles').push(newRow);
+          if (npcAtomicSender && visible) getTable('likes').push(newRow);
+          if (visible) smartBroadcast(table, newRow, { type: 'change', table, event: 'INSERT', newRow, oldRow: null });
         } else {
           smartBroadcast(table, newRow, { type: 'change', table, event: 'INSERT', newRow, oldRow: null });
           dbPersistRow(table, newRow).catch(e => logger.error({ err: e }, '[db] background task error'));
         }
         // #33: 신규 프로필 등록 시 PIN 풀 사용량 확인 — 85% 초과 시 관리자 푸시 알림
-        if (table === 'profiles') {
+        if (table === 'profiles' && getTable('profiles').some(p => String(p.id) === String(newRow.id))) {
           checkAndNotifyAdminPinPool().catch(e => logger.error({ err: e }, '[db] background task error'));
           await autoMatchGroupChatGuarded(String(newRow.id), newRow);
         }
@@ -3857,6 +4030,8 @@ router.post('/op', async (req: Request, res: Response) => {
       const inputs = (Array.isArray(payload) ? payload as Record<string, unknown>[] : [payload as Record<string, unknown>])
         .map(row => sanitizeRow(table, row)); // XSS 방어: UPSERT payload도 sanitize
       const upserted: Record<string, unknown>[] = [];
+      const profileEventArchiveId = table === 'profiles'
+        ? String((getTable('app_settings')[0] ?? {}).event_cycle_archive_id ?? '') : '';
 
       // ─ IDOR guard: UPSERT ownership (db-op-upsert-ownership) ───────────
       {
@@ -3950,7 +4125,13 @@ router.post('/op', async (req: Request, res: Response) => {
           }
         } else {
           let base: Record<string, unknown> = { id: genId(), created_at: ts(), ...row };
+          let pendingParticipantSecret: Record<string, unknown> | null = null;
           if (table === 'profiles') {
+            const admission = newParticipantAdmissionReject(
+              (getTable('app_settings')[0] ?? {}) as Record<string, unknown>,
+              { isAdmin, isTestRuntime: process.env.NODE_ENV === 'test' },
+            );
+            if (admission) return sendReject(admission);
             if (profileBirthYearRejected(res, base.birth_year)) return;
             const usedPins = collectUsedPinCodes(tableData);
             const { use5Digit, poolSize } = pinPoolParams(tableData.length);
@@ -3964,8 +4145,12 @@ router.post('/op', async (req: Request, res: Response) => {
               const profileId = String(base.id);
               if (!getTable('device_secrets').find(r => r.user_id === profileId)) {
                 const dsRow = { id: genId(), user_id: profileId, secret_hash: secretHash, created_at: ts() };
-                getTable('device_secrets').push(dsRow);
-                dbPersistRow('device_secrets', dsRow).catch(e => logger.error({ err: e }, '[db] background task error'));
+                if (!isAdmin && process.env.NODE_ENV !== 'test') {
+                  pendingParticipantSecret = dsRow;
+                } else {
+                  getTable('device_secrets').push(dsRow);
+                  dbPersistRow('device_secrets', dsRow).catch(e => logger.error({ err: e }, '[db] background task error'));
+                }
               }
               delete base._device_secret;
             }
@@ -3974,20 +4159,45 @@ router.post('/op', async (req: Request, res: Response) => {
             base.birth_month = Math.ceil(Math.random() * 12);
             base.birth_day = Math.ceil(Math.random() * 28);
           }
-          tableData.push(base);
-          _idxById?.set(base.id, tableData.length - 1); // Map 갱신 (배치 내 후속 항목 O(1) 조회)
+          const deferParticipantVisibility = table === 'profiles' && !isAdmin && process.env.NODE_ENV !== 'test';
+          if (!deferParticipantVisibility) {
+            tableData.push(base);
+            _idxById?.set(base.id, tableData.length - 1); // Map 갱신 (배치 내 후속 항목 O(1) 조회)
+          }
           upserted.push(base);
           if (CRITICAL_PERSIST_TABLES.has(table)) {
             try {
-              await dbPersistRow(table, base);
+              if (table === 'profiles' && !isAdmin && process.env.NODE_ENV !== 'test') {
+                await persistNewParticipantForCycle(pool, base, profileEventArchiveId, pendingParticipantSecret);
+                if (pendingParticipantSecret) getTable('device_secrets').push(pendingParticipantSecret);
+              } else {
+                await dbPersistRow(table, base);
+              }
             } catch (e) {
               const bi = tableData.findIndex(r => r.id === base.id);
               if (bi >= 0) tableData.splice(bi, 1);
               upserted.pop();
+              if (e instanceof EventAdmissionClosedDuringWrite) {
+                return res.status(403).json({ data: null, error: {
+                  message: '신규 입장이 마감되어 등록하지 못했습니다. 기존 계정은 고유번호로 복구할 수 있습니다.',
+                  code: 'EVENT_ADMISSION_CLOSED',
+                } });
+              }
               logger.error({ err: e, table, rowId: base.id }, '[db] critical UPSERT insert persist failed');
               return sendReject(opPersistFailedReject());
             }
-            smartBroadcast(table, base, { type: 'change', table, event: 'INSERT', newRow: base, oldRow: null });
+            // The profile becomes visible only after a committed save, and
+            // never if the preceding event was already reset in this process.
+            const presentInCurrentEvent = !deferParticipantVisibility || (
+              (getTable('app_settings')[0] ?? {}).event_cycle_archive_id === profileEventArchiveId
+              && (getTable('app_settings')[0] ?? {}).event_cycle_reset_complete !== true
+            );
+            if (deferParticipantVisibility && presentInCurrentEvent) {
+              const live = getTable('profiles');
+              live.push(base);
+              if (live === tableData) _idxById?.set(base.id, live.length - 1);
+            }
+            if (presentInCurrentEvent) smartBroadcast(table, base, { type: 'change', table, event: 'INSERT', newRow: base, oldRow: null });
           } else {
             smartBroadcast(table, base, { type: 'change', table, event: 'INSERT', newRow: base, oldRow: null });
             dbPersistRow(table, base).catch(e => logger.error({ err: e }, '[db] background task error'));
@@ -3999,7 +4209,11 @@ router.post('/op', async (req: Request, res: Response) => {
       }
       if (table === 'profiles') {
         for (const row of upserted) {
-          await autoMatchGroupChatGuarded(String(row.id), row);
+          // A reset may have committed while an in-flight registration was
+          // finishing; do not revive its group membership after reset.
+          if (getTable('profiles').some(p => String(p.id) === String(row.id))) {
+            await autoMatchGroupChatGuarded(String(row.id), row);
+          }
         }
       }
       if (selectAfterWrite) return res.json({ data: upserted, error: null });
@@ -4189,20 +4403,51 @@ router.post('/rpc/:name', async (req: Request, res: Response) => {
         checkPassword();
         const active = args.p_active === true;
         const current = (getTable('app_settings')[0] ?? {}) as Record<string, unknown>;
-        const merged = mergeAppSettings(current, { session_active: active });
-        const updated = await overlayDbSecrets(merged, new Set());
-        store['app_settings'] = [updated];
+        if (current.session_active === active) {
+          return res.json({ data: { session_active: active }, error: null });
+        }
+        if (active && !eventCycleCanOpenAdmission(current, new Date())) {
+          return res.status(409).json({ data: null, error: {
+            code: 'EVENT_CLOSED_UNTIL_RESET',
+            message: '01시 신규 입장이 마감되었습니다. 안전한 다음 17시 초기화가 끝난 뒤 시작할 수 있습니다.',
+          } });
+        }
         try {
-          await dbPersistRow('app_settings', updated);
+          const npc = await ensureAdminProfile();
+          if (!npc?.id) throw new Error('범일NPC restoration/identity verification failed');
+          const now = new Date();
+          const patch: Record<string, unknown> = active ? planEventCycleStartPatch(current, now) : { session_active: false };
+          const freshStart = active && (current.event_cycle_reset_complete === true
+            || !Number.isFinite(Date.parse(String(current.event_cycle_started_at ?? ''))));
+          let dbErrorBaseline: number | null = null;
+          if (freshStart) {
+            // Read the durable counter, never estimate missing log events as zero.
+            const errorRows = await pool.query(buildKvSelectByTableRowIdSql(), ['db_error_log', 'counter']);
+            const rawCount = (errorRows.rows[0]?.data as Record<string, unknown> | undefined)?.count;
+            if (Number.isSafeInteger(rawCount) && Number(rawCount) >= 0) dbErrorBaseline = Number(rawCount);
+          }
+          const adminActions = eventActionsAfter({
+            previous: current.event_cycle_admin_actions,
+            action: active ? 'start' : 'end',
+            isNewEvent: freshStart,
+          });
+          const recharge = planNpcHeartRefill({
+            previous: current.npc_heart_refill,
+            archiveId: String(active ? patch.event_cycle_archive_id : current.event_cycle_archive_id),
+            npcId: String(npc.id), phase: active ? 'start' : 'end',
+            likes: getTable('likes'), now: now.toISOString(),
+          });
+          // Use rollback-safe persistence: event transition + NPC allowance in one row.
+          await persistAppSettingsPatch({
+            ...patch, npc_heart_refill: recharge,
+            event_cycle_admin_actions: adminActions,
+            ...(freshStart ? { event_cycle_db_error_baseline: dbErrorBaseline } : {}),
+          });
         } catch (e) {
           logger.error({ err: e }, '[db] admin_toggle_session persist failed');
           const rej = rpcSessionPersistFailedReject();
           return res.status(rej.status).json(rej.body);
         }
-        smartBroadcast('app_settings', updated, {
-          type: 'change', table: 'app_settings', event: 'UPDATE',
-          newRow: updated, oldRow: current,
-        });
         return res.json({ data: { session_active: active }, error: null });
       }
 
@@ -4217,7 +4462,15 @@ router.post('/rpc/:name', async (req: Request, res: Response) => {
           event_schedule: FIXED_DAILY_EVENT_SCHEDULE,
         };
         const current = (getTable('app_settings')[0] ?? {}) as Record<string, unknown>;
-        const merged = mergeAppSettings(current, sanitizedSettingsPayload);
+        const eventStarted = Number.isFinite(Date.parse(String(current.event_cycle_started_at ?? '')))
+          && current.event_cycle_reset_complete !== true;
+        const auditAction = Object.prototype.hasOwnProperty.call(sanitizedSettingsPayload, 'functions_locked')
+          ? 'lock' : 'settings';
+        const auditPatch = eventStarted
+          ? { event_cycle_admin_actions: eventActionsAfter({
+            previous: current.event_cycle_admin_actions, action: auditAction,
+          }) } : {};
+        const merged = mergeAppSettings(current, { ...sanitizedSettingsPayload, ...auditPatch });
         const updated = await overlayDbSecrets(merged, explicitSecretKeys(sanitizedSettingsPayload));
         store['app_settings'] = [updated];
         try {

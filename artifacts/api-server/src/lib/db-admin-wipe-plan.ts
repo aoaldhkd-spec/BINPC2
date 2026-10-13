@@ -76,6 +76,8 @@ export const ADMIN_EVENT_END_CLEAR_TABLES = [
   'notifications',
   'signal_sends',
   'group_chats', 'group_participants', 'group_messages', 'group_opt_outs',
+  // Privacy-sensitive session residue must not survive the next event.
+  'chat_reads', 'blocked_users', 'profile_views', 'user_signals',
 ] as const;
 
 /**
@@ -86,6 +88,7 @@ export const ADMIN_EVENT_END_PRIVATE_RESET = new Set([
   'likes', 'chats', 'messages', 'contact_shares', 'contact_share_events',
   'chat_reads', 'anonymous_reports', 'signal_sends',
   'group_chats', 'group_participants', 'group_messages', 'group_opt_outs',
+  'notifications', 'blocked_users', 'profile_views', 'user_signals',
 ]);
 
 export type WipeBroadcastPlan =
@@ -107,7 +110,7 @@ export function planWipeTableBroadcast(
 export const TEST_WIPE_ALL_TABLES = ['likes', 'messages', 'chats', 'profiles'] as const;
 
 /** Durable aggregate reports are intentionally not included in either wipe plan. */
-export const ADMIN_EVENT_END_PRESERVE_TABLES = ['event_sales_reports'] as const;
+export const ADMIN_EVENT_END_PRESERVE_TABLES = ['event_sales_reports', 'event_anonymous_archives'] as const;
 
 export type AdminNpcRelStorePatch = {
   messages?: Record<string, unknown>[];

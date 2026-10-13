@@ -2,9 +2,12 @@ import { useState, useRef, useEffect } from 'react';
 import { Users, CheckCircle, Clock, ShieldAlert } from 'lucide-react';
 import { navigateToAppPath, PANEL_PIN_INPUT_PROPS, PIN_DIGIT_INPUT_PROPS, verifyPanelPassword } from '../lib/panel-password';
 import { EventScheduleBanner } from './EventScheduleBanner';
+import { eventCycleAdmissionOpen, eventCycleMilestones } from '../lib/event-cycle-heart';
 
-export function WaitingOverlay({ sessionActive, onEnter, onRecover }: {
+export function WaitingOverlay({ sessionActive, eventCycleStartedAt, eventCycleResetComplete, onEnter, onRecover }: {
   sessionActive: boolean | null;
+  eventCycleStartedAt?: string | null;
+  eventCycleResetComplete?: boolean;
   onEnter: () => void;
   onRecover?: (profileId: string, pinCode: string) => void;
 }) {
@@ -16,7 +19,23 @@ export function WaitingOverlay({ sessionActive, onEnter, onRecover }: {
     checkLabel: '#fde68a',
     checkItem:  '#fef3c7',
   } as const;
-  const isActive = sessionActive === true;
+  // Use a single boundary timer rather than polling: stale session_active
+  // must not leave the new-entry button enabled after the exact 01:00 cutoff.
+  const [, refreshAdmissionBoundary] = useState(0);
+  const closeAt = typeof eventCycleStartedAt === 'string'
+    ? eventCycleMilestones(eventCycleStartedAt)?.admissionCloseAt.getTime()
+    : undefined;
+  useEffect(() => {
+    if (closeAt === undefined) return;
+    const delay = closeAt - Date.now();
+    if (delay <= 0) return;
+    const timeout = setTimeout(() => refreshAdmissionBoundary(x => x + 1), delay);
+    return () => clearTimeout(timeout);
+  }, [closeAt]);
+  const isActive = eventCycleAdmissionOpen({
+    sessionActive, startedAt: eventCycleStartedAt,
+    resetComplete: eventCycleResetComplete, now: new Date(),
+  });
   const [showConsentModal, setShowConsentModal] = useState(false);
   const [showPinRecovery, setShowPinRecovery] = useState(false);
   const [pinDigits, setPinDigits] = useState<[string,string,string,string]>(['','','','']);
@@ -260,7 +279,7 @@ export function WaitingOverlay({ sessionActive, onEnter, onRecover }: {
           </div>
         )}
         <div className="w-full mb-2">
-          <EventScheduleBanner raw={null} showStatus={false} />
+          <EventScheduleBanner raw={null} showStatus={false} eventCycleStartedAt={eventCycleStartedAt} eventCycleResetComplete={eventCycleResetComplete} />
         </div>
 
         {/* 안내 문구 — 배지와 중복되지 않는 내용만 */}
@@ -268,7 +287,7 @@ export function WaitingOverlay({ sessionActive, onEnter, onRecover }: {
           {isActive ? (
             <><span className="text-teal-400 font-semibold">입장 버튼</span>을 눌러 참여하세요.</>
           ) : (
-            <>곧 회식이 시작합니다.<br /><span className="text-slate-400 text-xs">미리 입장해서 닉네임을 설정하세요.</span></>
+            <>관리자가 회식을 시작하면 신규 입장이 가능합니다.<br /><span className="text-slate-400 text-xs">기존 참가자는 고유번호로 프로필을 복구할 수 있습니다.</span></>
           )}
         </p>
 
@@ -279,7 +298,7 @@ export function WaitingOverlay({ sessionActive, onEnter, onRecover }: {
             onClick={() => setShowConsentModal(true)}
             disabled={!isActive}
             className="w-[80%] py-4 bg-gradient-to-r from-teal-500 to-cyan-500 hover:from-teal-400 hover:to-cyan-400 disabled:from-slate-700 disabled:to-slate-600 disabled:cursor-not-allowed text-white font-black text-lg rounded-2xl shadow-2xl shadow-teal-500/30 transition-all active:scale-98 disabled:active:scale-100"
-          >{isActive ? '입장하기' : '⏳ 회의 시작 전입니다'}</button>
+          >{isActive ? '입장하기' : '🚪 현재 신규 입장 마감'}</button>
           {/* 2단: 프로필 복구 — 65% 너비 */}
           <button
             onClick={() => { setShowPinRecovery(true); setPinDigits(['','','','']); setPinError(''); setPinStep('pin'); }}

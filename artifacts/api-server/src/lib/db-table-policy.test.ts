@@ -6,6 +6,7 @@ import {
   isCriticalWriteLog,
   CRITICAL_WRITE_LOG_TABLES,
   buildKvUpsertSql,
+  buildKvInsertIfAbsentSql,
   buildKvDeleteRowSql,
   buildKvDeleteRowsSql,
   buildKvDeleteTableSql,
@@ -36,10 +37,10 @@ describe('db-table-policy', () => {
     }
   });
 
-  it('allows profiles/settings but does not mark them critical-persist', () => {
+  it('persists profiles before broadcasting, while app_settings retains its separate RPC path', () => {
     expect(ALLOWED_OP_TABLES.has('profiles')).toBe(true);
     expect(ALLOWED_OP_TABLES.has('app_settings')).toBe(true);
-    expect(CRITICAL_PERSIST_TABLES.has('profiles')).toBe(false);
+    expect(CRITICAL_PERSIST_TABLES.has('profiles')).toBe(true);
     expect(CRITICAL_PERSIST_TABLES.has('app_settings')).toBe(false);
   });
 
@@ -61,6 +62,11 @@ describe('db-table-policy', () => {
 
   it('KV/schema SQL builders match prior ddl/dml (75)', () => {
     expect(buildKvUpsertSql()).toContain('ON CONFLICT (table_name, row_id)');
+    // A failed reset replay must preserve the original anonymous archive contents.
+    const archiveSql = buildKvInsertIfAbsentSql();
+    expect(archiveSql).toContain('INSERT INTO app_kv_rows');
+    expect(archiveSql).toContain('ON CONFLICT (table_name, row_id) DO NOTHING');
+    expect(archiveSql).not.toMatch(/DO UPDATE|DELETE FROM/i);
     expect(buildKvDeleteRowSql()).toBe('DELETE FROM app_kv_rows WHERE table_name = $1 AND row_id = $2');
     expect(buildKvDeleteRowsSql()).toContain('ANY($2::text[])');
     expect(buildKvDeleteTableSql()).toBe('DELETE FROM app_kv_rows WHERE table_name = $1');

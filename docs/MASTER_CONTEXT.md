@@ -1,5 +1,21 @@
 # BINPC2 MASTER CONTEXT — CURRENT CANON
 
+## 2026-10-13 최신 변경 결정 — PR #9 정본 범위 (CURRENT / 미배포)
+
+**이 절이 아래 2026-10-06 운영 정의 중 충돌하는 부분을 변경한다.** 예전 지침은 변경 역사이며 삭제하지 않는다. `main` 배포 전까지 이 규칙은 별도 **작업 브랜치 구현**이다.
+
+1. **새 행사 시작:** 관리자가 '회식 시작'을 눌러야 활성화. 자동으로 매일 행사 자체를 시작하지 않는다. 기존 행사 재개는 01:00 마감 전만 허용; 새 이벤트 ID는 안전한 초기화가 완료된 뒤 생성.
+2. **행사 시간:** 그 이벤트의 23:00 일반하트 4종(❤️💙💗💚 각1), 자정 🌈4회, 01:00 새 입장만 마감, 다음 17:00 안전한 기록보존 후 초기화. 관리자의 수동 종료도 기존 하트·1:1·단체채팅 기능을 임의 잠금하지 않는다. 수동 기능잠금은 따로 존중한다.
+3. **범일NPC:** 시작과 종료에 각 종류 정상 잔량만 충전(일반 4종 각1 + 🌈4), 기존 전송기록·대상별 중복검사는 보존. 정상 참가자에게 NPC 우회를 적용하지 않는다.
+4. **초기화 안전:** 단일 DB 트랜잭션(archive→wipe→NPC 복원→settings 완료) 및 장애 시 rollback; 중복실행/다중 서버 경합/비정상 아카이브 ID 차단; 이후 SSE 반영. 관리자 기록은 익명 합계로 영속 저장, 날짜 검색. 레거시 이력과 새 익명 이력은 서로 다르다.
+5. **운영 단계 구분:** 브랜치 IMPLEMENTED/CI TESTED와 LIVE/PRODUCTION 검증은 다르다. 실제 전송/삭제/Secret/배포 전 별도 승인과 실기기 대상 검증이 필요하다.
+6. **개인정보:** 소스에 개인정보 자동 완전삭제·법정 보관기간 준수 완료 등 확인되지 않은 약속 금지. 기존 사진 파일·장치 인증정보·오프사이트 백업 잔존은 추가 실운영 정책 결정을 요한다.
+
+관련 소스: `artifacts/api-server/src/lib/db-event-reset-transaction.ts`, `db-npc-heart-recharge.ts`, `db-event-cycle-heart.ts`, `db-event-admin-audit.ts`, `db-event-anonymous-history.ts`, `artifacts/api-server/src/routes/db.ts`, `artifacts/boltnew-app/src/lib/event-cycle-heart.ts`, `daily-cycle.ts`, `admin/AnonymousEventHistoryTab.tsx`.
+
+---
+
+
 ## 2026-10-13 추가 사용자 요구 — UI/알림 검증 브랜치 (미배포)
 
 상태: IMPLEMENTED / 자동시험 진행 중 / 실제 휴대폰 수신·운영배포 UNKNOWN.

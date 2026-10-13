@@ -18,6 +18,10 @@ export type AppSettingsRealtimeRow = {
   functions_locked?: boolean | null;
   sulbun_event?: unknown;
   module_flags?: unknown;
+  event_cycle_started_at?: string | null;
+  event_cycle_reset_complete?: boolean;
+  event_cycle_archive_id?: string | null;
+  npc_heart_refill?: unknown;
 };
 
 export type AppSettingsRealtimePlan =
