@@ -2,6 +2,7 @@ import { useState, useRef, useEffect } from 'react';
 import { Users, CheckCircle, Clock, ShieldAlert } from 'lucide-react';
 import { navigateToAppPath, PANEL_PIN_INPUT_PROPS, PIN_DIGIT_INPUT_PROPS, verifyPanelPassword } from '../lib/panel-password';
 import { EventScheduleBanner } from './EventScheduleBanner';
+import { eventCycleAdmissionOpen, eventCycleMilestones } from '../lib/event-cycle-heart';
 
 export function WaitingOverlay({ sessionActive, eventCycleStartedAt, eventCycleResetComplete, onEnter, onRecover }: {
   sessionActive: boolean | null;
@@ -18,7 +19,23 @@ export function WaitingOverlay({ sessionActive, eventCycleStartedAt, eventCycleR
     checkLabel: '#fde68a',
     checkItem:  '#fef3c7',
   } as const;
-  const isActive = sessionActive === true;
+  // Use a single boundary timer rather than polling: stale session_active
+  // must not leave the new-entry button enabled after the exact 01:00 cutoff.
+  const [, refreshAdmissionBoundary] = useState(0);
+  const closeAt = typeof eventCycleStartedAt === 'string'
+    ? eventCycleMilestones(eventCycleStartedAt)?.admissionCloseAt.getTime()
+    : undefined;
+  useEffect(() => {
+    if (closeAt === undefined) return;
+    const delay = closeAt - Date.now();
+    if (delay <= 0) return;
+    const timeout = setTimeout(() => refreshAdmissionBoundary(x => x + 1), delay);
+    return () => clearTimeout(timeout);
+  }, [closeAt]);
+  const isActive = eventCycleAdmissionOpen({
+    sessionActive, startedAt: eventCycleStartedAt,
+    resetComplete: eventCycleResetComplete, now: new Date(),
+  });
   const [showConsentModal, setShowConsentModal] = useState(false);
   const [showPinRecovery, setShowPinRecovery] = useState(false);
   const [pinDigits, setPinDigits] = useState<[string,string,string,string]>(['','','','']);

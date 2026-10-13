@@ -48,3 +48,16 @@ export function eventCycleUnlocked(input: {
   if (now.getTime() >= rainbowAt) keys.add('rainbow');
   return keys;
 }
+
+/** New admission is separate from existing participants' heart/chat access. */
+export function eventCycleAdmissionOpen(input: {
+  sessionActive: unknown; startedAt: unknown; resetComplete: unknown; now?: Date;
+}): boolean {
+  if (input.sessionActive !== true || input.resetComplete === true
+    || typeof input.startedAt !== 'string') return false;
+  const now = input.now ?? new Date();
+  const startMs = Date.parse(input.startedAt);
+  if (!Number.isFinite(startMs) || startMs > now.getTime()) return false;
+  const times = eventCycleMilestones(input.startedAt);
+  return Boolean(times && now.getTime() < times.admissionCloseAt.getTime());
+}

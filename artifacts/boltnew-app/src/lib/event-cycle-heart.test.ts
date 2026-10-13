@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { eventCycleUnlocked } from './event-cycle-heart';
+import { eventCycleUnlocked, eventCycleAdmissionOpen } from './event-cycle-heart';
 
 describe('session-anchored heart unlocks (KST)', () => {
   const startedAt = '2026-10-13T18:00:00+09:00';
@@ -28,5 +28,25 @@ describe('session-anchored heart unlocks (KST)', () => {
   it('a 00:30 late start can access its 23/24 event slots but reset closes access', () => {
     const keys=eventCycleUnlocked({startedAt:'2026-10-14T00:30:00+09:00',resetComplete:false,now:new Date('2026-10-14T00:45:00+09:00')});
     expect(keys.has('rainbow')).toBe(true);
+  });
+});
+
+describe('client admission is fail-closed independently of stale SSE session state', () => {
+  const baseline = {
+    sessionActive: true, startedAt: '2026-10-13T18:00:00+09:00',
+    resetComplete: false,
+  };
+  it('matches the server 01:00 cutoff exactly', () => {
+    expect(eventCycleAdmissionOpen({ ...baseline, now: new Date('2026-10-13T19:00:00+09:00') })).toBe(true);
+    expect(eventCycleAdmissionOpen({ ...baseline, now: new Date('2026-10-14T00:59:59+09:00') })).toBe(true);
+    expect(eventCycleAdmissionOpen({ ...baseline, now: new Date('2026-10-14T01:00:00+09:00') })).toBe(false);
+    expect(eventCycleAdmissionOpen({ ...baseline, now: new Date('2026-10-14T10:00:00+09:00') })).toBe(false);
+  });
+  it('rejects missing/future/ended/reset cycles without blocking recovered accounts', () => {
+    const now = new Date('2026-10-13T20:00:00+09:00');
+    expect(eventCycleAdmissionOpen({ ...baseline, sessionActive: false, now })).toBe(false);
+    expect(eventCycleAdmissionOpen({ ...baseline, resetComplete: true, now })).toBe(false);
+    expect(eventCycleAdmissionOpen({ ...baseline, startedAt: null, now })).toBe(false);
+    expect(eventCycleAdmissionOpen({ ...baseline, startedAt: '2026-10-14T19:00:00+09:00', now })).toBe(false);
   });
 });
