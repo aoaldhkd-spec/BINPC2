@@ -48,3 +48,12 @@ export function eventCycleUnlocked(input: {
   if (now.getTime() >= rainbowAt) keys.add('rainbow');
   return keys;
 }
+
+/** Operator cannot reopen last night's admissions after the event's 01:00 close. */
+export function eventCycleCanOpenAdmission(settings: Record<string, unknown>, now = new Date()): boolean {
+  if (settings.event_cycle_reset_complete === true) return true;
+  if (typeof settings.event_cycle_started_at !== 'string') return true; // new, not-yet-started event
+  const milestones = eventCycleMilestones(settings.event_cycle_started_at);
+  if (!milestones) return false; // invalid existing marker: fail closed
+  return now.getTime() < milestones.admissionCloseAt.getTime();
+}
