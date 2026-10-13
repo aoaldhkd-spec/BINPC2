@@ -4299,7 +4299,7 @@ router.post('/rpc/:name', async (req: Request, res: Response) => {
           const npc = await ensureAdminProfile();
           if (!npc?.id) throw new Error('범일NPC restoration/identity verification failed');
           const now = new Date();
-          const patch = active ? planEventCycleStartPatch(current, now) : { session_active: false };
+          const patch: Record<string, unknown> = active ? planEventCycleStartPatch(current, now) : { session_active: false };
           const recharge = planNpcHeartRefill({
             previous: current.npc_heart_refill,
             archiveId: String(active ? patch.event_cycle_archive_id : current.event_cycle_archive_id),
