@@ -81,6 +81,21 @@ jobs:
           sudo apt-get install -y -qq rclone
           rclone version | head -1
 
+      - name: Check Google Drive free space before any upload
+        if: github.event_name != 'pull_request'
+        shell: bash
+        run: |
+          set -euo pipefail
+          export RCLONE_CONFIG="$RUNNER_TEMP/binpc2-rclone.conf"
+          # Retain at least 2GiB of free account capacity, and never guess when quota is unavailable.
+          QUOTA_JSON="$(rclone about binpc2drive: --json)"
+          FREE_BYTES="$(printf '%s' "$QUOTA_JSON" | jq -er '.free | select(type == "number" and . >= 0)')"
+          SNAPSHOT_BYTES="$(du -sb "$BACKUP_DIR" | cut -f1)"
+          if (( FREE_BYTES < SNAPSHOT_BYTES + 2147483648 )); then
+            echo "::error::Drive capacity below snapshot + 2GiB safety reserve. Nothing uploaded or deleted."
+            exit 1
+          fi
+
       - name: Copy immutable versioned snapshot to Google Drive and verify
         if: github.event_name != 'pull_request'
         shell: bash
