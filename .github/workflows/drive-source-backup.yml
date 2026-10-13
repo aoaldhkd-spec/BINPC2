@@ -38,6 +38,24 @@ jobs:
       - name: Build source ZIP, full Git bundle, and checksummed manifest
         run: node scripts/backup-cloud-snapshot.mjs --out "$BACKUP_DIR" --ref origin/main
 
+      - name: Verify real Git bundle restore and source ZIP integrity
+        shell: bash
+        run: |
+          set -euo pipefail
+          unzip -tq "$BACKUP_DIR/source.zip" >/dev/null
+          TARGET_SHA="$(node -p "require(process.env.BACKUP_DIR + '/manifest.json').head")"
+          EXPECTED_FILES="$(node -p "require(process.env.BACKUP_DIR + '/manifest.json').source_file_count")"
+          RESTORE_PATH="$RUNNER_TEMP/binpc2-bundle-restore-check"
+          git clone --no-checkout "$BACKUP_DIR/repository.bundle" "$RESTORE_PATH"
+          git -C "$RESTORE_PATH" cat-file -e "${TARGET_SHA}^{commit}"
+          ACTUAL_FILES="$(git -C "$RESTORE_PATH" ls-tree -r --name-only "$TARGET_SHA" | wc -l)"
+          if [[ "$ACTUAL_FILES" -ne "$EXPECTED_FILES" ]]; then
+            echo "::error::Restored bundle lacks the expected source tree."
+            exit 1
+          fi
+          rm -rf "$RESTORE_PATH"
+          echo "Verified actual Git bundle clone and source ZIP for $TARGET_SHA."
+
       - name: Check snapshot size ceiling before upload
         shell: bash
         run: |
