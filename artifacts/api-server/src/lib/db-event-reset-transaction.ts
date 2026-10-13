@@ -1,5 +1,6 @@
 import { buildKvDeleteTableSql, buildKvInsertIfAbsentSql, buildKvUpsertSql } from './db-table-policy.js';
 import { summarizeAnonymousEvent, type AnonymousEventHistory } from './db-event-anonymous-history.js';
+import { normaliseEventActions } from './db-event-admin-audit.js';
 
 /** Isolated PostgreSQL unit of work. No process cache or SSE is changed before COMMIT. */
 export type ResetPgClient = {
@@ -89,12 +90,26 @@ export async function atomicEventReset(pool: ResetPgPool, opts: EventResetOption
     const admin = opts.planAdmin(profiles, settings);
     if (!admin?.id || !admin.pin_code) throw new Error('Cannot restore the administrator; refuse destructive reset');
 
+    const errorMeta = await client.query(
+      "SELECT data FROM app_kv_rows WHERE table_name = 'db_error_log' AND row_id = 'counter' LIMIT 1",
+    );
+    const persistedErrorCount = (errorMeta.rows[0]?.data as Record<string, unknown> | undefined)?.count;
+    const errorBaseline = settings.event_cycle_db_error_baseline;
+    const eventErrorCount = Number.isSafeInteger(persistedErrorCount) && Number.isSafeInteger(errorBaseline)
+      ? Math.max(0, Number(persistedErrorCount) - Number(errorBaseline))
+      : null;
     const archive = summarizeAnonymousEvent({
       eventKey: key, eventArchiveId: expectedArchiveId,
       profiles, likes: previous.likes ?? [],
       messages: previous.messages ?? [], groupMessages: previous.group_messages ?? [],
       signals: previous.signal_sends ?? [], contactShares: previous.contact_share_events ?? [],
       adminProfileId: String(profiles.find(p => opts.adminIsProfile(p, settings))?.id ?? ''),
+      chats: previous.chats ?? [], groupChats: previous.group_chats ?? [],
+      groupParticipants: previous.group_participants ?? [],
+      adminActions: normaliseEventActions(settings.event_cycle_admin_actions),
+      dbPersistErrorCount: eventErrorCount,
+      startedAt: String(settings.event_cycle_started_at),
+      archivedAt: opts.now.toISOString(),
     });
     if (archive.archiveId !== expectedArchiveId) throw new Error('Archive identity changed');
     const resetSignal = opts.now.toISOString();
