@@ -51,6 +51,52 @@ describe('mergeDbRowsIntoMemory', () => {
     expect(mem[1]).toMatchObject({ note: 'last' });
   });
 
+
+  it('matches the old merge rules for 500 seeded legacy-merge snapshots', () => {
+    function legacyMerge(mem: Record<string, unknown>[], db: Record<string, unknown>[]) {
+      const byId = new Map(mem.map(r => [String(r.id), r]));
+      for (const data of db) {
+        const id = String(data.id ?? '');
+        if (!id) continue;
+        const old = byId.get(id);
+        const dbTs = String(data.updated_at ?? data.created_at ?? '');
+        const memTs = old ? String(old.updated_at ?? old.created_at ?? '') : '';
+        if (!old) {
+          mem.push(data);
+          byId.set(id, data);
+        } else if (dbTs >= memTs) {
+          const idx = mem.findIndex(r => String(r.id) === id);
+          if (idx >= 0) mem[idx] = data;
+          byId.set(id, data);
+        }
+      }
+    }
+    for (let seed = 1; seed <= 500; seed++) {
+      let state = Math.imul(seed, 2137157) >>> 0;
+      const next = () => {
+        state = (Math.imul(state, 1664525) + 1013904223) >>> 0;
+        return state;
+      };
+      const n = next() % 30;
+      const m = next() % 40;
+      const choices: unknown[] = [undefined, null, '', 'x', 'y', 'z',
+        ...Array.from({ length: 8 }, (_, i) => 'id-' + i)];
+      const make = (i: number): Record<string, unknown> => ({
+        id: choices[next() % choices.length],
+        updated_at: next() % 4 === 0 ? null : (2020 + next() % 7) + '-01-01',
+        created_at: (2018 + next() % 9) + '-01-01',
+        marker: i,
+      });
+      const input = Array.from({ length: n }, (_, i) => make(i));
+      const changes = Array.from({ length: m }, (_, i) => make(100 + i));
+      const actual = input.map(x => ({ ...x }));
+      const expected = input.map(x => ({ ...x }));
+      mergeDbRowsIntoMemory(actual, changes);
+      legacyMerge(expected, changes);
+      expect(actual, 'legacy parity seed ' + seed).toEqual(expected);
+    }
+  });
+
   it('uses bounded ID lookups for 600 updated rows instead of rescanning the memory list', () => {
     const count = 600;
     let initialRowIdReads = 0;
