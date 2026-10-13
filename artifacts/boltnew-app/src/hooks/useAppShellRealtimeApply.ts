@@ -36,6 +36,7 @@ export type UseAppShellRealtimeApplyArgs = {
   setTimerEndAt: SetState<string | null>;
   setTimerLabel: SetState<string | null>;
   setEventScheduleRaw: SetState<string | null>;
+  setEventCycleMeta: (v: Record<string, unknown>) => void;
   setSulbunEvent: SetState<SulbunEventState | null>;
   setFunctionsLocked: SetState<boolean>;
   setModuleFlags: SetState<ModuleFlags>;
@@ -59,6 +60,7 @@ export function useAppShellRealtimeApply(
     setTimerEndAt,
     setTimerLabel,
     setEventScheduleRaw,
+    setEventCycleMeta,
     setSulbunEvent,
     setFunctionsLocked,
     setModuleFlags,
@@ -80,6 +82,7 @@ export function useAppShellRealtimeApply(
       wasSessionActive: sessionActiveRef.current,
       hasStoredUser: Boolean(ls.getItem(MATCHING_USER_KEY)),
     });
+    setEventCycleMeta(p as Record<string, unknown>);
     if (plan.kind === 'reset') {
       applyResetSignal(plan.resetSignal);
       setSulbunEvent(plan.sulbunEvent);
@@ -108,7 +111,7 @@ export function useAppShellRealtimeApply(
   }, [
     userIdRef, sessionActiveRef, applyResetSignal,
     setSessionActive, setShownWaiting, setView,
-    setTimerEndAt, setTimerLabel, setEventScheduleRaw, setSulbunEvent, setFunctionsLocked, setModuleFlags,
+    setTimerEndAt, setTimerLabel, setEventScheduleRaw, setEventCycleMeta, setSulbunEvent, setFunctionsLocked, setModuleFlags,
   ]);
 
   const onBroadcastNotifInsert = useCallback((n: BroadcastNotifInsertRow) => {
