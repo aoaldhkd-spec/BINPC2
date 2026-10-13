@@ -88,6 +88,7 @@ export const ADMIN_EVENT_END_PRIVATE_RESET = new Set([
   'likes', 'chats', 'messages', 'contact_shares', 'contact_share_events',
   'chat_reads', 'anonymous_reports', 'signal_sends',
   'group_chats', 'group_participants', 'group_messages', 'group_opt_outs',
+  'notifications', 'blocked_users', 'profile_views', 'user_signals',
 ]);
 
 export type WipeBroadcastPlan =
