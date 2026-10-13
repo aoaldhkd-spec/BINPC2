@@ -1,5 +1,21 @@
 # BINPC2 CURRENT STATUS — 2026-10-06
 
+## 2026-10-13 프로젝트 5 재개 검증 — CURRENT (이전 운영·미배포 기록보다 우선)
+
+> 기준: GitHub `main` `de3d4049fcacbbae038c7c24ebafc31dabb6ecc4` 검증 및 읽기 전용 운영 현황 재확인. 이번 추가는 **상태 문서 작업 브랜치**이며 새 운영 배포/실DB 쓰기를 뜻하지 않는다. 이전 섹션의 과거 기록은 보존한다.
+
+- **운영 소스·배포:** PR #9(관리자 시작·익명 기록·안전 초기화), #10(PWA manifest MIME), #11(튜토리얼·명시적 동의), #12(신규 입장 /ready 경쟁·알림 명시적 선택), #13(본인 기기 푸시 시험)가 모두 `main`에 병합되었다. 실제 Render `BINPC2` 서비스 `srv-d9v9gme417fc73cf6gq0`에서 `de3d4049fcacbbae038c7c24ebafc31dabb6ecc4` 배포 `dep-db6qrvuq1p3s73ekq7r0`가 **live**. PR #9가 여전히 미병합이라고 쓰인 아래 문장은 당시의 역사다.
+- **최신 검사:** `main` [Verify 성공](https://github.com/aoaldhkd-spec/BINPC2/actions/runs/38344766783). PR #13 HEAD `cc004e10`의 [Verify](https://github.com/aoaldhkd-spec/BINPC2/actions/runs/38344420859), [격리 PostgreSQL16](https://github.com/aoaldhkd-spec/BINPC2/actions/runs/38344420771), [합성 Chromium](https://github.com/aoaldhkd-spec/BINPC2/actions/runs/38344420753)은 각각 success. 이는 운영 실휴대폰 푸시 수신/실제 150명 현장 부하/실DB 쓰기 검증이 아니다.
+- **읽기 전용 추가 관찰:** 2026-10-13 Render 최신 배포 이후 요청한 오류·경고 레벨의 해당 시간대 로그는 각 0건. BINPC2 Supabase의 테이블 존재·집계 및 행사 상태를 안전하게 읽었으며, 운영 데이터가 실제로 존재하고 행사 상태는 시점에 따라 바뀐다. **이번 작업에서 DB UPDATE/DELETE, 행사 초기화, NPC/참가자 하트·채팅·푸시 전송은 실행하지 않았다.** 로그 0건을 장애 제로 보장으로 간주하지 않는다.
+- **자체 기기 푸시 진단:** `/api/db/push/self-test`와 참가자 설정의 `🔔 이 기기로 시험 알림 보내기`가 PR #13에 포함됨. 반드시 사용자의 명시적인 기기 버튼 탭과 본인 기기 구독/인증이 있어야 요청한다. 서버 수락 응답 `deliveredVerified:false`를 OS 실제 수신 성공으로 표시하지 않는다. iOS/Android 직접 수신·알림 클릭 및 하트→MY/1:1 채팅→해당 방 이동은 계속 **UNKNOWN**.
+- **백업:** Drive에 PR #13 HEAD `cc004e10` 기준 소스/웹 빌드 ZIP 2개가 서로 다른 기존 폴더에 실제 존재하고 각각 13,750,930 bytes임을 메타데이터 재확인. 두 사본이 **최종 main 병합 커밋 `de3d4049`와 동일한 Git 이력 백업이라는 뜻은 아니다**. Git 전체 bundle·운영 Supabase DB·프로필 이미지·Secret의 완전 재해복구 사본은 확인되지 않았다.
+- **별도 Draft [PR #6](https://github.com/aoaldhkd-spec/BINPC2/pull/6):** GitHub→Drive 자동 소스 백업은 미병합·미활성. 개인적으로 신뢰하는 기기에서 OAuth/rclone/GitHub Secret을 안전하게 설정하고 별도 병합 승인·첫 업로드·해시/복원 검증하기 전 **자동 백업 완료로 표시하지 않는다**. PC방에서 인증정보 입력 금지.
+- **이전 결정 중 현재 기준:** 신규 행사는 관리자의 회식 시작으로 활성화한다. 23:00 일반하트, 00:00 무지개, 다음 01:00 **신규 입장만 마감**(기존 이용자의 하트/채팅을 일괄 잠그지 않음), 그 행사에 대응하는 다음 17:00 원자적 안전 초기화. 낮 시간 시작 행사를 **당일 17:00에 지우지 않도록** 코드·검사 보호. 명시적인 알림 선택은 필수이나 OS 권한 강요/자동동의는 하지 않음.
+- **남은 위험:** 실제 두 휴대폰 OS 푸시·딥링크/현장 150명 네트워크, 운영 DB·이미지·기기 인증정보 및 백업의 보관·삭제정책과 법적 검토, 실제 복원 검증, PR #6 OAuth 연결 및 초회 백업. 완료되지 않은 부분은 **UNKNOWN/BLOCKED**로 유지. 운영 main 재배포·Secret/권한 변경·실DB 파괴/실사용자 발송은 이번 문서 작업 승인범위 밖이다.
+
+---
+
+
 ## 2026-10-13 프로젝트4 운영 반영 — CURRENT (이전 미배포 기록보다 우선)
 
 - **GitHub:** PR #9가 `main`에 병합됨. 운영 승인 범위는 기존 정상코드 보호, 실 DB 초기화/메시지·하트 발송/Secret 변경 금지. 병합 SHA `c2a2156821864a38fe4f6e22bb03ca0165b818d5`; 이전 정상 SHA `99393b47a06fe903ea9eb68b4e7bc64c863a654c`.
