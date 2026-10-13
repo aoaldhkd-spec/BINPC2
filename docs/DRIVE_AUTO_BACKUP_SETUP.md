@@ -47,3 +47,15 @@
 복구할 때는 별도 컴퓨터/폴더에서 `git bundle verify repository.bundle`을 실행한 다음 `git clone repository.bundle restored-binpc2`로 Git 역사를 복원한다. 코드만 필요하면 `source.zip`을 해제한다. **운영 DB 직접 덮어쓰기나 실제 서비스 배포는 별도 승인 없이 금지**.
 
 관련 공식 문서: https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax / https://rclone.org/drive/
+
+## 5. 2026-10-13 실제 실행과 남은 활성화 — CURRENT
+
+- 사용자 보유 PC가 아닌 GitHub Actions PR 검증에서 **현재 `origin/main` 소스**를 정확히 선택해 백업하도록 수정. PR 작업 브랜치를 최신 main으로 착각해서 백업하지 않는다.
+- 독립 GitHub [백업 실행 성공](https://github.com/aoaldhkd-spec/BINPC2/actions/runs/38347353338): `main de3d4049fcacbbae038c7c24ebafc31dabb6ecc4`, 추적 파일 926개, Git refs 18개, 파일의 해시와 `git bundle verify` 성공. 전체 Git 이력 포함 **일시적** GH artifact 491,297,102 bytes; 만료 2026-11-12 UTC. **Drive에 Git bundle을 올린 것은 아님**.
+- 이후 [소형 백업 실행 성공](https://github.com/aoaldhkd-spec/BINPC2/actions/runs/38348144597): 소스 ZIP+검증표만 담아 artifact 4,462,103 bytes, 만료 2026-10-20 UTC. GitHub 연결 앱 → 개인 Google Drive **서로 다른 비공개 폴더**에 새 파일 2개를 생성하고 각각 4,462,103 bytes 및 소유자 전용 권한을 재검증:
+  - [1차](https://drive.google.com/file/d/1PCEaj-az7ipT2ymYxsuHfh0QpwuZmoPH/view)
+  - [2차](https://drive.google.com/file/d/1hDCuK6K4Zkn66zcq8xQZnRGwcxXh1lal/view)
+- GitHub Actions 임시 보관은 영구·완전재해복구가 아니다. 과금상한/중복을 고려해 추후 자동실행에는 **7일 소스 ZIP 체크포인트**만 GH artifact에 남기고, 매번 491MB 전체 bundle을 GH에 또 쌓지 않도록 바꿨다. Drive 인증이 활성화되면 별도 Git bundle을 private Drive에 검증 업로드한다. 750MiB를 초과하는 스냅샷은 업로드 전에 실패(STOP)한다.
+- **아직 BLOCKED:** OAuth/rclone 연결과 GitHub Actions Secret `BINPC2_DRIVE_RCLONE_B64`가 준비되지 않아 정기 Google Drive 백업은 자동 활성화되어 있지 않다. 기존 ChatGPT Google Drive 연결로 이번 일회성 소스 ZIP 저장은 완료했지만, 이 연결이 GitHub Actions의 OAuth 인증정보로 자동 전달되지는 않는다.
+- PR #6 자체를 main에 병합하면 Render 자동배포가 일어날 수 있으므로, 프로덕션 병합은 명시적 승인 전 금지. 운영 Supabase DB·프로필 이미지·기기 인증자료·VAPID/API Secret은 모든 Git 소스/번들 ZIP의 범위 밖이다. 사용자 허락 없이 운영 데이터를 내보내거나 GitHub 공개 저장소/Actions artifact에 넣지 않는다.
+- GitHub Actions artifact 저장량은 계정 요금제의 포함량 및 초과 과금(공식 현재 안내상 Free 500MB, Pro 1GB, 초과 $0.25/GB·월)에 종속된다. 491MB 파일을 매 커밋마다 저장하면 과금/한도 위험이 있어 반복하지 않는다. 실제 계정 요금제·남은 한도는 UNKNOWN.
