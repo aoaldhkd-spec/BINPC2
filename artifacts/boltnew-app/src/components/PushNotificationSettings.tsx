@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import {
   PUSH_STATUS_EVENT, currentPushStatus, enablePushFromClick, disablePushForUser,
-  getPushOptIn, registerPushSub, type PushSetupStatus,
+  getPushOptIn, registerPushSub, sendSelfPushTest, type PushSetupStatus,
 } from '../lib/webPush';
 
 /** One optional row in the existing profile settings — no separate permission panel. */
@@ -13,6 +13,8 @@ export function PushNotificationSettings({ userId, enabled, darkMode }: {
   const [checked, setChecked] = useState(false);
   const [status, setStatus] = useState<PushSetupStatus | null>(null);
   const [busy, setBusy] = useState(false);
+  const [testBusy, setTestBusy] = useState(false);
+  const [testResult, setTestResult] = useState<PushSetupStatus | null>(null);
 
   useEffect(() => {
     const update = (event: Event) => setStatus((event as CustomEvent<PushSetupStatus>).detail);
@@ -66,7 +68,27 @@ export function PushNotificationSettings({ userId, enabled, darkMode }: {
           알림 권한 허용
         </button>
       )}
-      {checked && status?.code === 'ready' && <p role="status" className="text-[11px] pl-7 text-teal-500">✓ 이 기기의 알림 연결 완료</p>}
+      {checked && status?.code === 'ready' && (
+        <div className="pl-7 flex flex-col items-start gap-2">
+          <p role="status" className="text-[11px] text-teal-500">✓ 이 기기의 알림 연결 완료</p>
+          <button type="button" disabled={busy || testBusy || !enabled || !userId}
+            onClick={() => {
+              if (!userId) return;
+              setTestBusy(true);
+              setTestResult(null);
+              void sendSelfPushTest(userId).then(setTestResult).finally(() => setTestBusy(false));
+            }}
+            className="rounded-lg border border-teal-500 bg-teal-600 px-3 py-2 text-[11px] font-bold text-white disabled:opacity-50">
+            {testBusy ? '시험 알림 요청 중' : '🔔 이 기기로 시험 알림 보내기'}
+          </button>
+          {testResult && (
+            <p role="status" aria-live="polite"
+              className={`text-[11px] ${testResult.code === 'error' ? 'text-rose-500' : 'text-teal-500'}`}>
+              {testResult.message}
+            </p>
+          )}
+        </div>
+      )}
       {!enabled && <p role="status" className="text-[11px] pl-7 text-amber-600">관리자가 알림 기능을 꺼 놓았습니다.</p>}
     </div>
   );
