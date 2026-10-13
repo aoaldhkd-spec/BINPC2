@@ -48,14 +48,16 @@ jobs:
             exit 1
           }
 
-      - name: Save short-term GitHub recovery artifact (no OAuth required)
+      - name: Save 7-day source ZIP checkpoint without Google credentials
         uses: actions/upload-artifact@v4
         with:
-          name: binpc2-source-history-${{ github.run_id }}
-          path: ${{ env.BACKUP_DIR }}/
+          name: binpc2-source-${{ github.run_id }}
+          path: |
+            ${{ env.BACKUP_DIR }}/source.zip
+            ${{ env.BACKUP_DIR }}/manifest.json
           if-no-files-found: error
           compression-level: 0
-          retention-days: 30
+          retention-days: 7
 
       - name: Require secure Drive credential setup
         if: github.event_name != 'pull_request'
