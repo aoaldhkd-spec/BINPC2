@@ -1,4 +1,5 @@
 import '../lib/dns-ipv4-first.js';
+import { summarizeAnonymousEvent } from '../lib/db-event-anonymous-history.js';
 import { Router, type Request, type Response } from 'express';
 import pg from 'pg';
 import { VAPID_PUBLIC_KEY, vapidConfigured, sendPush, type PushPayload } from '../lib/push';
@@ -801,6 +802,18 @@ async function persistAppSettingsPatch(patch: Record<string, unknown>): Promise<
 async function runAdminEventEndResetCore(extraPatch: Record<string, unknown> = {}): Promise<void> {
   const settingsRow = (getTable('app_settings')[0] ?? {}) as Record<string, unknown>;
   const oldProfiles = store['profiles'] ?? [];
+  const archive = summarizeAnonymousEvent({
+    eventKey: new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Seoul' }),
+    eventArchiveId: typeof settingsRow.event_cycle_archive_id === 'string' ? settingsRow.event_cycle_archive_id : undefined,
+    profiles: oldProfiles,
+    likes: getTable('likes'),
+    messages: getTable('messages'),
+    groupMessages: getTable('group_messages'),
+    signals: getTable('signal_sends'),
+    contactShares: getTable('contact_share_events'),
+    adminProfileId: String(oldProfiles.find(row => isAdminProfileRow(row))?.id ?? ''),
+  });
+  await dbPersistRow('event_anonymous_archives', { ...archive, id: archive.archiveId, createdAt: new Date().toISOString() });
   const persistDeletes: Promise<void>[] = [];
   for (const t of ADMIN_EVENT_END_CLEAR_TABLES) {
     if (WIPE_PRESERVED_TABLES.has(t)) continue;
@@ -2816,6 +2829,19 @@ router.post('/sales-reports', async (req: Request, res: Response) => {
   }
 });
 
+router.get('/event-anonymous-archives', async (req: Request, res: Response) => {
+  if (!verifyAdminToken(salesReportAdminToken(req))) return salesReportUnauthorized(res);
+  try {
+    const { rows } = await pool.query<{ data: unknown }>(
+      buildKvSelectLatestLimitedSql(), ['event_anonymous_archives', 500],
+    );
+    return res.json({ data: rows.map(row => row.data), error: null });
+  } catch (e) {
+    logger.error({ err: e }, '[event-archives] list failed');
+    return res.status(500).json({ data: null, error: { message: '행사 이력 조회 실패' } });
+  }
+});
+
 router.get('/sales-reports', async (req: Request, res: Response) => {
   if (!verifyAdminToken(salesReportAdminToken(req))) return salesReportUnauthorized(res);
   try {
@@ -4191,7 +4217,8 @@ router.post('/rpc/:name', async (req: Request, res: Response) => {
         const current = (getTable('app_settings')[0] ?? {}) as Record<string, unknown>;
         const merged = mergeAppSettings(current, {
           session_active: active,
-          ...(active ? { event_cycle_started_at: new Date().toISOString(), event_cycle_reset_complete: false } : {}),
+          ...(active ? { event_cycle_started_at: new Date().toISOString(), event_cycle_reset_complete: false,
+            event_cycle_archive_id: `binpc2:event-anon:v1:${new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Seoul' })}:${crypto.randomUUID()}` } : {}),
         });
         const updated = await overlayDbSecrets(merged, new Set());
         store['app_settings'] = [updated];
