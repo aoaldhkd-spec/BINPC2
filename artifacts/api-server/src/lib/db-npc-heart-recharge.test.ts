@@ -47,4 +47,14 @@ describe('bounded NPC allowance, history preserved', () => {
     expect(npcHeartAllowance({ marker: start, archiveId, npcId: 'participant', likes: [] }).active).toBe(false);
     expect(npcHeartAllowance({ marker: null, archiveId, npcId: npc, likes: [] }).grantUsed.red).toBe(true);
   });
+  it('never derives a negative allowance count from a newer marker baseline', () => {
+    const marker = planNpcHeartRefill({
+      archiveId, npcId: npc, phase: 'start', previous: null, now: atStart,
+      likes: [row(npc, 'red'), row(npc, 'red', 'rainbow')],
+    });
+    const usage = npcHeartAllowance({ marker, archiveId, npcId: npc, likes: [] });
+    expect(usage.rainbowUsed).toBe(0);
+    expect(usage.grantUsed.red).toBe(false);
+  });
+
 });

@@ -78,14 +78,21 @@ export function npcHeartAllowance(input: {
     return { grantUsed: { red: true, blue: true, pink: true, green: true }, rainbowUsed: 4, active: false };
   }
   const now = countNpcSends(input.likes, input.npcId);
+  // More historical sends may exist than the verified refill baseline.
+  // Never allow negative usage to reopen a consumed allowance.
+  const used = {
+    red: Math.max(0, now.red - marker.usedBefore.red),
+    blue: Math.max(0, now.blue - marker.usedBefore.blue),
+    pink: Math.max(0, now.pink - marker.usedBefore.pink),
+    green: Math.max(0, now.green - marker.usedBefore.green),
+    rainbow: Math.max(0, now.rainbow - marker.usedBefore.rainbow),
+  };
   return {
     grantUsed: {
-      red: now.red - marker.usedBefore.red >= 1,
-      blue: now.blue - marker.usedBefore.blue >= 1,
-      pink: now.pink - marker.usedBefore.pink >= 1,
-      green: now.green - marker.usedBefore.green >= 1,
+      red: used.red >= 1, blue: used.blue >= 1,
+      pink: used.pink >= 1, green: used.green >= 1,
     },
-    rainbowUsed: Math.max(0, now.rainbow - marker.usedBefore.rainbow),
+    rainbowUsed: used.rainbow,
     active: true,
   };
 }
