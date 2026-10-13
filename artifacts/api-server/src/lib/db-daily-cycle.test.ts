@@ -51,6 +51,26 @@ describe('db-daily-cycle', () => {
     )).toEqual({ sessionEndDate: null, resetDate: '2026-10-05' });
   });
 
+  it('starts only the next 01:00 and 17:00 boundaries and stops after reset', () => {
+    const started = {
+      event_cycle_started_at: '2026-10-13T18:00:00+09:00',
+      daily_session_end_date: '2026-10-13',
+      daily_reset_date: '2026-10-13',
+    };
+    expect(dueDailyCycleActions(started, new Date('2026-10-13T23:00:00+09:00')))
+      .toEqual({ sessionEndDate: null, resetDate: null });
+    expect(dueDailyCycleActions(started, new Date('2026-10-14T01:00:00+09:00')))
+      .toEqual({ sessionEndDate: '2026-10-14', resetDate: null });
+    expect(dueDailyCycleActions(
+      { ...started, daily_session_end_date: '2026-10-14' },
+      new Date('2026-10-14T17:00:00+09:00'),
+    )).toEqual({ sessionEndDate: null, resetDate: '2026-10-14' });
+    expect(dueDailyCycleActions(
+      { ...started, event_cycle_reset_complete: true },
+      new Date('2026-10-15T19:00:00+09:00'),
+    )).toEqual({ sessionEndDate: null, resetDate: null });
+  });
+
   it('arms the next exact destructive boundary', () => {
     expect(nextDailyCycleDelayMs(new Date('2026-10-05T00:30:00+09:00'))).toBe(30 * 60 * 1000);
     expect(nextDailyCycleDelayMs(new Date('2026-10-05T16:30:00+09:00'))).toBe(30 * 60 * 1000);
