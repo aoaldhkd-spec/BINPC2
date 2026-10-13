@@ -12,24 +12,9 @@ const TEST_SSE_SECRET = vi.hoisted(() => {
 });
 void TEST_SSE_SECRET;
 
-vi.mock('pg', () => {
-  const mockClient = {
-    query: () => Promise.resolve({ rows: [] }),
-    release: () => {},
-    on: () => {},
-  };
-  class MockPool {
-    connect = () => Promise.resolve(mockClient);
-    query = () => Promise.resolve({ rows: [] });
-    on = () => {};
-    end = () => Promise.resolve();
-  }
-  class MockClient {
-    connect = () => Promise.resolve();
-    query = () => Promise.resolve({ rows: [] });
-    on = () => {};
-    end = () => Promise.resolve();
-  }
+vi.mock('pg', async () => {
+  const { createMockPg } = await import('./support/mock-pg-kv.js');
+  const { MockPool, MockClient } = createMockPg();
   return { default: { Pool: MockPool, Client: MockClient } };
 });
 
@@ -120,6 +105,8 @@ describe('admin_sulbun_open + auto reset', () => {
     expect(opened.status).toBe(200);
     const cycleId = opened.body.data.sulbun_event.cycle_id as string;
 
+    const started = await rpc('admin_toggle_session', { p_active: true });
+    expect(started.status).toBe(200);
     const reset = await rpc('admin_event_end_reset');
     expect(reset.status).toBe(200);
 

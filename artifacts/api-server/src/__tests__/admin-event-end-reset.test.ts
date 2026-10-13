@@ -12,24 +12,9 @@ const TEST_SSE_SECRET = vi.hoisted(() => {
 });
 void TEST_SSE_SECRET;
 
-vi.mock('pg', () => {
-  const mockClient = {
-    query: () => Promise.resolve({ rows: [] }),
-    release: () => {},
-    on: () => {},
-  };
-  class MockPool {
-    connect = () => Promise.resolve(mockClient);
-    query = () => Promise.resolve({ rows: [] });
-    on = () => {};
-    end = () => Promise.resolve();
-  }
-  class MockClient {
-    connect = () => Promise.resolve();
-    query = () => Promise.resolve({ rows: [] });
-    on = () => {};
-    end = () => Promise.resolve();
-  }
+vi.mock('pg', async () => {
+  const { createMockPg } = await import('./support/mock-pg-kv.js');
+  const { MockPool, MockClient } = createMockPg();
   return { default: { Pool: MockPool, Client: MockClient } };
 });
 
@@ -77,6 +62,10 @@ describe('[Admin] admin_event_end_reset wipes group chats', () => {
       payload: { group_id: customId, sender_id: a, content: 'custom-should-wipe', client_id: randomUUID() },
     })).status).toBe(200);
 
+    // A destructive reset now requires a durably started event with a restorable NPC.
+    const started = await request(app).post('/api/db/rpc/admin_toggle_session')
+      .send({ p_admin_password: '116606', p_active: true });
+    expect(started.status).toBe(200);
     const reset = await request(app)
       .post('/api/db/rpc/admin_event_end_reset')
       .send({ p_admin_password: '116606' });
