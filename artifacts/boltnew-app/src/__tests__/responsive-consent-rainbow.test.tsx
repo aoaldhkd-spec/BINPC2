@@ -55,6 +55,25 @@ describe('explicit consent rows', () => {
     expect(boxes[2].checked).toBe(false);
     expect((screen.getByRole('button', { name: '계속' }) as HTMLButtonElement).disabled).toBe(false);
   });
+  it('one real registration gesture checks required consents and optional push without preselection', () => {
+    render(<NicknameSetupScreen onSubmit={vi.fn()} loading={false} onReset={vi.fn()} />);
+    fireEvent.click(screen.getByRole('button', { name: 'INTJ' }));
+    fireEvent.click(screen.getByRole('button', { name: /다음/ }));
+    fireEvent.click(screen.getByRole('button', { name: /다음/ }));
+    fireEvent.click(screen.getByRole('button', { name: /엔터·사교·기타/ }));
+    fireEvent.click(screen.getByRole('button', { name: '집콕' }));
+    fireEvent.click(screen.getByRole('button', { name: '기타' }));
+    fireEvent.click(screen.getByRole('button', { name: /다음/ }));
+    fireEvent.click(screen.getByRole('button', { name: '올' }));
+    const boxes = screen.getAllByRole('checkbox') as HTMLInputElement[];
+    expect(boxes).toHaveLength(3);
+    expect(boxes.every(box => !box.checked)).toBe(true);
+    fireEvent.click(screen.getByRole('button', { name: '필수 약관과 선택 알림 한 번에 동의' }));
+    expect(boxes.every(box => box.checked)).toBe(true);
+    fireEvent.click(boxes[2]);
+    expect(boxes[0].checked && boxes[1].checked).toBe(true);
+    expect(boxes[2].checked).toBe(false);
+  });
   it('viewing details does not grant consent and closes with Escape', () => {
     render(<ConsentDemo />);
     fireEvent.click(screen.getByRole('button', { name: '[필수] 개인정보 수집 및 이용 동의 내용 보기' }));
