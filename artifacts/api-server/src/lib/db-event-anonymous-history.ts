@@ -14,7 +14,7 @@ export type AnonymousEventHistory = {
 
 /** Namespace + unique UUID: never use a nickname or date alone as an archive key. */
 export function newAnonymousEventArchiveIdentity(eventKey: string): { archiveId: string; archiveLabel: string } {
-  if (!/^\\d{4}-\\d{2}-\\d{2}$/.test(eventKey)) throw new Error('Invalid event date');
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(eventKey)) throw new Error('Invalid event date');
   const archiveId = `binpc2:event-anon:v1:${eventKey}:${randomUUID()}`;
   return { archiveId, archiveLabel: `BINPC2 익명행사 ${eventKey} · ${archiveId.slice(-8)}` };
 }
