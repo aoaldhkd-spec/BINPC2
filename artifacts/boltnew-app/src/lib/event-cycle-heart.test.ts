@@ -15,6 +15,16 @@ describe('session-anchored heart unlocks (KST)', () => {
     expect(at('2026-10-14T00:00:00+09:00')).toEqual(['blue','green','pink','rainbow','red']);
     expect(at('2026-10-14T10:00:00+09:00')).toHaveLength(5);
   });
+  it('does not unlock at an early-morning start after 01:00 until that evening', () => {
+    const input = { startedAt:'2026-10-14T05:00:00+09:00', resetComplete:false };
+    expect(eventCycleUnlocked({ ...input, now:new Date('2026-10-14T05:30:00+09:00') }).size).toBe(0);
+    expect(eventCycleUnlocked({ ...input, now:new Date('2026-10-14T22:59:59+09:00') }).size).toBe(0);
+    expect(eventCycleUnlocked({ ...input, now:new Date('2026-10-14T23:00:00+09:00') }).has('red')).toBe(true);
+  });
+  it('does not unlock on a prior event day before the current admin start', () => {
+    const input = { startedAt:'2026-10-14T18:00:00+09:00', resetComplete:false };
+    expect(eventCycleUnlocked({ ...input, now:new Date('2026-10-13T23:59:00+09:00') }).size).toBe(0);
+  });
   it('a 00:30 late start can access its 23/24 event slots but reset closes access', () => {
     const keys=eventCycleUnlocked({startedAt:'2026-10-14T00:30:00+09:00',resetComplete:false,now:new Date('2026-10-14T00:45:00+09:00')});
     expect(keys.has('rainbow')).toBe(true);
