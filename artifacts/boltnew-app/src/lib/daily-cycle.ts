@@ -1,3 +1,5 @@
+import { eventCycleMilestones } from './event-cycle-heart';
+
 const SEOUL = 'Asia/Seoul';
 
 type Ymd = { y: number; m: number; d: number };
@@ -41,11 +43,30 @@ export type DailyCycleBannerState = {
 export function dailyCycleBannerState(
   now = new Date(), eventCycleStartedAt?: string | null, eventCycleResetComplete = false,
 ): DailyCycleBannerState {
-  if (eventCycleStartedAt !== undefined && (
-    !eventCycleStartedAt || !Number.isFinite(Date.parse(eventCycleStartedAt))
-    || Date.parse(eventCycleStartedAt) > now.getTime() || eventCycleResetComplete
-  )) {
-    return { phase: 'idle', message: '🚪 관리자가 회식을 시작하기 전에는 신규 입장이 열리지 않습니다', countdownSec: 0 };
+  // Metadata-aware mode is authoritative for all new events. The legacy
+  // single-argument clock mode remains for historical/test compatibility.
+  if (eventCycleStartedAt !== undefined) {
+    const milestones = eventCycleStartedAt ? eventCycleMilestones(eventCycleStartedAt) : null;
+    if (!milestones || Date.parse(eventCycleStartedAt ?? '') > now.getTime() || eventCycleResetComplete) {
+      return { phase: 'idle', message: '🚪 관리자가 회식을 시작하기 전에는 신규 입장이 열리지 않습니다', countdownSec: 0 };
+    }
+    const current = now.getTime();
+    const result = (phase: DailyCycleBannerState['phase'], message: string, target: Date): DailyCycleBannerState =>
+      ({ phase, message, countdownSec: Math.max(0, Math.ceil((target.getTime() - current) / 1_000)) });
+    if (current < milestones.grantAt.getTime()) {
+      return result('waiting-hearts', '❤️💙💗💚 23시에 일반 하트가 풀립니다', milestones.grantAt);
+    }
+    if (current < milestones.rainbowAt.getTime()) {
+      return result('grant-open',
+        '❤️💙💗💚 일반 하트가 풀렸습니다 · 24시에 무지개하트가 풀립니다', milestones.rainbowAt);
+    }
+    if (current < milestones.admissionCloseAt.getTime()) {
+      return result('rainbow-open',
+        '🌈 무지개하트가 풀렸습니다 · 01시에 신규 입장이 마감됩니다', milestones.admissionCloseAt);
+    }
+    return result('ended',
+      '🚪 신규 입장 마감 · 기존 참가자 하트·채팅 유지 · 17시에 초기화됩니다',
+      milestones.resetAt);
   }
   const p = parts(now);
   const today: Ymd = { y: p.y, m: p.m, d: p.d };
