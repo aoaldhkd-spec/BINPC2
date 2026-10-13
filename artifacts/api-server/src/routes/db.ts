@@ -815,8 +815,27 @@ async function runAdminEventEndResetCore(extraPatch: Record<string, unknown> = {
     contactShares: getTable('contact_share_events'),
     adminProfileId: String(oldProfiles.find(row => isAdminProfileRow(row))?.id ?? ''),
   });
-  await dbPersistRow('event_anonymous_archives', { ...archive, id: archive.archiveId, createdAt: new Date().toISOString() });
-  const persistDeletes: Promise<void>[] = [];
+  // Archive and deletion are one DB transaction: either both commit or neither does.
+  // Never announce RESET or clear the in-memory store until PostgreSQL commits.
+  const wipeClient = await pool.connect();
+  try {
+    await wipeClient.query('BEGIN');
+    const archiveRow = { ...archive, id: archive.archiveId, createdAt: new Date().toISOString() };
+    await wipeClient.query(buildKvUpsertSql(), [
+      'event_anonymous_archives', archive.archiveId, JSON.stringify(archiveRow),
+    ]);
+    for (const t of ADMIN_EVENT_END_CLEAR_TABLES) {
+      if (WIPE_PRESERVED_TABLES.has(t)) continue;
+      await wipeClient.query(buildKvDeleteTableSql(), [t]);
+    }
+    await wipeClient.query('COMMIT');
+  } catch (error) {
+    try { await wipeClient.query('ROLLBACK'); }
+    catch (rollbackError) { logger.error({ err: rollbackError }, '[event-reset] rollback failed'); }
+    throw error;
+  } finally {
+    wipeClient.release();
+  }
   for (const t of ADMIN_EVENT_END_CLEAR_TABLES) {
     if (WIPE_PRESERVED_TABLES.has(t)) continue;
     const old = store[t] ?? [];
@@ -829,12 +848,10 @@ async function runAdminEventEndResetCore(extraPatch: Record<string, unknown> = {
     } else {
       for (const row of bplan.rows) broadcastAll({ type: 'change', table: t, event: 'DELETE', newRow: null, oldRow: row });
     }
-    persistDeletes.push(dbDeleteTable(t).catch(e => logger.error({ err: e }, '[db] background task error')));
   }
   _mergedGroupIds.clear();
   _mergedChatIds.clear();
   autoMatchInFlight.clear();
-  await Promise.all(persistDeletes);
   await ensureOptInGroupRooms();
   await restoreAdminProfileAfterWipeInStore(oldProfiles, settingsRow);
   await bumpResetSignalAndBroadcast({ ...extraPatch, session_active: false, event_cycle_reset_complete: true });
