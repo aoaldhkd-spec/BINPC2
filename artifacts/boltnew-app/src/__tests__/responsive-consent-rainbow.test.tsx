@@ -74,6 +74,23 @@ describe('explicit consent rows', () => {
     expect(boxes[0].checked && boxes[1].checked).toBe(true);
     expect(boxes[2].checked).toBe(false);
   });
+  it('a direct one-tap choice records notifications desired without claiming OS permission', () => {
+    render(<NicknameSetupScreen onSubmit={vi.fn()} loading={false} onReset={vi.fn()} />);
+    fireEvent.click(screen.getByRole('button', { name: 'INTJ' }));
+    fireEvent.click(screen.getByRole('button', { name: /다음/ }));
+    fireEvent.click(screen.getByRole('button', { name: /다음/ }));
+    fireEvent.click(screen.getByRole('button', { name: /엔터·사교·기타/ }));
+    fireEvent.click(screen.getByRole('button', { name: '집콕' }));
+    fireEvent.click(screen.getByRole('button', { name: '기타' }));
+    fireEvent.click(screen.getByRole('button', { name: /다음/ }));
+    fireEvent.click(screen.getByRole('button', { name: '올' }));
+    const next = screen.getByRole('button', { name: /다음/ }) as HTMLButtonElement;
+    expect(next.disabled).toBe(true);
+    fireEvent.click(screen.getByRole('button', { name: '필수 약관과 선택 알림 한 번에 동의' }));
+    expect(next.disabled).toBe(false);
+    expect((screen.getByRole('checkbox', { name: '하트·1:1 채팅 알림 받기 (선택)' }) as HTMLInputElement).checked).toBe(true);
+  });
+
   it('viewing details does not grant consent and closes with Escape', () => {
     render(<ConsentDemo />);
     fireEvent.click(screen.getByRole('button', { name: '[필수] 개인정보 수집 및 이용 동의 내용 보기' }));
@@ -93,7 +110,10 @@ describe('explicit consent rows', () => {
     const next = screen.getByRole('button', { name: /다음/ }) as HTMLButtonElement;
     const boxes = screen.getAllByRole('checkbox') as HTMLInputElement[];
     expect(boxes).toHaveLength(3); expect(next.disabled).toBe(true);
-    fireEvent.click(boxes[0]); fireEvent.click(boxes[1]); expect(next.disabled).toBe(false);
+    fireEvent.click(boxes[0]); fireEvent.click(boxes[1]); expect(next.disabled).toBe(true);
+    fireEvent.click(screen.getByRole('button', { name: '알림 없이 계속' }));
+    expect(next.disabled).toBe(false);
+    expect(boxes[2].checked).toBe(false);
     fireEvent.click(boxes[1]); expect(next.disabled).toBe(true);
     expect(boxes[2].getAttribute('aria-label')).toBe('하트·1:1 채팅 알림 받기 (선택)');
   });
