@@ -36,6 +36,45 @@ describe('mergeDbRowsIntoMemory', () => {
     mergeDbRowsIntoMemory(mem, [{ id: 'a', updated_at: '2026-01-01T00:00:00.000Z', v: 1 }]);
     expect(mem[0]).toMatchObject({ v: 2 });
   });
+
+  it('keeps legacy first-slot replacement and last-row freshness with duplicate IDs', () => {
+    const mem: Record<string, unknown>[] = [
+      { id: 'same', updated_at: '2026-01-01T00:00:00.000Z', note: 'first' },
+      { id: 'same', updated_at: '2026-01-03T00:00:00.000Z', note: 'last' },
+    ];
+    mergeDbRowsIntoMemory(mem, [
+      { id: 'same', updated_at: '2026-01-02T00:00:00.000Z', note: 'stale-to-last' },
+      { id: 'same', updated_at: '2026-01-04T00:00:00.000Z', note: 'fresh' },
+    ]);
+    expect(mem).toHaveLength(2);
+    expect(mem[0]).toMatchObject({ note: 'fresh' });
+    expect(mem[1]).toMatchObject({ note: 'last' });
+  });
+
+  it('uses bounded ID lookups for 600 updated rows instead of rescanning the memory list', () => {
+    const count = 600;
+    let initialRowIdReads = 0;
+    const mem: Record<string, unknown>[] = Array.from({ length: count }, (_, i) => {
+      const row: Record<string, unknown> = { updated_at: '2026-01-01T00:00:00.000Z' };
+      Object.defineProperty(row, 'id', {
+        enumerable: true,
+        get: () => {
+          initialRowIdReads++;
+          return `user-${i}`;
+        },
+      });
+      return row;
+    });
+    const db: Record<string, unknown>[] = Array.from({ length: count }, (_, i) => ({
+      id: `user-${i}`, updated_at: '2026-01-02T00:00:00.000Z', note: 'merged',
+    }));
+    mergeDbRowsIntoMemory(mem, db);
+    expect(mem).toHaveLength(count);
+    expect(mem[0]).toMatchObject({ id: 'user-0', note: 'merged' });
+    expect(mem[count - 1]).toMatchObject({ id: 'user-599', note: 'merged' });
+    // Deterministic work bound, not a timing-based/flaky benchmark.
+    expect(initialRowIdReads).toBeLessThan(count * 5);
+  });
 });
 
 describe('shouldBroadcastBulkResync', () => {
