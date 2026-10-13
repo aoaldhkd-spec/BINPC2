@@ -3620,7 +3620,10 @@ router.post('/op', async (req: Request, res: Response) => {
           const unlockedKeys = process.env.NODE_ENV === 'test'
             ? new Set(['red', 'blue', 'pink', 'green', 'rainbow'])
             : unlockedHeartKeys(heartOps, now);
-          const capReject = likesHeartOpsReject({
+          // The operator-owned NPC is a test fixture with replenished hearts.
+          // This bypass is scoped to its authenticated, server-identified profile only.
+          const npcSender = getTable('profiles').some(p => String(p.id) === likeLiker && isAdminProfileRow(p));
+          const capReject = npcSender ? null : likesHeartOpsReject({
             source: likeSource,
             heartType: likeType,
             unlockedKeys,
