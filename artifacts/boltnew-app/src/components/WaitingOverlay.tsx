@@ -279,7 +279,7 @@ export function WaitingOverlay({ sessionActive, onEnter, onRecover }: {
             onClick={() => setShowConsentModal(true)}
             disabled={!isActive}
             className="w-[80%] py-4 bg-gradient-to-r from-teal-500 to-cyan-500 hover:from-teal-400 hover:to-cyan-400 disabled:from-slate-700 disabled:to-slate-600 disabled:cursor-not-allowed text-white font-black text-lg rounded-2xl shadow-2xl shadow-teal-500/30 transition-all active:scale-98 disabled:active:scale-100"
-          >{isActive ? '입장하기' : '⏳ 회식 시작 전입니다'}</button>
+          >{isActive ? '입장하기' : '🚪 현재 신규 입장 마감'}</button>
           {/* 2단: 프로필 복구 — 65% 너비 */}
           <button
             onClick={() => { setShowPinRecovery(true); setPinDigits(['','','','']); setPinError(''); setPinStep('pin'); }}
