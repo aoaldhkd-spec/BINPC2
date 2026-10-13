@@ -247,6 +247,8 @@ export function useHearts(
     if (refill.npcId !== currentUserId || refill.archiveId !== eventArchiveId
       || !refill.usedBefore || typeof refill.usedBefore !== 'object') return regular;
     const old = refill.usedBefore as Record<string, unknown>;
+    if (!['red','blue','pink','green','rainbow'].every(key =>
+      Number.isSafeInteger(old[key]) && Number(old[key]) >= 0)) return regular;
     const counts: Record<string, number> = { red: 0, blue: 0, pink: 0, green: 0, rainbow: 0 };
     for (const row of likeRows) {
       if (String(row.liker_id) !== currentUserId) continue;
