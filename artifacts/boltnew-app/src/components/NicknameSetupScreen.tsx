@@ -1,3 +1,6 @@
+import { RegistrationConsentRows } from './RegistrationConsentRows';
+import { REGISTRATION_CONSENT_VERSION, hasRequiredConsent, type RegistrationConsent } from '../lib/registration-consent';
+import { DisplayScaleControls } from './DisplayScaleControls';
 import { useState, useRef, useCallback } from 'react';
 import { ArrowLeft, ChevronRight, RefreshCw } from 'lucide-react';
 import { supabase } from '../lib/supabase';
@@ -17,6 +20,7 @@ import { IDEAL_TAG_GROUPS, encodeSignalMsg, SIGNAL_SETUP_STEP_LABEL } from '../l
 import { InterestPicker } from './InterestPicker';
 import { SignalTagPicker } from './SignalTagPicker';
 import { maxAdultBirthYear, minBirthYearForEventMaxAge } from '../lib/korean-age';
+import { currentPushStatus, requestPushPermissionFromClick, type PushSetupStatus } from '../lib/webPush';
 
 // ─── 데이터 ────────────────────────────────────────────────────────────────────
 
@@ -101,7 +105,7 @@ export function NicknameSetupScreen({ onSubmit, loading, registrationError, onRe
     location: string; mbti: string; interests: string[];
     personalityScore: number; nickname: string;
     kakaoId: string; instagramId: string; phoneNumber: string; contactPrivate: boolean;
-    idealMsg: string | null; featureMsg: string | null;
+    idealMsg: string | null; featureMsg: string | null; pushOptIn?: boolean; privacyConsent?: RegistrationConsent;
   }) => void;
   loading: boolean; registrationError?: string | null; onReset: () => void; onShowRecovery?: () => void;
 }) {
@@ -137,6 +141,12 @@ export function NicknameSetupScreen({ onSubmit, loading, registrationError, onRe
   const [idealTags, setIdealTags] = useState<string[]>([]);
   const [featureTags, setFeatureTags] = useState<string[]>([]);
   const [bioFilter, setBioFilter] = useState<string>(BIO_CATEGORY_GROUPS[0].label);
+  const [privacyConsent, setPrivacyConsent] = useState<RegistrationConsent>({ collection: false, sharing: false, version: REGISTRATION_CONSENT_VERSION });
+  const [pushOptIn, setPushOptIn] = useState(false);
+  // A decision is mandatory, receiving notifications is not. Browsers require
+  // a real gesture and users must retain the ability to decline permission.
+  const [pushDecision, setPushDecision] = useState<'enable' | 'skip' | null>(null);
+  const [pushStatus, setPushStatus] = useState<PushSetupStatus | null>(null);
 
   // contact (숨김 — 입장 후 설정)
   const kakaoId = '';
@@ -202,7 +212,8 @@ export function NicknameSetupScreen({ onSubmit, loading, registrationError, onRe
     if (s === 1) return !!mbti;
     if (s === 2) return !!birthYear && !!location;
     if (s === 3) return selectedBio.length >= 2;
-    if (s === 4) return positionScore !== null;
+    if (s === 4) return positionScore !== null && hasRequiredConsent(privacyConsent)
+      && pushDecision !== null;
     if (s === 5) return customValid;
     return false;
   };
@@ -224,6 +235,8 @@ export function NicknameSetupScreen({ onSubmit, loading, registrationError, onRe
     contactPrivate,
     idealMsg: includeSignalFields ? encodeSignalMsg(idealTags, '') : null,
     featureMsg: includeSignalFields ? encodeSignalMsg(featureTags, '') : null,
+    pushOptIn,
+    privacyConsent,
   });
 
   // ── 제출 ──────────────────────────────────────────────────────────────────────
@@ -232,22 +245,21 @@ export function NicknameSetupScreen({ onSubmit, loading, registrationError, onRe
     onSubmit(buildPayload(includeSignalFields));
   };
 
-  const goNext = () => { if (step < 6) setStep((step + 1) as Step); };
+  const goNext = () => { if (step < 6 && isStepValid(step)) setStep((step + 1) as Step); };
   const goPrev = () => { if (step > 1) setStep((step - 1) as Step); else onReset(); };
 
   // ── 렌더 ──────────────────────────────────────────────────────────────────────
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 flex items-center justify-center p-4">
-    <div className="w-full max-w-md flex flex-col max-h-[92vh] bg-white rounded-2xl shadow-2xl overflow-hidden">
+    <div className="profile-setup-card w-full max-w-md flex flex-col max-h-[92vh] bg-white rounded-2xl shadow-2xl overflow-hidden">
 
       {/* ── 헤더 ── */}
       <div className="bg-gradient-to-r from-cyan-500 to-teal-500 px-5 pt-5 pb-4 flex-shrink-0">
-        <div className="flex items-center justify-between mb-3">
-          <div>
-            <p className="text-white/75 text-[11px] font-semibold tracking-wide">닉네임 설정</p>
-            <h2 className="text-white font-black text-xl leading-tight">{STEP_LABELS[step - 1]}</h2>
-          </div>
+        <div className="flex items-center justify-between gap-2 mb-3">
+          <p className="text-white/75 text-[11px] font-semibold tracking-wide">닉네임 설정</p>
+          <DisplayScaleControls dark />
         </div>
+        <h2 className="text-white font-black text-xl leading-tight mb-3">{STEP_LABELS[step - 1]}</h2>
         {onShowRecovery && step === 1 && (
           <button
             type="button"
@@ -546,6 +558,65 @@ export function NicknameSetupScreen({ onSubmit, loading, registrationError, onRe
                   })}
                 </div>
               </div>
+
+              <button type="button"
+                aria-label="필수 약관과 선택 알림 한 번에 동의"
+                onClick={() => {
+                  setPrivacyConsent({ collection: true, sharing: true, version: REGISTRATION_CONSENT_VERSION });
+                  setPushOptIn(true);
+                  setPushDecision('enable');
+                  // Explicit participant gesture only; OS permission still requires its own approval.
+                  void requestPushPermissionFromClick().then(setPushStatus);
+                }}
+                className="w-full rounded-xl border border-teal-300 bg-teal-50 px-3 py-3 text-sm font-bold text-teal-800 active:scale-[0.99]">
+                ✓ 필수 약관 동의 + 알림 받기 한 번에 선택
+              </button>
+              <p className="text-xs text-gray-500">직접 선택한 경우에만 체크됩니다. 아래에서 각각 해제할 수 있고, 휴대폰 알림 권한은 기기에서 따로 허용해야 합니다.</p>
+
+              <RegistrationConsentRows value={privacyConsent} onChange={setPrivacyConsent}>
+              <div>
+                <label className="flex items-start gap-2.5 cursor-pointer text-sm font-bold text-gray-700">
+                  <input type="checkbox" checked={pushOptIn} aria-label="하트·1:1 채팅 알림 받기 (선택)"
+                    onChange={(event) => {
+                      const checked = event.target.checked;
+                      setPushOptIn(checked);
+                      setPushDecision(checked ? 'enable' : 'skip');
+                      if (checked) {
+                        // Direct user gesture: iOS installed PWA requires a synchronous prompt.
+                        void requestPushPermissionFromClick().then(setPushStatus);
+                      } else setPushStatus(null);
+                    }}
+                    className="mt-0.5 h-4 w-4 accent-teal-600 shrink-0" />
+                  <span>🔔 <strong className="text-teal-700">[선택]</strong> 하트·1:1 채팅 알림 받기</span>
+                </label>
+                <p className="text-[11px] text-gray-500 pl-7 mt-1">
+                  보낸 본인과 단체채팅은 알리지 않아요. 알림 받기 여부는 반드시 선택하고, 허용하지 않아도 참가할 수 있어요.
+                </p>
+                <button type="button" aria-label="알림 없이 계속" aria-pressed={pushDecision === 'skip'}
+                  onClick={() => { setPushDecision('skip'); setPushOptIn(false); setPushStatus(null); }}
+                  className={`mt-2 ml-7 rounded-lg border px-3 py-2 text-xs font-bold ${pushDecision === 'skip'
+                    ? 'bg-slate-700 border-slate-700 text-white'
+                    : 'bg-white border-gray-300 text-slate-700'}`}>
+                  알림 없이 계속
+                </button>
+                {pushDecision === null && (
+                  <p role="status" className="text-[11px] text-amber-700 pl-7 mt-1">
+                    알림 받기 또는 알림 없이 계속을 선택해 주세요.
+                  </p>
+                )}
+                {pushOptIn && (pushStatus?.code === 'install-required' || (!pushStatus && currentPushStatus().code === 'install-required')) && (
+                  <p className="text-[11px] text-amber-700 pl-7 mt-1">아이폰·아이패드는 Safari 공유 → 홈 화면에 추가 후 BINPC2 아이콘으로 열어 주세요. 지원되는 안드로이드 브라우저에서는 웹에서도 알림을 허용할 수 있어요.</p>
+                )}
+                {pushOptIn && pushStatus?.code === 'blocked' && (
+                  <p className="text-[11px] text-amber-700 pl-7 mt-1">휴대폰 설정에서 BINPC2 알림을 허용해 주세요.</p>
+                )}
+                {pushOptIn && pushStatus?.code === 'error' && (
+                  <p role="alert" className="text-[11px] text-red-700 pl-7 mt-1">{pushStatus.message}</p>
+                )}
+              </div>
+              </RegistrationConsentRows>
+              {!hasRequiredConsent(privacyConsent) && <p role="status" className="text-xs text-rose-700">필수 동의 두 항목을 직접 선택해야 다음 단계로 이동할 수 있어요.</p>}
+              {pushDecision === null && <p role="status" className="text-xs text-amber-700">알림 수신 여부를 한 번 선택해야 다음 단계로 이동할 수 있어요.</p>}
 
               {registrationError && (
                 <div className="p-3 bg-rose-50 border border-rose-200 rounded-2xl flex items-start gap-2">

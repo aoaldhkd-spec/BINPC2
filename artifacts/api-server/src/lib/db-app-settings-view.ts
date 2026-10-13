@@ -146,6 +146,14 @@ export function buildReadyPayload(input: {
     ready: true,
     settings: {
       session_active: settings.session_active === true,
+      // The event clock is indispensable for new participant admission.
+      // Omission used to make a live, administrator-started event look closed.
+      event_cycle_started_at: typeof settings.event_cycle_started_at === 'string'
+        ? settings.event_cycle_started_at : null,
+      event_cycle_reset_complete: settings.event_cycle_reset_complete === true,
+      event_cycle_archive_id: typeof settings.event_cycle_archive_id === 'string'
+        ? settings.event_cycle_archive_id : null,
+      npc_heart_refill: settings.npc_heart_refill ?? null,
       timer_end_at: (settings.timer_end_at as string | null | undefined) ?? null,
       timer_label: (settings.timer_label as string | null | undefined) ?? null,
       // Always serialize — object schedules from jsonb must not collapse to empty slots

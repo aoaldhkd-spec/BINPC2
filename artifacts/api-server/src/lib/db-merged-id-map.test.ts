@@ -37,7 +37,7 @@ describe('db-merged-id-map', () => {
   });
 });
 
-import { resolveMergedIdViaRows, createMergedIdMap } from './db-merged-id-map.js';
+import { resolveMergedIdViaRows } from './db-merged-id-map.js';
 
 describe('resolveMergedIdViaRows (70)', () => {
   it('follows map then merged_into', () => {

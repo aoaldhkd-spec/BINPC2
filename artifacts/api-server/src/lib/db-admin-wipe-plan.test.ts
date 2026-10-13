@@ -64,15 +64,22 @@ describe('db-admin-wipe-plan', () => {
     expect(ADMIN_EVENT_END_PRIVATE_RESET.has('messages')).toBe(true);
     expect(planWipeTableBroadcast('messages', [{ id: 1 }])).toEqual({ mode: 'reset' });
     expect(planWipeTableBroadcast('profiles', [{ id: 1 }]).mode).toBe('profile_delete');
-    expect(planWipeTableBroadcast('notifications', [{ id: 1 }]).mode).toBe('row_delete');
+    // Never broadcast private notification, block or visitor row payloads to all users.
+    for (const table of ['notifications', 'blocked_users', 'profile_views', 'user_signals', 'chat_reads']) {
+      expect(planWipeTableBroadcast(table, [{ id: 'sensitive', text: 'private' }]).mode)
+        .toBe('reset');
+    }
     expect([...TEST_WIPE_ALL_TABLES]).toEqual(['likes', 'messages', 'chats', 'profiles']);
-    expect([...ADMIN_EVENT_END_PRESERVE_TABLES]).toEqual(['event_sales_reports']);
+    expect([...ADMIN_EVENT_END_PRESERVE_TABLES]).toEqual(['event_sales_reports', 'event_anonymous_archives']);
     expect(ADMIN_EVENT_END_CLEAR_TABLES).not.toContain('event_sales_reports');
+    expect(ADMIN_EVENT_END_CLEAR_TABLES).not.toContain('event_anonymous_archives');
+    for (const t of ['chat_reads', 'blocked_users', 'profile_views', 'user_signals']) {
+      expect(ADMIN_EVENT_END_CLEAR_TABLES).toContain(t);
+    }
   });
 });
 
 import {
-  planClearAdminNpcRelationships,
   planApplyAdminNpcRelStore,
 } from './db-admin-wipe-plan.js';
 

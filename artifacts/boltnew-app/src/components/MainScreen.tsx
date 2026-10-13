@@ -1,3 +1,4 @@
+import { DisplayScaleControls } from './DisplayScaleControls';
 import { EventScheduleBanner } from './EventScheduleBanner';
 import { useState, useEffect, useRef, useCallback, useMemo, memo, type ReactNode } from 'react';
 /**
@@ -62,6 +63,7 @@ import type { ScannedContact } from '../lib/profile-contact-helpers';
 import StatusErrorBoundary from './StatusErrorBoundary';
 import { MainChatsTab } from './MainChatsTab';
 import { DEFAULT_MODULE_FLAGS, type ModuleFlags } from '../lib/module-flags';
+import { PushNotificationSettings } from './PushNotificationSettings';
 
 
 const KeepTab = memo(function KeepTab({ id, mainTab, children }: { id: MainTab; mainTab: MainTab; children: ReactNode }) {
@@ -85,7 +87,7 @@ export function MainScreen({
   receivedLikers, receivedHeartTypes, sentLikedProfiles, contactSharedWithIds, acknowledgedComplimentIds,
   receivedContactShares, pendingHeartsCount, chatList,
   onContactShareOpen: _onContactShareOpen, onContactViewOpen, onHeartResponse, onDeleteChat, onDeleteAllChats, onOpenChat,
-  timerEndAt, timerLabel, heartOpsConfig, heartUsage, eventScheduleRaw, onRefreshStatus, onRefreshChat, onRefreshProfiles, darkMode, onToggleDark, scannedContacts, onClearScannedContact, functionsLocked = false, onShowTutorial,
+  timerEndAt, timerLabel, heartOpsConfig, heartUsage, eventScheduleRaw, eventCycleStartedAt = null, eventCycleResetComplete = false, onRefreshStatus, onRefreshChat, onRefreshProfiles, darkMode, onToggleDark, scannedContacts, onClearScannedContact, functionsLocked = false, onShowTutorial,
   unreadChatCounts, onClearChatUnread: _onClearChatUnread,
   onUpdateProfile,
   groupChats = [], unreadGroupCounts = {}, onOpenGroupChat, onJoinGroupChat, onLeaveGroupChat, joiningGroupId = null,
@@ -123,6 +125,8 @@ export function MainScreen({
   heartOpsConfig: HeartOpsConfig;
   heartUsage: HeartUsage;
   eventScheduleRaw: string | null;
+  eventCycleStartedAt?: string | null;
+  eventCycleResetComplete?: boolean;
   onRefreshStatus: () => void;
   onRefreshChat: () => void;
   onRefreshProfiles: () => void;
@@ -767,7 +771,7 @@ export function MainScreen({
           </div>}
         </div>
         {timerEndAt && <TimerBanner endAt={timerEndAt} label={timerLabel ?? ''} />}
-        {moduleFlags.hearts && <EventScheduleBanner raw={eventScheduleRaw} functionsLocked={functionsLocked} heartsLocked={participantHearts.heartsLocked} />}
+        {moduleFlags.hearts && <EventScheduleBanner raw={eventScheduleRaw} eventCycleStartedAt={eventCycleStartedAt} eventCycleResetComplete={eventCycleResetComplete} functionsLocked={functionsLocked} heartsLocked={participantHearts.heartsLocked} />}
       </header>
 
       <main
@@ -1467,6 +1471,7 @@ export function MainScreen({
           <StatusErrorBoundary>
           <div className="w-full max-w-lg mx-auto space-y-4 pb-24 shrink-0">
 
+
             {/* ── 고유번호 ── */}
             {(() => {
               const pinCode = profiles.find(p => p.id === currentUserId)?.pin_code;
@@ -1518,6 +1523,8 @@ export function MainScreen({
                 </button>
               </div>
               <p className={`mt-2 px-1 text-[10px] ${darkMode ? 'text-slate-500' : 'text-gray-400'}`}>도움말은 현재 화면의 사용법을, 다크 모드는 화면 색상을 바꿔요.</p>
+              <div className="mt-3 flex justify-end"><DisplayScaleControls dark={darkMode} /></div>
+              <div className="mt-3"><PushNotificationSettings userId={currentUserId} enabled={moduleFlags.push} darkMode={darkMode} /></div>
             </div>
 
             {/* ── 프로필 편집 (통합) ── */}

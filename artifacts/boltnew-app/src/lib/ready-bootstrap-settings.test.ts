@@ -109,11 +109,32 @@ describe('planReadyBootstrapExhausted', () => {
 
 describe('pickReadyBootstrapSettings', () => {
   it('bootstrap requires ready flag; poll does not', () => {
-    const body = { ready: false, settings: { session_active: true } };
+    const settings = {
+      session_active: true, event_cycle_started_at: '2026-10-13T03:28:00.000Z',
+      event_cycle_reset_complete: false,
+    };
+    const body = { ready: false, settings };
     expect(pickReadyBootstrapSettings(body, 'bootstrap')).toBeNull();
-    expect(pickReadyBootstrapSettings(body, 'poll')).toEqual({ session_active: true });
+    expect(pickReadyBootstrapSettings(body, 'poll')).toEqual(settings);
     expect(pickReadyBootstrapSettings({ ready: true, settings: { a: 1 } }, 'bootstrap')).toEqual({ a: 1 });
     expect(pickReadyBootstrapSettings(null, 'poll')).toBeNull();
+  });
+
+  it('ignores a fast incomplete active ready and uses a complete parallel SELECT', async () => {
+    const partial = { session_active: true };
+    const complete = {
+      session_active: true, event_cycle_started_at: '2026-10-13T03:28:00.000Z',
+      event_cycle_reset_complete: false,
+    };
+    expect(pickReadyBootstrapSettings({ ready: true, settings: partial }, 'bootstrap')).toBeNull();
+    expect(pickReadyBootstrapSettings({ ready: true, settings: partial }, 'poll')).toBeNull();
+    await expect(raceFirstNonNullSettings([
+      Promise.resolve(pickReadyBootstrapSettings({ ready: true, settings: partial }, 'bootstrap')),
+      Promise.resolve(complete),
+    ])).resolves.toEqual(complete);
+    expect(pickReadyBootstrapSettings({ ready: true, settings: complete }, 'bootstrap')).toEqual(complete);
+    expect(pickReadyBootstrapSettings({ ready: true, settings: { session_active: false } }, 'bootstrap'))
+      .toEqual({ session_active: false });
   });
 });
 

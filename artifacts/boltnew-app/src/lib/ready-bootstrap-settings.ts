@@ -100,6 +100,12 @@ export function pickReadyBootstrapSettings(
 ): Record<string, unknown> | null {
   if (!json?.settings) return null;
   if (mode === 'bootstrap' && !json.ready) return null;
+  // An incomplete response must not win the bootstrap race when admission is
+  // actually open. The parallel app_settings SELECT can provide these fields.
+  if (json.settings.session_active === true && (
+    !Object.prototype.hasOwnProperty.call(json.settings, 'event_cycle_started_at')
+    || !Object.prototype.hasOwnProperty.call(json.settings, 'event_cycle_reset_complete')
+  )) return null;
   return json.settings;
 }
 

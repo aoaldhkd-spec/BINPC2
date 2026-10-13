@@ -22,3 +22,5 @@
 이 문서에는 어드민 비밀번호, API secret, service key, 실제 인증정보를 넣지 않는다.
 
 BINPC2와 PARAMEDIA/PAMEDIA는 완전히 별도 프로젝트다. 코드/문서/DB/설정을 섞지 않는다.
+
+- 2026-10-13 화면·터치·동의·알림 개선 검증: [UI_NOTIFICATION_REVIEW_2026-10-13.md](UI_NOTIFICATION_REVIEW_2026-10-13.md) (PR #7 미배포).

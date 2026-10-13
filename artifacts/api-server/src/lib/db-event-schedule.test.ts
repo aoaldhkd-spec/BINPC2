@@ -69,11 +69,11 @@ describe('event schedule (heart ops v2)', () => {
       ],
     };
     // 2026-09-16T14:04Z = 23:04 Seoul
-    const before = unlockedHeartKeys(raw, new Date('2026-09-16T14:04:00.000Z'));
+    const before = unlockedHeartKeys(parseEventSchedule(raw), new Date('2026-09-16T14:04:00.000Z'));
     expect(before.has('red')).toBe(true);
     expect(before.has('rainbow')).toBe(false);
     // 2026-09-16T15:10Z = 00:10 Seoul (next day)
-    const after = unlockedHeartKeys(raw, new Date('2026-09-16T15:10:00.000Z'));
+    const after = unlockedHeartKeys(parseEventSchedule(raw), new Date('2026-09-16T15:10:00.000Z'));
     expect(after.has('rainbow')).toBe(true);
   });
 
@@ -146,7 +146,7 @@ describe('event schedule (heart ops v2)', () => {
 
   it('instant_unlock applies regardless of clock and stays idempotent', () => {
     const raw = { version: 2, slots: [{ id: 'a', at: '24:30', unlock: ['rainbow'] }], instant_unlock: ['rainbow', 'rainbow'] };
-    const keys = unlockedHeartKeys(raw, new Date('2026-09-16T13:00:00.000Z'));
+    const keys = unlockedHeartKeys(parseEventSchedule(raw), new Date('2026-09-16T13:00:00.000Z'));
     expect(keys.has('rainbow')).toBe(true);
     expect(parseEventSchedule(raw).instant_unlock).toEqual(['rainbow']);
   });

@@ -1,6 +1,6 @@
 /**
- * In-process 50/100/150 VU load ??production API??별도 ?��??�이??
- * UI/?�마/?�우?��? 건드리�? ?�고 ?�버 처리?�·메모리·?�션 복구�?측정?�다.
+ * In-process 50/100/150 VU load ??production API??ë³„ë„ ?œë??ˆì´??
+ * UI/?Œë§ˆ/?¼ìš°?…ì? ê±´ë“œë¦¬ì? ?Šê³  ?œë²„ ì²˜ë¦¬?‰Â·ë©”ëª¨ë¦¬Â·?¸ì…˜ ë³µêµ¬ë§?ì¸¡ì •?œë‹¤.
  */
 import { describe, it, expect, vi, beforeAll } from 'vitest';
 import { randomUUID } from 'node:crypto';
@@ -184,5 +184,57 @@ describe('venue load 50/100/150 (in-process)', () => {
         }),
     ));
     expect(sse.filter((r) => r.status === 200).length).toBeGreaterThan(20);
-  }, 60_000);
+
+    // Existing 30-stream smoke is retained; additionally hold 150 distinct
+    // authenticated SSE sockets against the real in-process API router.
+    // All accounts, sessions and DB operations are synthetic pg mocks only.
+    const server = app.listen(0, '127.0.0.1');
+    const controllers: AbortController[] = [];
+    try {
+      await new Promise<void>((resolve, reject) => {
+        if (server.listening) return resolve();
+        server.once('listening', () => resolve());
+        server.once('error', reject);
+      });
+      const addr = server.address();
+      if (!addr || typeof addr === 'string') throw new Error('Missing isolated server port');
+      const origin = `http://127.0.0.1:${addr.port}`;
+      const opened: number[] = [];
+      const failures: number[] = [];
+      const latencies: number[] = [];
+      for (let offset = 0; offset < n; offset += 25) {
+        await Promise.all(users.slice(offset, offset + 25).map(async (u, i) => {
+          const controller = new AbortController();
+          controllers.push(controller);
+          const token = tokens[offset + i].body.token as string;
+          const started = Date.now();
+          try {
+            const res = await fetch(`${origin}/api/db/events?userId=${encodeURIComponent(u.id)}&token=${encodeURIComponent(token)}`, {
+              headers: { Accept: 'text/event-stream' }, signal: controller.signal,
+            });
+            const latencyMs = Date.now() - started;
+            latencies.push(latencyMs);
+            if (res.status === 200 && res.headers.get('content-type')?.includes('text/event-stream')) {
+              opened.push(res.status);
+            } else {
+              failures.push(res.status);
+            }
+          } catch {
+            failures.push(0);
+          }
+        }));
+      }
+      expect(failures).toEqual([]);
+      expect(opened).toHaveLength(150);
+      console.log(JSON.stringify({
+        syntheticAuthenticatedSseOpen: opened.length,
+        syntheticAuthenticatedSseOpenP95Ms: pct(latencies, 95),
+        environment: 'mock-pg-in-process; NOT production or mobile devices',
+      }));
+    } finally {
+      for (const c of controllers) c.abort();
+      server.closeAllConnections();
+      await new Promise<void>(resolve => server.close(() => resolve()));
+    }
+  }, 90_000);
 });

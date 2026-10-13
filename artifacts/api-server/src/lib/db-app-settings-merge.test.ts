@@ -113,7 +113,7 @@ describe('db-app-settings-merge', () => {
   });
 
   it('overlaySecretsFromDbRow copies non-empty secrets unless explicit', () => {
-    const row = { id: 1, admin_password: 'mem', entry_password: 'old' };
+    const row: Record<string, unknown> = { id: 1, admin_password: 'mem', entry_password: 'old' };
     const db = { admin_password: 'dbAdmin', test_password: 'dbTest', entry_password: '  ' };
     const out = overlaySecretsFromDbRow(row, db, new Set(['admin_password']));
     expect(out.admin_password).toBe('mem');

@@ -1,4 +1,5 @@
 import React from 'react';
+import { bindMobileTap } from '../lib/mobile-tap';
 
 /** 이상형·나의 특징 공통 피커: 소분류를 고르고 태그를 입력한 뒤 하단 대분류로 전환 */
 type TagGroup = { readonly label: string; readonly tags: readonly string[] };
@@ -49,7 +50,7 @@ export function SignalTagPicker({
                 key={option.key}
                 type="button"
                 aria-pressed={activeRole}
-                onClick={() => setRole(option.key)}
+                {...bindMobileTap(() => setRole(option.key))}
                 className={`min-h-[44px] rounded-lg px-2 py-2 text-xs font-black transition-all ${activeRole ? ROLE_STYLE[option.color].active : darkMode ? 'text-slate-300 hover:bg-slate-700' : 'text-gray-600 hover:bg-white'}`}
               >
                 {option.emoji} <span>{option.label}</span>{count > 0 && <span className="ml-1 text-[9px] opacity-80">{count}</span>}
@@ -70,7 +71,7 @@ export function SignalTagPicker({
                 key={group.label}
                 type="button"
                 aria-pressed={selectedGroup}
-                onClick={() => setActiveGroup(group.label)}
+                {...bindMobileTap(() => setActiveGroup(group.label))}
                 className={`rounded-lg border px-3 py-2 text-xs font-bold transition-all ${selectedGroup ? 'border-cyan-500 bg-cyan-500 text-white shadow-sm' : darkMode ? 'border-slate-600 bg-slate-800 text-slate-300' : 'border-gray-200 bg-white text-gray-600 hover:border-cyan-300'}`}
               >
                 {group.label}{count > 0 && <span className="ml-1 text-[9px]">{count}</span>}
@@ -94,7 +95,7 @@ export function SignalTagPicker({
                 key={tag}
                 type="button"
                 aria-pressed={on}
-                onClick={() => onToggle(role, tag)}
+                {...bindMobileTap(() => onToggle(role, tag))}
                 className={`min-h-[38px] rounded-lg border px-2.5 py-1.5 text-[11px] font-semibold leading-tight text-center transition-all active:scale-[0.97] ${on ? 'text-white border-transparent shadow-sm ring-2 ring-cyan-400/35' : darkMode ? 'text-slate-300 border-slate-600/80 bg-slate-800/60 hover:border-cyan-400/40' : 'text-gray-600 border-gray-200 bg-white hover:border-cyan-300 hover:bg-cyan-50/50'}`}
                 style={on ? { background: ROLE_STYLE[roleOption.color].selected } : undefined}
               >

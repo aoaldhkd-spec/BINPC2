@@ -38,6 +38,7 @@ export function sanitizeRow(tbl: string, row: Record<string, unknown>): Record<s
 /** 프로필 row에서 민감 연락처 필드를 제거하여 전체 브로드캐스트 안전하게 만들기 */
 export function sanitizeProfile(row: Record<string, unknown>): Record<string, unknown> {
   const s = { ...row };
+  delete s['registration_consent'];
   delete s['phone_number'];
   delete s['kakao_id'];
   delete s['instagram_id'];
@@ -49,7 +50,10 @@ export function sanitizeProfileForViewer(
   viewerId: string | null | undefined,
 ): Record<string, unknown> {
   if (viewerId && String(row.id) === String(viewerId)) return row;
-  return row.contact_private === true ? sanitizeProfile(row) : row;
+  if (row.contact_private === true) return sanitizeProfile(row);
+  const visible = { ...row };
+  delete visible.registration_consent;
+  return visible;
 }
 
 /** app_settings row에서 관리자·리셋·테스트 비밀번호를 제거하여 유저 SSE에 노출되지 않도록 */

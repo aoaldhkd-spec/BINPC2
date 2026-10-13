@@ -295,6 +295,7 @@ export const ProfileCard = memo(function ProfileCard({
   );
 
   const renderMenuDropdown = (anchorId: MenuAnchorId, btnRef: React.RefObject<HTMLButtonElement | null>) => {
+    const menuTap = bindMobileTap((e) => openMenuFromButton(e, anchorId));
     const isOpen = showMenu && menuAnchorId === anchorId;
     const menu = isOpen && menuPosition && typeof document !== 'undefined'
       ? createPortal(
@@ -322,8 +323,8 @@ export const ProfileCard = memo(function ProfileCard({
             data-coach="participant-more"
             data-profile-card-menu-trigger="1"
             data-menu-anchor={anchorId}
-            onPointerDown={(e) => e.stopPropagation()}
-            {...bindMobileTap((e) => openMenuFromButton(e, anchorId))}
+            {...menuTap}
+            onPointerDown={(e) => { e.stopPropagation(); menuTap.onPointerDown(e); }}
             className="w-5 h-5 rounded-full bg-black/55 ring-1 ring-white/30 flex items-center justify-center active:scale-90 transition-transform shrink-0 shadow-sm touch-manipulation"
             aria-label="더보기"
             aria-expanded={isOpen}
@@ -416,11 +417,11 @@ export const ProfileCard = memo(function ProfileCard({
                   paddingTop: idealInsetTop,
                   paddingBottom: idealInsetBottom,
                 }}
-                onClick={(e) => {
+                {...bindMobileTap((e) => {
                   e.stopPropagation();
                   setFlipAnimating(true);
                   setIsFlipped(false);
-                }}
+                })}
               >
                 <div className="pointer-events-none absolute inset-0"
                   style={{ background: 'radial-gradient(ellipse at 50% 0%,rgba(255,100,200,0.28) 0%,transparent 60%)' }} />

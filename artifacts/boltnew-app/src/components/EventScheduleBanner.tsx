@@ -12,11 +12,15 @@ export function EventScheduleBanner({
   raw: _raw,
   functionsLocked = false,
   heartsLocked: heartsLockedProp,
+  eventCycleStartedAt = undefined,
+  eventCycleResetComplete = false,
   showStatus = true,
 }: {
   raw: string | null;
   functionsLocked?: boolean;
   heartsLocked?: boolean;
+  eventCycleStartedAt?: string | null;
+  eventCycleResetComplete?: boolean;
   showStatus?: boolean;
 }) {
   const [now, setNow] = useState(() => new Date());
@@ -25,7 +29,7 @@ export function EventScheduleBanner({
     return () => clearInterval(id);
   }, []);
 
-  const state = dailyCycleBannerState(now);
+  const state = dailyCycleBannerState(now, eventCycleStartedAt, eventCycleResetComplete);
   const heartsLocked = heartsLockedProp ?? functionsLocked;
 
   return (
@@ -34,9 +38,9 @@ export function EventScheduleBanner({
       className="mx-3 mb-1 rounded-xl border border-violet-200 bg-violet-50 px-3 py-1.5 text-center text-[10px] font-bold text-violet-800"
     >
       <span data-testid="daily-cycle-notice">{state.message}</span>
-      <span className="ml-1 text-fuchsia-700" data-testid="daily-cycle-countdown">
+      {state.phase !== 'idle' && <span className="ml-1 text-fuchsia-700" data-testid="daily-cycle-countdown">
         · 남은시간 {formatCountdown(state.countdownSec)}
-      </span>
+      </span>}
       {showStatus && (
         <>
           {functionsLocked

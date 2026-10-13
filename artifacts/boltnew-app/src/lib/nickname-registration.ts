@@ -1,3 +1,4 @@
+import { hasRequiredConsent, type RegistrationConsent } from './registration-consent';
 /**
  * Nickname registration / recovery planners — pure helpers for App wiring.
  * Behavior-preserving extract from App handleNicknameSetup / recovery.
@@ -18,6 +19,8 @@ export type NicknameSetupInput = {
   contactPrivate: boolean;
   idealMsg: string | null;
   featureMsg: string | null;
+  pushOptIn?: boolean;
+  privacyConsent?: RegistrationConsent;
 };
 
 export type RegistrationErrorCode = '23505' | 'PIN_EXHAUSTED' | string;
@@ -29,6 +32,7 @@ export function buildRegistrationProfileInsert(
 ): Record<string, unknown> {
   return {
     id: newProfileId,
+    ...(hasRequiredConsent(data.privacyConsent) ? { registration_consent: data.privacyConsent } : {}),
     _device_secret: deviceSecret,
     nickname: data.nickname,
     bio: data.interests.join(', '),

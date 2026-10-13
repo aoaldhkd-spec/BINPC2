@@ -18,6 +18,7 @@ export const ALLOWED_OP_TABLES = new Set([
 
 /** Durability-required tables — persist must succeed before SSE/response. */
 export const CRITICAL_PERSIST_TABLES = new Set([
+  'profiles', // New entries must never be broadcast before DB admission + persistence.
   'messages', 'likes', 'chats', 'chat_reads',
   'contact_shares', 'contact_share_events',
   'group_messages', 'group_chats', 'group_participants',
@@ -45,7 +46,7 @@ export const ACTIVE_KV_TABLES = new Set([
   // PG 전용 메타 — 앱 데이터가 아님. inversion cleanup에서 지우면 안 됨
   'rate_limits', 'db_error_log',
   // Wipe-surviving aggregate sales snapshots (custom admin API only).
-  'event_sales_reports',
+  'event_sales_reports', 'event_anonymous_archives',
 ]);
 
 /** Tables whose /op writes are logged as critical-write (requestId only). */
@@ -69,6 +70,13 @@ export function buildKvUpsertSql(): string {
        VALUES ($1, $2, $3, NOW())
        ON CONFLICT (table_name, row_id)
        DO UPDATE SET data = EXCLUDED.data, updated_at = NOW()`;
+}
+
+/** Immutable archive write: a retry must never replace an existing event snapshot. */
+export function buildKvInsertIfAbsentSql(): string {
+  return `INSERT INTO app_kv_rows (table_name, row_id, data, updated_at)
+       VALUES ($1, $2, $3, NOW())
+       ON CONFLICT (table_name, row_id) DO NOTHING`;
 }
 
 /** Delete one KV row. Params: $1=table_name, $2=row_id. */

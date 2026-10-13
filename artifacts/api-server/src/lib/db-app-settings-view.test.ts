@@ -140,7 +140,14 @@ describe('db-app-settings-view', () => {
 
   it('buildReadyPayload keeps session fields and omits legacy entry_password', () => {
     const body = buildReadyPayload({
-      settings: { session_active: true, entry_password: '1234', reset_signal: 'r' },
+      settings: {
+        session_active: true,
+        event_cycle_started_at: '2026-10-13T03:28:00.000Z',
+        event_cycle_reset_complete: false,
+        event_cycle_archive_id: 'synthetic-cycle',
+        npc_heart_refill: { phase: 'start' },
+        entry_password: '1234', reset_signal: 'r',
+      },
       adminConfigured: true,
       testConfigured: false,
       resetConfigured: true,
@@ -149,9 +156,29 @@ describe('db-app-settings-view', () => {
     });
     expect(body.ready).toBe(true);
     expect((body.settings as any).session_active).toBe(true);
+    expect((body.settings as any).event_cycle_started_at).toBe('2026-10-13T03:28:00.000Z');
+    expect((body.settings as any).event_cycle_reset_complete).toBe(false);
+    expect((body.settings as any).event_cycle_archive_id).toBe('synthetic-cycle');
+    expect((body.settings as any).npc_heart_refill).toEqual({ phase: 'start' });
     expect((body.settings as any).entry_password).toBeUndefined();
     expect((body.settings as any).sulbun_event).toBeNull();
     expect((body.login as any).adminConfigured).toBe(true);
+  });
+
+  it('omits all administrative secrets and has closed defaults without a started event', () => {
+    const data = buildReadyPayload({
+      settings: { session_active: false, admin_password: 'SECRET', test_password: 'TEST', reset_password: 'RESET' },
+      adminConfigured: true, testConfigured: true, resetConfigured: true,
+      legacyLeftovers: { kv_tables: 0, settings_rows: 0, history_rows: 0 }, checkedAt: 'now',
+    });
+    expect(data.settings).toMatchObject({
+      session_active: false, event_cycle_started_at: null,
+      event_cycle_reset_complete: false, event_cycle_archive_id: null,
+      npc_heart_refill: null,
+    });
+    expect(JSON.stringify(data)).not.toContain('SECRET');
+    expect(JSON.stringify(data)).not.toContain('TEST');
+    expect(JSON.stringify(data)).not.toContain('RESET');
   });
 
   it('buildReadyPayload serializes object event_schedule instead of wiping unlock slots', () => {

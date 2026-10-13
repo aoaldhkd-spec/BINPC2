@@ -250,7 +250,23 @@ export function AppOverlays(p: AppOverlaysProps) {
             notification={bottomNotif}
             onClose={() => setBottomNotif(null)}
             onGoToStatus={() => { setMySubTabHint('status'); handleMainTabChange('my'); setBottomNotif(null); }}
-            onGoToChats={() => { setMySubTabHint('chats'); handleMainTabChange('my'); setBottomNotif(null); }}
+            onGoToChats={() => {
+              const senderId = bottomNotif.profileId;
+              const sender = senderId && (profiles.find(p => p.id === senderId) ?? receivedLikers.find(p => p.id === senderId));
+              if ((bottomNotif.type === 'message' || bottomNotif.type === 'chat') && sender && sender.id !== currentUserId) {
+                void openChatGuarded(sender);
+              } else if ((bottomNotif.type === 'message' || bottomNotif.type === 'chat') && senderId && senderId !== currentUserId) {
+                // A realtime message can arrive before the corresponding profile catalog loads.
+                void supabase.from('profiles').select(PROFILE_ROW_SELECT).eq('id', senderId).maybeSingle()
+                  .then(({ data }) => {
+                    if (data && currentUserId) void openChatGuarded(data as Profile);
+                    else { setMySubTabHint('chats'); handleMainTabChange('my'); }
+                  }).catch(() => { setMySubTabHint('chats'); handleMainTabChange('my'); });
+              } else {
+                setMySubTabHint('chats'); handleMainTabChange('my');
+              }
+              setBottomNotif(null);
+            }}
             onViewProfile={() => {
               const id = bottomNotif.profileId;
               const p = (id && (profiles.find(x => x.id === id) ?? receivedLikers.find(x => x.id === id))) || null;

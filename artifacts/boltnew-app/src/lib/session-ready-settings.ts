@@ -16,6 +16,7 @@ export type SessionReadySettingsPatch = {
   sulbunEvent?: SulbunEventState | null;
   moduleFlags?: ModuleFlags;
   includeTimers: boolean;
+  eventCycleMeta?: Record<string, unknown>;
 };
 
 export function planSessionReadySettingsPatch(
@@ -34,6 +35,8 @@ export function planSessionReadySettingsPatch(
     includeTimers,
   };
   if (hasSession) patch.sessionActive = settings.session_active as boolean;
+  if (['event_cycle_started_at', 'event_cycle_reset_complete', 'event_cycle_archive_id', 'npc_heart_refill']
+    .some(k => Object.prototype.hasOwnProperty.call(settings, k))) patch.eventCycleMeta = settings;
   if (hasFunctionsLocked) patch.functionsLockedRaw = settings.functions_locked;
   if (!opts?.omitEventSchedule && Object.prototype.hasOwnProperty.call(settings, 'event_schedule')) {
     patch.eventScheduleRaw = coerceEventScheduleRaw(settings.event_schedule);

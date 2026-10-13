@@ -1,3 +1,4 @@
+import { DisplayScaleControls } from './components/DisplayScaleControls';
 import {
   lazy, Suspense, useState, useEffect, useCallback, useMemo, useRef,
 } from 'react';
@@ -27,11 +28,13 @@ import {
   APP_SETTINGS_ADMIN_SELECT,
 } from './lib/profile-select';
 import { DashboardTab } from './admin/DashboardTab';
+import { AnonymousEventHistoryTab } from './admin/AnonymousEventHistoryTab';
 import { ADMIN_FIXED_NICKNAME } from './lib/panel-password';
 import { NPC_TEXT_AVATAR_SENTINEL } from './lib/profile';
 import { parseModuleFlags, serializeModuleFlags, type DetachableModuleId } from './lib/module-flags';
 
 const AdminQrTab = lazy(() => import('./admin/AdminQrTab').then(m => ({ default: m.AdminQrTab })));
+const OpsOverviewPanel = lazy(() => import('./admin/OpsOverviewPanel').then(m => ({ default: m.OpsOverviewPanel })));
 const DbHealthTab = lazy(() => import('./admin/DbHealthTab').then(m => ({ default: m.DbHealthTab })));
 const HeartsTab = lazy(() => import('./admin/HeartsTab').then(m => ({ default: m.HeartsTab })));
 const PopularityTab = lazy(() => import('./admin/PopularityTab').then(m => ({ default: m.PopularityTab })));
@@ -390,7 +393,7 @@ function AdminDashboard({ onLogout }: { onLogout: () => void }) {
   }, [fetchDbHealth]);
 
   useEffect(() => {
-    const healthVisible = tab === 'settings' && (settingsSubTab === 'control' || settingsSubTab === 'db');
+    const healthVisible = tab === 'settings' && settingsSubTab === 'db';
     if (!healthVisible) return;
     const refreshIfVisible = () => {
       if (document.visibilityState === 'visible') void fetchDbHealth();
@@ -421,16 +424,6 @@ function AdminDashboard({ onLogout }: { onLogout: () => void }) {
         localStorage.removeItem(ADMIN_SESSION_KEY);
       }
       alert(`회식 시작/종료 실패: ${msg}\n\n로그아웃 후 관리자 비밀번호로 다시 로그인해 주세요.`);
-    }
-  };
-
-  const handleSulbunOpen = async () => {
-    try {
-      await adminApiRpc('admin_sulbun_open', {});
-      await loadAll();
-    } catch (e) {
-      const msg = e instanceof Error ? e.message : String(e);
-      alert(`술번개 오픈 실패: ${msg}`);
     }
   };
 
@@ -638,9 +631,9 @@ function AdminDashboard({ onLogout }: { onLogout: () => void }) {
   ];
 
   return (
-    <div className="app-viewport min-w-0 bg-gray-50">
-      <header className="bg-slate-900 text-white sticky top-0 z-10">
-        <div className="max-w-4xl mx-auto px-3 py-2.5 flex items-center gap-2 flex-wrap">
+    <div className="app-viewport min-w-0 bg-gray-50 admin-shell">
+      <header data-testid="admin-sticky-header" className="bg-slate-900 text-white sticky top-0 z-40 isolate">
+        <div className="max-w-4xl mx-auto px-3 py-2.5 flex items-center gap-2">
           <div className="flex items-center gap-1.5 flex-1 min-w-0">
             <Shield className="w-4 h-4 text-slate-300 flex-shrink-0" />
             <h1 className="font-bold text-sm break-words">관리자 대시보드</h1>
@@ -677,7 +670,7 @@ function AdminDashboard({ onLogout }: { onLogout: () => void }) {
         </div>
       </header>
 
-      <main className="max-w-4xl mx-auto">
+      <main data-testid="admin-main" className="max-w-4xl mx-auto admin-main">
         {tab === 'settings' && (
           <div>
             <div className="grid grid-cols-5 border-b border-gray-200 bg-white px-2 min-[360px]:px-4">
@@ -697,6 +690,7 @@ function AdminDashboard({ onLogout }: { onLogout: () => void }) {
                 </button>
               ))}
             </div>
+            <div className="flex justify-end px-4 pt-2"><DisplayScaleControls /></div>
             <Suspense fallback={<AdminTabFallback />}>
               {settingsSubTab === 'control' && (
                 <DashboardTab settings={settings} profiles={profiles}
@@ -705,9 +699,7 @@ function AdminDashboard({ onLogout }: { onLogout: () => void }) {
                   onClearLikes={handleClearLikes} onClearChats={handleClearAllChats}
                   onClearProfiles={handleClearProfiles}
                   onClearHistory={handleClearHistory} restoreMap={restoreMap}
-                  onSulbunOpen={handleSulbunOpen}
-                  onToggleModule={handleToggleModule}
-                  dbHealth={dbHealth} dbHealthLoading={dbHealthLoading} />
+                  />
               )}
               {settingsSubTab === 'qr' && <AdminQrTab settings={settings} onSaveQrBase={async (url) => {
                 try {
@@ -724,10 +716,11 @@ function AdminDashboard({ onLogout }: { onLogout: () => void }) {
                       DB 헬스 조회 인증이 만료됐습니다. 로그아웃 후 다시 로그인해 주세요.
                     </div>
                   )}
+                  <OpsOverviewPanel settings={settings} profiles={profiles} onToggleModule={handleToggleModule} dbHealth={dbHealth} dbHealthLoading={dbHealthLoading} />
                   <DbHealthTab health={dbHealth} loading={dbHealthLoading} onRefresh={fetchDbHealth} onClearErrors={handleClearDbErrors} />
                 </>
               )}
-              {settingsSubTab === 'reports' && <SalesReportsTab />}
+              {settingsSubTab === 'reports' && <><AnonymousEventHistoryTab /><SalesReportsTab /></>}
             </Suspense>
           </div>
         )}

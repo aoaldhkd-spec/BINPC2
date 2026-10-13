@@ -1,5 +1,6 @@
+import { RainbowUnlockGuide } from './components/RainbowUnlockGuide';
 import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
-import { supabase, setLocalDbUserId, fetchAndSetSseToken, ensureWriteSession } from './lib/supabase';
+import { supabase, setLocalDbUserId, fetchAndSetSseToken, ensureWriteSession, onSseReconnect } from './lib/supabase';
 import { useParticipantSoTResync } from './hooks/useParticipantSoTResync';
 import { useSseFallbackPoll } from './hooks/useSseFallbackPoll';
 import { useDarkModeStorageSync } from './hooks/useDarkModeStorageSync';
@@ -62,7 +63,7 @@ import { useHearts } from './hooks/useHearts';
 import { useChat } from './hooks/useChat';
 import { createParticipantNav, isParticipantAppPath } from './lib/participant-nav-history';
 import { ParticipantNavProvider } from './hooks/useParticipantNav';
-import { registerPushSub } from './lib/webPush';
+import { getPushOptIn, registerPushSub } from './lib/webPush';
 import { DEFAULT_MODULE_FLAGS, type ModuleFlags } from './lib/module-flags';
 import {
   type BottomNotificationData,
@@ -76,6 +77,7 @@ import {
   type ScannedContact,
 } from './lib/profile-contact-helpers';
 
+import { eventCycleUnlocked } from './lib/event-cycle-heart';
 const loadMainScreen = () => import('./components/MainScreen').then(m => ({ default: m.MainScreen }));
 const loadChatScreen = () => import('./components/ChatScreen');
 
@@ -209,6 +211,20 @@ function App() {
   const [timerEndAt, setTimerEndAt] = useState<string | null>(null);
   const [timerLabel, setTimerLabel] = useState<string | null>(null);
   const [eventScheduleRaw, setEventScheduleRaw] = useState<string | null>(null);
+  const [cycleMeta, setCycleMeta] = useState<{
+    startedAt: string | null; resetComplete: boolean; archiveId: string | null; npcRefill: unknown;
+  }>({ startedAt: null, resetComplete: true, archiveId: null, npcRefill: null });
+  const acceptCycleMeta = useCallback((data: Record<string, unknown>) => {
+    setCycleMeta(previous => ({
+      startedAt: 'event_cycle_started_at' in data
+        ? (typeof data.event_cycle_started_at === 'string' ? data.event_cycle_started_at : null) : previous.startedAt,
+      resetComplete: 'event_cycle_reset_complete' in data
+        ? data.event_cycle_reset_complete === true : previous.resetComplete,
+      archiveId: 'event_cycle_archive_id' in data
+        ? (typeof data.event_cycle_archive_id === 'string' ? data.event_cycle_archive_id : null) : previous.archiveId,
+      npcRefill: 'npc_heart_refill' in data ? data.npc_heart_refill : previous.npcRefill,
+    }));
+  }, []);
   const [, setSulbunEvent] = useState<SulbunEventState | null>(null);
   // Quotas change at clock-slot boundaries even when the schedule JSON is unchanged.
   const [eventScheduleMinute, setEventScheduleMinute] = useState(() => Math.floor(Date.now() / 60_000));
@@ -235,6 +251,21 @@ function App() {
       }, 2100);
     }, 30);
   }, []);
+  const eventScheduleRawForCycle = useMemo(() => {
+    const minute = eventScheduleMinute > 0 ? eventScheduleMinute * 60_000 : Date.now();
+    const npc = cycleMeta.npcRefill && typeof cycleMeta.npcRefill === 'object'
+      && !Array.isArray(cycleMeta.npcRefill)
+      ? cycleMeta.npcRefill as Record<string, unknown> : null;
+    const verifiedNpc = !cycleMeta.resetComplete && Boolean(
+      npc && currentUserId && npc.npcId === currentUserId && npc.archiveId === cycleMeta.archiveId
+    );
+    const keys = verifiedNpc
+      ? ['red', 'blue', 'pink', 'green', 'rainbow']
+      : [...eventCycleUnlocked({
+        startedAt: cycleMeta.startedAt, resetComplete: cycleMeta.resetComplete, now: new Date(minute),
+      })];
+    return JSON.stringify({ timezone: 'Asia/Seoul', version: 2, slots: [], instant_unlock: keys });
+  }, [cycleMeta.startedAt, cycleMeta.resetComplete, cycleMeta.npcRefill, cycleMeta.archiveId, currentUserId, eventScheduleMinute]);
   const [blockedUsers, setBlockedUsers] = useState<BlockedUser[]>([]);
   const [profileVisitors, setProfileVisitors] = useState<ProfileView[]>([]);
   const [newVisitCount, setNewVisitCount] = useState(0);
@@ -390,7 +421,8 @@ function App() {
     loadLikes, loadReceivedLikes, loadContactShareData, getHeartUsage,
     handleLike, executeLike, handleHeartResponse, handleContactShare,
     likeError, setLikeError,
-  } = useHearts(moduleFlags.hearts ? currentUserId : null, profiles, profileMap, openChat, eventScheduleRaw);
+  } = useHearts(moduleFlags.hearts ? currentUserId : null, profiles, profileMap, openChat,
+    eventScheduleRawForCycle, cycleMeta.npcRefill, cycleMeta.archiveId);
 
   const loadChatListForModules = useCallback((userId: string) => {
     if (!moduleFlags.direct_chat) return Promise.resolve();
@@ -429,8 +461,12 @@ function App() {
     [eventScheduleMinute],
   );
   const heartOpsConfig = useMemo(
-    () => parseHeartOps(eventScheduleRaw),
-    [eventScheduleRaw],
+    () => {
+      const canonical = parseHeartOps(eventScheduleRaw);
+      const cycle = parseHeartOps(eventScheduleRawForCycle);
+      return { ...canonical, slots: [], instant_unlock: cycle.instant_unlock, auto_unlock_from: undefined };
+    },
+    [eventScheduleRaw, eventScheduleRawForCycle],
   );
   const heartUsage = useMemo(() => getHeartUsage(), [getHeartUsage]);
   const participantHearts = useMemo(
@@ -802,6 +838,7 @@ function App() {
     setTimerEndAt,
     setTimerLabel,
     setEventSchedule: setEventScheduleRaw,
+    setEventCycleMeta: acceptCycleMeta,
     setSulbunEvent,
     setFunctionsLocked,
     setModuleFlags,
@@ -855,6 +892,7 @@ function App() {
       setFunctionsLocked(parseFunctionsLocked(patch.functionsLockedRaw));
     }
     if (patch.sulbunEvent !== undefined) setSulbunEvent(patch.sulbunEvent);
+    if (patch.eventCycleMeta !== undefined) acceptCycleMeta(patch.eventCycleMeta);
     if (patch.moduleFlags) setModuleFlags(patch.moduleFlags);
     if (patch.includeTimers) {
       setTimerEndAt(patch.timerEndAt ?? null);
@@ -895,6 +933,7 @@ function App() {
     setTimerEndAt,
     setTimerLabel,
     setEventScheduleRaw,
+    setEventCycleMeta: acceptCycleMeta,
     setSulbunEvent,
     setFunctionsLocked,
     setModuleFlags,
@@ -915,10 +954,14 @@ function App() {
     loadContactShareData: loadContactShareDataForModules,
   });
 
-  // Web push 구독 — 로그인 완료 후 알림 권한 요청 및 구독 등록
+  // 설치된 PWA에서 이미 허용된 휴대폰 Push 구독을 재등록한다.
+  // 새로운 권한은 설정 화면의 명시적인 사용자 클릭으로만 요청한다.
   useEffect(() => {
-    if (!currentUserId || !moduleFlags.push) return;
-    registerPushSub(currentUserId);
+    if (!currentUserId || !moduleFlags.push || !getPushOptIn(currentUserId)) return;
+    void registerPushSub(currentUserId);
+    // 첫 진입에서 SSE 토큰 발급이 아직 끝나지 않은 경우, 재연결 시 서버 구독을 재시도.
+    // webPush 쪽은 동시 요청·짧은 시간 중복을 자체 제한한다.
+    return onSseReconnect(() => { void registerPushSub(currentUserId); });
   }, [currentUserId, moduleFlags.push]);
 
 
@@ -967,7 +1010,7 @@ function App() {
     const cleanUrl = () => {
       for (const key of ['push', 'from', 'peer', 'chat']) params.delete(key);
       const q = params.toString();
-      window.history.replaceState({}, '', `${window.location.pathname}${q ? `?${q}` : ''}${window.location.hash}`);
+      window.history.replaceState(window.history.state, '', `${window.location.pathname}${q ? `?${q}` : ''}${window.location.hash}`);
     };
 
     if (pushKind === 'heart') {
@@ -986,14 +1029,38 @@ function App() {
       const peerId = params.get('peer');
       const peer = peerId ? profileMap.get(peerId) : undefined;
       if (peer) {
-        openChatGuarded(peer);
+        void openChatGuarded(peer);
+        cleanUrl();
+      } else if (peerId && peerId !== currentUserId) {
+        // 새로 열린 PWA는 프로필 목록 로드가 끝나기 전에 알림 딥링크를 받을 수 있다.
+        // 해당 상대 프로필 하나만 조회한 뒤 정확한 1:1 방으로 이동한다.
+        // 조회 실패 시에는 해당 사용자의 채팅 목록으로 안전하게 폴백한다.
+        void supabase.from('profiles').select(PROFILE_ROW_SELECT).eq('id', peerId).maybeSingle()
+          .then(({ data }) => {
+            if (data && userIdRef.current === currentUserId) {
+              void openChatGuarded(data as Profile);
+            } else if (userIdRef.current === currentUserId) {
+              setView('main');
+              setMainTab('my');
+              setMySubTabHint('chats');
+              void loadChatList(currentUserId);
+            }
+          })
+          .catch(() => {
+            if (userIdRef.current !== currentUserId) return;
+            setView('main');
+            setMainTab('my');
+            setMySubTabHint('chats');
+            void loadChatList(currentUserId);
+          })
+          .finally(cleanUrl);
       } else {
         setView('main');
         setMainTab('my');
         setMySubTabHint('chats');
         void loadChatList(currentUserId);
+        cleanUrl();
       }
-      cleanUrl();
     }
   }, [
     currentUserId, profileBoot, profileMap, openChatGuarded,
@@ -1084,6 +1151,8 @@ function App() {
   const entryGate = renderAppEntryGates({
     appLoading,
     sessionActive,
+    eventCycleStartedAt: cycleMeta.startedAt,
+    eventCycleResetComplete: cycleMeta.resetComplete,
     showWaiting,
     showRecovery,
     showNicknameSetup,
@@ -1107,6 +1176,11 @@ function App() {
 
   return (
     <ParticipantNavProvider nav={participantNav}>
+      <RainbowUnlockGuide userId={currentUserId} now={scheduleNow}
+        available={view === 'main' && profileBoot === 'ok' && moduleFlags.hearts && !functionsLocked
+          && participantHearts.unlocked.has('rainbow') && !showTutorialModal && !likeConfirmTarget
+          && !showResetPassword && !contactShareTarget && !showContactQr && !showQrScanner}
+        remaining={participantHearts.rainbowRemaining} dark={darkMode} />
       <AppOverlays
         isSubScreen={isSubScreen}
         mainTab={mainTab}
@@ -1244,6 +1318,8 @@ function App() {
           heartOpsConfig={heartOpsConfig}
           heartUsage={heartUsage}
           eventScheduleRaw={eventScheduleRaw}
+          eventCycleStartedAt={cycleMeta.startedAt}
+          eventCycleResetComplete={cycleMeta.resetComplete}
           onRefreshStatus={refreshStatusTab}
           onRefreshChat={refreshChatTab}
           onUpdateProfile={handleUpdateProfile}

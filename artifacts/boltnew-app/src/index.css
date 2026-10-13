@@ -101,7 +101,7 @@ body[data-overlay="like-confirm"] .participant-fab-my { display: none !important
 /* ─── 스크롤 전용 영역 (터치 이동 허용, grab 커서) ─────────────────────────── */
 .scroll-free {
   overflow: auto;
-  touch-action: pan-x pan-y;
+  touch-action: pan-x pan-y pinch-zoom;
   overscroll-behavior: contain;
   cursor: grab;
   scroll-behavior: auto;
@@ -305,3 +305,53 @@ canvas {
     max-height: calc(100svh - var(--safe-top) - var(--safe-bottom) - 1rem);
   }
 }
+
+/* 2026-10-13: responsive readability without transforms or viewport zoom hacks.
+   Phones start only 2% larger. Wide/folded layouts follow available CSS width,
+   not device brand; native pinch zoom remains available. */
+:root {
+  --binpc-user-scale: 1;
+  --binpc-device-scale: 1.02;
+  --binpc-scale: calc(var(--binpc-user-scale) * var(--binpc-device-scale));
+  font-size: calc(16px * var(--binpc-scale));
+}
+@media (max-width: 359px) { :root { --binpc-device-scale: 1; } }
+@media (min-width: 600px) { :root { --binpc-device-scale: 1.06; } }
+@media (min-width: 768px) { :root { --binpc-device-scale: 1.10; } }
+@media (min-width: 1024px) { :root { --binpc-device-scale: 1.125; } }
+/* Named pixel text utilities otherwise bypass the rem-based scale. */
+.text-\[6px\] { font-size: calc(6px * var(--binpc-scale)); }
+.text-\[7px\] { font-size: calc(7px * var(--binpc-scale)); }
+.text-\[8px\] { font-size: calc(8px * var(--binpc-scale)); }
+.text-\[9px\] { font-size: calc(9px * var(--binpc-scale)); }
+.text-\[10px\] { font-size: calc(10px * var(--binpc-scale)); }
+.text-\[11px\] { font-size: calc(11px * var(--binpc-scale)); }
+.text-\[12px\] { font-size: calc(12px * var(--binpc-scale)); }
+.text-\[13px\] { font-size: calc(13px * var(--binpc-scale)); }
+.text-\[14px\] { font-size: calc(14px * var(--binpc-scale)); }
+.text-\[15px\] { font-size: calc(15px * var(--binpc-scale)); }
+.text-\[16px\] { font-size: calc(16px * var(--binpc-scale)); }
+.text-\[17px\] { font-size: calc(17px * var(--binpc-scale)); }
+.text-\[18px\] { font-size: calc(18px * var(--binpc-scale)); }
+.text-\[19px\] { font-size: calc(19px * var(--binpc-scale)); }
+.text-\[20px\] { font-size: calc(20px * var(--binpc-scale)); }
+.text-\[21px\] { font-size: calc(21px * var(--binpc-scale)); }
+.text-\[22px\] { font-size: calc(22px * var(--binpc-scale)); }
+
+.admin-main { position: relative; z-index: auto; }
+/* The header has an opaque, higher stacking context than all ordinary cards. */
+.admin-shell > header { z-index: 40; isolation: isolate; }
+.admin-main [data-testid="functions-lock-btn"] { z-index: auto; }
+.display-scale-controls {
+  display: inline-flex; flex-shrink: 0; align-items: center; gap: 0.125rem;
+  border: 1px solid #99d5ce; border-radius: 0.8rem; padding: 0.125rem;
+  background: #f0fdfa; color: #115e59; font-size: 0.6875rem; font-weight: 800;
+}
+.display-scale-controls button { min-width: 2.5rem; min-height: 2.5rem; padding: 0.2rem; border-radius: 0.6rem; white-space: nowrap; }
+.display-scale-controls button:focus-visible { outline: 2px solid #0f766e; outline-offset: 1px; }
+.display-scale-controls button:disabled { opacity: 0.35; }
+.display-scale-dark { background: rgb(15 23 42 / 0.25); color: white; border-color: rgb(255 255 255 / 0.3); }
+.profile-setup-card { max-height: calc(100svh - 2rem - var(--safe-top) - var(--safe-bottom)); }
+@supports (height: 100dvh) { .profile-setup-card { max-height: calc(100dvh - 2rem - var(--safe-top) - var(--safe-bottom)); } }
+@media (min-width: 768px) { .profile-setup-card { max-width: 32rem; } }
+.binpc-info-dialog { width: min(100%, 30rem); max-height: calc(100dvh - 2rem - var(--safe-top) - var(--safe-bottom)); }

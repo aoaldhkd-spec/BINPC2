@@ -29,6 +29,7 @@ const BASIC: Topic[] = [
     title: '오늘만 이 정도는 지켜줘',
     color: 'from-teal-500 to-cyan-600',
     tips: [],
+    filler: 'guide',
     sections: [
       {
         emoji: '📌',
@@ -789,7 +790,7 @@ export function TutorialModal({
   const tipsContent = (
     <div className="flex flex-col flex-1 min-h-0 h-full overflow-hidden gap-1">
 
-      {topic.filler && topic.id !== 'hidden' && (
+      {topic.filler && topic.id !== 'hidden' && topic.id !== 'guide' && (
         <FillerPanel kind={topic.filler} darkMode={darkMode} compact={layout.fillerCompact} />
       )}
 
@@ -844,8 +845,8 @@ export function TutorialModal({
         </p>
       )}
 
-      {layout.gapFill && layout.gapFillKind && (
-        <FillerPanel kind={layout.gapFillKind} darkMode={darkMode} fill />
+      {(layout.gapFill || topic.id === 'guide') && (layout.gapFillKind || topic.id === 'guide') && (
+        <FillerPanel kind={topic.id === 'guide' ? 'guide' : layout.gapFillKind!} darkMode={darkMode} fill />
       )}
     </div>
   );
