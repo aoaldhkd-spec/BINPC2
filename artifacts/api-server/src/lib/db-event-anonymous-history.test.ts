@@ -16,6 +16,17 @@ describe('privacy-minimised event history', () => {
     expect(second.archiveLabel).toBe(first.archiveLabel);
   });
 
+  it('never accepts an archive ID belonging to another event day', () => {
+    const otherEvent = newAnonymousEventArchiveIdentity('2026-10-12');
+    const result = summarizeAnonymousEvent({
+      eventKey: '2026-10-13', eventArchiveId: otherEvent.archiveId,
+      profiles: [], likes: [], messages: [], groupMessages: [],
+      signals: [], contactShares: [],
+    });
+    expect(result.archiveId).not.toBe(otherEvent.archiveId);
+    expect(result.archiveId).toMatch(/^binpc2:event-anon:v1:2026-10-13:/);
+  });
+
   it('generates unique namespaced IDs even for the same event date', () => {
     const first = newAnonymousEventArchiveIdentity('2026-10-13');
     const second = newAnonymousEventArchiveIdentity('2026-10-13');

@@ -462,6 +462,7 @@ import {
 import {
   FIXED_DAILY_EVENT_SCHEDULE,
   dailyCycleBootstrapPatch,
+  seoulDateKey,
   planEventCycleStartPatch,
   dueDailyCycleActions,
   nextDailyCycleDelayMs,
@@ -808,7 +809,11 @@ async function runAdminEventEndResetCore(extraPatch: Record<string, unknown> = {
   if (settingsRow.event_cycle_reset_complete === true) return;
   const oldProfiles = store['profiles'] ?? [];
   const archive = summarizeAnonymousEvent({
-    eventKey: new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Seoul' }),
+    // Report the event's START date, not the following day's 17:00 reset date.
+    eventKey: typeof settingsRow.event_cycle_started_at === 'string'
+      && Number.isFinite(Date.parse(settingsRow.event_cycle_started_at))
+      ? seoulDateKey(new Date(settingsRow.event_cycle_started_at))
+      : seoulDateKey(new Date()),
     eventArchiveId: typeof settingsRow.event_cycle_archive_id === 'string' ? settingsRow.event_cycle_archive_id : undefined,
     profiles: oldProfiles,
     likes: getTable('likes'),

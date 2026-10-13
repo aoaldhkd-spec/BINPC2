@@ -38,7 +38,8 @@ export function summarizeAnonymousEvent(input: {
   }
   return {
     eventKey: input.eventKey,
-    ...(input.eventArchiveId && /^binpc2:event-anon:v1:\d{4}-\d{2}-\d{2}:[a-f0-9-]{36}$/.test(input.eventArchiveId)
+    ...(input.eventArchiveId && input.eventArchiveId.startsWith(`binpc2:event-anon:v1:${input.eventKey}:`)
+      && /^binpc2:event-anon:v1:\d{4}-\d{2}-\d{2}:[a-f0-9-]{36}$/.test(input.eventArchiveId)
       ? { archiveId: input.eventArchiveId, archiveLabel: `BINPC2 익명행사 ${input.eventKey} · ${input.eventArchiveId.slice(-8)}` }
       : newAnonymousEventArchiveIdentity(input.eventKey)),
     participantCount: input.profiles.filter(p => String(p.id ?? '') !== String(input.adminProfileId ?? '')).length,
