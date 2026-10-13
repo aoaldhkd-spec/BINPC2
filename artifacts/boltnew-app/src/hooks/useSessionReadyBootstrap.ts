@@ -36,6 +36,7 @@ export type UseSessionReadyBootstrapArgs = {
   setTimerEndAt: (v: string | null) => void;
   setTimerLabel: (v: string | null) => void;
   setEventSchedule: (v: string | null) => void;
+  setEventCycleMeta: (v: Record<string, unknown>) => void;
   setSulbunEvent: (v: SulbunEventState | null) => void;
   setFunctionsLocked: (v: boolean) => void;
   setModuleFlags: (v: ModuleFlags) => void;
@@ -85,6 +86,7 @@ export function useSessionReadyBootstrap(args: UseSessionReadyBootstrapArgs): vo
         localReset: ls.getItem(MATCHING_LAST_RESET_KEY),
         omitEventSchedule,
       });
+      argsRef.current.setEventCycleMeta(data);
       applyReadyPlan(plan, argsRef.current);
     };
 
@@ -106,7 +108,7 @@ export function useSessionReadyBootstrap(args: UseSessionReadyBootstrapArgs): vo
 
       const selectSettings = supabase
         .from('app_settings')
-        .select('session_active, timer_end_at, timer_label, event_schedule, reset_signal, functions_locked, sulbun_event, module_flags')
+        .select('session_active, timer_end_at, timer_label, event_schedule, reset_signal, functions_locked, sulbun_event, module_flags, event_cycle_started_at, event_cycle_reset_complete, event_cycle_archive_id, npc_heart_refill')
         .eq('id', 1)
         .single()
         .then(({ data, error }) => {
