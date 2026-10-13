@@ -33,6 +33,7 @@ describe('db-daily-cycle', () => {
     const base = {
       daily_session_end_date: '2026-10-04',
       daily_reset_date: '2026-10-04',
+      event_cycle_started_at: '2026-10-04T18:00:00+09:00',
     };
     expect(dueDailyCycleActions(base, new Date('2026-10-05T00:59:59+09:00')))
       .toEqual({ sessionEndDate: null, resetDate: null });
