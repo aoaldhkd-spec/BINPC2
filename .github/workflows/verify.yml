@@ -20,3 +20,7 @@ jobs:
       - run: pnpm install --frozen-lockfile
       # Single entrypoint — must match package.json "verify:ci" (guards enforce parity)
       - run: pnpm run verify:ci
+      # Non-network mocked tests: retry transient pings, but reject persistent outages.
+      # Existing verify:ci is unchanged; these cases add coverage, never suppress failures.
+      - name: Health ping retry and failure policy
+        run: node --test scripts/keep-api-warm.test.mjs
