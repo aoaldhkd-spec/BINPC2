@@ -102,10 +102,18 @@ test('timeout aborts a stalled request and the job still fails after its retry c
   const result = await pingEndpoint('/stalled', {
     fetcher: async (_url, { signal }) => new Promise((_resolve, reject) => {
       calls++;
-      if (signal.aborted) return reject(signal.reason);
-      signal.addEventListener('abort', () => reject(signal.reason), { once: true });
+      // AbortSignal.timeout uses an unref'ed timer in Node. A real network
+      // socket keeps the event loop alive; this offline fixture needs an
+      // explicit referenced timer so the abort event can actually fire.
+      const watchdog = setTimeout(() => reject(new Error('mock fetch never aborted')), 300);
+      const onAbort = () => {
+        clearTimeout(watchdog);
+        reject(signal.reason);
+      };
+      if (signal.aborted) return onAbort();
+      signal.addEventListener('abort', onAbort, { once: true });
     }),
-    timeoutMs: 7,
+    timeoutMs: 12,
     retryDelaysMs: [0],
     wait: instant,
     logger,
