@@ -13,7 +13,10 @@ export function shouldRunSettingsReadyPoll(input: {
   now: number;
   lastReadyAt: number;
   sseHealthy: boolean;
+  inFlight?: boolean;
 }): boolean {
+  // Do not issue overlapping /ready requests on slow or temporarily offline phones.
+  if (input.inFlight) return false;
   const gap = settingsReadyPollGapMs(input.sseHealthy);
   return input.now - input.lastReadyAt >= gap;
 }

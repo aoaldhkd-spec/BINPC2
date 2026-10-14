@@ -7,7 +7,16 @@ export function mergeDbRowsIntoMemory(
   memRows: Record<string, unknown>[],
   dbRows: Record<string, unknown>[],
 ): void {
-  const byId = new Map(memRows.map(r => [String(r['id']), r]));
+  // Keep the last in-memory row as the timestamp authority (legacy behavior),
+  // but remember the first slot for replacement. Re-scanning the array on each
+  // DB row made a large resync quadratic even though byId was already indexed.
+  const byId = new Map<string, Record<string, unknown>>();
+  const firstIndexById = new Map<string, number>();
+  for (let i = 0; i < memRows.length; i++) {
+    const id = String(memRows[i]['id']);
+    if (!firstIndexById.has(id)) firstIndexById.set(id, i);
+    byId.set(id, memRows[i]);
+  }
   for (const data of dbRows) {
     const id = String(data['id'] ?? '');
     if (!id) continue;
@@ -15,11 +24,12 @@ export function mergeDbRowsIntoMemory(
     const dbTs = String(data.updated_at ?? data.created_at ?? '');
     const memTs = existing ? String(existing.updated_at ?? existing.created_at ?? '') : '';
     if (!existing) {
+      firstIndexById.set(id, memRows.length);
       memRows.push(data);
       byId.set(id, data);
     } else if (dbTs >= memTs) {
-      const idx = memRows.findIndex(r => String(r['id']) === id);
-      if (idx >= 0) memRows[idx] = data;
+      const idx = firstIndexById.get(id);
+      if (idx !== undefined) memRows[idx] = data;
       byId.set(id, data);
     }
   }
