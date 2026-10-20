@@ -64,6 +64,7 @@ import { useChat } from './hooks/useChat';
 import { createParticipantNav, isParticipantAppPath } from './lib/participant-nav-history';
 import { ParticipantNavProvider } from './hooks/useParticipantNav';
 import { getPushOptIn, registerPushSub } from './lib/webPush';
+import { armForegroundSoundOnGesture, playForegroundIncomingSound } from './lib/notification-sound';
 import { DEFAULT_MODULE_FLAGS, type ModuleFlags } from './lib/module-flags';
 import {
   type BottomNotificationData,
@@ -963,6 +964,20 @@ function App() {
     // webPush 쪽은 동시 요청·짧은 시간 중복을 자체 제한한다.
     return onSseReconnect(() => { void registerPushSub(currentUserId); });
   }, [currentUserId, moduleFlags.push]);
+
+  // Foreground-only sound is separate from OS push and never applies to group chat.
+  useEffect(() => {
+    if (!currentUserId) return;
+    return armForegroundSoundOnGesture(currentUserId);
+  }, [currentUserId]);
+
+  useEffect(() => {
+    if (!currentUserId || !bottomNotif) return;
+    if (bottomNotif.type === 'message'
+      || (bottomNotif.type === 'heart' && !bottomNotif.heartMutual)) {
+      playForegroundIncomingSound(currentUserId);
+    }
+  }, [currentUserId, bottomNotif]);
 
 
   // Soft detach applies immediately without deleting data/code.
