@@ -22,6 +22,7 @@ export function validateManualBackupConfig(env, outputDir) {
     throw new Error('Never write private backups inside the Git source tree');
   }
   if (env.PGHOST !== EXPECTED_HOST) throw new Error('Database host is not the approved BINPC2 project');
+  if (!['require', 'verify-ca', 'verify-full'].includes(env.PGSSLMODE)) throw new Error('Explicit PostgreSQL TLS protection is required');
   if (!env.PGDATABASE || !env.PGUSER) throw new Error('Missing explicit PostgreSQL database/user');
   if (!env.PGPASSWORD && !env.PGPASSFILE) throw new Error('Provide a PostgreSQL password or passfile privately');
   if (!/^age1[023456789acdefghjklmnpqrstuvwxyz]{50,90}$/.test(env.BINPC2_AGE_RECIPIENT || '')) {
