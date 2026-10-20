@@ -28,7 +28,7 @@
 
 1. 신뢰된 개인 PC에서 Node.js(버전 22 이상), PostgreSQL pg_dump(서버와 호환되는 버전), age CLI를 설치/버전 확인한다.
 2. age-keygen을 **본인 PC에서만** 실행해 비밀키를 만든다. 비밀키를 채팅/공개 Git/OneDrive에 넣지 않는다. 개인키 분실 시 암호문 복원이 불가능하다.
-3. 비공개 PGPASSFILE(접근 권한 제한), 정확한 PGHOST(대상 BINPC2 직접 호스트), PGDATABASE/PGUSER/PGPORT, BINPC2_AGE_RECIPIENT(public age1... 키)를 개인 PC의 로컬 환경에서 설정한다. 개인키/비밀번호는 코드/문서에 입력하지 않는다.
+3. 비공개 PGPASSFILE(접근 권한 제한), 정확한 PGHOST(대상 BINPC2 직접 호스트), PGDATABASE/PGUSER/PGPORT, BINPC2_AGE_RECIPIENT(public age1... 키), PGSSLMODE=require 또는 verify-full(권장)을 개인 PC의 로컬 환경에서 설정한다. PGSSLMODE=prefer/disable 같은 TLS 불확실 설정은 스크립트가 거절한다. 개인키/비밀번호는 코드/문서에 입력하지 않는다.
 4. 실제 데이터 보호 정책·보관기간·접근권한·비용을 확인하고 별도 승인 후 BINPC2_DB_BACKUP_APPROVED=YES와 --run --out <절대 로컬 비-OneDrive 폴더>로 실행한다.
 5. 암호화된 파일의 SHA256과 .receipt.json을 대조한다. 개인키로 **격리된 환경에서 복호화 스트림 → pg_restore --list**를 실행하고, 실제로 복원 가능한지 별도의 격리 PostgreSQL 인스턴스에서 검증한다. 실제 운영 DB 덮어쓰기는 금지한다.
 6. 개인키가 같은 백업에 함께 들어가지 않도록 보장한 후 **암호문만** 비공개 Google Drive로 올리고 재다운로드·SHA256 대조한다. 승인된 보존/폐기 정책 없이는 오래된 사본을 임의로 삭제하지 않는다.
