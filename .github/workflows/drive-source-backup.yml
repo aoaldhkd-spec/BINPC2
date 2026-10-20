@@ -1,0 +1,142 @@
+name: BINPC2 offsite source backup
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    # Verify from draft PR without production or OAuth credentials.
+    branches: [main]
+  schedule:
+    # Daily fallback check: 03:17 Asia/Seoul. GitHub schedules can be delayed.
+    - cron: '17 18 * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: binpc2-offsite-git-history
+  cancel-in-progress: false
+
+jobs:
+  backup-git-to-drive:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      BACKUP_DIR: ${{ github.workspace }}/binpc2-source-backup
+    steps:
+      - name: Fetch source without retaining checkout credentials
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Fetch all remote branch refs and tags (read-only)
+        shell: bash
+        run: git fetch --prune --tags origin '+refs/heads/*:refs/remotes/origin/*'
+
+      - name: Verify backup quota safety rules offline (no OAuth)
+        run: node --test scripts/drive-backup-quota.test.mjs
+
+      - name: Build source ZIP, full Git bundle, and checksummed manifest
+        run: node scripts/backup-cloud-snapshot.mjs --out "$BACKUP_DIR" --ref origin/main
+
+      - name: Verify real Git bundle restore and source ZIP integrity
+        shell: bash
+        run: |
+          set -euo pipefail
+          unzip -tq "$BACKUP_DIR/source.zip" >/dev/null
+          TARGET_SHA="$(node -p "require(process.env.BACKUP_DIR + '/manifest.json').head")"
+          EXPECTED_FILES="$(node -p "require(process.env.BACKUP_DIR + '/manifest.json').source_file_count")"
+          RESTORE_PATH="$RUNNER_TEMP/binpc2-bundle-restore-check"
+          git clone --no-checkout "$BACKUP_DIR/repository.bundle" "$RESTORE_PATH"
+          git -C "$RESTORE_PATH" cat-file -e "${TARGET_SHA}^{commit}"
+          ACTUAL_FILES="$(git -C "$RESTORE_PATH" ls-tree -r --name-only "$TARGET_SHA" | wc -l)"
+          if [[ "$ACTUAL_FILES" -ne "$EXPECTED_FILES" ]]; then
+            echo "::error::Restored bundle lacks the expected source tree."
+            exit 1
+          fi
+          rm -rf "$RESTORE_PATH"
+          echo "Verified actual Git bundle clone and source ZIP for $TARGET_SHA."
+
+      - name: Check snapshot size ceiling before upload
+        shell: bash
+        run: |
+          set -euo pipefail
+          BYTES="$(du -sb "$BACKUP_DIR" | cut -f1)"
+          [[ "$BYTES" -gt 0 && "$BYTES" -le 786432000 ]] || {
+            echo "::error::Source snapshot exceeds safe 750MiB limit. Nothing uploaded."
+            exit 1
+          }
+
+      - name: Save 7-day source ZIP checkpoint without Google credentials
+        uses: actions/upload-artifact@v4
+        with:
+          name: binpc2-source-${{ github.run_id }}
+          path: |
+            ${{ env.BACKUP_DIR }}/source.zip
+            ${{ env.BACKUP_DIR }}/manifest.json
+          if-no-files-found: error
+          compression-level: 0
+          retention-days: 7
+
+      - name: Require secure Drive credential setup
+        if: github.event_name != 'pull_request'
+        shell: bash
+        env:
+          BINPC2_DRIVE_RCLONE_B64: ${{ secrets.BINPC2_DRIVE_RCLONE_B64 }}
+        run: |
+          if [[ -z "$BINPC2_DRIVE_RCLONE_B64" ]]; then
+            echo '::error::Missing GitHub Actions secret BINPC2_DRIVE_RCLONE_B64. Configure it from a trusted personal device; no Google Drive backup has been uploaded.'
+            exit 1
+          fi
+          umask 077
+          printf '%s' "$BINPC2_DRIVE_RCLONE_B64" | base64 --decode > "$RUNNER_TEMP/binpc2-rclone.conf"
+          chmod 600 "$RUNNER_TEMP/binpc2-rclone.conf"
+
+      - name: Install rclone using Ubuntu packages
+        if: github.event_name != 'pull_request'
+        shell: bash
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq rclone
+          rclone version | head -1
+
+      - name: Check account free space AND cumulative Drive backup ceiling
+        if: github.event_name != 'pull_request'
+        shell: bash
+        env:
+          BINPC2_DRIVE_MAX_TOTAL_GIB: ${{ vars.BINPC2_DRIVE_MAX_TOTAL_GIB }}
+        run: |
+          set -euo pipefail
+          export RCLONE_CONFIG="$RUNNER_TEMP/binpc2-rclone.conf"
+          # Existing snapshot folder is required. Unknown quota is a hard STOP.
+          export BINPC2_DRIVE_QUOTA_JSON="$(rclone about binpc2drive: --json)"
+          export BINPC2_DRIVE_BACKUP_SIZE_JSON="$(rclone size binpc2drive:BINPC2_AUTO_BACKUPS --json)"
+          export BINPC2_DRIVE_NEW_SNAPSHOT_BYTES="$(du -sb "$BACKUP_DIR" | cut -f1)"
+          # Default total snapshot footprint: 10 GiB; never delete old copies.
+          node scripts/drive-backup-quota.mjs
+
+      - name: Copy immutable versioned snapshot to Google Drive and verify
+        if: github.event_name != 'pull_request'
+        shell: bash
+        run: |
+          set -euo pipefail
+          export RCLONE_CONFIG="$RUNNER_TEMP/binpc2-rclone.conf"
+          rclone listremotes | grep -qx 'binpc2drive:' || {
+            echo '::error::Missing the binpc2drive remote in your rclone config.'
+            exit 1
+          }
+          SHA="$(node -p "require(process.env.BACKUP_DIR + '/manifest.json').head")"
+          REFHASH="$(node -p "require(process.env.BACKUP_DIR + '/manifest.json').git_refs_sha256.slice(0,12)")"
+          DEST="binpc2drive:BINPC2_AUTO_BACKUPS/snapshots/${SHA}-${REFHASH}"
+          rclone copy "$BACKUP_DIR" "$DEST" --checksum --immutable --transfers 2 --checkers 4
+          rclone check "$BACKUP_DIR" "$DEST" --checksum --one-way
+          echo "Verified offsite source snapshot for ${SHA} (refs ${REFHASH})."
+
+      - name: Remove temporary OAuth and source files
+        if: always()
+        shell: bash
+        run: |
+          rm -f "$RUNNER_TEMP/binpc2-rclone.conf"
+          rm -rf "$BACKUP_DIR"
