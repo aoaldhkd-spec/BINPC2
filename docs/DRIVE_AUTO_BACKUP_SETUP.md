@@ -60,3 +60,13 @@
 - **아직 BLOCKED:** OAuth/rclone 연결과 GitHub Actions Secret `BINPC2_DRIVE_RCLONE_B64`가 준비되지 않아 정기 Google Drive 백업은 자동 활성화되어 있지 않다. 기존 ChatGPT Google Drive 연결로 이번 일회성 소스 ZIP 저장은 완료했지만, 이 연결이 GitHub Actions의 OAuth 인증정보로 자동 전달되지는 않는다.
 - PR #6 자체를 main에 병합하면 Render 자동배포가 일어날 수 있으므로, 프로덕션 병합은 명시적 승인 전 금지. 운영 Supabase DB·프로필 이미지·기기 인증자료·VAPID/API Secret은 모든 Git 소스/번들 ZIP의 범위 밖이다. 사용자 허락 없이 운영 데이터를 내보내거나 GitHub 공개 저장소/Actions artifact에 넣지 않는다.
 - GitHub Actions artifact 저장량은 계정 요금제의 포함량 및 초과 과금(공식 현재 안내상 Free 500MB, Pro 1GB, 초과 $0.25/GB·월)에 종속된다. 491MB 파일을 매 커밋마다 저장하면 과금/한도 위험이 있어 반복하지 않는다. 실제 계정 요금제·남은 한도는 UNKNOWN.
+
+
+## 6. 2026-10-21 무인 백업 누적용량 안전 가드 — 신규 Draft 준비
+
+- 누적 저장용량 문제(전체 Git bundle 약 491 MB/실행)를 줄이기 전까지 **백업 전 자동 중단 규칙**을 추가했다. `rclone size binpc2drive:BINPC2_AUTO_BACKUPS --json`으로 대상 폴더 전체의 현재 용량을 읽고, 신규 ZIP+Git bundle 합계까지 계산해 누적 한도를 초과할 것으로 예상되면 업로드하지 않는다.
+- 기본 누적 상한은 **10 GiB**, GitHub Actions 저장소 변수 `BINPC2_DRIVE_MAX_TOTAL_GIB`에 양의 정수를 설정하면 변경할 수 있다. **계정 남은 여유공간 최소 2 GiB 규칙과 개별 스냅샷 750 MiB 상한은 기존대로 유지**. 누적 상한/사용량/여유용량 중 하나라도 확인되지 않으면 즉시 실패한다.
+- 백업 날짜별 이전 사본을 정리하거나 덮어쓰지 않는다. 파일이 이미 존재하는 경우에도 신규 스냅샷 전체 크기를 보수적으로 더하므로 **데이터 손실보다 무해한 STOP을 우선**한다. 계정 인증·폴더 조회가 실패해도 업로드 성공으로 보고하지 않는다.
+- CI에서 `node --test scripts/drive-backup-quota.test.mjs`를 **PR 검증 단계에서도** 실행해 무/초과값·누적 상한·잔여공간 부족·JSON 필드 누락을 검사한다. 이 검사는 실 Google Drive OAuth, quota, 무인 업로드 또는 복원 성공 증거가 아니다.
+- 기존 Google Drive OAuth/rclone 인증 `BINPC2_DRIVE_RCLONE_B64` 및 main 병합·자동 Render 배포 경계는 그대로 미해결이다. 실제 연결·키 저장·main 병합은 별도 승인 필요. **이번 Draft에서 운영 데이터/사진/Secret 내보내기, 기존 백업 삭제, OneDrive 사용 없음.**
+- 장기간 누적 상한 초과 시 자동 삭제 대신 사용자에게 알리고 이전 보관정책/전체 Git 번들 축적 방식(예: 월간 완전 Git bundle + 일별 소스 ZIP)을 먼저 결정한다.
