@@ -5,7 +5,7 @@ import { validateManualBackupConfig } from './backup-db-photo-encrypted.mjs';
 
 const fake = {
   PGHOST: 'db.dlliqqlqdtdkfakdtwyw.supabase.co',
-  PGDATABASE: 'postgres', PGUSER: 'postgres',
+  PGDATABASE: 'postgres', PGUSER: 'postgres', PGSSLMODE: 'require',
   PGPASSWORD: 'FAKE_TEST_ONLY',
   BINPC2_AGE_RECIPIENT: 'age1' + 'q'.repeat(58),
 };
@@ -13,6 +13,7 @@ const fake = {
 test('accepts only the known BINPC2 project hostname', () => {
   assert.equal(validateManualBackupConfig(fake, '/tmp/binpc2-private').project, 'dlliqqlqdtdkfakdtwyw');
   assert.throws(() => validateManualBackupConfig({ ...fake, PGHOST: 'db.some-other.supabase.co' }, '/tmp/backup'), /approved/);
+  assert.throws(() => validateManualBackupConfig({ ...fake, PGSSLMODE: 'prefer' }, '/tmp/backup'), /TLS/);
 });
 
 test('rejects OneDrive, relative paths, source paths and missing encryption/password', () => {
