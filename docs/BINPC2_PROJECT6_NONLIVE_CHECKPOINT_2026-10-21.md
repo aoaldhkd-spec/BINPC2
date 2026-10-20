@@ -1,7 +1,7 @@
 # BINPC2 프로젝트 6 — 비실전 작업 기록
 
 - 기준 날짜: 2026-10-21 (Asia/Seoul)
-- 상태: DRAFT / 개발 브랜치 전용 / 새 TEST 미실행 / 운영 미반영
+- 상태: DRAFT / 개발 브랜치 전용 / GitHub Verify+UI review SUCCESS(아래 정확한 SHA) / 실기기 검증 UNKNOWN / 운영 미반영
 - 기준 main: 63bb4858e9d21f486236c7e2b880c9beefb34452
 - 목적: 실제 휴대폰·운영 검증은 이번 범위에서 제외하고, 재사용 가능한 코드 수정 및 남은 과제를 명시한다.
 
@@ -40,3 +40,13 @@
 - 새 소리 코드: IMPLEMENTED_IN_BRANCH / TESTED=NO / LIVE=NO.
 - 이후: 이번 브랜치의 단위·회귀·UI/기기 검증, PR #15 새 main 기반 검증, PR #6 보관 비용상한과 인증, 개인정보 정책/암호화 복구 결정.
 - 기존 하트·채팅·SSE·관리자·행사 운영·QR 모듈과 데이터는 보호. 다른 프로젝트 혼합 금지.
+
+## F. 2026-10-21 새 CI 결과 — 정확한 커밋 한정
+- PR #17: https://github.com/aoaldhkd-spec/BINPC2/pull/17
+- 테스트 소스가 포함된 커밋: 73fa15edde0ab5fbf7f3e5b051742f46ad891ee0
+- GitHub Verify workflow: SUCCESS — https://github.com/aoaldhkd-spec/BINPC2/actions/runs/39506948881
+- UI review artifacts workflow: SUCCESS — https://github.com/aoaldhkd-spec/BINPC2/actions/runs/39506948679
+- 신규 `notification-sound.test.ts`: 선택 기본 OFF/계정 분리/오디오 미지원 거절/표시 화면에서만 2음 재생/중복 제한/리스너 정리 회귀검사 포함.
+- 실제 Android 푸시는 사용자 확인, 실제 기기의 소리·iPhone·현장성능은 아직 UNKNOWN. CI의 synthetic Chromium은 실제 휴대폰과 구분한다.
+- 별도 확인: 2026-10-21 조회 당시 Render main 서비스 live SHA는 63bb4858e9d21f486236c7e2b880c9beefb34452. PR #17 소리 코드는 운영에 미반영.
+- 임시 소스+웹 빌드 artifact는 GitHub Actions에 생성되었고 source.zip의 SHA256 무결성 확인을 완료했다. Drive 자동 백업이 활성화된 증거는 아님.
