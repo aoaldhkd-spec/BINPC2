@@ -35,6 +35,9 @@ jobs:
         shell: bash
         run: git fetch --prune --tags origin '+refs/heads/*:refs/remotes/origin/*'
 
+      - name: Verify backup quota safety rules offline (no OAuth)
+        run: node --test scripts/drive-backup-quota.test.mjs
+
       - name: Build source ZIP, full Git bundle, and checksummed manifest
         run: node scripts/backup-cloud-snapshot.mjs --out "$BACKUP_DIR" --ref origin/main
 
@@ -99,20 +102,20 @@ jobs:
           sudo apt-get install -y -qq rclone
           rclone version | head -1
 
-      - name: Check Google Drive free space before any upload
+      - name: Check account free space AND cumulative Drive backup ceiling
         if: github.event_name != 'pull_request'
         shell: bash
+        env:
+          BINPC2_DRIVE_MAX_TOTAL_GIB: ${{ vars.BINPC2_DRIVE_MAX_TOTAL_GIB }}
         run: |
           set -euo pipefail
           export RCLONE_CONFIG="$RUNNER_TEMP/binpc2-rclone.conf"
-          # Retain at least 2GiB of free account capacity, and never guess when quota is unavailable.
-          QUOTA_JSON="$(rclone about binpc2drive: --json)"
-          FREE_BYTES="$(printf '%s' "$QUOTA_JSON" | jq -er '.free | select(type == "number" and . >= 0)')"
-          SNAPSHOT_BYTES="$(du -sb "$BACKUP_DIR" | cut -f1)"
-          if (( FREE_BYTES < SNAPSHOT_BYTES + 2147483648 )); then
-            echo "::error::Drive capacity below snapshot + 2GiB safety reserve. Nothing uploaded or deleted."
-            exit 1
-          fi
+          # Existing snapshot folder is required. Unknown quota is a hard STOP.
+          export BINPC2_DRIVE_QUOTA_JSON="$(rclone about binpc2drive: --json)"
+          export BINPC2_DRIVE_BACKUP_SIZE_JSON="$(rclone size binpc2drive:BINPC2_AUTO_BACKUPS --json)"
+          export BINPC2_DRIVE_NEW_SNAPSHOT_BYTES="$(du -sb "$BACKUP_DIR" | cut -f1)"
+          # Default total snapshot footprint: 10 GiB; never delete old copies.
+          node scripts/drive-backup-quota.mjs
 
       - name: Copy immutable versioned snapshot to Google Drive and verify
         if: github.event_name != 'pull_request'
