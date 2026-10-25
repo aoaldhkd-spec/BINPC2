@@ -355,3 +355,12 @@ canvas {
 @supports (height: 100dvh) { .profile-setup-card { max-height: calc(100dvh - 2rem - var(--safe-top) - var(--safe-bottom)); } }
 @media (min-width: 768px) { .profile-setup-card { max-width: 32rem; } }
 .binpc-info-dialog { width: min(100%, 30rem); max-height: calc(100dvh - 2rem - var(--safe-top) - var(--safe-bottom)); }
+
+
+/* Interaction polish: keyboard-only visibility; preserve the existing visual theme. */
+.ui-skip-link{position:fixed;inset-block-start:8px;inset-inline-start:8px;z-index:2147483647;padding:12px 16px;border:2px solid currentColor;border-radius:8px;background:Canvas;color:CanvasText;transform:translateY(-160%);text-decoration:underline}
+.ui-skip-link:focus{transform:none}
+:where(a,button,input,select,textarea,summary,[tabindex]):focus-visible{outline:2px solid currentColor;outline-offset:3px}
+@media(prefers-reduced-motion:reduce){
+ *,*::before,*::after{scroll-behavior:auto!important;animation-duration:.01ms!important;animation-iteration-count:1!important;transition-duration:.01ms!important}
+}

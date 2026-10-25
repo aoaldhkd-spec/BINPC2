@@ -1,0 +1,62 @@
+{
+  "project": "BINPC2",
+  "checkedAt": "2026-10-25T08:25:39.636Z",
+  "base": "63bb4858e9d21f486236c7e2b880c9beefb34452",
+  "sourceFiles": [
+    {
+      "file": "artifacts/boltnew-app/index.html",
+      "sha256": "d6bc27a918f886e54c74572a26fd0b6f1bcbbce312353b17f392ba3a56d3532b"
+    },
+    {
+      "file": "artifacts/boltnew-app/src/components/NotifModal.tsx",
+      "sha256": "6af60734b405c2b35c0ae2ac1417d2c8cc8b613e84738df965545ab57427e099"
+    },
+    {
+      "file": "artifacts/boltnew-app/src/index.css",
+      "sha256": "ac22ec46c7a9475b513c02b4b4a5a4774a8089aaa52b47e4f6e66641e1aa9d10"
+    }
+  ],
+  "browser": [
+    {
+      "repo": "BINPC2",
+      "name": "layout 360",
+      "status": "PASS"
+    },
+    {
+      "repo": "BINPC2",
+      "name": "layout 390",
+      "status": "PASS"
+    },
+    {
+      "repo": "BINPC2",
+      "name": "layout 768",
+      "status": "PASS"
+    },
+    {
+      "repo": "BINPC2",
+      "name": "layout 1440",
+      "status": "PASS"
+    },
+    {
+      "repo": "BINPC2",
+      "name": "reduced motion preference",
+      "status": "PASS"
+    },
+    {
+      "repo": "BINPC2",
+      "name": "announcement focus trap escape and restoration",
+      "status": "PASS"
+    }
+  ],
+  "scope": "UI_INTERACTION_ONLY",
+  "runtime": "ISOLATED_SYNTHETIC_FIXTURES",
+  "production": "NOT_DEPLOYED",
+  "merge": "NOT_MERGED",
+  "validation": [
+    "실제 공지 React 컴포넌트 Chromium PASS. 전체 앱 빌드·실계정·물리 휴대폰은 미검증."
+  ],
+  "resourceSample": {
+    "freeGiB": 5.7,
+    "cores": 8
+  }
+}
