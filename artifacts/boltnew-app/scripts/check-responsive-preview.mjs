@@ -2,7 +2,7 @@
 /** Real browser, SYNTHETIC API only. Never connects to BINPC2 production or reads real credentials. */
 import { createServer } from 'node:http';
 import { readFileSync, existsSync, mkdirSync, writeFileSync } from 'node:fs';
-import { resolve, extname, join } from 'node:path';
+import { resolve, extname, join, sep } from 'node:path';
 import { createRequire } from 'node:module';
 const require = createRequire(resolve('artifacts/boltnew-app/package.json'));
 const { chromium } = require('@playwright/test');
@@ -12,7 +12,7 @@ mkdirSync(out, { recursive: true });
 const mime = { '.html':'text/html', '.js':'text/javascript', '.css':'text/css', '.svg':'image/svg+xml', '.webp':'image/webp' };
 const server = createServer((req,res) => {
   let path = resolve(root, '.' + new URL(req.url, 'http://localhost').pathname);
-  if (!path.startsWith(root + '/') && path !== root) { res.writeHead(403); res.end(); return; }
+  if (!path.startsWith(root + sep) && path !== root) { res.writeHead(403); res.end(); return; }
   if (!existsSync(path) || path === root) path = join(root, 'index.html');
   res.writeHead(200, { 'Content-Type': mime[extname(path)] || 'application/octet-stream' });
   res.end(readFileSync(path));

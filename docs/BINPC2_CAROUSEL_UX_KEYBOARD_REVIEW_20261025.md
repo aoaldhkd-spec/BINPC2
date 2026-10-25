@@ -27,3 +27,11 @@
 - 이전 선택형 캐러셀 검증 브랜치: feat/binpc2-card-carousel-ui-review-20261025 / 38e10a7d7e75df56333b4c067e1897bcb8182859.
 - 병합/Netlify/Render 운영 배포는 별도 사용자 승인 전 금지. 승인 전에는 Draft 개발 브랜치에서만 보관.
 - iOS Safari/Android 실기기, UI 시각 승인, 운영 기능 정상 여부는 아직 UNKNOWN. 합성 TESTED를 PRODUCTION VERIFIED로 표현하지 않음.
+
+## 2026-10-25 추가 — 실제 Chromium 합성 UI 검증 및 Windows 시험환경 수정
+- 원인: 기존 `check-responsive-preview.mjs`는 브라우저 정적 파일 접근 검사에서 Linux 구분자 '/'를 고정 사용하여 Windows의 역슬래시 파일 경로를 403으로 차단. 따라서 화면에는 본문 바로가기만 표시됨. 운영 UI의 실제 기능 실패가 아닌 테스트 웹서버의 Windows 전용 오류로 확인.
+- 수정: 기존 보안 경로검사를 약화하지 않고 `node:path`의 `sep`(실행 환경별 경로 구분자)를 사용하도록 **시험 스크립트 2줄만 수정**. 사용자용 UI 디자인·서버·기능 무변경. 과거 실패 스크린샷과 로그는 별도 QA 폴더에 보존.
+- 검증: 별도 테스트 복사본에 로컬 설치 Chrome 실행경로만 지정. 320/390/430/600/768/1024px × 밝음/어두움 = **12/12 시나리오 및 92/92 UI 체크 PASS, 브라우저 JS 예외 0**.
+- 점검: 참가자·하트·채팅·설정·통계·랭킹 화면의 넘침, 모바일 실제 터치 스크롤, 글자 확대 110%, 설정 저장 후 다시 열기, 필수 모달 닫기. 외부 요청은 합성 서버에서 차단.
+- 증거: `docs/evidence/BINPC2_UX_RESPONSIVE_BROWSER_20261025.json`, 집 PC 독립 작업본 `qa-checkpoints/BINPC2_UX_MERGED_RESPONSIVE_RETRY_20261025/`의 결과·화면 이미지.
+- 상태: TESTED (합성 브라우저), 실제 Android/iOS와 운영 데이터·현장 네트워크는 UNKNOWN. 운영 `main` 병합·운영 배포는 계속 금지.

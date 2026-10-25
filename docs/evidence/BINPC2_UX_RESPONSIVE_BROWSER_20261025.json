@@ -1,0 +1,104 @@
+{
+    "schema":  "BINPC2_UX_SYNTHETIC_BROWSER_CHROMIUM_QA_V1",
+    "dateKst":  "2026-10-25",
+    "project":  "Korean BINPC2 front-end dev review; not MATCH sales prototype",
+    "sourceBaseMain":  "b06a900280404f79c92e17cdbc6af907a0414c30",
+    "reviewBranch":  "feat/binpc2-carousel-ux-navigation-20261025",
+    "checkedReviewHead":  "0febfbefbc10c804af723fc101e40f90bdeebb9b",
+    "browser":  "Installed desktop Google Chrome via Playwright",
+    "api":  "SYNTHETIC, localhost only; external requests blocked",
+    "releaseStatus":  "NOT_DEPLOYED",
+    "physicalPhoneVerified":  false,
+    "resolution":  "Fixed Windows-only path separator in synthetic-browser test file server; no production source/API change",
+    "syntheticUiScenariosPass":  12,
+    "syntheticUiScenariosFail":  0,
+    "individualUiChecksPass":  92,
+    "sourceScreenshotsRelative":  "qa-checkpoints/BINPC2_UX_MERGED_RESPONSIVE_RETRY_20261025",
+    "previousFailedHarnessEvidenceRelative":  "qa-checkpoints/BINPC2_UX_MERGED_RESPONSIVE_20261025",
+    "scenarios":  [
+                      {
+                          "width":  320,
+                          "theme":  "light",
+                          "status":  "PASS",
+                          "checks":  8,
+                          "javascriptErrors":  0
+                      },
+                      {
+                          "width":  320,
+                          "theme":  "dark",
+                          "status":  "PASS",
+                          "checks":  8,
+                          "javascriptErrors":  0
+                      },
+                      {
+                          "width":  390,
+                          "theme":  "light",
+                          "status":  "PASS",
+                          "checks":  8,
+                          "javascriptErrors":  0
+                      },
+                      {
+                          "width":  390,
+                          "theme":  "dark",
+                          "status":  "PASS",
+                          "checks":  8,
+                          "javascriptErrors":  0
+                      },
+                      {
+                          "width":  430,
+                          "theme":  "light",
+                          "status":  "PASS",
+                          "checks":  8,
+                          "javascriptErrors":  0
+                      },
+                      {
+                          "width":  430,
+                          "theme":  "dark",
+                          "status":  "PASS",
+                          "checks":  8,
+                          "javascriptErrors":  0
+                      },
+                      {
+                          "width":  600,
+                          "theme":  "light",
+                          "status":  "PASS",
+                          "checks":  8,
+                          "javascriptErrors":  0
+                      },
+                      {
+                          "width":  600,
+                          "theme":  "dark",
+                          "status":  "PASS",
+                          "checks":  8,
+                          "javascriptErrors":  0
+                      },
+                      {
+                          "width":  768,
+                          "theme":  "light",
+                          "status":  "PASS",
+                          "checks":  7,
+                          "javascriptErrors":  0
+                      },
+                      {
+                          "width":  768,
+                          "theme":  "dark",
+                          "status":  "PASS",
+                          "checks":  7,
+                          "javascriptErrors":  0
+                      },
+                      {
+                          "width":  1024,
+                          "theme":  "light",
+                          "status":  "PASS",
+                          "checks":  7,
+                          "javascriptErrors":  0
+                      },
+                      {
+                          "width":  1024,
+                          "theme":  "dark",
+                          "status":  "PASS",
+                          "checks":  7,
+                          "javascriptErrors":  0
+                      }
+                  ]
+}
