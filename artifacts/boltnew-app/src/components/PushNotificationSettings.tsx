@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { getForegroundSoundOptIn, setForegroundSoundOptInFromClick } from '../lib/notification-sound';
 import {
   PUSH_STATUS_EVENT, currentPushStatus, enablePushFromClick, disablePushForUser,
   getPushOptIn, registerPushSub, sendSelfPushTest, type PushSetupStatus,
@@ -11,6 +12,8 @@ export function PushNotificationSettings({ userId, enabled, darkMode }: {
   darkMode: boolean;
 }) {
   const [checked, setChecked] = useState(false);
+  const [soundChecked, setSoundChecked] = useState(false);
+  const [soundNotice, setSoundNotice] = useState('');
   const [status, setStatus] = useState<PushSetupStatus | null>(null);
   const [busy, setBusy] = useState(false);
   const [testBusy, setTestBusy] = useState(false);
@@ -20,6 +23,8 @@ export function PushNotificationSettings({ userId, enabled, darkMode }: {
     const update = (event: Event) => setStatus((event as CustomEvent<PushSetupStatus>).detail);
     window.addEventListener(PUSH_STATUS_EVENT, update);
     setChecked(userId ? getPushOptIn(userId) : false);
+    setSoundChecked(userId ? getForegroundSoundOptIn(userId) : false);
+    setSoundNotice('');
     setStatus(currentPushStatus());
     if (enabled && userId && getPushOptIn(userId)) void registerPushSub(userId).then(setStatus);
     return () => window.removeEventListener(PUSH_STATUS_EVENT, update);
@@ -89,6 +94,26 @@ export function PushNotificationSettings({ userId, enabled, darkMode }: {
           )}
         </div>
       )}
+      <div className={'mt-1 border-t pt-2 ' + (darkMode ? 'border-slate-600' : 'border-gray-200')}>
+        <label className={'flex items-center gap-2.5 text-sm font-bold ' + (darkMode ? 'text-white' : 'text-gray-800')}>
+          <input type="checkbox" aria-label="앱 화면에서 하트·1:1 채팅 알림음 (선택)"
+            checked={soundChecked} disabled={!enabled || !userId}
+            onChange={(event) => {
+              if (!userId) return;
+              const next = event.target.checked;
+              const applied = setForegroundSoundOptInFromClick(userId, next);
+              setSoundChecked(applied ? next : false);
+              setSoundNotice(applied ? '' : '이 브라우저에서는 앱 안의 소리를 사용할 수 없습니다.');
+            }}
+            className="h-4 w-4 accent-teal-500 shrink-0" />
+          <span>🔊 [선택] 앱 안에서 알림음 듣기</span>
+        </label>
+        <p className={'text-[11px] pl-7 mt-1 ' + (darkMode ? 'text-slate-400' : 'text-gray-500')}>
+          앱 화면을 보고 있을 때 받은 하트와 1:1 메시지에만 짧게 소리가 나요.
+          화면이 꺼졌을 때의 푸시 알림음은 휴대폰 알림 설정을 따릅니다.
+        </p>
+        {soundNotice && <p role="status" className="text-[11px] pl-7 text-amber-500">{soundNotice}</p>}
+      </div>
       {!enabled && <p role="status" className="text-[11px] pl-7 text-amber-600">관리자가 알림 기능을 꺼 놓았습니다.</p>}
     </div>
   );
