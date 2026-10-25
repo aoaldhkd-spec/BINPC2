@@ -20,7 +20,7 @@
 - 웹 전체 단위 회귀검사 768/768 PASS, 실제 종료코드 0. 이전 766 대비 신규 UX 2개 검사 추가.
 - TypeScript 타입 검사 PASS, Vite 웹 빌드 PASS.
 - 실제 운영 DB/실사용자 쓰기 또는 휴대폰 실기기 UI 테스트는 시행하지 않음.
-- 새 main b06a900280404f79c92e17cdbc6af907a0414c30은 2026-10-25 중 별도 UI 개선으로 업데이트됨. 63bb4858.. → b06a9002.. 사이 6개 변경 파일은 이 개선에서 수정한 ProfileDeckGrid 파일과 겹치지 않음을 GitHub compare로 확인. 통합 검증 전까지 병합 검토 대상이며 자동 운영 반영하지 않음.
+- 새 main b06a900280404f79c92e17cdbc6af907a0414c30은 2026-10-25 중 별도 UI 개선으로 업데이트됨. 63bb4858.. → b06a9002.. 사이 변경된 6개 파일이 이번 ProfileDeckGrid 수정과 겹치지 않음을 GitHub compare로 확인. 최신 main을 **운영에 병합한 것이 아니라 UX 개발 브랜치에만 병합**했고, 통합 HEAD `80f7425020b39be4f54e4834b7afa7efd609885c`에서 전체 768/768 테스트, TypeScript 타입 검사와 Vite 빌드를 모두 재실행해 통과. 테스트 로그는 동일 작업 폴더 docs/BINPC2_UX_MERGED_*_20261025.log. 그 어떤 운영 배포도 수행하지 않음.
 
 ## 복구 및 배포 경계
 - 수정 전 GitHub 안전 백업: backup/binpc2-ui-before-carousel-20261025 / 63bb4858e9d21f486236c7e2b880c9beefb34452.
