@@ -44,6 +44,12 @@ function Root() {
       const anchor = target.closest<HTMLAnchorElement>('a[href]');
       if (!anchor || anchor.target || anchor.hasAttribute('download')) return;
 
+      if (anchor.classList.contains("ui-skip-link") && anchor.getAttribute("href") === "#root") {
+        event.preventDefault();
+        document.getElementById("root")?.focus({ preventScroll: true });
+        return;
+      }
+
       const next = resolveClientNavigation(anchor.href, window.location.href, base);
       if (!next) return;
 
