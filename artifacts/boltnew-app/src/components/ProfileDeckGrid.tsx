@@ -83,7 +83,9 @@ export const ProfileDeckGrid = memo(function ProfileDeckGrid({
     const left = Math.max(0, target.offsetLeft - first.offsetLeft);
     pendingScrollIndexRef.current = null;
     if (typeof el.scrollTo === 'function') {
-      el.scrollTo({ left, behavior: 'smooth' });
+      const reduceMotion = typeof window.matchMedia === 'function'
+        && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+      el.scrollTo({ left, behavior: reduceMotion ? 'auto' : 'smooth' });
     } else {
       el.scrollLeft = left;
     }
@@ -145,11 +147,14 @@ export const ProfileDeckGrid = memo(function ProfileDeckGrid({
         data-testid={carouselMode ? 'participant-carousel-track' : 'participant-grid'}
         aria-label={carouselMode ? '참가자 프로필 가로 슬라이드' : undefined}
         aria-roledescription={carouselMode ? 'carousel' : undefined}
+        role={carouselMode ? 'region' : undefined}
         tabIndex={carouselMode ? 0 : undefined}
         onKeyDown={carouselMode ? (event) => {
           if (event.target !== event.currentTarget) return;
           if (event.key === 'ArrowLeft') { event.preventDefault(); goTo(carouselIndex - 1); }
           if (event.key === 'ArrowRight') { event.preventDefault(); goTo(carouselIndex + 1); }
+          if (event.key === 'Home') { event.preventDefault(); goTo(0); }
+          if (event.key === 'End') { event.preventDefault(); goTo(total - 1); }
         } : undefined}
         onScroll={carouselMode ? onScroll : undefined}
         className={carouselMode

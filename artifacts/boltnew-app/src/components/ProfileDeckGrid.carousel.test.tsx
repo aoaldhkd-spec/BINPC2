@@ -76,6 +76,7 @@ describe('original BINPC2 UI stays default; optional carousel is a presentation-
     fireEvent.click(screen.getByTestId('participant-carousel-switch'));
     const rail = screen.getByTestId('participant-carousel-track');
     expect(rail.getAttribute('aria-roledescription')).toBe('carousel');
+    expect(rail.getAttribute('role')).toBe('region');
     expect(rail.querySelectorAll('[data-profile-carousel-card]').length).toBe(4);
     expect(screen.getByTestId('participant-carousel-counter').textContent).toContain('1 / 4');
     fireEvent.click(screen.getByTestId('participant-carousel-next'));
@@ -100,7 +101,24 @@ describe('original BINPC2 UI stays default; optional carousel is a presentation-
     expect(screen.getByTestId('participant-carousel-counter').textContent).toContain('1 / 3');
     fireEvent.keyDown(screen.getByTestId('card-fake-0'), { key: 'ArrowRight' });
     expect(screen.getByTestId('participant-carousel-counter').textContent).toContain('1 / 3');
+    fireEvent.keyDown(rail, { key: 'End' });
+    expect(screen.getByTestId('participant-carousel-counter').textContent).toContain('3 / 3');
+    fireEvent.keyDown(rail, { key: 'Home' });
+    expect(screen.getByTestId('participant-carousel-counter').textContent).toContain('1 / 3');
   });
+
+  for (const [reduceMotion, expectedBehavior] of [[true, 'auto'], [false, 'smooth']] as const) {
+    it('uses ' + expectedBehavior + ' scrolling for reduced motion preference ' + String(reduceMotion), () => {
+      vi.stubGlobal('matchMedia', vi.fn(() => ({ matches: reduceMotion })));
+      mount(3);
+      fireEvent.click(screen.getByTestId('participant-carousel-switch'));
+      const track = screen.getByTestId('participant-carousel-track');
+      const scrollTo = vi.fn();
+      Object.defineProperty(track, 'scrollTo', { configurable: true, value: scrollTo });
+      fireEvent.click(screen.getByTestId('participant-carousel-next'));
+      expect(scrollTo).toHaveBeenCalledWith(expect.objectContaining({ behavior: expectedBehavior }));
+    });
+  }
 
   it('does not show slides/dots when empty or when only one attendee exists', () => {
     mount(0);
