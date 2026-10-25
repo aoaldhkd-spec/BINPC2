@@ -130,7 +130,7 @@ export const ProfileDeckGrid = memo(function ProfileDeckGrid({
               if (carouselRef.current) carouselRef.current.scrollLeft = 0;
               setCarouselMode((current) => !current); setCarouselIndex(0);
             }}
-            className={'flex items-center gap-1.5 rounded-lg border px-3 py-2 text-[11px] font-bold focus-visible:outline-2 focus-visible:outline-teal-500 ' +
+            className={'flex min-h-11 items-center gap-1.5 rounded-lg border px-3 py-2 text-[11px] font-bold focus-visible:outline-2 focus-visible:outline-teal-500 ' +
               (darkMode ? 'border-slate-600 bg-slate-800 text-slate-100 hover:bg-slate-700'
                 : 'border-gray-200 bg-white text-gray-600 hover:bg-teal-50')}
           >

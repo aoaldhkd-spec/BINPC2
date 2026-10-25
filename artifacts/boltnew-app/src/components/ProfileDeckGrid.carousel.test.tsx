@@ -67,6 +67,7 @@ describe('original BINPC2 UI stays default; optional carousel is a presentation-
   it('keeps original 3-column grid until participant explicitly opts in', () => {
     const { onLike } = mount(4);
     const grid = screen.getByTestId('participant-grid');
+    expect(screen.getByTestId('participant-carousel-switch').className).toContain('min-h-11');
     expect(grid.className).toContain('grid-cols-3');
     expect(grid.querySelectorAll('[data-profile-carousel-card]').length).toBe(0);
     fireEvent.click(screen.getByTestId('card-fake-1'));
