@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect, useId, useRef } from 'react';
 
 const NOTIF_STYLES: Record<string, { bar: string; icon: string; label: string }> = {
   info:   { bar: 'bg-blue-600',    icon: '📢', label: '공지' },
@@ -7,19 +7,42 @@ const NOTIF_STYLES: Record<string, { bar: string; icon: string; label: string }>
 };
 
 export function NotifModal({ notif, onClose }: { notif: { id: string; message: string; type: string; target: string }; onClose: () => void }) {
+  const titleId = useId();
+  const box = useRef<HTMLDivElement>(null);
+  const onCloseRef = useRef(onClose);
+  onCloseRef.current = onClose;
+  useEffect(() => {
+    const previous = document.activeElement as HTMLElement | null;
+    const overflow = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    const frame = requestAnimationFrame(() => box.current?.querySelector('button')?.focus());
+    const key = (event: KeyboardEvent) => {
+      if (event.defaultPrevented) return;
+      if (event.key === 'Escape') { event.preventDefault(); event.stopPropagation(); onCloseRef.current(); }
+      if (event.key === 'Tab') { event.preventDefault(); event.stopPropagation(); box.current?.querySelector('button')?.focus(); }
+    };
+    document.addEventListener('keydown', key, true);
+    return () => {
+      cancelAnimationFrame(frame);
+      document.removeEventListener('keydown', key, true);
+      document.body.style.overflow = overflow;
+      if (previous?.isConnected) previous.focus();
+    };
+  }, [notif.id]);
   const cfg = NOTIF_STYLES[notif.type] ?? NOTIF_STYLES.info;
   return (
     <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 animate-[fadeIn_0.2s_ease-out]">
-      <div className="bg-white rounded-3xl shadow-2xl w-full max-w-sm overflow-hidden animate-[scaleIn_0.25s_ease-out]">
+      <div ref={box} role="dialog" aria-modal="true" aria-labelledby={titleId} className="bg-white rounded-3xl shadow-2xl w-full max-w-sm overflow-hidden animate-[scaleIn_0.25s_ease-out]">
         <div className={`${cfg.bar} px-6 py-5 text-white text-center`}>
           <div className="text-4xl mb-2">{cfg.icon}</div>
-          <p className="text-xs font-black uppercase tracking-widest opacity-80">{cfg.label}</p>
+          <p id={titleId} className="text-xs font-black uppercase tracking-widest opacity-80">{cfg.label}</p>
         </div>
         <div className="px-6 py-5 text-center">
           <p className="text-gray-800 font-semibold text-base leading-relaxed whitespace-pre-line">{notif.message}</p>
         </div>
         <div className="px-6 pb-5">
           <button
+            type="button"
             onClick={onClose}
             className={`w-full py-3 rounded-2xl font-black text-white text-sm transition-all ${cfg.bar} hover:opacity-90 active:scale-95`}
           >
