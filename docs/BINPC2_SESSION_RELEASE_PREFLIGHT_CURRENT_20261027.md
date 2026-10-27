@@ -88,3 +88,12 @@ select to_regclass('public.app_sessions')::text as session_table,
 - Supabase 프로젝트의 현장 `SELECT`로 `app_kv_rows=3250`, `app_image_store=102`, `app_sessions` 없음 및 실제 인덱스·접근권한·컬럼 정의를 **읽기 전용** 스냅샷으로 작성해 같은 비공개 Drive에 저장, [서버 읽기 SHA256 PASS](https://drive.google.com/file/d/1QeGsWeanxdoSLIplTdHiGujaO2Y-FF_C/view), 4,179바이트, `8ed3730d9e4a16bb39c10b5ffd9d29cdef391ace20100356a2761d1882ca2050`. 데이터 행값을 포함하지 않는 참고자료이므로 이것을 고객 데이터 백업이라고 주장하지 않음.
 - **미해결 BLOCKED:** DB 비밀번호와 기존 보호키의 암호는 소유자가 집 PC에서만 입력 가능(채팅 금지). 현재 시점 DB 전체 암호문 생성, 서버 업로드 검증, 키로 복호화, 분리된 PostgreSQL 독립 복원은 아직 성공하지 않았음. 해당 증거가 확보되기 전 GitHub `main` 병합, `app_sessions` 운영 DB 생성, Render 자동배포 및 실제 이용자 데이터 변경을 하지 않는다.
 - 다음 재개: 개인 PC에서 `00_읽어주세요_BINPC2_운영DB_자동백업_20261027.md` 확인 후 `.cmd` 실행; GPG가 집 PC에 비밀번호를 요청하면 소유자가 직접 입력; 가려진 로컬 프롬프트에서 Supabase BINPC2 Session pooler 5432 접속 정보를 입력. 통과 영수증을 검사해 Google 서버 바이트·독립 복원을 검증하고 운영 변경 재개. 공개키 import 자체 오류가 계속되면 오류를 BLOCKED로 보고하고 보안 약화로 우회하지 않는다.
+
+## 2026-10-27 최신 추가 — V2 공개키 직접 암호화로 기존 차단 해결
+- **과거:** V1은 암호화용 공개키를 얻기 위해 보호된 개인키를 별도 GPG 키링으로 가져오려 했고, 원격 비대화형 키 가져오기 실패(종료코드 2)로 암호화를 시작하지 못했다. 이전 오류/준비물은 기록대로 보존.
+- **원인과 대안:** 기존 *공개키 전용* `NEXUS_EXPLAINER_PUBLIC_ONLY_20261023.asc`(집 PC)와 `BINPC2_BACKUP_ENCRYPTION_PUBLIC_KEY_20261023.asc`(비공개 Drive)이 **SHA256 일치** `a4de864b5c7156f19dd1c5c0c25f9170ae66b2c88ab44b2e2038ca486fb7e9bb`. GPG `--recipient-file` 옵션으로 키링 가져오기 없이 직접 암호화 가능.
+- **검증:** 공개키 합성 암호화 결과 498바이트, 수신 서브키 `9EE52526C8AA4B39` 확인, 개인키·암호 사용 0건. V2 전용 실행기 `binpc2-safe-db-backup.cjs`는 고정 SHA·기본 키 지문 대조 후 `--recipient-file`로 암호화. 보안단위 **5/5 PASS**, `--preflight` `publicKeyReady=true`. 잘못된 DB 프로젝트, transaction 풀러 6543, 비공개 콘솔 미인증 실행은 모두 차단.
+- **V1 보존:** 집 PC `C:\Users\aoald\BINPC2_SECURE_DB_BACKUP_PREP_20261027\history\v1_before_public_key_improvement_20261027` 폴더에 이전 5개 파일·SHA 매니페스트 복사. 이전 Drive V1 폴더 삭제·덮어쓰기 0건.
+- **새 CURRENT 준비본:** [비공개 Google Drive V2 폴더](https://drive.google.com/drive/folders/1gen8hmzfye5IdLcBOhwP9XxoIJzY3iUH) — 실행기, 검사, 개인 PC 실행 CMD, 안내문, 공개키 파일, 매니페스트 총 **6개**. Google 서버에서 다시 받은 비민감 원본 5개가 로컬 SHA256/크기와 일치하며 매니페스트 1개도 읽기 확인. 개인키·DB URI·이용자 원문은 포함하지 않음.
+- **사용자 직접 필요한 1회 인증 최소화:** 새 암호화에는 개인키 암호 입력이 필요 없다. 소유자 집 PC의 개인 비공개 창에서 **Supabase BINPC2 Session pooler(5432) 연결정보와 비밀번호를 한번 입력**해야 실제 `pg_dump`를 시작할 수 있다. 기존 **보호키 암호는 나중의 독립 복호화·복원에만 필요**하며 ChatGPT에 보내지 않는다.
+- **중단선 유지:** V2는 `PREPARED_TESTED`이지 최신 실DB 백업이 아니다. DB 연결 자격정보·직접 DB 접속 검증은 아직 없고, 암호화된 새 실제 파일·격리 복원도 미실시. 운영 `app_sessions` SQL, PR #21 병합, Render 자동 배포/운영 DB 변경 **0건**. 검증 전 자동 배포 금지.
