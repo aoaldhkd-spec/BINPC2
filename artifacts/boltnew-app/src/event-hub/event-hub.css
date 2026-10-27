@@ -88,3 +88,7 @@ body:has(.event-profile-draft) .event-hub-dock {
 
 [data-campaign-theme="christmas"] {background:#12372a;color:#fef3c7;border:1px solid #e11d48;border-radius:1rem;padding:.75rem;}
 [data-campaign-theme="yearend"] {background:#172554;color:#fef9c3;border:1px solid #eab308;border-radius:1rem;padding:.75rem;}
+
+/* Only the reused application guide expands long policy text; legacy tutorials keep their layout. */
+.application-tutorial .line-clamp-2 {display:block;-webkit-line-clamp:unset;overflow:visible;font-size:12px;line-height:1.6;}
+.application-tutorial .line-clamp-1 {display:block;-webkit-line-clamp:unset;overflow:visible;}

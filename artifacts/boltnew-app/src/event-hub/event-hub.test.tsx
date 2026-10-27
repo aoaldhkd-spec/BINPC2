@@ -465,6 +465,8 @@ it("keeps the first application tutorial open through StrictMode mount probes an
     </StrictMode>,
   );
   await waitFor(() => expect(screen.getByRole("dialog")).toBeTruthy());
+  fireEvent.click(screen.getByRole("button", { name: "다음" }));
+  fireEvent.click(screen.getByRole("button", { name: "다음" }));
   fireEvent.click(screen.getByRole("button", { name: "알겠어요" }));
   expect(screen.queryByRole("dialog")).toBeNull();
   fireEvent.click(screen.getByRole("button", { name: "? 신청 방법" }));

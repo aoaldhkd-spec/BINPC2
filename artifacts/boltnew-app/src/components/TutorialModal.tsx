@@ -770,7 +770,7 @@ export function TutorialModal({
     {icon:'7',title:'관리자 확인',desc:'은행 대조·승인 후 참가 확정됩니다. 운영자 근무·숙면 중 지연될 수 있습니다.'},
     {icon:'8',title:'대기방·프로필·현장',desc:'신청은 재접속해 이어볼 수 있습니다. 승인 후 장소를 확인하고 필수 프로필·현장 체크인을 완료합니다.'},
     {icon:'9',title:applicationMode==='tour'?'추억의 뽑기':'할로윈 경품 뽑기',desc:applicationMode==='tour'?'금·토 1차 유효 선착순10명만 무료 두 장(할인권1장·꽝1장). 목·일은 없습니다. 할인권 실제 적용은 운영자가 직접 합니다.':applicationMode==='halloween'?'현장 입장 후 무료 카드3장. 추가 유료 뽑기 없음. 하리보는 별도로1개.':'행사별 안내와 관리자 문의를 확인하세요.'},
-  ]}] : mode === 'basic' ? tutorialBasicTopics(moduleFlags) : HIDDEN;
+  ]}].flatMap(topic => [0, 1, 2].map(page => ({...topic, id: `application-${page}`, label: `${page + 1}/3`, title: `술번개 신청 방법 · ${page + 1}/3`, tips: topic.tips.slice(page * 3, page * 3 + 3)}))) : mode === 'basic' ? tutorialBasicTopics(moduleFlags) : HIDDEN;
   const safeIdx = Math.min(topicIdx, topics.length - 1);
   const topic = topics[safeIdx];
   const accent = topicAccent(topic);
@@ -840,11 +840,11 @@ export function TutorialModal({
           text={text}
           muted={muted}
           darkMode={darkMode}
-          twoColumn={layout.twoColumn}
+          twoColumn={applicationMode ? false : layout.twoColumn}
           compact={layout.compact}
           fill={layout.fillVertical}
           longDescTitle="차단·숨기기"
-          boxClass={layout.tipBox}
+          boxClass={applicationMode ? "min-h-12 h-auto py-3 items-center" : layout.tipBox}
           tightGap={layout.tightGap}
         />
       )}
@@ -878,7 +878,7 @@ export function TutorialModal({
 
   return (
     <div
-      className="fixed inset-0 z-[10050] flex items-center justify-center bg-slate-950/75 backdrop-blur-md overflow-hidden overscroll-none animate-[fadeIn_0.2s_ease-out]"
+      className={`fixed inset-0 z-[10050] flex items-center justify-center bg-slate-950/75 backdrop-blur-md overflow-hidden overscroll-none animate-[fadeIn_0.2s_ease-out] ${applicationMode ? "application-tutorial" : ""}`}
       style={{
         padding:
           'max(1rem, var(--safe-top, 0px)) max(1rem, var(--safe-right, 0px)) max(1rem, var(--safe-bottom, 0px)) max(1rem, var(--safe-left, 0px))',
@@ -1053,7 +1053,7 @@ export function TutorialModal({
             }}
             className={`touch-target flex-[3] flex items-center justify-center gap-1 py-2.5 rounded-2xl text-sm font-bold text-white bg-gradient-to-r ${topic.color} shadow-lg shadow-black/15 transition-all active:scale-[0.98] hover:brightness-105`}
           >
-            {applicationMode ? '알겠어요' : isLast && mode === 'hidden' ? '알겠어요' : isLast && mode === 'basic' ? '숨은기능 보기' : <>다음 <ArrowRight className="w-4 h-4" /></>}
+            {applicationMode && isLast ? '알겠어요' : isLast && mode === 'hidden' ? '알겠어요' : isLast && mode === 'basic' ? '숨은기능 보기' : <>다음 <ArrowRight className="w-4 h-4" /></>}
           </button>
         </div>
       </div>
