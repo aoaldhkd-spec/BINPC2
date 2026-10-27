@@ -42,13 +42,19 @@ async function restrictToLocal(context: BrowserContext) {
     if (
       url.protocol === "http:" &&
       url.hostname === "127.0.0.1" &&
-      ["3001", "3002"].includes(url.port)
+      url.port === new URL(process.env.HUB_E2E_BASE_URL!).port
     )
       return route.continue();
     return route.abort("blockedbyclient");
   });
 }
-test.beforeEach(async ({ context }) => restrictToLocal(context));
+test.beforeEach(async ({ context },testInfo) => {
+ await restrictToLocal(context);
+ const raw=process.env.HUB_E2E_CLOCK_OFFSET_MS;
+ if(raw&&!testInfo.title.includes('theme expires')){const offset=Number(raw);if(!Number.isFinite(offset)||Math.abs(offset)>365*86400000)throw Error("Invalid explicit internal browser clock");
+  await context.addInitScript((value)=>{const NativeDate=Date;class FixtureDate extends NativeDate{constructor(...args:unknown[]){super(...(args.length?args:[NativeDate.now()+value]) as [string]);}static now(){return NativeDate.now()+value;}}globalThis.Date=FixtureDate as DateConstructor;},offset);
+ }
+});
 test.beforeAll(async ({ request }) => {
   const ready=await (await request.get("/api/db/ready")).json();
   const milestones=eventCycleMilestones(String(ready.settings?.event_cycle_started_at??""));
@@ -354,7 +360,7 @@ test("actual browser + API + PostgreSQL: saved stages, payment recovery, private
   await page
     .getByRole("button", { name: "술번개 입장하기", exact: true })
     .click();
-  await expect(page).toHaveURL(/127\.0\.0\.1:300[12]\/?$/);
+  await expect(page).toHaveURL(/127\.0\.0\.1:300[1235]\/?$/);
   await expect
     .poll(async () => (await application(request, id)).profileId)
     .toBeTruthy();
@@ -383,13 +389,23 @@ test("actual browser + API + PostgreSQL: saved stages, payment recovery, private
   await page
     .getByRole("button", { name: "술번개 입장하기", exact: true })
     .click();
-  await expect(page).toHaveURL(/127\.0\.0\.1:300[12]\/?$/);
+  await expect(page).toHaveURL(/127\.0\.0\.1:300[1235]\/?$/);
   expect((await application(request, id)).profileId).toBe(profileId);
   await expect(page.getByRole("navigation",{name:"참여자 메뉴"})).toBeVisible();
   if(await page.getByTestId("first-entry-coach").isVisible()) await page.getByTestId("first-entry-coach").getByRole("button",{name:"건너뛰기",exact:true}).click();
   await page.getByRole("button",{name:"하트, 채팅",exact:true}).click();
   await expect(page.getByRole("group",{name:"내 고유번호",exact:true})).toBeVisible();
   const originalIdentity=await page.evaluate(()=>localStorage.getItem("matching_app_user_id"));
+  // Real isolated social records: normal participant writes still pass the real ownership guards.
+  const peerId=randomUUID();let chatId='';const profileRow={...(await lookup.json()).data[0],id:peerId,nickname:`복구${suffix.slice(-3)}`,phone:'01000009998',pin_code:'9999'};
+  delete profileRow.event_hub_owner;delete profileRow.event_hub_application;delete profileRow.event_hub_cycle;
+  const peerSeed=await request.post('/api/db/op',{data:{table:'profiles',op:'insert',payload:profileRow,adminToken:token,selectAfterWrite:true}});expect(peerSeed.status()).toBe(200);expect((await peerSeed.json()).error).toBeFalsy();
+  const socialWrite=await page.evaluate(async({me,peer,chat})=>{const {supabase}=await import('/src/lib/supabase.ts');const sent=await supabase.from('likes').insert({liker_id:me,liked_id:peer,status:'pending',heart_type:'red'});return {error:sent.error?.message};},{me:profileId,peer:peerId,chat:chatId});expect(socialWrite.error).toBeFalsy();
+  const chatSeed=await page.evaluate(async({me,peer})=>{const {supabase}=await import('/src/lib/supabase.ts');const r=await supabase.from('chats').insert({user1_id:me,user2_id:peer}).select().single();return {id:r.data?.id,error:r.error?.message};},{me:profileId,peer:peerId});expect(chatSeed.error).toBeFalsy();chatId=String(chatSeed.id);
+  const messageWrite=await page.evaluate(async({me,chat})=>{const {supabase}=await import('/src/lib/supabase.ts');const r=await supabase.from('messages').insert({chat_id:chat,sender_id:me,content:'같은 주기 복구 검증 대화'});return {error:r.error?.message};},{me:profileId,chat:chatId});expect(messageWrite.error).toBeFalsy();
+  async function socialSnapshot(){const result=[];for(const [table,col,val] of [['likes','liker_id',profileId],['messages','chat_id',chatId]]){const r=await request.post('/api/db/op',{data:{table,op:'select',filters:[{col,op:'eq',val}],adminToken:token}});expect(r.status()).toBe(200);const body=await r.json();expect(body.error).toBeFalsy();result.push((body.data??[]).map((v:{id:string})=>v.id).sort());}return result;}
+  const socialBefore=await socialSnapshot();expect(socialBefore.every(ids=>ids.length>0)).toBe(true);
+
   let profileReadMode="empty";
   const partialProfileRead=async (route: import("@playwright/test").Route)=>{
     const body=route.request().postDataJSON();
@@ -418,6 +434,15 @@ test("actual browser + API + PostgreSQL: saved stages, payment recovery, private
   expect(await page.evaluate(()=>localStorage.getItem("matching_app_user_id"))).toBe(originalIdentity);
   await page.screenshot({path:testInfo.outputPath("mobile-profile-resume-api-unavailable.png"),fullPage:true});
   await page.unroute("**/api/db/op",partialProfileRead);
+  await page.getByRole('button',{name:'하트, 채팅',exact:true}).click();
+  await page.context().setOffline(true);
+  const disconnected=await page.evaluate(async()=>{window.dispatchEvent(new Event('focus'));window.dispatchEvent(new Event('offline'));document.dispatchEvent(new Event('visibilitychange'));const {supabase}=await import('/src/lib/supabase.ts');const r=await supabase.from('profiles').select('*');return !!r.error;});expect(disconnected).toBe(true);
+  expect(await page.evaluate(()=>localStorage.getItem('matching_app_user_id'))).toBe(originalIdentity);
+  await expect(page.getByRole('group',{name:'내 고유번호',exact:true})).toBeVisible();
+  await page.context().setOffline(false);await page.reload();
+  await expect(page.getByRole('navigation',{name:'참여자 메뉴'})).toBeVisible();
+  expect(await page.evaluate(()=>localStorage.getItem('matching_app_user_id'))).toBe(originalIdentity);
+  expect(await socialSnapshot()).toEqual(socialBefore);
   expect((await application(request,id)).profileId).toBe(profileId);
   await page.goto(`/events/a/${id}`);
   for (let count = 1; count <= 3; count++) {
@@ -1633,4 +1658,31 @@ test("V3 actual app: phone-only reward record, late-arrival review and eight rec
   await admin.screenshot({path:testInfo.outputPath("v3-eight-logos-actual-admin.png"),fullPage:true});
  }finally{await adminContext.close();}
  await page.screenshot({path:testInfo.outputPath("v3-participant-late-arrival-phone.png"),fullPage:true});
+});
+
+test("administrator verification history and immutable logo upload/select/restore use the actual app and DB",async({page,request},testInfo)=>{
+ expect((await request.get('/api/event-hub/verification')).status()).toBe(403);
+ const evidence=await request.get('/api/event-hub/verification',{headers:adminHeaders});expect(evidence.status()).toBe(200);const history=await evidence.json();expect(history.runs.some((r:{historical:boolean})=>r.historical)).toBe(true);
+ await page.addInitScript(value=>{localStorage.setItem('admin_token_v1',value);localStorage.setItem('admin_session_v1',JSON.stringify({phone:'01000000000',authedAt:Date.now()}));},token!);
+ await page.goto('/admin');await page.getByRole('button',{name:'🎉 술번개',exact:true}).click();await page.getByRole('combobox',{name:'관리할 행사',exact:true}).selectOption(eventId);
+ await page.getByRole('button',{name:'행사·자동방',exact:true}).click();
+ const logo=page.locator('section').filter({has:page.getByRole('heading',{name:'행사 장소 로고 (승인 후 공개)',exact:true})});
+ await logo.getByText('새 원본 업로드 · 미리보기 후 저장',{exact:true}).click();
+ const original=readFileSync(new URL('../public/tour-logos-v3/on_top.png',import.meta.url));
+ await logo.getByLabel('새 로고 원본 파일').setInputFiles({name:'provided-on-top.png',mimeType:'image/png',buffer:original});
+ await expect(logo.getByAltText('저장 전 새 로고 미리보기')).toBeVisible();
+ await logo.getByLabel('로고 이름',{exact:true}).fill('격리 ON TOP 원본 A');await logo.getByRole('button',{name:'미리본 원본 저장 (아직 미연결)',exact:true}).click();
+ await expect.poll(async()=>{const s=await(await request.get('/api/event-hub/admin',{headers:adminHeaders})).json();return s.events.find((e:{id:string})=>e.id===eventId).logoVersions?.length??0;}).toBe(1);
+ let e=(await(await request.get('/api/event-hub/admin',{headers:adminHeaders})).json()).events.find((e:{id:string})=>e.id===eventId);const a=e.logoVersions[0];expect(e.venueLogoVersionId).toBeUndefined();
+ await logo.getByLabel('저장한 장소용 로고 버전').selectOption(a.id);await logo.getByRole('button',{name:'선택한 로고를 행사에 연결',exact:true}).click();
+ await expect.poll(async()=>{const s=await(await request.get('/api/event-hub/admin',{headers:adminHeaders})).json();return s.events.find((e:{id:string})=>e.id===eventId).venueLogoVersionId;}).toBe(a.id);
+ await logo.getByText('새 원본 업로드 · 미리보기 후 저장',{exact:true}).click();await logo.getByLabel('새 로고 원본 파일').setInputFiles({name:'provided-on-top-v2.png',mimeType:'image/png',buffer:original});await logo.getByLabel('로고 이름',{exact:true}).fill('격리 ON TOP 원본 B');await logo.getByRole('button',{name:'미리본 원본 저장 (아직 미연결)',exact:true}).click();
+ await expect.poll(async()=>{const s=await(await request.get('/api/event-hub/admin',{headers:adminHeaders})).json();return s.events.find((e:{id:string})=>e.id===eventId).logoVersions?.length;}).toBe(2);
+ e=(await(await request.get('/api/event-hub/admin',{headers:adminHeaders})).json()).events.find((e:{id:string})=>e.id===eventId);const b=e.logoVersions[1];await logo.getByLabel('저장한 장소용 로고 버전').selectOption(b.id);await logo.getByRole('button',{name:'선택한 로고를 행사에 연결',exact:true}).click();
+ await expect.poll(async()=>{const s=await(await request.get('/api/event-hub/admin',{headers:adminHeaders})).json();return s.events.find((e:{id:string})=>e.id===eventId).venueLogoVersionId;}).toBe(b.id);
+ await logo.getByText(/원본·변경 이력과 이전 버전 복원/).click();const row=logo.locator('article').filter({hasText:'격리 ON TOP 원본 A'});await row.getByRole('button',{name:'이 버전으로 복원',exact:true}).click();
+ await expect.poll(async()=>{const s=await(await request.get('/api/event-hub/admin',{headers:adminHeaders})).json();return s.events.find((e:{id:string})=>e.id===eventId).venueLogoVersionId;}).toBe(a.id);
+ const bytes=await request.get(a.url,{headers:adminHeaders});expect(bytes.status()).toBe(200);expect(await bytes.body()).toEqual(original);
+ await logo.getByText(/원본·변경 이력과 이전 버전 복원/).click();await page.screenshot({path:testInfo.outputPath('admin-logo-original-restore.png'),fullPage:true});
+ await page.getByRole('button',{name:'운영 점검',exact:true}).click();await expect(page.getByRole('heading',{name:'코드 버전별 실제 검사결과',exact:true})).toBeVisible();await expect(page.getByText(/현재 코드 버전 검사결과: 미실행/)).toBeVisible();await page.getByText(/과거 버전 · github-40532639584/).click();await expect(page.getByText(/물리 기기 미검증/)).toBeVisible();await page.screenshot({path:testInfo.outputPath('admin-verification-real-history.png'),fullPage:true});
 });

@@ -28,7 +28,7 @@ export type PrivateApplication = Omit<HubApplication, "rank" | "owner"> & {
     included: string;
     deposit: number;
   };
-  venue?: { address: string; mapUrl: string; logoId?: string };
+  venue?: { address: string; mapUrl: string; logoId?: string; logo?: {url:string;label:string;width:number;height:number}; thanksLogo?: {url:string;label:string;width:number;height:number} };
   resultDetails?: HubApplication["cards"];
 };
 export type HubThread = {
@@ -42,6 +42,8 @@ export type HubThread = {
 };
 export type HubState = {
   serverNow?: string;
+  privacyNotice?:{policyVersion:string;controllerName:string;contact:string;notice:string;fingerprint:string;periods:{purpose:string;days:number|null}[]};
+  publicationBlocked?:boolean;
   privacyPolicy?: import("../../../../lib/api-zod/src/event-hub-privacy").PrivacyPolicy;
   privacyCase?: Pick<
     import("../../../../lib/api-zod/src/event-hub-privacy").PrivacyCase,

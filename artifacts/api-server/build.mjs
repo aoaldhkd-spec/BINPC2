@@ -1,10 +1,14 @@
+import {codeFingerprint} from "../../scripts/lib/code-fingerprint.mjs";
 import { createRequire } from "node:module";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { build as esbuild } from "esbuild";
 import esbuildPluginPino from "esbuild-plugin-pino";
 import { cp, rm } from "node:fs/promises";
-import { existsSync } from "node:fs";
+import { existsSync,readFileSync } from "node:fs";
+import { execFileSync } from "node:child_process";
+import { createHash } from "node:crypto";
+import { writeFile } from "node:fs/promises";
 
 // Plugins (e.g. 'esbuild-plugin-pino') may use `require` to resolve dependencies
 globalThis.require = createRequire(import.meta.url);
@@ -131,6 +135,17 @@ globalThis.__dirname = __bannerPath.dirname(globalThis.__filename);
     path.join(artifactDir,"migrations/20261027_event_hub.sql"),
     path.join(distDir,"event-hub-schema.sql"),
   );
+
+  const repoRoot=path.resolve(artifactDir,"../..");
+  let sourceVersion="UNKNOWN";
+  try{
+    const sha=execFileSync("git",["rev-parse","HEAD"],{cwd:repoRoot,encoding:"utf8"}).trim();
+    const dirty=execFileSync("git",["status","--porcelain","--untracked-files=normal"],{cwd:repoRoot,encoding:"utf8"}).trim();
+    sourceVersion=sha;
+    if(dirty){const hash=createHash("sha256");hash.update(execFileSync("git",["diff","HEAD","--binary"],{cwd:repoRoot}));for(const f of execFileSync("git",["ls-files","--others","--exclude-standard","artifacts/api-server/src","artifacts/boltnew-app/src","lib/api-zod/src","scripts"],{cwd:repoRoot,encoding:"utf8"}).trim().split("\n").filter(Boolean)){hash.update(f);hash.update(readFileSync(path.join(repoRoot,f)));}sourceVersion+=`-dirty-${hash.digest("hex").slice(0,12)}`;}
+  }catch{/* No verified version => historical results only. */}
+  await writeFile(path.join(distDir,"build-identity.json"),JSON.stringify({sourceVersion,codeFingerprint:(()=>{try{return codeFingerprint(repoRoot);}catch{return undefined;}})(),builtAt:new Date().toISOString()}));
+  await cp(path.join(artifactDir,"verification/history.json"),path.join(distDir,"verification-history.json"));
 
   const frontendDist = path.resolve(artifactDir, "../boltnew-app/dist/public");
   const publicDir = path.resolve(distDir, "public");

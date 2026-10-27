@@ -1,3 +1,5 @@
+import { persistenceFailureCode } from "../lib/persistence-failure.js";
+import { readVerificationEvidence } from "../lib/event-verification.js";
 import { Router, type Request } from "express";
 import { z } from "@workspace/api-zod";
 import { pgPool } from "../lib/pg-pool.js";
@@ -30,6 +32,7 @@ router.use((req, res, next) => {
       .json({ code: "ORIGIN", error: "같은 사이트에서 요청해 주세요." });
   return next();
 });
+router.get("/verification",async(req,res,next)=>{try{if(!admin(req))throw new HubError(403,"ADMIN","관리자 인증이 필요합니다.");res.json(await readVerificationEvidence());}catch(e){next(e);}});
 router.get("/state", async (req, res, next) => {
   try {
     res.json({
@@ -253,7 +256,7 @@ router.use(
       return;
     }
     // Never log request bodies, credentials, PII or raw DB error detail.
-    const code = (err as { code?: string })?.code ?? "UNKNOWN";
+    const code = persistenceFailureCode(err);
     const safeRequestId =
       requestId && /^[a-f0-9-]{36}$/i.test(requestId) ? requestId : undefined;
     logger.error(

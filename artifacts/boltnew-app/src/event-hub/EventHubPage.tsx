@@ -446,6 +446,7 @@ export function BasicForm({
             revision: app?.revision,
             data: {
               eventId,
+              privacyPolicyFingerprint:hub.state?.privacyNotice?.fingerprint,
               edit: !!app,
               basic: {
                 ...v,
@@ -491,13 +492,13 @@ export function BasicForm({
         ))}
         <details className="text-sm">
           <summary>개인정보 수집 안내 · 보유기간</summary>
-          <p className="py-3">
+          {hub.state?.privacyNotice?<div className="py-3 space-y-2"><p>{hub.state.privacyNotice.policyVersion} · {hub.state.privacyNotice.controllerName} · 문의 {hub.state.privacyNotice.contact}</p><p className="whitespace-pre-wrap">{hub.state.privacyNotice.notice}</p><ul>{hub.state.privacyNotice.periods.map(r=><li key={r.purpose}>{({application:"신청·행사",finance:"입금·분쟁",member:"회원 재사용",inquiry:"문의",audit:"운영 이력",recovery:"세션·복구",backup:"백업"} as Record<string,string>)[r.purpose]??r.purpose}: {r.days??"미확정"}일</li>)}</ul><p>보류·백업 예외는 확정 고지 원문에서 확인하세요.</p></div>:<p className="py-3">
             행사 운영자가 신청 처리·입금 확인·연락을 위해
             닉네임·출생연도·지역·연락처·입금자명을 수집합니다. 행사 운영기록은
             기본 {hub.state?.retentionDays ?? 180}일의 보관 검토기간을 사용하며
             법정 보관이 필요한 기록은 별도 정책을 따릅니다. 필수 수집을 거부하면
             신청할 수 없습니다. 현장 공개 프로필은 입장 승인 후에만 생성합니다.
-          </p>
+          </p>}
         </details>
         <HubCheck
           label="[필수] 위 개인정보 수집·이용 안내를 확인하고 동의합니다"
@@ -816,7 +817,7 @@ export function WaitingRoom({
         )}
       </HubCard>
       <HubCard>
-        {event.type==="tour"&&<GoraeThanks/>}
+        {event.type==="tour"&&<GoraeThanks logo={app.venue?.thanksLogo}/>}
         <ParticipantOperations app={app} event={event} hub={hub}/>
         {app.eligibility && <ScreeningPhoto app={app} hub={hub} />}
         <h2 className="font-black">{event.title}</h2>
@@ -889,6 +890,7 @@ export function WaitingRoom({
             `${event.area} · 상세 주소는 입금 승인 후 공개`}
         </p>
         {app.venue?.logoId && <VenueLogo id={app.venue.logoId}/>}
+        {app.venue?.logo && <figure><img src={app.venue.logo.url} alt={app.venue.logo.label} width={app.venue.logo.width} height={app.venue.logo.height} className="h-36 max-w-full object-contain bg-white rounded-xl"/><figcaption>{app.venue.logo.label}</figcaption></figure>}
         {app.venue?.mapUrl && (
           <a
             className="underline text-teal-700"

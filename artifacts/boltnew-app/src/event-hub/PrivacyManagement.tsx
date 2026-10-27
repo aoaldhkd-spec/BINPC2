@@ -33,6 +33,10 @@ export function PrivacyManagement({ hub }: { hub: HubController }) {
     <div className="space-y-4">
       <HubCard>
         <h3 className="font-black">목적별 보관·파기 정책 초안</h3>
+        <p>상태: {policy.status} · 정책 확정과 운영 공개 승인은 별개입니다. 값을 수정해 저장하면 다시 초안이 됩니다. 실제 삭제·자동 파기는 이 화면에서 실행하지 않습니다.</p>
+        {(['policyVersion','controllerName','contact'] as const).map((field,i)=><HubField key={field} label={['정책 버전','운영 책임 주체','개인정보 문의처'][i]}><input className={inputClass} value={policy[field]??''} maxLength={field==='policyVersion'?100:field==='contact'?300:200} onChange={e=>setPolicy({...policy,[field]:e.target.value})}/></HubField>)}
+        {policy.publicationFingerprint&&<p className="text-xs break-all">확정 정책 지문: {policy.publicationFingerprint}</p>}
+
         <p className="text-sm text-amber-800">
           운영 정책은 아직 미확정입니다. 초안 저장·파기 계획 검토만 제공하며
           자동 파기나 운영 데이터 삭제는 실행하지 않습니다.
@@ -98,6 +102,7 @@ export function PrivacyManagement({ hub }: { hub: HubController }) {
             }
           />
         </HubField>
+        <details><summary>사진 수집을 별도 승인할 때만 작성</summary><HubField label="사진 보관기간 초안 (일)"><input className={inputClass} type="number" min={1} max={3650} value={policy.photoRule?.days??''} onChange={e=>setPolicy({...policy,photoRule:{days:e.target.value?Number(e.target.value):null,basis:policy.photoRule?.basis??''}})}/></HubField><HubField label="사진 수집·보관 근거와 예외"><textarea className={inputClass} value={policy.photoRule?.basis??''} onChange={e=>setPolicy({...policy,photoRule:{days:policy.photoRule?.days??null,basis:e.target.value}})}/></HubField><HubField label="사진 별도 동의 고지 원문"><textarea className={inputClass} value={policy.photoNotice??''} onChange={e=>setPolicy({...policy,photoNotice:e.target.value})}/></HubField></details>
         <div className="flex flex-wrap gap-2">
           <HubButton
             disabled={hub.status === "saving"}
@@ -109,11 +114,12 @@ export function PrivacyManagement({ hub }: { hub: HubController }) {
                   data: { ...policy, status: "draft" },
                 })
               )
-                setPolicy({ ...policy, revision: policy.revision + 1 });
+                setPolicy({ ...policy, status:"draft",approvedAt:undefined,publicationFingerprint:undefined,revision: policy.revision + 1 });
             }}
           >
             정책 초안 저장
           </HubButton>
+          <HubButton disabled={hub.status==="saving"||policy.status==="approved"} onClick={async()=>{if(!window.confirm('저장된 최신 정책 원문·모든 목적별 기간·백업 절차를 확정했습니까? 정책 확정만 기록하며 모집·사진·파기를 켜지 않습니다.'))return;const r=await hub.mutate({action:'admin.privacy.policy.approve',revision:policy.revision,data:{confirmed:true}});if(r)setPolicy({...policy,status:'approved',revision:policy.revision+1,publicationFingerprint:String(r.policyFingerprint)});}}>저장된 정책 확정 기록 (모집은 별도 승인)</HubButton>
           <HubButton
             onClick={() =>
               setPolicy(hub.state?.privacyPolicy ?? DEFAULT_PRIVACY_POLICY)

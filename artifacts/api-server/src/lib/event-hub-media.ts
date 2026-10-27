@@ -8,6 +8,7 @@ export type HubMedia = {
   mime: string;
   base64: string;
   createdAt: string;
+  purpose?: "venue-logo";
 };
 /** Bounded, signature-checked, passive formats only. No filenames or external storage credentials. */
 export function validateHubMedia(raw: unknown) {

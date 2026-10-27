@@ -71,6 +71,8 @@ export function participantApplication(a: HubApplication, e: HubEvent) {
           ? h.reason
           : undefined,
     }));
+  const thanksLogo=e.logoVersions?.find(v=>v.id===e.thanksLogoVersionId&&v.role==="thanks");
+  const selectedLogo=e.logoVersions?.find(v=>v.id===e.venueLogoVersionId&&v.role==="venue");
   return {
     ...safe,
     manualResults: manualResults?.map(({reason:_reason,...r})=>r),
@@ -93,7 +95,7 @@ export function participantApplication(a: HubApplication, e: HubEvent) {
         }
       : {}),
     ...(paymentSatisfied(a)
-      ? { venue: { address: e.address, logoId: e.venueLogoId, mapUrl: e.mapUrl } }
+      ? { venue: { address: e.address, logoId: selectedLogo?undefined:e.venueLogoId, thanksLogo:thanksLogo?{url:thanksLogo.url,label:thanksLogo.label,width:thanksLogo.width,height:thanksLogo.height}:undefined, logo:selectedLogo?{url:selectedLogo.url,label:selectedLogo.label,width:selectedLogo.width,height:selectedLogo.height}:undefined, mapUrl: e.mapUrl } }
       : {}),
   };
 }

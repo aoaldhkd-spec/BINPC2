@@ -66,9 +66,14 @@ jobs:
       - name: Actual PostgreSQL invariants and existing reset safety
         run: pnpm --filter @workspace/api-server exec vitest run src/lib/event-hub.pg.test.ts src/lib/db-event-reset-transaction.pg.test.ts
       - run: pnpm --filter @workspace/boltnew-app exec playwright install --with-deps chromium
+      - name: Pin an explicit internal business clock for admission and mobile regression
+        run: |
+          OFFSET=$(node -e "process.stdout.write(String(Date.parse('2026-10-30T15:10:00Z')-Date.now()))")
+          echo "HUB_LOAD_CLOCK_OFFSET_MS=$OFFSET" >> "$GITHUB_ENV"
+          echo "HUB_E2E_CLOCK_OFFSET_MS=$OFFSET" >> "$GITHUB_ENV"
       - name: Start dedicated local API and frontend
         run: |
-          PORT=8081 node artifacts/api-server/dist/index.mjs > /tmp/event-hub-api.log 2>&1 &
+          PORT=8081 node --import ./scripts/event-hub-load-clock.mjs artifacts/api-server/dist/index.mjs > /tmp/event-hub-api.log 2>&1 &
           PORT=3001 pnpm dev > /tmp/event-hub-vite.log 2>&1 &
           for attempt in $(seq 1 30); do
             if curl -fsS http://127.0.0.1:3001/api/healthz > /dev/null; then break; fi
@@ -78,6 +83,10 @@ jobs:
       - run: node scripts/prepare-event-hub-e2e.mjs activate
       - name: Browser recovery, inquiry, layout and 100-session HTTP tests
         run: pnpm --filter @workspace/boltnew-app exec playwright test --config playwright.event-hub.config.ts --reporter=line,github
+      - name: Actual 150-person HTTP/PostgreSQL mixed regression on accumulated records
+        env:
+          HUB_LOAD_DB_PASSWORD: isolated-ci-password
+        run: node scripts/event-hub-http-soak.mjs --mode mixed --minutes 1 --port 8120
       - name: Preserve synthetic actual-app screenshots and videos
         if: always()
         uses: actions/upload-artifact@v4
@@ -87,4 +96,6 @@ jobs:
           path: |
             artifacts/boltnew-app/test-results/event-hub-v6/**/*.png
             artifacts/boltnew-app/test-results/event-hub-v6/**/*.webm
+            artifacts/api-server/dist/build-identity.json
+            .local/v6-finish/*-result.json
           if-no-files-found: ignore

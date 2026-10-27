@@ -15,6 +15,11 @@ const Rule = z.object({
 });
 export const PrivacyPolicyInput = z.object({
   status: z.literal("draft"),
+  policyVersion:z.string().trim().max(100).optional(),
+  controllerName:z.string().trim().max(200).optional(),
+  contact:z.string().trim().max(300).optional(),
+  photoRule:Rule.optional(),
+  photoNotice:z.string().trim().max(4000).optional(),
   notice: z.string().trim().max(10000),
   backupProcedure: z.string().trim().max(4000),
   rules: z.object({
@@ -27,7 +32,10 @@ export const PrivacyPolicyInput = z.object({
     backup: Rule,
   }),
 });
-export type PrivacyPolicy = z.infer<typeof PrivacyPolicyInput> & {
+export type PrivacyPolicy = Omit<z.infer<typeof PrivacyPolicyInput>,"status"> & {
+  status:"draft"|"approved";
+  approvedAt?:string;
+  publicationFingerprint?:string;
   revision: number;
   updatedAt?: string;
   history?: { at: string; actor: string; action: string; reason?: string }[];

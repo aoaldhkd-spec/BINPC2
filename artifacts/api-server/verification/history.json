@@ -1,0 +1,90 @@
+{
+  "schemaVersion": 1,
+  "runs": [
+    {
+      "id": "github-40532639584",
+      "sourceVersion": "5e41ada43b5e44cfe9e368fd43ee4af639d3b5e1",
+      "environment": "GitHub Actions Ubuntu24.04 · 실제 React/Express · PostgreSQL16 격리 DB · Chromium",
+      "startedAt": "2026-10-27T15:36:26Z",
+      "finishedAt": "2026-10-27T15:40:35Z",
+      "reportUrl": "https://github.com/aoaldhkd-spec/BINPC2/actions/runs/40532639584",
+      "checks": [
+        {
+          "id": "build",
+          "title": "실제 앱 빌드",
+          "kind": "build",
+          "status": "PASS"
+        },
+        {
+          "id": "unit",
+          "title": "기존 단위 회귀검사",
+          "kind": "unit",
+          "status": "PASS",
+          "count": 1370
+        },
+        {
+          "id": "postgres",
+          "title": "격리 PostgreSQL 정합성·17시 초기화",
+          "kind": "postgres",
+          "status": "PASS",
+          "count": 74
+        },
+        {
+          "id": "browser",
+          "title": "실제 React/API/DB 브라우저·100세션",
+          "kind": "browser",
+          "status": "PASS",
+          "count": 11
+        },
+        {
+          "id": "guards",
+          "title": "기존 기능 보호검사",
+          "kind": "guard",
+          "status": "PASS",
+          "count": 598
+        },
+        {
+          "id": "physical",
+          "title": "Galaxy/iPhone 실제 기기",
+          "kind": "physical-device",
+          "status": "UNKNOWN",
+          "reason": "물리 기기 미검증. Chromium을 실기기 통과로 표시하지 않음."
+        }
+      ]
+    },
+    {
+      "id": "github-40529872317",
+      "sourceVersion": "334ba3094f02b3b67af6f8d8c6bc9c30ec8f3c90",
+      "environment": "GitHub Actions · 실제 앱/격리 PostgreSQL · Chromium",
+      "startedAt": "2026-10-27T15:19:48Z",
+      "reportUrl": "https://github.com/aoaldhkd-spec/BINPC2/actions/runs/40529872317",
+      "checks": [
+        {
+          "id": "browser",
+          "title": "모바일 복귀 브라우저 검사",
+          "kind": "browser",
+          "status": "FAIL",
+          "reason": "자정 무지개 안내가 coach 클릭을 가림. 후속620fda2d에서 실제 확인 버튼으로 시험 순서를 수정. 원문 실행시각은 연결된 GitHub 실행 참조."
+        }
+      ],
+      "finishedAt": "2026-10-27T15:24:28Z"
+    },
+    {
+      "id": "github-40530360225",
+      "sourceVersion": "932b84010b0f77fc691e4665f1d0749352a11bf4",
+      "environment": "GitHub Actions · 실제 앱/격리 PostgreSQL · Chromium",
+      "startedAt": "2026-10-27T15:22:46Z",
+      "reportUrl": "https://github.com/aoaldhkd-spec/BINPC2/actions/runs/40530360225",
+      "checks": [
+        {
+          "id": "browser",
+          "title": "모바일 복귀 브라우저 검사",
+          "kind": "browser",
+          "status": "FAIL",
+          "reason": "자정 무지개 안내가 coach 클릭을 가림. 후속620fda2d에서 실제 확인 버튼으로 시험 순서를 수정. 원문 실행시각은 연결된 GitHub 실행 참조."
+        }
+      ],
+      "finishedAt": "2026-10-27T15:28:05Z"
+    }
+  ]
+}

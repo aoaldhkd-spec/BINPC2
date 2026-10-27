@@ -1,4 +1,5 @@
-import { productionHubBlocked } from "./private-preview.js";
+import { validateLogoOriginal } from "./event-hub-logo.js";
+import { publicationBlockedForTx, photoPublicationBlockedForTx, policyCompletionIssue, policyFingerprint, publicPolicyNotice } from "./event-hub-publication.js";
 import { applyScheduledRecruitment, applyApplicationOperation, recruitmentConfigurationIssue } from "./event-operations.js";
 import { halloweenTiming, tourFirstTiming } from "@workspace/api-zod";
 import {
@@ -307,6 +308,7 @@ export class EventHubService {
   async state(owner?: string, admin = false) {
     return this.store.transaction(async (tx) => {
       const enabled = await this.enabled(tx);
+      const publicationBlocked = await publicationBlockedForTx(tx);
       const account = owner
         ? await tx.get<HubOwner>("owner", owner)
         : undefined;
@@ -349,7 +351,7 @@ export class EventHubService {
             .filter(
               (e) =>
                 (enabled &&
-                  !productionHubBlocked() &&
+                  !publicationBlocked &&
                   (recruitmentIsOpen(e, this.now()) || (e.scheduleEnabled && !e.schedulePaused && !eventEnded(e,this.now())))) ||
                 apps.some((a) => a.eventId === e.id),
             )
@@ -381,7 +383,7 @@ export class EventHubService {
               })),
               recruitment:
                 enabled &&
-                !productionHubBlocked() &&
+                !publicationBlocked &&
                 recruitmentIsOpen(e, this.now()),
               cardsEnabled:
                 enabled &&
@@ -407,9 +409,8 @@ export class EventHubService {
               events.find((e) => e.id === a.eventId)!,
             ),
           );
-      const threads = (await tx.all<HubThread>("thread")).filter(
-        (t) => admin || t.id === owner,
-      );
+      const ownThread = !admin && owner ? await tx.get<HubThread>("thread",owner) : undefined;
+      const threads = admin ? await tx.all<HubThread>("thread") : ownThread ? [ownThread] : [];
       const stocks = admin ? await tx.all<HubStock>("stock") : [];
       const settings = admin
         ? ((await tx.get<HubSettings>("settings", "global")) ??
@@ -438,7 +439,10 @@ export class EventHubService {
             at: string;
           }>("error")
         : undefined;
+      const publicationPolicy=await tx.get<PrivacyPolicy>("settings","privacy-policy");
       return {
+        privacyNotice:publicPolicyNotice(publicationPolicy),
+        publicationBlocked:admin?publicationBlocked:undefined,
         retentionDays:
           (await tx.get<HubSettings>("settings", "global"))?.retentionDays ??
           180,
@@ -526,6 +530,7 @@ export class EventHubService {
       if (!owner && !admin)
         fail("AUTH", "개인 신청 세션을 먼저 복구해 주세요.", 401);
       const enabled = await this.enabled(tx);
+      const publicationBlocked = await publicationBlockedForTx(tx);
       await applyScheduledRecruitment(tx, this.now(), enabled);
       const requireEnabled = () => {
         if (!enabled)
@@ -548,6 +553,29 @@ export class EventHubService {
       };
       if (m.action.startsWith("campaign.")) {
         Object.assign(result, await campaignAction(tx, m, admin, now));
+      } else if (m.action === "event.logo.upload") {
+        requireAdmin();
+        const e = await this.event(tx,m.target); revision(e.revision);
+        const file = validateLogoOriginal(m.data);
+        const existing=e.logoVersions?.find(v=>v.sha256===file.sha256&&v.label===file.label&&v.role===file.role&&v.provenance===file.provenance);
+        if(existing){result.versionId=existing.id;result.mediaUrl=existing.url;}
+        else {
+          if((e.logoVersions?.length??0)>=40)fail("LOGO_LIMIT","행사별 원본40개 한도입니다. 기존 원본은 삭제하지 않았습니다.");
+          const id=randomUUID(),url=`/api/event-hub/media/${id}.${file.extension}`;
+          await tx.put("settings",`media:${id}`,{id,eventId:e.id,mime:file.mime,base64:file.base64,createdAt:now,purpose:"venue-logo"});
+          e.logoVersions=[...(e.logoVersions??[]),{id,url,label:file.label,role:file.role,provenance:file.provenance,sourceNote:file.sourceNote,mime:file.mime,width:file.width,height:file.height,size:file.size,sha256:file.sha256,at:now}];
+          e.revision++;e.history.push(audit(actor,"event.logo.upload",now,id));await tx.put("event",e.id,e);
+          result.versionId=id;result.mediaUrl=url;
+        }
+      } else if (m.action === "event.logo.select") {
+        requireAdmin();
+        const e=await this.event(tx,m.target);revision(e.revision);
+        const choice=z.object({versionId:z.string().uuid().nullable(),builtinId:z.enum(["red_hole","fake","jack","m_karaoke","speed","check_in","on_top"]).optional(),restore:z.boolean().default(false),area:z.enum(["venue","thanks"]).default("venue")}).parse(m.data);
+        if(choice.versionId){const v=e.logoVersions?.find(v=>v.id===choice.versionId);if(!v||v.role!==choice.area)fail("LOGO","이 행사의 장소용 로고만 연결할 수 있습니다.");}
+        if(choice.area==="thanks")e.thanksLogoVersionId=choice.versionId??undefined;
+        else {e.venueLogoVersionId=choice.versionId??undefined;e.venueLogoId=choice.versionId?undefined:choice.builtinId;}
+        e.revision++;e.history.push(audit(actor,choice.restore?"event.logo.restore":"event.logo.select",now,choice.versionId??choice.builtinId??"text-only"));
+        await tx.put("event",e.id,e);result.id=e.id;
       } else if (m.action === "event.media.upload") {
         requireAdmin();
         const e = await this.event(tx, m.target);
@@ -581,6 +609,7 @@ export class EventHubService {
           recruitment: old?.recruitment ?? false,
           nextRank: old?.nextRank ?? 0,
           history: [...(old?.history ?? []), audit(actor, "event.save", now)],
+          logoVersions: old?.logoVersions,
         };
         if (
           old?.campaign &&
@@ -594,6 +623,8 @@ export class EventHubService {
           );
         if (!old && e.campaign)
           fail("CAMPAIGN_PRESET", "전용 행사 초안 준비에서 생성해 주세요.");
+        if(e.thanksLogoVersionId && !e.logoVersions?.some(v=>v.id===e.thanksLogoVersionId&&v.role==="thanks"))fail("LOGO","이 행사의 감사용 원본만 연결할 수 있습니다.");
+        if(e.venueLogoVersionId && !e.logoVersions?.some(v=>v.id===e.venueLogoVersionId&&v.role==="venue"))fail("LOGO","이 행사에 저장한 장소용 원본만 연결할 수 있습니다.");
         for (const url of e.media) {
           const match = HUB_MEDIA_PATH.exec(url);
           if (match) {
@@ -631,7 +662,7 @@ export class EventHubService {
         const data=z.object({enabled:z.boolean(),paused:z.boolean()}).parse(m.data);
         if (data.enabled && !data.paused) {
           requireEnabled();
-          if (productionHubBlocked()) fail("PRIVACY_POLICY_UNCONFIRMED","운영 개인정보 정책·배포 승인이 미확정입니다.",403);
+          if (publicationBlocked) fail("PRIVACY_POLICY_UNCONFIRMED","운영 개인정보 정책·배포 승인이 미확정입니다.",403);
           if (!e.opensAt || recruitmentConfigurationIssue(e)) fail("CONFIG",recruitmentConfigurationIssue(e)??"예약 시작 시각을 입력하세요.");
         }
         e.scheduleEnabled=data.enabled; e.schedulePaused=data.paused;
@@ -647,7 +678,7 @@ export class EventHubService {
         const on = z.boolean().parse(m.data.enabled);
         if (on && eventEnded(e, this.now()))
           fail("EVENT_ENDED", "종료된 행사의 신규 접수는 열 수 없습니다.", 403);
-        if (on && productionHubBlocked())
+        if (on && publicationBlocked)
           fail(
             "PRIVACY_POLICY_UNCONFIRMED",
             "운영 개인정보 정책이 미확정입니다. 운영 모집 공개는 검토·승인 전 차단됩니다.",
@@ -722,7 +753,7 @@ export class EventHubService {
         });
       } else if (m.action === "application.basic") {
         requireEnabled();
-        if (productionHubBlocked())
+        if (publicationBlocked)
           fail(
             "PRIVACY_POLICY_UNCONFIRMED",
             "운영 개인정보 정책 확정 전 신규 신청은 차단됩니다.",
@@ -742,6 +773,8 @@ export class EventHubService {
         if (e.campaign && m.data.round !== undefined && m.data.round !== 1)
           fail("ROUND", "BINPC2는 1차만 신청받습니다.");
         const basic = HubBasic.parse(m.data.basic);
+        const policy=await tx.get<PrivacyPolicy>("settings","privacy-policy");
+        if(process.env.NODE_ENV==="production" && publicPolicyNotice(policy) && m.data.privacyPolicyFingerprint!==policyFingerprint(policy!))fail("PRIVACY_NOTICE_CHANGED","개인정보 안내가 변경되었습니다. 최신 안내를 확인한 뒤 같은 신청을 이어가세요.",409);
         if (!isAdultBirthYear(basic.birthYear, this.now()))
           fail("ADULT", "성인 참가 조건을 확인해 주세요.");
         if (
@@ -830,6 +863,7 @@ export class EventHubService {
               stage: 2,
               rank: e.nextRank,
               basic,
+              ...(publicPolicyNotice(policy)?{privacyPolicyConsent:{version:policy!.policyVersion!,fingerprint:policyFingerprint(policy!),at:now}}:{}),
               payment: "none",
               attendance: "pending",
               checkin: false,
@@ -984,7 +1018,7 @@ export class EventHubService {
               "사진 수집 동의는 신청자 본인이 제출해야 합니다.",
               403,
             );
-          if (productionHubBlocked())
+          if (publicationBlocked || await photoPublicationBlockedForTx(tx))
             fail(
               "PRIVACY_POLICY_UNCONFIRMED",
               "사진 보관·백업 정책 승인 전 운영 업로드는 차단됩니다.",
@@ -1364,6 +1398,9 @@ export class EventHubService {
             fail("PRIZE", "당첨 기록이 없거나 이미 지급했습니다.", 409);
           a.prizesGiven.push(card);
         } else fail("ACTION", "지원하지 않는 신청 동작입니다.");
+        // Admission replays still re-check cycle, consent, ownership and device binding above.
+        // They must not advance the application revision or duplicate its durable audit.
+        if (!prior) {
         a.revision++;
         a.updatedAt = now;
         a.history.push(
@@ -1377,6 +1414,7 @@ export class EventHubService {
           ),
         );
         await tx.put("application", a.id, a);
+        }
         result.id = a.id;
       } else if (m.action === "admin.owner.restrict") {
         requireAdmin();
@@ -1395,6 +1433,11 @@ export class EventHubService {
           ),
         ];
         await tx.put("owner", own.id, own);
+      } else if (m.action === "admin.privacy.policy.approve") {
+        requireAdmin();const p=await tx.get<PrivacyPolicy>("settings","privacy-policy");if(!p)fail("PRIVACY_POLICY","먼저 정책 초안을 저장하세요.");revision(p.revision);
+        const issue=policyCompletionIssue(p);if(issue||m.data.confirmed!==true)fail("PRIVACY_POLICY",issue??"확정 원문과 목적별 기간·백업 절차를 직접 확인하세요.");
+        p.status="approved";p.approvedAt=now;p.publicationFingerprint=policyFingerprint(p);p.revision++;p.updatedAt=now;p.history=[...(p.history??[]),audit(actor,"privacy.policy.approved",now)];await tx.put("settings","privacy-policy",p);
+        result.policyFingerprint=p.publicationFingerprint;
       } else if (m.action === "admin.privacy.policy") {
         requireAdmin();
         const old =
@@ -1661,7 +1704,7 @@ export class EventHubService {
       } else fail("ACTION", "지원하지 않는 동작입니다.");
       // Recovery codes are one-time responses, never durable receipt payloads.
       const { recoveryCode: _recoveryCode, ...receiptResult } = result;
-      await tx.put("request", key, {
+      if (!prior) await tx.put("request", key, {
         hash,
         result: receiptResult,
         owner: admin ? undefined : owner,
@@ -1819,7 +1862,7 @@ export class EventHubService {
       if (!file) fail("MEDIA", "자료에 접근할 수 없습니다.", 404);
       if (!admin) {
         const account = await tx.get<HubOwner>("owner", owner);
-        const apps = await tx.all<HubApplication>("application");
+        const apps = await tx.applicationsForOwner<HubApplication>(owner);
         if (
           !account ||
           account.erasedAt ||

@@ -68,6 +68,8 @@ export const HubEventInput = z.object({
   benefitsClosesAt: z.string().datetime().optional(),
   lateReviewAfter: z.string().datetime().optional(),
   venueLogoId: z.enum(["red_hole","fake","jack","m_karaoke","speed","check_in","on_top"]).optional(),
+  venueLogoVersionId: z.string().uuid().optional(),
+  thanksLogoVersionId: z.string().uuid().optional(),
   title: z.string().trim().min(1).max(100),
   type: z.enum(["normal", "halloween", "tour", "custom"]).default("normal"),
   date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
@@ -107,7 +109,9 @@ export const HubEventInput = z.object({
     .max(10)
     .default([]),
 });
+export type HubLogoVersion = {id:string;url:string;label:string;role:'venue'|'thanks';provenance:'original'|'design';sourceNote:string;mime:string;width:number;height:number;size:number;sha256:string;at:string};
 export type HubEvent = z.infer<typeof HubEventInput> & {
+  logoVersions?: HubLogoVersion[];
   id: string;
   revision: number;
   recruitment: boolean;
@@ -130,6 +134,7 @@ export type HubAudit = {
   reason?: string;
 };
 export type HubApplication = {
+  privacyPolicyConsent?:{version:string;fingerprint:string;at:string};
   erasedAt?: string;
   id: string;
   eventId: string;

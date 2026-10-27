@@ -1,4 +1,4 @@
-import { productionHubBlocked } from "./private-preview.js";
+import { publicationBlockedForTx } from "./event-hub-publication.js";
 import { z, eventEnded, eventEndAt, type HubEvent, type HubApplication } from '@workspace/api-zod';
 import { fail, type HubTx } from './event-hub-store.js';
 
@@ -11,6 +11,7 @@ export function recruitmentConfigurationIssue(e: HubEvent): string | null {
 /** Called within the same durable advisory transaction by timer/read/write paths. */
 export async function applyScheduledRecruitment(tx: HubTx, now: Date, enabled: boolean) {
   if (!enabled) return;
+  const blocked = await publicationBlockedForTx(tx);
   const events = await tx.all<HubEvent>('event');
   for (const e of events) {
     if (!e.scheduleEnabled || e.schedulePaused) continue;
@@ -18,7 +19,7 @@ export async function applyScheduledRecruitment(tx: HubTx, now: Date, enabled: b
     let action = '';
     if (dueClose) { e.recruitment = false; e.schedulePaused = true; action = 'schedule.closed'; }
     else if (!e.recruitment && e.opensAt && Date.parse(e.opensAt) <= now.getTime()) {
-      if (productionHubBlocked() || recruitmentConfigurationIssue(e)) continue;
+      if (blocked || recruitmentConfigurationIssue(e)) continue;
       if (events.some(other => other.id !== e.id && other.date === e.date && other.recruitment
         && (other.autoDate || e.autoDate || (e.campaign?.kind === 'tour' && other.campaign?.kind === 'tour')))) continue;
       e.recruitment = true; action = 'schedule.opened';

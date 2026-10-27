@@ -11,3 +11,4 @@ export * from "./event-campaign";
 export * from "./event-hub-modules";
 
 export * from "./event-cycle-clock";
+export * from './event-verification';

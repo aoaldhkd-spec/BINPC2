@@ -1,3 +1,4 @@
+import { eventHubRateIdentity } from "./lib/rate-limit-identity";
 import { createPrivatePreviewGate } from "./lib/private-preview";
 import express, { type Express, type Request, type Response, type NextFunction } from "express";
 import cors from "cors";
@@ -66,7 +67,7 @@ function makeRateLimiter(maxRequests: number, windowMs: number, namespace: strin
     })();
     const loginNick = body?.nickname != null ? String(body.nickname).trim() : '';
     const queryUid = typeof req.query?.userId === 'string' ? String(req.query.userId) : '';
-    const identity = bodyUid || sessionUid || queryUid || (namespace === 'auth-login' && loginNick ? `nick:${loginNick}` : '');
+    const identity = eventHubRateIdentity(namespace,req.session) ?? (bodyUid || sessionUid || queryUid || (namespace === 'auth-login' && loginNick ? `nick:${loginNick}` : ''));
     const key = identity ? `${namespace}:id:${identity}` : `${namespace}:ip:${ip}`;
     const now = Date.now();
     const cutoff = now - windowMs;

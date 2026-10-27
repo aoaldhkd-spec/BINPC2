@@ -230,6 +230,57 @@ suite("event hub V6 — actual isolated PostgreSQL transactions", () => {
     await pool.query("UPDATE event_hub_records SET data=jsonb_set(data,'{recoveryHash}',$1::jsonb) WHERE kind='owner' AND id=$2", [JSON.stringify(digest(stolenCode)), id]);
     await expect(service.session(stolenCode, false)).rejects.toMatchObject({code:"RECOVERY",status:401});
   });
+  it("logo originals are immutable, admin-only, event-bound, versioned and hidden until approval",async()=>{
+    const base={mime:"image/png",base64:"iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+jD9sAAAAASUVORK5CYII=",label:"새 로고",role:"venue",provenance:"original"};
+    const before=(await adminState()).events.find(e=>e.id===eventId)!;
+    await expect(call("event.logo.upload",eventId,base,before.revision,false)).rejects.toMatchObject({code:"ADMIN"});
+    const a1=await call("event.logo.upload",eventId,base,before.revision,true);
+    let e=(await adminState()).events.find(e=>e.id===eventId)!;
+    expect(e.venueLogoVersionId).toBeUndefined();
+    const a2=await call("event.logo.upload",eventId,{...base,label:"두 번째 시안",provenance:"design"},e.revision,true);
+    e=(await adminState()).events.find(e=>e.id===eventId)!;
+    await call("event.logo.select",eventId,{versionId:a2.versionId},e.revision,true);
+    const id=await create();
+    const participant=async()=> (await service.state(owner)).applications.find(a=>a.id===id)!;
+    expect((await participant()).venue).toBeUndefined();
+    await expect(service.media(String(a1.versionId),owner)).rejects.toMatchObject({code:"MEDIA"});
+    await approved(id);
+    expect((await participant()).venue?.logo).toMatchObject({url:a2.mediaUrl,width:1,height:1});
+    e=(await adminState()).events.find(e=>e.id===eventId)!;
+    await call("event.logo.select",eventId,{versionId:a1.versionId,restore:true},e.revision,true);
+    const restored=(await adminState()).events.find(e=>e.id===eventId)!;
+    expect(restored.logoVersions).toHaveLength(2);expect(restored.history.at(-1)?.action).toBe("event.logo.restore");
+    expect((await participant()).venue?.logo?.url).toBe(a1.mediaUrl);
+    expect((await service.media(String(a2.versionId),owner)).base64).toBe(base.base64);
+    await expect(call("event.logo.select",eventId,{versionId:a2.versionId},e.revision,true)).rejects.toMatchObject({code:"REVISION"});
+    const thanks=await call("event.logo.upload",eventId,{...base,label:"감사 전용",role:"thanks"},restored.revision,true);
+    e=(await adminState()).events.find(e=>e.id===eventId)!;
+    await expect(call("event.logo.select",eventId,{versionId:thanks.versionId},e.revision,true)).rejects.toMatchObject({code:"LOGO"});
+    await call("event.logo.select",eventId,{versionId:thanks.versionId,area:"thanks"},e.revision,true);
+    expect((await participant()).venue?.thanksLogo?.label).toBe("감사 전용");
+    const other=await call("event.save","",{...event,title:"다른 행사"},undefined,true);
+    await expect(call("event.save",String(other.id),{...event,venueLogoVersionId:a1.versionId},1,true)).rejects.toMatchObject({code:"LOGO"});
+  });
+  it("policy approval records complete terms but never opens production without the exact separate release",async()=>{
+    await expect(call("admin.privacy.policy.approve","",{confirmed:true},0,true)).rejects.toMatchObject({code:"PRIVACY_POLICY"});
+    const p={...DEFAULT_PRIVACY_POLICY,policyVersion:"isolated-v1",controllerName:"합성 주체",contact:"example.invalid",notice:"합성 확정 원문",backupProcedure:"합성 백업 만료·보류 절차",rules:Object.fromEntries(Object.keys(DEFAULT_PRIVACY_POLICY.rules).map(k=>[k,{days:30,basis:"격리 검토 근거"}]))};
+    await call("admin.privacy.policy","",p,0,true);
+    await call("admin.privacy.policy.approve","",{confirmed:true},1,true);
+    const policy=(await adminState()).privacyPolicy!;expect(policy.status).toBe("approved");expect(policy.publicationFingerprint).toHaveLength(64);
+    const saved=process.env.NODE_ENV;process.env.NODE_ENV="production";
+    try{
+      await expect(call("event.recruitment",eventId,{enabled:true},2,true)).rejects.toMatchObject({code:"PRIVACY_POLICY_UNCONFIRMED"});
+      process.env.EVENT_HUB_PRODUCTION_RELEASE="approved-v6";process.env.EVENT_HUB_RELEASE_POLICY_SHA256=policy.publicationFingerprint;
+      await call("event.recruitment",eventId,{enabled:true},2,true);
+      const code=randomBytes(32).toString("base64url"),who=await service.session(code,true);
+      await expect(call("application.basic","",{eventId,basic:basic("새개인")},undefined,false,who)).rejects.toMatchObject({code:"PRIVACY_NOTICE_CHANGED"});
+      const r=await call("application.basic","",{eventId,basic:basic("새개인"),privacyPolicyFingerprint:policy.publicationFingerprint},undefined,false,who);
+      expect((await app(String(r.id),who)).privacyPolicyConsent?.fingerprint).toBe(policy.publicationFingerprint);
+      await call("admin.privacy.policy","",{...p,notice:"수정 원문"},2,true);
+      expect((await adminState()).privacyPolicy?.status).toBe("draft");
+      await expect(call("event.recruitment",eventId,{enabled:true},3,true)).rejects.toMatchObject({code:"PRIVACY_POLICY_UNCONFIRMED"});
+    }finally{process.env.NODE_ENV=saved;delete process.env.EVENT_HUB_PRODUCTION_RELEASE;delete process.env.EVENT_HUB_RELEASE_POLICY_SHA256;}
+  });
   for (const [date,startDate] of [["2026-10-30","2026-10-28"],["2026-10-31","2026-10-29"]]) {
     it(`scheduled ${date} opens exactly at 20:00 once, survives restart and stays manually paused`,async()=>{
       let time=new Date(startDate+"T19:59:59+09:00");
@@ -929,6 +980,9 @@ suite("event hub V6 — actual isolated PostgreSQL transactions", () => {
     expect((results[0].profile as { id: string }).id).toBe(
       (results[1].profile as { id: string }).id,
     );
+    expect((await app(id)).revision).toBe(rev+1);
+    expect((await app(id)).history.filter(h=>h.action==="application.enter")).toHaveLength(1);
+    await call("application.draw",id,{},rev+1);
     expect(
       (
         await pool.query(

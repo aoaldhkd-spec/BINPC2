@@ -84,7 +84,7 @@ if (mode === "database") {
   for (const [name, args] of [
     [
       "admin_update_settings",
-      { p_payload: { module_flags: { event_hub: true } } },
+      { p_payload: { module_flags: { event_hub: true },admin_phone:"010-0000-0000",qr_base_url:"https://example.invalid/fixture" } },
     ],
     ["admin_toggle_session", { p_active: true }],
   ]) {

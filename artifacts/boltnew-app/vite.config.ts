@@ -1,3 +1,5 @@
+import {codeFingerprint} from '../../scripts/lib/code-fingerprint.mjs';
+import {execFileSync} from 'node:child_process';
 import path from 'path';
 import react from '@vitejs/plugin-react';
 import tailwindcss from '@tailwindcss/vite';
@@ -35,7 +37,10 @@ const apiProxy = {
   },
 } as const;
 
-export default defineConfig({
+const repoRoot=path.resolve(import.meta.dirname,'../..');
+function sourceIdentity(){try{return {sha:execFileSync('git',['rev-parse','HEAD'],{cwd:repoRoot,encoding:'utf8'}).trim(),fingerprint:codeFingerprint(repoRoot)};}catch{return {sha:'UNKNOWN',fingerprint:'UNKNOWN'};}}
+export default defineConfig(({command})=>({
+  define:{'import.meta.env.VITE_CODE_FINGERPRINT':JSON.stringify(command==='build'?sourceIdentity().fingerprint:'DEV_UNPINNED'),'import.meta.env.VITE_SOURCE_SHA':JSON.stringify(command==='build'?sourceIdentity().sha:'DEV_UNPINNED')},
   base: basePath,
   plugins: [
     react(),
@@ -89,4 +94,4 @@ export default defineConfig({
     allowedHosts: true,
     proxy: apiProxy,
   },
-});
+}));
