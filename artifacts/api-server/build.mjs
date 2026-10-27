@@ -48,6 +48,9 @@ async function buildAll() {
       "isolated-vm",
       "lightningcss",
       "pg-native",
+      // Keep this package outside the bundle: it reads table.sql beside index.js.
+      // Bundling rewrites __dirname to dist/ and breaks session cleanup/logins.
+      "connect-pg-simple",
       "oracledb",
       "mongodb-client-encryption",
       "nodemailer",
