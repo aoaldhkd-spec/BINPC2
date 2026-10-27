@@ -1,4 +1,4 @@
-const APP_ROUTES = ['/', '/admin', '/test'] as const;
+const APP_ROUTES = ['/', '/admin', '/test', '/events'] as const;
 
 function normalizedBase(base: string): string {
   if (!base || base === '/') return '';

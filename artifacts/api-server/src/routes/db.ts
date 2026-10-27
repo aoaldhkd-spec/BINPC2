@@ -1038,7 +1038,7 @@ class RpcAuthError extends Error {
 // → 비밀번호 변경 시 자동 무효화, 재시작 후에도 동일 토큰 검증 가능
 
 /** Thin wrappers — HMAC verify lives in db-panel-tokens; getTable stays local. */
-function verifyAdminToken(provided: string | null | undefined): boolean {
+export function verifyAdminToken(provided: string | null | undefined): boolean {
   const settings = (getTable('app_settings')[0] ?? {}) as Record<string, unknown>;
   const secrets = panelAdminSecrets(String(settings.admin_password ?? ''));
   return verifyAdminPanelToken(provided, secrets);
@@ -3058,6 +3058,14 @@ router.post('/op', async (req: Request, res: Response) => {
   let tableData = store[table];
 
   try {
+    // Event applicants may only create a public profile through atomic admission.
+    if (!isAdmin && moduleEnabled(getTable('app_settings')[0]?.module_flags, 'event_hub')
+      && table === 'profiles' && (op === 'insert' || op === 'upsert')) {
+      const rows = Array.isArray(payload) ? payload : [payload];
+      if (rows.some((r: Record<string, unknown> | null) => !r?.id || !getTable('profiles').some(p => p.id === r.id))) {
+        return res.status(403).json({ data: null, error: { code: 'EVENT_APPLICATION_REQUIRED', message: '술번개 대기방에서 필수 프로필과 참가 승인을 완료해 주세요.' } });
+      }
+    }
     const sendReject = (
       rej: { status: number; body: unknown; logMsg?: string; retryAfter?: string },
       logCtx: Record<string, unknown> = { ip: req.ip },
@@ -5192,6 +5200,8 @@ router.post('/by-pin', (req: Request, res: Response) => {
     return res.status(rej.status).json(rej.body);
   }
 
+  if (found.event_hub_application) return res.status(403).json({ data: null, error: { code: 'EVENT_RECOVERY_REQUIRED', message: '술번개 신청 복구코드 또는 재사용 회원 로그인으로 대기방에서 복구해 주세요.' } });
+
   // 1단계: pin만 입력 → 마스킹된 닉네임 반환 (본인 확인용) — db-pin-lookup
   if (!nickname) {
     const masked = maskNicknameForPinConfirm(String(found['nickname'] ?? ''));
@@ -5519,6 +5529,7 @@ router.post('/auth/login', (req: Request, res: Response) => {
   const matched = Boolean(
     existing && deviceSecretHashesEqual(submittedHash, String(existing.secret_hash ?? '')),
   );
+  if (profile.event_hub_application && (!matched || profile.event_hub_complete !== true)) return res.status(403).json({ error: '술번개 대기방에서 개인 복구코드로 다시 연결해 주세요.', code: 'EVENT_RECOVERY_REQUIRED' });
   const decision = planAuthLoginDecision({
     hasExistingSecret: Boolean(existing),
     secretMatched: matched,
@@ -5810,6 +5821,26 @@ export async function gracefulShutdown(): Promise<void> {
   }
   // 2) 커넥션 풀 종료 — 진행 중인 쿼리가 완료된 후 모든 idle 연결 반환
   try { await pool.end(); } catch { /* ignore */ }
+}
+
+
+/** Called only after the event hub transaction committed; never publish private drafts. */
+export function eventHubProfileCommitted(profile: Record<string, unknown>, binding?: Record<string, unknown>, signal?: Record<string, unknown>) {
+  const rows = getTable('profiles');
+  const i = rows.findIndex(p => p.id === profile.id);
+  if (i < 0) rows.push(profile); else rows[i] = profile;
+  if (binding) {
+    const devices = getTable('device_secrets');
+    const d = devices.findIndex(v => v.user_id === profile.id);
+    if (d < 0) devices.push(binding); else devices[d] = binding;
+  }
+  broadcastAll({ type: 'change', table: 'profiles', event: 'INSERT', newRow: sanitizeProfile(profile), oldRow: null });
+  if (signal) {
+    const rows = getTable('user_signals');
+    const i = rows.findIndex(row => row.user_id === profile.id);
+    if (i < 0) rows.push(signal); else rows[i] = signal;
+    smartBroadcast('user_signals', signal, { type: 'change', table: 'user_signals', event: 'INSERT', newRow: signal, oldRow: null });
+  }
 }
 
 export default router;

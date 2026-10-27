@@ -1,3 +1,4 @@
+import type { NicknameSetupInput } from '../lib/nickname-registration';
 import { RegistrationConsentRows } from './RegistrationConsentRows';
 import { REGISTRATION_CONSENT_VERSION, hasRequiredConsent, type RegistrationConsent } from '../lib/registration-consent';
 import { DisplayScaleControls } from './DisplayScaleControls';
@@ -16,7 +17,7 @@ import {
   nicknameCompositionAllowed,
   shouldBlockNicknameBeforeInput,
 } from '../lib/nickname-input';
-import { IDEAL_TAG_GROUPS, encodeSignalMsg, SIGNAL_SETUP_STEP_LABEL } from '../lib/signal-match';
+import { IDEAL_TAG_GROUPS, encodeSignalMsg, parseIdealTags, SIGNAL_SETUP_STEP_LABEL } from '../lib/signal-match';
 import { InterestPicker } from './InterestPicker';
 import { SignalTagPicker } from './SignalTagPicker';
 import { maxAdultBirthYear, minBirthYearForEventMaxAge } from '../lib/korean-age';
@@ -99,7 +100,7 @@ type Step = 1 | 2 | 3 | 4 | 5 | 6;
 
 // ─── NicknameSetupScreen ──────────────────────────────────────────────────────
 
-export function NicknameSetupScreen({ onSubmit, loading, registrationError, onReset, onShowRecovery }: {
+export function NicknameSetupScreen({ onSubmit, loading, registrationError, onReset, onShowRecovery, eventDraft }: {
   onSubmit: (data: {
     birthYear: number; birthMonth: number | null; birthDay: number | null;
     location: string; mbti: string; interests: string[];
@@ -107,15 +108,16 @@ export function NicknameSetupScreen({ onSubmit, loading, registrationError, onRe
     kakaoId: string; instagramId: string; phoneNumber: string; contactPrivate: boolean;
     idealMsg: string | null; featureMsg: string | null; pushOptIn?: boolean; privacyConsent?: RegistrationConsent;
   }) => void;
+  eventDraft?: { initial: Partial<NicknameSetupInput> & { lastStep?: number; pushDecision?: 'enable'|'skip' }; save: (data: Partial<NicknameSetupInput> & { pushDecision?: 'enable'|'skip' }, nextStep: number) => Promise<boolean> };
   loading: boolean; registrationError?: string | null; onReset: () => void; onShowRecovery?: () => void;
 }) {
-  const [step, setStep] = useState<Step>(1);
+  const [step, setStep] = useState<Step>((eventDraft?.initial.lastStep ?? 1) as Step);
 
   // 닉네임
-  const [customInput, setCustomInput] = useState('');
+  const [customInput, setCustomInput] = useState(eventDraft?.initial.nickname ?? '');
   const [customError, setCustomError] = useState<string | null>(null);
   const [checkingDup, setCheckingDup] = useState(false);
-  const [dupChecked, setDupChecked] = useState(false);
+  const [dupChecked, setDupChecked] = useState(!!eventDraft);
   const dupTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const customInputRef = useRef('');
   const nickInputElRef = useRef<HTMLInputElement>(null);
@@ -123,29 +125,29 @@ export function NicknameSetupScreen({ onSubmit, loading, registrationError, onRe
   const nickFinishSyllableRef = useRef(false);
 
   // MBTI
-  const [mbti, setMbti] = useState<string | null>(null);
+  const [mbti, setMbti] = useState<string | null>(eventDraft?.initial.mbti ?? null);
 
   // 년생·지역
   const [decadeFilter, setDecadeFilter] = useState<string>('90년대');
-  const [birthYear, setBirthYear] = useState<string>('1995');
+  const [birthYear, setBirthYear] = useState<string>(String(eventDraft?.initial.birthYear ?? 1995));
   const [regionFilter, setRegionFilter] = useState<string>('광역시');
-  const [location, setLocation] = useState<string>('부산');
+  const [location, setLocation] = useState<string>(eventDraft?.initial.location ?? '부산');
 
   // 관심사
-  const [selectedBio, setSelectedBio] = useState<string[]>([]);
+  const [selectedBio, setSelectedBio] = useState<string[]>(eventDraft?.initial.interests ?? []);
 
   // 성향
-  const [positionScore, setPositionScore] = useState<number | null>(null);
+  const [positionScore, setPositionScore] = useState<number | null>(eventDraft?.initial.personalityScore ?? null);
 
   // 이상형·나는 어떤 사람인가요? (선택 — Step 6)
-  const [idealTags, setIdealTags] = useState<string[]>([]);
-  const [featureTags, setFeatureTags] = useState<string[]>([]);
+  const [idealTags, setIdealTags] = useState<string[]>(parseIdealTags(eventDraft?.initial.idealMsg));
+  const [featureTags, setFeatureTags] = useState<string[]>(parseIdealTags(eventDraft?.initial.featureMsg));
   const [bioFilter, setBioFilter] = useState<string>(BIO_CATEGORY_GROUPS[0].label);
-  const [privacyConsent, setPrivacyConsent] = useState<RegistrationConsent>({ collection: false, sharing: false, version: REGISTRATION_CONSENT_VERSION });
-  const [pushOptIn, setPushOptIn] = useState(false);
+  const [privacyConsent, setPrivacyConsent] = useState<RegistrationConsent>(eventDraft?.initial.privacyConsent ?? { collection: false, sharing: false, version: REGISTRATION_CONSENT_VERSION });
+  const [pushOptIn, setPushOptIn] = useState(eventDraft?.initial.pushOptIn ?? false);
   // A decision is mandatory, receiving notifications is not. Browsers require
   // a real gesture and users must retain the ability to decline permission.
-  const [pushDecision, setPushDecision] = useState<'enable' | 'skip' | null>(null);
+  const [pushDecision, setPushDecision] = useState<'enable' | 'skip' | null>(eventDraft?.initial.pushDecision ?? null);
   const [pushStatus, setPushStatus] = useState<PushSetupStatus | null>(null);
 
   // contact (숨김 — 입장 후 설정)
@@ -242,11 +244,17 @@ export function NicknameSetupScreen({ onSubmit, loading, registrationError, onRe
   // ── 제출 ──────────────────────────────────────────────────────────────────────
   const handleSubmit = (includeSignalFields = true) => {
     if (!canEnter || !mbti || positionScore === null) return;
+    if (eventDraft) { void eventDraft.save({ ...buildPayload(includeSignalFields), pushDecision: pushDecision ?? undefined }, 6).then(ok => { if(ok) onSubmit(buildPayload(includeSignalFields)); }); return; }
     onSubmit(buildPayload(includeSignalFields));
   };
 
-  const goNext = () => { if (step < 6 && isStepValid(step)) setStep((step + 1) as Step); };
-  const goPrev = () => { if (step > 1) setStep((step - 1) as Step); else onReset(); };
+  const goNext = async () => {
+    if (step >= 6 || !isStepValid(step) || loading) return;
+    const next = (eventDraft ? (step === 1 ? 3 : step === 4 ? 6 : step + 1) : step + 1) as Step;
+    if (eventDraft && !await eventDraft.save({ ...buildPayload(true), pushDecision: pushDecision ?? undefined }, next)) return;
+    setStep(next);
+  };
+  const goPrev = () => { if (step > 1) setStep((eventDraft ? (step === 6 ? 4 : step === 3 ? 1 : step - 1) : step - 1) as Step); else onReset(); };
 
   // ── 렌더 ──────────────────────────────────────────────────────────────────────
   return (
@@ -566,7 +574,7 @@ export function NicknameSetupScreen({ onSubmit, loading, registrationError, onRe
                   setPushOptIn(true);
                   setPushDecision('enable');
                   // Explicit participant gesture only; OS permission still requires its own approval.
-                  void requestPushPermissionFromClick().then(setPushStatus);
+                  if (!eventDraft) void requestPushPermissionFromClick().then(setPushStatus);
                 }}
                 className="w-full rounded-xl border border-teal-300 bg-teal-50 px-3 py-3 text-sm font-bold text-teal-800 active:scale-[0.99]">
                 ✓ 필수 약관 동의 + 알림 받기 한 번에 선택
@@ -583,7 +591,7 @@ export function NicknameSetupScreen({ onSubmit, loading, registrationError, onRe
                       setPushDecision(checked ? 'enable' : 'skip');
                       if (checked) {
                         // Direct user gesture: iOS installed PWA requires a synchronous prompt.
-                        void requestPushPermissionFromClick().then(setPushStatus);
+                        if (!eventDraft) void requestPushPermissionFromClick().then(setPushStatus);
                       } else setPushStatus(null);
                     }}
                     className="mt-0.5 h-4 w-4 accent-teal-600 shrink-0" />
@@ -671,22 +679,22 @@ export function NicknameSetupScreen({ onSubmit, loading, registrationError, onRe
         </button>
 
         {step < 6 ? (
-          <button type="button" onClick={goNext} disabled={!isStepValid(step)}
+          <button type="button" onClick={goNext} disabled={!isStepValid(step) || loading}
             className="flex-[3] flex items-center justify-center gap-2 py-3.5 bg-gradient-to-r from-cyan-500 to-teal-500 hover:from-cyan-600 hover:to-teal-600 disabled:from-gray-200 disabled:to-gray-200 disabled:text-gray-400 disabled:cursor-not-allowed text-white font-black text-sm rounded-2xl shadow-lg shadow-cyan-500/25 transition-all active:scale-[0.98]">
-            다음 <ChevronRight className="w-5 h-5" />
+            {loading ? '저장 중…' : '다음'} <ChevronRight className="w-5 h-5" />
           </button>
         ) : (
           <>
             <button type="button" onClick={() => handleSubmit(false)} disabled={!canEnter || loading}
               className="flex-[2] py-3.5 bg-gray-100 hover:bg-gray-200 disabled:bg-gray-100 disabled:text-gray-400 disabled:cursor-not-allowed text-gray-600 font-bold text-sm rounded-2xl transition-all active:scale-95">
-              건너뛰기
+              {eventDraft ? '선택 항목 없이 저장' : '건너뛰기'}
             </button>
             <button type="button" onClick={() => handleSubmit(true)} disabled={!canEnter || loading}
               className="flex-[3] flex items-center justify-center gap-2 py-3.5 bg-gradient-to-r from-cyan-500 to-teal-500 hover:from-cyan-600 hover:to-teal-600 disabled:from-gray-200 disabled:to-gray-200 disabled:text-gray-400 disabled:cursor-not-allowed text-white font-black text-sm rounded-2xl shadow-lg shadow-cyan-500/25 transition-all active:scale-[0.98]">
               {loading ? (
-                <><RefreshCw className="w-4 h-4 animate-spin" /> 입장 중...</>
+                <><RefreshCw className="w-4 h-4 animate-spin" /> {eventDraft ? '저장 중…' : '입장 중...'}</>
               ) : (
-                <>입장하기 <ChevronRight className="w-5 h-5" /></>
+                <>{eventDraft ? '프로필 저장 완료' : '입장하기'} <ChevronRight className="w-5 h-5" /></>
               )}
             </button>
           </>

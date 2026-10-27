@@ -120,6 +120,13 @@ globalThis.__dirname = __bannerPath.dirname(globalThis.__filename);
     },
   });
 
+  // connect-pg-simple reads this sibling SQL file when creating its session table.
+  // esbuild bundles its JS but does not copy filesystem assets automatically.
+  await cp(
+    path.join(path.dirname(globalThis.require.resolve('connect-pg-simple')), 'table.sql'),
+    path.join(distDir, 'table.sql'),
+  );
+
   const frontendDist = path.resolve(artifactDir, "../boltnew-app/dist/public");
   const publicDir = path.resolve(distDir, "public");
   if (existsSync(path.join(frontendDist, "index.html"))) {

@@ -227,6 +227,9 @@ app.use('/api/db/unread-counts',    makeRateLimiter(RL_UNREAD_PER_MIN, 60_000, '
 app.use('/api/db/auth/sse-token',   makeRateLimiter(RL_SSE_TOKEN_PER_MIN, 60_000, 'sse-token'));
 app.use('/api/db/rpc',              makeRateLimiter(30, 60_000, 'rpc'));
 
+app.use('/api/event-hub/session', makeRateLimiter(180, 60_000, 'hub-session'));
+app.use('/api/event-hub/member-login', makeRateLimiter(120, 60_000, 'hub-member-login'));
+app.use('/api/event-hub/mutate', makeRateLimiter(600, 60_000, 'hub-mutate'));
 app.use("/api", router);
 
 mountProductionSpa(app);

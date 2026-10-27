@@ -95,6 +95,7 @@ export function OpsOverviewPanel({ settings, profiles, onToggleModule, dbHealth,
               stats: '참여자 통계 화면',
               ranking: '참여자 랭킹 화면',
               push: '휴대폰 하트/1:1 알림',
+              event_hub: '술번개 신청·대기방·행사 운영 (기본 OFF)',
             };
             return (
               <button

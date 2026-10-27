@@ -39,6 +39,9 @@ export function sanitizeRow(tbl: string, row: Record<string, unknown>): Record<s
 export function sanitizeProfile(row: Record<string, unknown>): Record<string, unknown> {
   const s = { ...row };
   delete s['registration_consent'];
+  delete s['event_hub_owner'];
+  delete s['event_hub_application'];
+  if (row.event_hub_application) delete s['pin_code'];
   delete s['phone_number'];
   delete s['kakao_id'];
   delete s['instagram_id'];

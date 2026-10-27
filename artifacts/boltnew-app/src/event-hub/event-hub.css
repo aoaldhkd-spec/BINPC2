@@ -1,0 +1,42 @@
+/* Scope the existing slate/teal palette to the optional event screens only. */
+.event-hub-theme[data-event-dark="true"] .bg-slate-50 {
+  background-color: #020617;
+}
+.event-hub-theme[data-event-dark="true"] .bg-white {
+  background-color: #0f172a;
+}
+.event-hub-theme[data-event-dark="true"] .text-slate-900 {
+  color: #f1f5f9;
+}
+.event-hub-theme[data-event-dark="true"] .text-slate-700,
+.event-hub-theme[data-event-dark="true"] .text-slate-600 {
+  color: #cbd5e1;
+}
+.event-hub-theme[data-event-dark="true"] .border-slate-200,
+.event-hub-theme[data-event-dark="true"] .border-slate-300 {
+  border-color: #334155;
+}
+.event-hub-theme[data-event-dark="true"] .text-teal-700 {
+  color: #5eead4;
+}
+.event-hub-theme[data-event-dark="true"] .bg-teal-50 {
+  background-color: #134e4a;
+}
+.event-hub-theme[data-event-dark="true"] .text-amber-800 {
+  color: #fcd34d;
+}
+.event-hub-theme button,
+.event-hub-theme a {
+  overflow-wrap: anywhere;
+}
+
+/* The reused profile wizard owns its bottom save bar. Keep inquiry above it. */
+body:has(.event-profile-draft) .event-hub-dock {
+  bottom: calc(90px + env(safe-area-inset-bottom)) !important;
+  left: 12px;
+  right: auto;
+  flex-direction: column;
+  background: transparent;
+  padding: 0;
+  border: 0;
+}

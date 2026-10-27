@@ -302,3 +302,7 @@ QR 경계:
 - server db-module-flags.test.ts
 - db-daily-cycle-full-day.test.ts
 - db-runtime-status.test.ts
+
+## Optional event application hub (V6, development branch)
+
+`docs/EVENT_HUB_V6_2026-10-27.md` records implementation, isolated validation and remaining operational work. `event_hub` is a new default-OFF soft-detach flag; the existing seven module defaults and daily clock remain unchanged. `/events` and the administrator event tab call `/api/event-hub`. Private applications, manual bank approval, profile drafts, inquiries and prizes use the separate encrypted `event_hub_records` ledger, outside the existing 17:00 KV reset. Atomic admission shares the reset lock, validates eligibility/profile/consent/current cycle, and only then creates one existing-format public profile/device binding. Apply the additive migration explicitly to an isolated DB first; no runtime deployment or production migration is implied.

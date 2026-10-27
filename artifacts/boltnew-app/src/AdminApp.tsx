@@ -45,7 +45,9 @@ const SalesReportsTab = lazy(() => import('./admin/SalesReportsTab').then(m => (
 
 // ─── Admin Dashboard ──────────────────────────────────────────────────────────
 
-type AdminTab = 'settings' | 'profiles' | 'hearts' | 'chats' | 'notify';
+const EventHubAdmin = lazy(() => import('./event-hub/EventHubAdmin'));
+
+type AdminTab = 'events' | 'settings' | 'profiles' | 'hearts' | 'chats' | 'notify';
 type SettingsSubTab = 'control' | 'qr' | 'admin' | 'db' | 'reports';
 type HeartSubTab = 'hearts' | 'popularity';
 
@@ -627,6 +629,7 @@ function AdminDashboard({ onLogout }: { onLogout: () => void }) {
     { id: 'profiles', label: '참여자', icon: <Users className="w-4 h-4" />, badge: Math.max(0, profiles.length - seenProfilesCount) || undefined },
     { id: 'hearts', label: '하트', icon: <Heart className="w-4 h-4" />, badge: Math.max(0, likes.length - seenHeartsCount) || undefined },
     { id: 'chats', label: '채팅', icon: <MessageCircle className="w-4 h-4" />, badge: Math.max(0, allMessages.length - seenMessagesCount) || undefined },
+    { id: 'events', label: '술번개', icon: <span>🎉</span> },
     { id: 'notify', label: '공지', icon: <BellRing className="w-4 h-4" /> },
   ];
 
@@ -652,7 +655,7 @@ function AdminDashboard({ onLogout }: { onLogout: () => void }) {
             </button>
           </div>
         </div>
-        <div className="max-w-4xl mx-auto px-2 grid grid-cols-5 pb-0">
+        <div className="max-w-4xl mx-auto px-2 grid grid-cols-6 pb-0">
           {TABS.map((t) => (
             <button key={t.id} onClick={() => handleTabChange(t.id)}
               className={`touch-target relative flex min-w-0 flex-col items-center justify-center gap-0.5 px-0.5 py-2 text-[9px] min-[360px]:text-[10px] min-[390px]:text-[11px] font-semibold border-b-2 transition-all ${
@@ -671,6 +674,7 @@ function AdminDashboard({ onLogout }: { onLogout: () => void }) {
       </header>
 
       <main data-testid="admin-main" className="max-w-4xl mx-auto admin-main">
+        {tab === 'events' && <Suspense fallback={<AdminTabFallback />}><EventHubAdmin /></Suspense>}
         {tab === 'settings' && (
           <div>
             <div className="grid grid-cols-5 border-b border-gray-200 bg-white px-2 min-[360px]:px-4">

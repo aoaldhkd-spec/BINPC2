@@ -9,6 +9,9 @@ import { AppErrorBoundary } from './components/AppErrorBoundary';
 import { TestGate } from './components/TestGate';
 import { clientNavigationHref, resolveClientNavigation } from './lib/client-navigation';
 
+const EventHubPage = lazy(() => import('./event-hub/EventHubPage'));
+const AdminInquiry = lazy(() => import('./event-hub/AdminInquiry').then(m => ({default:m.AdminInquiry})));
+
 const loadAdminApp = () => import('./AdminApp');
 const AdminApp = lazy(loadAdminApp);
 
@@ -84,8 +87,9 @@ function Root() {
   const normalized = path.replace(new RegExp(`^${base}`), '') || '/';
 
   if (normalized.startsWith('/admin')) return <AppErrorBoundary variant="app" onReset={() => window.location.reload()}><AdminApp /></AppErrorBoundary>;
-  if (normalized.startsWith('/test'))  return <TestGate />;
-  return <AppErrorBoundary variant="app" onReset={() => window.location.reload()}><App /></AppErrorBoundary>;
+  if (normalized.startsWith('/test')) return <><TestGate /><AdminInquiry /></>;
+  if (normalized.startsWith('/events')) return <><EventHubPage path={normalized} /><AdminInquiry /></>;
+  return <AppErrorBoundary variant="app" onReset={() => window.location.reload()}><App /><AdminInquiry /></AppErrorBoundary>;
 }
 
 // HMR 환경에서 createRoot()를 같은 컨테이너에 두 번 호출하면 "Maximum update depth" 오류가 발생.
