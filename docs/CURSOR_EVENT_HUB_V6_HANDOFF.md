@@ -1,3 +1,28 @@
+# 현재 이어갈 지점 — 실제 앱 최종 보완 (2026-10-27 한국 시간)
+
+**이 절이 아래 모든 과거 기록보다 우선합니다.** 같은 개발 브랜치 최신 GitHub HEAD를 사용하며 기존 코드를 재제작하지 않습니다. 이번 코드 검증 커밋은 `e4714cd4b60783832220058336f73124990fa74c`이고 이후 자료 보존 커밋이 추가됩니다.
+
+- 원격 CI: 소스 `d0778d3706aed70206de861b9601202beb48f3e6`의 [실행40493933832](https://github.com/aoaldhkd-spec/BINPC2/actions/runs/40493933832) 전체 PASS. 초기 두 실패·전용 DB 이름 수정 이력도 최종 보고서에 보존합니다. 테스트/보호 완화 없음.
+- 최신 전체 판정: [실제 앱 최종 보고서](EVENT_HUB_V6_ACTUAL_APP_FINAL_2026-10-27.md).
+- 실제 앱 캡처·7개 MP4·다운로드: [자료 목록](reviews/v6-actual-app-20261027/README.md). **앞으로 독립 HTML 체험판을 추가 제작·수정하거나 실제 앱 프리뷰로 안내하지 않습니다.** 아래 HTML 절은 과거 기록입니다.
+- 실제 React+Express+격리 PostgreSQL 실행 유지. 단위1306(API522+UI784), DB57(허브41+리셋16), 실제 브라우저6, Node13·guard598·타입/빌드/lint 통과. 실제 기기·실발송 PASS는 아닙니다.
+- 새 수정: 행사별 시험실 상태·설정 보존/단계 복구, 문의 상대별 답장 초안, 처리 중 버튼 잠금, 상품명 영속 표시/입장 전 카드 잠금, 암호화 키 불일치 쓰기 차단, 문의 다크모드, 이전 공지 UI, 실제 영상 재생/관리자 승인·지급 녹화, 개발 브랜치 전용 격리 CI.
+- 금지 유지: main 병합/push·운영 배포·모집 공개·실제 외부 발송·운영 데이터 변경/삭제·현금 무작위 지급. Netlify Stopped builds와 Render main 설정을 바꾸지 않습니다. 서비스 관리 API 독립 확인은 없으며 사용자 확인을 근거로 합니다.
+- 다음 체크포인트: 목적별 기간/법정 예외/백업 파기 원문이 확정되기 전 production 신규 접수 gate/자동 파기는 그대로 유지합니다. 물리 Android/iOS/Windows 기기에서 알림/코덱/IME/제스처를 검증하고 실제 앱 캡처에 대한 운영자 UI 피드백만 반영합니다.
+- 암호화 키 주의: 원장은 SESSION_SECRET에서 유도한 키를 사용합니다. `.local/event-hub/handoff-api.env`는 따로 비공개 보관하며 배포/문서/ZIP에 넣지 않습니다. 새 키를 만들면 기존 기록을 복구할 수 없습니다. 이번 검사는 잘못된 키의 쓰기를 차단할 뿐 키 백업/이관 절차를 대신하지 않습니다.
+
+## 실제 앱 재현 경로 (개발 담당자용)
+
+기존 Node24/Corepack pnpm11.21/PostgreSQL16 환경에서 `node scripts/event-hub-local.mjs configure` → `check` → 별도 터미널 `api`, `web` → `activate` 순서입니다. configure는 고정 loopback fixture DB만 준비하고 기존 기록을 삭제하지 않습니다. `http://127.0.0.1:3002/events` 및 `/admin`은 **로컬 개발용**이며 외부 PC방 접속 주소가 아닙니다. 운영 env를 주입하지 않습니다.
+
+Playwright Chromium이 없는 다른 개발 환경에서는 프로젝트 디렉터리에서 `corepack pnpm --filter @workspace/boltnew-app exec playwright install --with-deps chromium`을 사용합니다. 설정은 시스템 Chromium이 없으면 Playwright 브라우저를 선택하며 localhost 보호 검사는 유지합니다. 이 Codex의 CDN 403은 이미 설치된 `/usr/bin/ffmpeg`를 writable 캐시에 연결해 녹화했습니다. 테스트/보호 검사 우회가 아닙니다.
+
+검사 명령은 아래 역사 기록의 localhost/fixture 명령을 사용합니다. 브라우저 최신 출력은 `test-results/event-hub-final-real`, 최종 보존 로그/체크섬은 실제 앱 검토자료 ZIP에 있습니다. 소스는 GitHub 최신 개발 브랜치에 있으며 bundle 복원이 기본 경로가 아닙니다.
+
+---
+
+# 아래는 보존한 과거 인계 기록
+
 # Cursor 인계 — 기존 BINPC2 V6 이어서 개발
 
 ## 최신 상태 — GitHub 개발 브랜치 저장 완료
