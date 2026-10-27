@@ -32,14 +32,14 @@ export function PrivacyManagement({ hub }: { hub: HubController }) {
   return (
     <div className="space-y-4">
       <HubCard>
-        <h3 className="font-black">목적별 보관·파기 정책 초안</h3>
+        <h3 className="font-black">목적별 보관·파기 정책</h3>
         <p>상태: {policy.status} · 정책 확정과 운영 공개 승인은 별개입니다. 값을 수정해 저장하면 다시 초안이 됩니다. 실제 삭제·자동 파기는 이 화면에서 실행하지 않습니다.</p>
         {(['policyVersion','controllerName','contact'] as const).map((field,i)=><HubField key={field} label={['정책 버전','운영 책임 주체','개인정보 문의처'][i]}><input className={inputClass} value={policy[field]??''} maxLength={field==='policyVersion'?100:field==='contact'?300:200} onChange={e=>setPolicy({...policy,[field]:e.target.value})}/></HubField>)}
         {policy.publicationFingerprint&&<p className="text-xs break-all">확정 정책 지문: {policy.publicationFingerprint}</p>}
 
         <p className="text-sm text-amber-800">
-          운영 정책은 아직 미확정입니다. 초안 저장·파기 계획 검토만 제공하며
-          자동 파기나 운영 데이터 삭제는 실행하지 않습니다.
+          현재 확정 여부는 위 상태를 확인하세요. 정책 확정과 별개로 이 화면은
+          자동 파기나 운영 데이터 삭제를 실행하지 않습니다.
         </p>
         <HubField label="개인정보 고지 원문 초안">
           <textarea
