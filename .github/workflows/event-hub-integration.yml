@@ -77,7 +77,7 @@ jobs:
           curl -fsS http://127.0.0.1:3001/api/healthz
       - run: node scripts/prepare-event-hub-e2e.mjs activate
       - name: Browser recovery, inquiry, layout and 100-session HTTP tests
-        run: pnpm --filter @workspace/boltnew-app exec playwright test --config playwright.event-hub.config.ts
+        run: pnpm --filter @workspace/boltnew-app exec playwright test --config playwright.event-hub.config.ts --reporter=line,github
       - name: Preserve synthetic actual-app screenshots and videos
         if: always()
         uses: actions/upload-artifact@v4
