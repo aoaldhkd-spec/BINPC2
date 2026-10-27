@@ -1,0 +1,961 @@
+{
+  "runId": "baseline-1793118838367",
+  "mode": "baseline",
+  "environment": "real HTTP -> compiled Express -> actual PostgreSQL16; loopback only; development mode with normal rate limits and PG-backed sessions; business clock offset fixture only",
+  "sourceSha": "688d9925b59052cf13afeac7fc8ecd9552920417",
+  "preexistingOwnerRows": 5044,
+  "recordsBefore": 5044,
+  "startedAt": "2026-10-27T16:33:58.373Z",
+  "businessClockStart": "2026-10-30T13:40:53.314Z",
+  "cohortSizes": [
+    100
+  ],
+  "failures": [],
+  "lostResponseReplay": false,
+  "restartVerified": false,
+  "expectedBaselineProbe": true,
+  "finishedAt": "2026-10-27T16:34:05.955Z",
+  "durationSeconds": 8,
+  "requestCount": 100,
+  "statusCounts": {
+    "200": 48,
+    "503": 52
+  },
+  "requestLatencyByStage": {
+    "accumulated-100-sessions": {
+      "requests": 100,
+      "p50Ms": 5671,
+      "p95Ms": 6202.9,
+      "maxMs": 6457.4
+    }
+  },
+  "resources": [
+    {
+      "type": "load-resource-sample",
+      "at": 1793118843503,
+      "memory": {
+        "rss": 284381184,
+        "heapTotal": 165900288,
+        "heapUsed": 85832696,
+        "external": 19407874,
+        "arrayBuffers": 15780601
+      },
+      "cpuPercent": 82.0734909695891,
+      "generation": 1,
+      "seconds": 5
+    }
+  ],
+  "databaseSamples": [
+    {
+      "seconds": 1,
+      "connections": 5,
+      "lock_waiters": 0,
+      "active": 1,
+      "max_transaction_seconds": 0.003098
+    },
+    {
+      "seconds": 2,
+      "connections": 12,
+      "lock_waiters": 9,
+      "active": 11,
+      "max_transaction_seconds": 0.807945
+    },
+    {
+      "seconds": 3,
+      "connections": 12,
+      "lock_waiters": 9,
+      "active": 10,
+      "max_transaction_seconds": 1.152288
+    },
+    {
+      "seconds": 4,
+      "connections": 12,
+      "lock_waiters": 9,
+      "active": 10,
+      "max_transaction_seconds": 1.170444
+    },
+    {
+      "seconds": 5,
+      "connections": 12,
+      "lock_waiters": 9,
+      "active": 11,
+      "max_transaction_seconds": 1.186974
+    },
+    {
+      "seconds": 6,
+      "connections": 12,
+      "lock_waiters": 9,
+      "active": 11,
+      "max_transaction_seconds": 1.276732
+    },
+    {
+      "seconds": 7,
+      "connections": 12,
+      "lock_waiters": 5,
+      "active": 6,
+      "max_transaction_seconds": 1.461969
+    },
+    {
+      "seconds": 8,
+      "connections": 12,
+      "lock_waiters": 0,
+      "active": 1,
+      "max_transaction_seconds": 0.001168
+    }
+  ],
+  "recordsAfter": 5092,
+  "requests": [
+    {
+      "stage": "accumulated-100-sessions",
+      "tag": "/api/event-hub/session",
+      "status": 503,
+      "ms": 5092.7,
+      "code": "PERSISTENCE_UNKNOWN",
+      "seconds": 6,
+      "generation": 1
+    },
+    {
+      "stage": "accumulated-100-sessions",
+      "tag": "/api/event-hub/session",
+      "status": 503,
+      "ms": 5093,
+      "code": "PERSISTENCE_UNKNOWN",
+      "seconds": 6,
+      "generation": 1
+    },
+    {
+      "stage": "accumulated-100-sessions",
+      "tag": "/api/event-hub/session",
+      "status": 503,
+      "ms": 5101.2,
+      "code": "PERSISTENCE_UNKNOWN",
+      "seconds": 6,
+      "generation": 1
+    },
+    {
+      "stage": "accumulated-100-sessions",
+      "tag": "/api/event-hub/session",
+      "status": 503,
+      "ms": 5101.4,
+      "code": "PERSISTENCE_UNKNOWN",
+      "seconds": 6,
+      "generation": 1
+    },
+    {
+      "stage": "accumulated-100-sessions",
+      "tag": "/api/event-hub/session",
+      "status": 503,
+      "ms": 5103.1,
+      "code": "PERSISTENCE_UNKNOWN",
+      "seconds": 6,
+      "generation": 1
+    },
+    {
+      "stage": "accumulated-100-sessions",
+      "tag": "/api/event-hub/session",
+      "status": 503,
+      "ms": 5103.4,
+      "code": "PERSISTENCE_UNKNOWN",
+      "seconds": 6,
+      "generation": 1
+    },
+    {
+      "stage": "accumulated-100-sessions",
+      "tag": "/api/event-hub/session",
+      "status": 503,
+      "ms": 5104,
+      "code": "PERSISTENCE_UNKNOWN",
+      "seconds": 6,
+      "generation": 1
+    },
+    {
+      "stage": "accumulated-100-sessions",
+      "tag": "/api/event-hub/session",
+      "status": 503,
+      "ms": 5104.2,
+      "code": "PERSISTENCE_UNKNOWN",
+      "seconds": 6,
+      "generation": 1
+    },
+    {
+      "stage": "accumulated-100-sessions",
+      "tag": "/api/event-hub/session",
+      "status": 503,
+      "ms": 5104.4,
+      "code": "PERSISTENCE_UNKNOWN",
+      "seconds": 6,
+      "generation": 1
+    },
+    {
+      "stage": "accumulated-100-sessions",
+      "tag": "/api/event-hub/session",
+      "status": 503,
+      "ms": 5104.5,
+      "code": "PERSISTENCE_UNKNOWN",
+      "seconds": 6,
+      "generation": 1
+    },
+    {
+      "stage": "accumulated-100-sessions",
+      "tag": "/api/event-hub/session",
+      "status": 503,
+      "ms": 5104.8,
+      "code": "PERSISTENCE_UNKNOWN",
+      "seconds": 6,
+      "generation": 1
+    },
+    {
+      "stage": "accumulated-100-sessions",
+      "tag": "/api/event-hub/session",
+      "status": 503,
+      "ms": 5104.8,
+      "code": "PERSISTENCE_UNKNOWN",
+      "seconds": 6,
+      "generation": 1
+    },
+    {
+      "stage": "accumulated-100-sessions",
+      "tag": "/api/event-hub/session",
+      "status": 503,
+      "ms": 5104.9,
+      "code": "PERSISTENCE_UNKNOWN",
+      "seconds": 6,
+      "generation": 1
+    },
+    {
+      "stage": "accumulated-100-sessions",
+      "tag": "/api/event-hub/session",
+      "status": 503,
+      "ms": 5105.1,
+      "code": "PERSISTENCE_UNKNOWN",
+      "seconds": 6,
+      "generation": 1
+    },
+    {
+      "stage": "accumulated-100-sessions",
+      "tag": "/api/event-hub/session",
+      "status": 503,
+      "ms": 5105,
+      "code": "PERSISTENCE_UNKNOWN",
+      "seconds": 6,
+      "generation": 1
+    },
+    {
+      "stage": "accumulated-100-sessions",
+      "tag": "/api/event-hub/session",
+      "status": 503,
+      "ms": 5105.1,
+      "code": "PERSISTENCE_UNKNOWN",
+      "seconds": 6,
+      "generation": 1
+    },
+    {
+      "stage": "accumulated-100-sessions",
+      "tag": "/api/event-hub/session",
+      "status": 503,
+      "ms": 5104.9,
+      "code": "PERSISTENCE_UNKNOWN",
+      "seconds": 6,
+      "generation": 1
+    },
+    {
+      "stage": "accumulated-100-sessions",
+      "tag": "/api/event-hub/session",
+      "status": 503,
+      "ms": 5104.9,
+      "code": "PERSISTENCE_UNKNOWN",
+      "seconds": 6,
+      "generation": 1
+    },
+    {
+      "stage": "accumulated-100-sessions",
+      "tag": "/api/event-hub/session",
+      "status": 503,
+      "ms": 5104.9,
+      "code": "PERSISTENCE_UNKNOWN",
+      "seconds": 6,
+      "generation": 1
+    },
+    {
+      "stage": "accumulated-100-sessions",
+      "tag": "/api/event-hub/session",
+      "status": 503,
+      "ms": 5105.3,
+      "code": "PERSISTENCE_UNKNOWN",
+      "seconds": 6,
+      "generation": 1
+    },
+    {
+      "stage": "accumulated-100-sessions",
+      "tag": "/api/event-hub/session",
+      "status": 503,
+      "ms": 5105.4,
+      "code": "PERSISTENCE_UNKNOWN",
+      "seconds": 6,
+      "generation": 1
+    },
+    {
+      "stage": "accumulated-100-sessions",
+      "tag": "/api/event-hub/session",
+      "status": 503,
+      "ms": 5105.5,
+      "code": "PERSISTENCE_UNKNOWN",
+      "seconds": 6,
+      "generation": 1
+    },
+    {
+      "stage": "accumulated-100-sessions",
+      "tag": "/api/event-hub/session",
+      "status": 503,
+      "ms": 5105.7,
+      "code": "PERSISTENCE_UNKNOWN",
+      "seconds": 6,
+      "generation": 1
+    },
+    {
+      "stage": "accumulated-100-sessions",
+      "tag": "/api/event-hub/session",
+      "status": 503,
+      "ms": 5106.1,
+      "code": "PERSISTENCE_UNKNOWN",
+      "seconds": 6,
+      "generation": 1
+    },
+    {
+      "stage": "accumulated-100-sessions",
+      "tag": "/api/event-hub/session",
+      "status": 503,
+      "ms": 5106.1,
+      "code": "PERSISTENCE_UNKNOWN",
+      "seconds": 6,
+      "generation": 1
+    },
+    {
+      "stage": "accumulated-100-sessions",
+      "tag": "/api/event-hub/session",
+      "status": 503,
+      "ms": 5105.3,
+      "code": "PERSISTENCE_UNKNOWN",
+      "seconds": 6,
+      "generation": 1
+    },
+    {
+      "stage": "accumulated-100-sessions",
+      "tag": "/api/event-hub/session",
+      "status": 503,
+      "ms": 5105.4,
+      "code": "PERSISTENCE_UNKNOWN",
+      "seconds": 6,
+      "generation": 1
+    },
+    {
+      "stage": "accumulated-100-sessions",
+      "tag": "/api/event-hub/session",
+      "status": 503,
+      "ms": 5105.6,
+      "code": "PERSISTENCE_UNKNOWN",
+      "seconds": 6,
+      "generation": 1
+    },
+    {
+      "stage": "accumulated-100-sessions",
+      "tag": "/api/event-hub/session",
+      "status": 503,
+      "ms": 5105.9,
+      "code": "PERSISTENCE_UNKNOWN",
+      "seconds": 6,
+      "generation": 1
+    },
+    {
+      "stage": "accumulated-100-sessions",
+      "tag": "/api/event-hub/session",
+      "status": 503,
+      "ms": 5106.2,
+      "code": "PERSISTENCE_UNKNOWN",
+      "seconds": 6,
+      "generation": 1
+    },
+    {
+      "stage": "accumulated-100-sessions",
+      "tag": "/api/event-hub/session",
+      "status": 503,
+      "ms": 5106.7,
+      "code": "PERSISTENCE_UNKNOWN",
+      "seconds": 6,
+      "generation": 1
+    },
+    {
+      "stage": "accumulated-100-sessions",
+      "tag": "/api/event-hub/session",
+      "status": 503,
+      "ms": 5106.9,
+      "code": "PERSISTENCE_UNKNOWN",
+      "seconds": 6,
+      "generation": 1
+    },
+    {
+      "stage": "accumulated-100-sessions",
+      "tag": "/api/event-hub/session",
+      "status": 503,
+      "ms": 5106.9,
+      "code": "PERSISTENCE_UNKNOWN",
+      "seconds": 6,
+      "generation": 1
+    },
+    {
+      "stage": "accumulated-100-sessions",
+      "tag": "/api/event-hub/session",
+      "status": 503,
+      "ms": 5107.1,
+      "code": "PERSISTENCE_UNKNOWN",
+      "seconds": 6,
+      "generation": 1
+    },
+    {
+      "stage": "accumulated-100-sessions",
+      "tag": "/api/event-hub/session",
+      "status": 503,
+      "ms": 5107.4,
+      "code": "PERSISTENCE_UNKNOWN",
+      "seconds": 6,
+      "generation": 1
+    },
+    {
+      "stage": "accumulated-100-sessions",
+      "tag": "/api/event-hub/session",
+      "status": 503,
+      "ms": 5107.5,
+      "code": "PERSISTENCE_UNKNOWN",
+      "seconds": 6,
+      "generation": 1
+    },
+    {
+      "stage": "accumulated-100-sessions",
+      "tag": "/api/event-hub/session",
+      "status": 503,
+      "ms": 5107.7,
+      "code": "PERSISTENCE_UNKNOWN",
+      "seconds": 6,
+      "generation": 1
+    },
+    {
+      "stage": "accumulated-100-sessions",
+      "tag": "/api/event-hub/session",
+      "status": 503,
+      "ms": 5108.2,
+      "code": "PERSISTENCE_UNKNOWN",
+      "seconds": 6,
+      "generation": 1
+    },
+    {
+      "stage": "accumulated-100-sessions",
+      "tag": "/api/event-hub/session",
+      "status": 503,
+      "ms": 5108.3,
+      "code": "PERSISTENCE_UNKNOWN",
+      "seconds": 6,
+      "generation": 1
+    },
+    {
+      "stage": "accumulated-100-sessions",
+      "tag": "/api/event-hub/session",
+      "status": 503,
+      "ms": 5108.5,
+      "code": "PERSISTENCE_UNKNOWN",
+      "seconds": 6,
+      "generation": 1
+    },
+    {
+      "stage": "accumulated-100-sessions",
+      "tag": "/api/event-hub/session",
+      "status": 503,
+      "ms": 5108.7,
+      "code": "PERSISTENCE_UNKNOWN",
+      "seconds": 6,
+      "generation": 1
+    },
+    {
+      "stage": "accumulated-100-sessions",
+      "tag": "/api/event-hub/session",
+      "status": 503,
+      "ms": 5234.8,
+      "code": "PERSISTENCE_UNKNOWN",
+      "seconds": 6,
+      "generation": 1
+    },
+    {
+      "stage": "accumulated-100-sessions",
+      "tag": "/api/event-hub/session",
+      "status": 503,
+      "ms": 5234.9,
+      "code": "PERSISTENCE_UNKNOWN",
+      "seconds": 6,
+      "generation": 1
+    },
+    {
+      "stage": "accumulated-100-sessions",
+      "tag": "/api/event-hub/session",
+      "status": 503,
+      "ms": 5235,
+      "code": "PERSISTENCE_UNKNOWN",
+      "seconds": 6,
+      "generation": 1
+    },
+    {
+      "stage": "accumulated-100-sessions",
+      "tag": "/api/event-hub/session",
+      "status": 503,
+      "ms": 5235.2,
+      "code": "PERSISTENCE_UNKNOWN",
+      "seconds": 6,
+      "generation": 1
+    },
+    {
+      "stage": "accumulated-100-sessions",
+      "tag": "/api/event-hub/session",
+      "status": 503,
+      "ms": 5235.8,
+      "code": "PERSISTENCE_UNKNOWN",
+      "seconds": 6,
+      "generation": 1
+    },
+    {
+      "stage": "accumulated-100-sessions",
+      "tag": "/api/event-hub/session",
+      "status": 503,
+      "ms": 5235.8,
+      "code": "PERSISTENCE_UNKNOWN",
+      "seconds": 6,
+      "generation": 1
+    },
+    {
+      "stage": "accumulated-100-sessions",
+      "tag": "/api/event-hub/session",
+      "status": 503,
+      "ms": 5235.9,
+      "code": "PERSISTENCE_UNKNOWN",
+      "seconds": 6,
+      "generation": 1
+    },
+    {
+      "stage": "accumulated-100-sessions",
+      "tag": "/api/event-hub/session",
+      "status": 503,
+      "ms": 5236.5,
+      "code": "PERSISTENCE_UNKNOWN",
+      "seconds": 6,
+      "generation": 1
+    },
+    {
+      "stage": "accumulated-100-sessions",
+      "tag": "/api/event-hub/session",
+      "status": 503,
+      "ms": 5236.8,
+      "code": "PERSISTENCE_UNKNOWN",
+      "seconds": 6,
+      "generation": 1
+    },
+    {
+      "stage": "accumulated-100-sessions",
+      "tag": "/api/event-hub/session",
+      "status": 503,
+      "ms": 5237.3,
+      "code": "PERSISTENCE_UNKNOWN",
+      "seconds": 6,
+      "generation": 1
+    },
+    {
+      "stage": "accumulated-100-sessions",
+      "tag": "/api/event-hub/session",
+      "status": 503,
+      "ms": 5237.3,
+      "code": "PERSISTENCE_UNKNOWN",
+      "seconds": 6,
+      "generation": 1
+    },
+    {
+      "stage": "accumulated-100-sessions",
+      "tag": "/api/event-hub/session",
+      "status": 200,
+      "ms": 5548.6,
+      "seconds": 7,
+      "generation": 1
+    },
+    {
+      "stage": "accumulated-100-sessions",
+      "tag": "/api/event-hub/session",
+      "status": 200,
+      "ms": 5549.4,
+      "seconds": 7,
+      "generation": 1
+    },
+    {
+      "stage": "accumulated-100-sessions",
+      "tag": "/api/event-hub/session",
+      "status": 200,
+      "ms": 5551.7,
+      "seconds": 7,
+      "generation": 1
+    },
+    {
+      "stage": "accumulated-100-sessions",
+      "tag": "/api/event-hub/session",
+      "status": 200,
+      "ms": 5549.3,
+      "seconds": 7,
+      "generation": 1
+    },
+    {
+      "stage": "accumulated-100-sessions",
+      "tag": "/api/event-hub/session",
+      "status": 200,
+      "ms": 5550.4,
+      "seconds": 7,
+      "generation": 1
+    },
+    {
+      "stage": "accumulated-100-sessions",
+      "tag": "/api/event-hub/session",
+      "status": 200,
+      "ms": 5550.1,
+      "seconds": 7,
+      "generation": 1
+    },
+    {
+      "stage": "accumulated-100-sessions",
+      "tag": "/api/event-hub/session",
+      "status": 200,
+      "ms": 5551.5,
+      "seconds": 7,
+      "generation": 1
+    },
+    {
+      "stage": "accumulated-100-sessions",
+      "tag": "/api/event-hub/session",
+      "status": 200,
+      "ms": 5551.6,
+      "seconds": 7,
+      "generation": 1
+    },
+    {
+      "stage": "accumulated-100-sessions",
+      "tag": "/api/event-hub/session",
+      "status": 200,
+      "ms": 5551.8,
+      "seconds": 7,
+      "generation": 1
+    },
+    {
+      "stage": "accumulated-100-sessions",
+      "tag": "/api/event-hub/session",
+      "status": 200,
+      "ms": 5553.1,
+      "seconds": 7,
+      "generation": 1
+    },
+    {
+      "stage": "accumulated-100-sessions",
+      "tag": "/api/event-hub/session",
+      "status": 200,
+      "ms": 5552,
+      "seconds": 7,
+      "generation": 1
+    },
+    {
+      "stage": "accumulated-100-sessions",
+      "tag": "/api/event-hub/session",
+      "status": 200,
+      "ms": 5552.4,
+      "seconds": 7,
+      "generation": 1
+    },
+    {
+      "stage": "accumulated-100-sessions",
+      "tag": "/api/event-hub/session",
+      "status": 200,
+      "ms": 5552.9,
+      "seconds": 7,
+      "generation": 1
+    },
+    {
+      "stage": "accumulated-100-sessions",
+      "tag": "/api/event-hub/session",
+      "status": 200,
+      "ms": 5554,
+      "seconds": 7,
+      "generation": 1
+    },
+    {
+      "stage": "accumulated-100-sessions",
+      "tag": "/api/event-hub/session",
+      "status": 200,
+      "ms": 5554.5,
+      "seconds": 7,
+      "generation": 1
+    },
+    {
+      "stage": "accumulated-100-sessions",
+      "tag": "/api/event-hub/session",
+      "status": 200,
+      "ms": 5555.8,
+      "seconds": 7,
+      "generation": 1
+    },
+    {
+      "stage": "accumulated-100-sessions",
+      "tag": "/api/event-hub/session",
+      "status": 200,
+      "ms": 5555.8,
+      "seconds": 7,
+      "generation": 1
+    },
+    {
+      "stage": "accumulated-100-sessions",
+      "tag": "/api/event-hub/session",
+      "status": 200,
+      "ms": 5566.2,
+      "seconds": 7,
+      "generation": 1
+    },
+    {
+      "stage": "accumulated-100-sessions",
+      "tag": "/api/event-hub/session",
+      "status": 200,
+      "ms": 5566.1,
+      "seconds": 7,
+      "generation": 1
+    },
+    {
+      "stage": "accumulated-100-sessions",
+      "tag": "/api/event-hub/session",
+      "status": 200,
+      "ms": 5566.3,
+      "seconds": 7,
+      "generation": 1
+    },
+    {
+      "stage": "accumulated-100-sessions",
+      "tag": "/api/event-hub/session",
+      "status": 200,
+      "ms": 5667.9,
+      "seconds": 7,
+      "generation": 1
+    },
+    {
+      "stage": "accumulated-100-sessions",
+      "tag": "/api/event-hub/session",
+      "status": 200,
+      "ms": 5669.6,
+      "seconds": 7,
+      "generation": 1
+    },
+    {
+      "stage": "accumulated-100-sessions",
+      "tag": "/api/event-hub/session",
+      "status": 200,
+      "ms": 5670.1,
+      "seconds": 7,
+      "generation": 1
+    },
+    {
+      "stage": "accumulated-100-sessions",
+      "tag": "/api/event-hub/session",
+      "status": 200,
+      "ms": 5671,
+      "seconds": 7,
+      "generation": 1
+    },
+    {
+      "stage": "accumulated-100-sessions",
+      "tag": "/api/event-hub/session",
+      "status": 200,
+      "ms": 5671,
+      "seconds": 7,
+      "generation": 1
+    },
+    {
+      "stage": "accumulated-100-sessions",
+      "tag": "/api/event-hub/session",
+      "status": 200,
+      "ms": 5670.9,
+      "seconds": 7,
+      "generation": 1
+    },
+    {
+      "stage": "accumulated-100-sessions",
+      "tag": "/api/event-hub/session",
+      "status": 200,
+      "ms": 5671.9,
+      "seconds": 7,
+      "generation": 1
+    },
+    {
+      "stage": "accumulated-100-sessions",
+      "tag": "/api/event-hub/session",
+      "status": 200,
+      "ms": 5672.7,
+      "seconds": 7,
+      "generation": 1
+    },
+    {
+      "stage": "accumulated-100-sessions",
+      "tag": "/api/event-hub/session",
+      "status": 200,
+      "ms": 5674.5,
+      "seconds": 7,
+      "generation": 1
+    },
+    {
+      "stage": "accumulated-100-sessions",
+      "tag": "/api/event-hub/session",
+      "status": 200,
+      "ms": 5674.5,
+      "seconds": 7,
+      "generation": 1
+    },
+    {
+      "stage": "accumulated-100-sessions",
+      "tag": "/api/event-hub/session",
+      "status": 200,
+      "ms": 5674.4,
+      "seconds": 7,
+      "generation": 1
+    },
+    {
+      "stage": "accumulated-100-sessions",
+      "tag": "/api/event-hub/session",
+      "status": 200,
+      "ms": 5676.5,
+      "seconds": 7,
+      "generation": 1
+    },
+    {
+      "stage": "accumulated-100-sessions",
+      "tag": "/api/event-hub/session",
+      "status": 200,
+      "ms": 5677.2,
+      "seconds": 7,
+      "generation": 1
+    },
+    {
+      "stage": "accumulated-100-sessions",
+      "tag": "/api/event-hub/session",
+      "status": 200,
+      "ms": 5678.1,
+      "seconds": 7,
+      "generation": 1
+    },
+    {
+      "stage": "accumulated-100-sessions",
+      "tag": "/api/event-hub/session",
+      "status": 200,
+      "ms": 5678.2,
+      "seconds": 7,
+      "generation": 1
+    },
+    {
+      "stage": "accumulated-100-sessions",
+      "tag": "/api/event-hub/session",
+      "status": 200,
+      "ms": 5678.3,
+      "seconds": 7,
+      "generation": 1
+    },
+    {
+      "stage": "accumulated-100-sessions",
+      "tag": "/api/event-hub/session",
+      "status": 200,
+      "ms": 5680.9,
+      "seconds": 7,
+      "generation": 1
+    },
+    {
+      "stage": "accumulated-100-sessions",
+      "tag": "/api/event-hub/session",
+      "status": 200,
+      "ms": 5680.7,
+      "seconds": 7,
+      "generation": 1
+    },
+    {
+      "stage": "accumulated-100-sessions",
+      "tag": "/api/event-hub/session",
+      "status": 200,
+      "ms": 5680.9,
+      "seconds": 7,
+      "generation": 1
+    },
+    {
+      "stage": "accumulated-100-sessions",
+      "tag": "/api/event-hub/session",
+      "status": 200,
+      "ms": 5681.5,
+      "seconds": 7,
+      "generation": 1
+    },
+    {
+      "stage": "accumulated-100-sessions",
+      "tag": "/api/event-hub/session",
+      "status": 200,
+      "ms": 5682.3,
+      "seconds": 7,
+      "generation": 1
+    },
+    {
+      "stage": "accumulated-100-sessions",
+      "tag": "/api/event-hub/session",
+      "status": 200,
+      "ms": 5683.6,
+      "seconds": 7,
+      "generation": 1
+    },
+    {
+      "stage": "accumulated-100-sessions",
+      "tag": "/api/event-hub/session",
+      "status": 200,
+      "ms": 5804.8,
+      "seconds": 7,
+      "generation": 1
+    },
+    {
+      "stage": "accumulated-100-sessions",
+      "tag": "/api/event-hub/session",
+      "status": 200,
+      "ms": 5941.3,
+      "seconds": 7,
+      "generation": 1
+    },
+    {
+      "stage": "accumulated-100-sessions",
+      "tag": "/api/event-hub/session",
+      "status": 200,
+      "ms": 6063.9,
+      "seconds": 7,
+      "generation": 1
+    },
+    {
+      "stage": "accumulated-100-sessions",
+      "tag": "/api/event-hub/session",
+      "status": 200,
+      "ms": 6202.9,
+      "seconds": 7,
+      "generation": 1
+    },
+    {
+      "stage": "accumulated-100-sessions",
+      "tag": "/api/event-hub/session",
+      "status": 200,
+      "ms": 6326,
+      "seconds": 7,
+      "generation": 1
+    },
+    {
+      "stage": "accumulated-100-sessions",
+      "tag": "/api/event-hub/session",
+      "status": 200,
+      "ms": 6457.4,
+      "seconds": 8,
+      "generation": 1
+    }
+  ]
+}

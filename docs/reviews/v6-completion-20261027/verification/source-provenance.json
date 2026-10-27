@@ -1,0 +1,12 @@
+{
+  "codeSourceSha": "7b5558aee69cf8e471d6c0c823f5988b926b50b3",
+  "codeFingerprint": "9796b778cc5226e8b2971ff085b1352263fbddd5a15dbff0b303dee5ebb8a35a",
+  "soakSourceSha": "79eba69cd6e6f9e4bfa2bcb676e9c3023b5e6b3e",
+  "identicalApiTree": "bd9e4883828b0b4efca62edc2bcc72ee6b885c2a",
+  "sourceDifference": [
+    "artifacts/boltnew-app/src/event-hub/PrivacyManagement.tsx: policy status display text only"
+  ],
+  "mainUnchanged": "b06a900280404f79c92e17cdbc6af907a0414c30",
+  "noMainMergeDeployProviderChangeProductionDbOrNotification": true,
+  "providerSafetyEvidence": "User confirmed Netlify Stopped builds and Render main tracking; account-level settings not independently accessible; feature deployment list empty; no new PR or settings change"
+}

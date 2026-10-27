@@ -1,0 +1,399 @@
+[
+  {
+    "runId": "baseline-1793118838367",
+    "mode": "baseline",
+    "durationSeconds": 8,
+    "requestCount": 100,
+    "statusCounts": {
+      "200": 48,
+      "503": 52
+    },
+    "preexistingOwnerRows": 5044,
+    "restartVerified": false,
+    "profilePinAndNicknameRecovered": null,
+    "builtIdentity": null,
+    "latency": {
+      "accumulated-100-sessions": {
+        "requests": 100,
+        "p50Ms": 5671,
+        "p95Ms": 6202.9,
+        "maxMs": 6457.4
+      }
+    },
+    "resources": {
+      "samples": 1,
+      "rssFirstMiB": 271.21,
+      "rssLastMiB": 271.21,
+      "rssMaxMiB": 271.21,
+      "heapFirstMiB": 81.86,
+      "heapLastMiB": 81.86,
+      "cpuMeanPercent": 82.07,
+      "cpuMaxPercent": 82.07,
+      "rssLast5MinRangeMiB": [
+        271.21,
+        271.21
+      ]
+    },
+    "database": {
+      "maxConnections": 12,
+      "lastConnections": 12,
+      "maxLockWaiters": 9,
+      "maxTransactionSecondsSampled": 1.461969
+    }
+  },
+  {
+    "runId": "mixed-1793119499465",
+    "mode": "mixed",
+    "durationSeconds": 30,
+    "requestCount": 2763,
+    "statusCounts": {
+      "200": 2755,
+      "409": 8
+    },
+    "preexistingOwnerRows": 5692,
+    "restartVerified": true,
+    "profilePinAndNicknameRecovered": null,
+    "builtIdentity": null,
+    "latency": {
+      "fixture-activation": {
+        "requests": 6,
+        "p50Ms": 14.4,
+        "p95Ms": 20.9,
+        "maxMs": 20.9
+      },
+      "150-real-sessions": {
+        "requests": 150,
+        "p50Ms": 810.4,
+        "p95Ms": 825.3,
+        "maxMs": 827.2
+      },
+      "100-concurrent-applications": {
+        "requests": 100,
+        "p50Ms": 4868,
+        "p95Ms": 5292.8,
+        "maxMs": 5508.3
+      },
+      "150-mixed-applications-and-consent": {
+        "requests": 510,
+        "p50Ms": 1068.4,
+        "p95Ms": 3929.6,
+        "maxMs": 4681.6
+      },
+      "150-profile-payment-inquiry": {
+        "requests": 760,
+        "p50Ms": 960.2,
+        "p95Ms": 1562.9,
+        "maxMs": 2160.6
+      },
+      "150-enter-and-three-cards": {
+        "requests": 910,
+        "p50Ms": 1574.2,
+        "p95Ms": 2085.6,
+        "maxMs": 3730
+      },
+      "duplicate-prize-rejection": {
+        "requests": 24,
+        "p50Ms": 7.8,
+        "p95Ms": 9.8,
+        "maxMs": 9.8
+      },
+      "stored-response-lost-replay": {
+        "requests": 3,
+        "p50Ms": 5.8,
+        "p95Ms": 7.6,
+        "maxMs": 7.6
+      },
+      "restart": {
+        "requests": 300,
+        "p50Ms": 607.6,
+        "p95Ms": 992.2,
+        "maxMs": 998.6
+      }
+    },
+    "resources": {
+      "samples": 5,
+      "rssFirstMiB": 265.12,
+      "rssLastMiB": 296.07,
+      "rssMaxMiB": 296.07,
+      "heapFirstMiB": 66.5,
+      "heapLastMiB": 78.42,
+      "cpuMeanPercent": 58.51,
+      "cpuMaxPercent": 68.02,
+      "rssLast5MinRangeMiB": [
+        265.12,
+        296.07
+      ]
+    },
+    "database": {
+      "maxConnections": 12,
+      "lastConnections": 12,
+      "maxLockWaiters": 9,
+      "maxTransactionSecondsSampled": 0.689673
+    }
+  },
+  {
+    "runId": "mixed-1793119580633",
+    "mode": "mixed",
+    "durationSeconds": 905,
+    "requestCount": 9020,
+    "statusCounts": {
+      "200": 9020
+    },
+    "preexistingOwnerRows": 5842,
+    "restartVerified": true,
+    "profilePinAndNicknameRecovered": null,
+    "builtIdentity": {
+      "sourceVersion": "530279a4c712711f61adff8a160360e65b5e4df5-dirty-d452d77a8c36",
+      "codeFingerprint": "c8ebfebcd876beacea5bdb87334885777797a3d9c7db3664b7657e501f3510ad",
+      "builtAt": "2026-10-27T16:44:59.165Z"
+    },
+    "latency": {
+      "fixture-activation": {
+        "requests": 151,
+        "p50Ms": 589.5,
+        "p95Ms": 596.3,
+        "maxMs": 598.2
+      },
+      "restart": {
+        "requests": 300,
+        "p50Ms": 551.1,
+        "p95Ms": 808.8,
+        "maxMs": 836.6
+      },
+      "sustained-150-mixed": {
+        "requests": 8569,
+        "p50Ms": 827.3,
+        "p95Ms": 1242.4,
+        "maxMs": 2791.8
+      }
+    },
+    "resources": {
+      "samples": 180,
+      "rssFirstMiB": 148.98,
+      "rssLastMiB": 231.58,
+      "rssMaxMiB": 238.88,
+      "heapFirstMiB": 29.91,
+      "heapLastMiB": 21.55,
+      "cpuMeanPercent": 3.31,
+      "cpuMaxPercent": 37.01,
+      "rssLast5MinRangeMiB": [
+        231.58,
+        238.88
+      ]
+    },
+    "database": {
+      "maxConnections": 12,
+      "lastConnections": 12,
+      "maxLockWaiters": 9,
+      "maxTransactionSecondsSampled": 0.222164
+    }
+  },
+  {
+    "runId": "mixed-1793122086440",
+    "mode": "mixed",
+    "durationSeconds": 906,
+    "requestCount": 9170,
+    "statusCounts": {
+      "200": 9170
+    },
+    "preexistingOwnerRows": 5842,
+    "restartVerified": true,
+    "profilePinAndNicknameRecovered": true,
+    "builtIdentity": {
+      "sourceVersion": "50a5248c5c9937d13903df0c4d4fd49421cb7d8a",
+      "codeFingerprint": "a4edcac439ef94f1c52693951dc462ba0544714011871c9f80db82113efe4a29",
+      "builtAt": "2026-10-27T17:28:06.207Z"
+    },
+    "latency": {
+      "fixture-activation": {
+        "requests": 151,
+        "p50Ms": 494.8,
+        "p95Ms": 506.2,
+        "maxMs": 507.3
+      },
+      "restart": {
+        "requests": 450,
+        "p50Ms": 886.4,
+        "p95Ms": 1795.9,
+        "maxMs": 1854.7
+      },
+      "sustained-150-mixed": {
+        "requests": 8569,
+        "p50Ms": 875.8,
+        "p95Ms": 1091.4,
+        "maxMs": 1286.3
+      }
+    },
+    "resources": {
+      "samples": 180,
+      "rssFirstMiB": 166.27,
+      "rssLastMiB": 298.97,
+      "rssMaxMiB": 307.14,
+      "heapFirstMiB": 41.2,
+      "heapLastMiB": 27.81,
+      "cpuMeanPercent": 3.8,
+      "cpuMaxPercent": 51.81,
+      "rssLast5MinRangeMiB": [
+        298.97,
+        307.14
+      ]
+    },
+    "database": {
+      "maxConnections": 13,
+      "lastConnections": 12,
+      "maxLockWaiters": 9,
+      "maxTransactionSecondsSampled": 0.271294
+    }
+  },
+  {
+    "runId": "mixed-1793123754185",
+    "mode": "mixed",
+    "durationSeconds": 24,
+    "requestCount": 2910,
+    "statusCounts": {
+      "200": 2903,
+      "409": 7
+    },
+    "preexistingOwnerRows": 5843,
+    "restartVerified": true,
+    "profilePinAndNicknameRecovered": true,
+    "builtIdentity": {
+      "sourceVersion": "55eae3dcf161b8408e4fb652022d800e529156ff-dirty-a8137336f2d6",
+      "codeFingerprint": "ca753138e0c9d157fa8718625a656b88fc1f17b2c472121f2755966fc1772306",
+      "builtAt": "2026-10-27T17:55:53.309Z"
+    },
+    "latency": {
+      "fixture-activation": {
+        "requests": 6,
+        "p50Ms": 12.8,
+        "p95Ms": 15.8,
+        "maxMs": 15.8
+      },
+      "150-real-sessions": {
+        "requests": 150,
+        "p50Ms": 621.4,
+        "p95Ms": 632.3,
+        "maxMs": 633.7
+      },
+      "100-concurrent-applications": {
+        "requests": 100,
+        "p50Ms": 2018.8,
+        "p95Ms": 2094,
+        "maxMs": 2178
+      },
+      "150-mixed-applications-and-consent": {
+        "requests": 510,
+        "p50Ms": 1121,
+        "p95Ms": 1764.8,
+        "maxMs": 2693.3
+      },
+      "150-profile-payment-inquiry": {
+        "requests": 760,
+        "p50Ms": 908.9,
+        "p95Ms": 1315.8,
+        "maxMs": 1879.4
+      },
+      "150-enter-and-three-cards": {
+        "requests": 910,
+        "p50Ms": 1389.5,
+        "p95Ms": 1910.6,
+        "maxMs": 3454.4
+      },
+      "duplicate-prize-rejection": {
+        "requests": 21,
+        "p50Ms": 6.8,
+        "p95Ms": 8.5,
+        "maxMs": 8.5
+      },
+      "stored-response-lost-replay": {
+        "requests": 3,
+        "p50Ms": 3.6,
+        "p95Ms": 6.8,
+        "maxMs": 6.8
+      },
+      "restart": {
+        "requests": 450,
+        "p50Ms": 884.7,
+        "p95Ms": 1853.3,
+        "maxMs": 1955.4
+      }
+    },
+    "resources": {
+      "samples": 4,
+      "rssFirstMiB": 175.48,
+      "rssLastMiB": 280.97,
+      "rssMaxMiB": 280.97,
+      "heapFirstMiB": 30.25,
+      "heapLastMiB": 22.48,
+      "cpuMeanPercent": 52.42,
+      "cpuMaxPercent": 55.86,
+      "rssLast5MinRangeMiB": [
+        175.48,
+        280.97
+      ]
+    },
+    "database": {
+      "maxConnections": 12,
+      "lastConnections": 12,
+      "maxLockWaiters": 9,
+      "maxTransactionSecondsSampled": 0.190788
+    }
+  },
+  {
+    "runId": "mixed-1793124714953",
+    "mode": "mixed",
+    "durationSeconds": 906,
+    "requestCount": 9170,
+    "statusCounts": {
+      "200": 9170
+    },
+    "preexistingOwnerRows": 5993,
+    "restartVerified": true,
+    "profilePinAndNicknameRecovered": true,
+    "builtIdentity": {
+      "sourceVersion": "79eba69cd6e6f9e4bfa2bcb676e9c3023b5e6b3e",
+      "codeFingerprint": "4dd7d885095d2ff2689c123c1d32a1f24ea87832435439bae58f7e337cd920d2",
+      "builtAt": "2026-10-27T18:11:54.660Z"
+    },
+    "latency": {
+      "fixture-activation": {
+        "requests": 151,
+        "p50Ms": 475.3,
+        "p95Ms": 499.8,
+        "maxMs": 500.3
+      },
+      "restart": {
+        "requests": 450,
+        "p50Ms": 895.8,
+        "p95Ms": 1913.8,
+        "maxMs": 2041.6
+      },
+      "sustained-150-mixed": {
+        "requests": 8569,
+        "p50Ms": 921.1,
+        "p95Ms": 1204.5,
+        "maxMs": 1364.1
+      }
+    },
+    "resources": {
+      "samples": 180,
+      "rssFirstMiB": 170.04,
+      "rssLastMiB": 289.19,
+      "rssMaxMiB": 299.54,
+      "heapFirstMiB": 50.85,
+      "heapLastMiB": 20.46,
+      "cpuMeanPercent": 3.89,
+      "cpuMaxPercent": 52.77,
+      "rssLast5MinRangeMiB": [
+        289.06,
+        295.26
+      ]
+    },
+    "database": {
+      "maxConnections": 12,
+      "lastConnections": 12,
+      "maxLockWaiters": 10,
+      "maxTransactionSecondsSampled": 0.277344
+    }
+  }
+]

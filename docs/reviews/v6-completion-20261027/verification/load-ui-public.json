@@ -1,0 +1,9 @@
+{
+  "environment": "Actual Chromium UI + same Express/accumulated PostgreSQL as 150-person HTTP soak; loopback only",
+  "startedAt": "2026-10-27T18:12:27.970Z",
+  "physicalDevices": "UNKNOWN",
+  "approvalToParticipantVisibleMs": 2229,
+  "replyToParticipantVisibleMs": 1346,
+  "pass": true,
+  "finishedAt": "2026-10-27T18:12:40.799Z"
+}

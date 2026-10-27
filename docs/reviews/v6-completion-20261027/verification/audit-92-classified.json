@@ -1,0 +1,1136 @@
+{
+  "baseline79Preserved": true,
+  "previous90ClassificationPreserved": true,
+  "currentCounts": {
+    "error": 0,
+    "warn": 92,
+    "info": 566
+  },
+  "warnings": [
+    {
+      "rel": ".local/preview/build/assets/index-nqdCCGJO.js",
+      "line": 3,
+      "id": "empty_catch",
+      "sev": "warn",
+      "priority": "P3",
+      "category": "생성 번들/라이브러리",
+      "domains": [
+        "보안"
+      ]
+    },
+    {
+      "rel": "artifacts/api-server/src/__tests__/admin-event-end-reset.test.ts",
+      "line": 9,
+      "id": "hardcoded_secret",
+      "sev": "warn",
+      "priority": "P3",
+      "category": "합성 테스트/테스트 설정",
+      "domains": [
+        "보안",
+        "개인정보",
+        "권한/인증"
+      ]
+    },
+    {
+      "rel": "artifacts/api-server/src/__tests__/broadcast-targets.test.ts",
+      "line": 7,
+      "id": "hardcoded_secret",
+      "sev": "warn",
+      "priority": "P3",
+      "category": "합성 테스트/테스트 설정",
+      "domains": [
+        "보안"
+      ]
+    },
+    {
+      "rel": "artifacts/api-server/src/__tests__/db-security.test.ts",
+      "line": 30,
+      "id": "hardcoded_secret",
+      "sev": "warn",
+      "priority": "P3",
+      "category": "합성 테스트/테스트 설정",
+      "domains": [
+        "보안",
+        "권한/인증"
+      ]
+    },
+    {
+      "rel": "artifacts/api-server/src/__tests__/db-security.test.ts",
+      "line": 299,
+      "id": "hardcoded_secret",
+      "sev": "warn",
+      "priority": "P3",
+      "category": "합성 테스트/테스트 설정",
+      "domains": [
+        "보안",
+        "권한/인증"
+      ]
+    },
+    {
+      "rel": "artifacts/api-server/src/__tests__/db-security.test.ts",
+      "line": 1013,
+      "id": "hardcoded_secret",
+      "sev": "warn",
+      "priority": "P3",
+      "category": "합성 테스트/테스트 설정",
+      "domains": [
+        "보안",
+        "권한/인증"
+      ]
+    },
+    {
+      "rel": "artifacts/api-server/src/__tests__/db-security.test.ts",
+      "line": 1076,
+      "id": "hardcoded_secret",
+      "sev": "warn",
+      "priority": "P3",
+      "category": "합성 테스트/테스트 설정",
+      "domains": [
+        "보안",
+        "권한/인증"
+      ]
+    },
+    {
+      "rel": "artifacts/api-server/src/__tests__/db-security.test.ts",
+      "line": 1077,
+      "id": "hardcoded_secret",
+      "sev": "warn",
+      "priority": "P3",
+      "category": "합성 테스트/테스트 설정",
+      "domains": [
+        "보안",
+        "권한/인증"
+      ]
+    },
+    {
+      "rel": "artifacts/api-server/src/__tests__/db-security.test.ts",
+      "line": 1078,
+      "id": "hardcoded_secret",
+      "sev": "warn",
+      "priority": "P3",
+      "category": "합성 테스트/테스트 설정",
+      "domains": [
+        "보안",
+        "권한/인증"
+      ]
+    },
+    {
+      "rel": "artifacts/api-server/src/__tests__/db-security.test.ts",
+      "line": 1102,
+      "id": "hardcoded_secret",
+      "sev": "warn",
+      "priority": "P3",
+      "category": "합성 테스트/테스트 설정",
+      "domains": [
+        "보안",
+        "권한/인증"
+      ]
+    },
+    {
+      "rel": "artifacts/api-server/src/__tests__/db-security.test.ts",
+      "line": 1107,
+      "id": "hardcoded_secret",
+      "sev": "warn",
+      "priority": "P3",
+      "category": "합성 테스트/테스트 설정",
+      "domains": [
+        "보안",
+        "권한/인증"
+      ]
+    },
+    {
+      "rel": "artifacts/api-server/src/__tests__/db-security.test.ts",
+      "line": 1112,
+      "id": "hardcoded_secret",
+      "sev": "warn",
+      "priority": "P3",
+      "category": "합성 테스트/테스트 설정",
+      "domains": [
+        "보안",
+        "권한/인증"
+      ]
+    },
+    {
+      "rel": "artifacts/api-server/src/__tests__/db-security.test.ts",
+      "line": 1174,
+      "id": "hardcoded_secret",
+      "sev": "warn",
+      "priority": "P3",
+      "category": "합성 테스트/테스트 설정",
+      "domains": [
+        "보안",
+        "권한/인증"
+      ]
+    },
+    {
+      "rel": "artifacts/api-server/src/__tests__/db-security.test.ts",
+      "line": 1175,
+      "id": "hardcoded_secret",
+      "sev": "warn",
+      "priority": "P3",
+      "category": "합성 테스트/테스트 설정",
+      "domains": [
+        "보안",
+        "권한/인증"
+      ]
+    },
+    {
+      "rel": "artifacts/api-server/src/__tests__/db-security.test.ts",
+      "line": 1179,
+      "id": "hardcoded_secret",
+      "sev": "warn",
+      "priority": "P3",
+      "category": "합성 테스트/테스트 설정",
+      "domains": [
+        "보안",
+        "권한/인증"
+      ]
+    },
+    {
+      "rel": "artifacts/api-server/src/__tests__/db-security.test.ts",
+      "line": 1185,
+      "id": "hardcoded_secret",
+      "sev": "warn",
+      "priority": "P3",
+      "category": "합성 테스트/테스트 설정",
+      "domains": [
+        "보안",
+        "권한/인증"
+      ]
+    },
+    {
+      "rel": "artifacts/api-server/src/__tests__/db-security.test.ts",
+      "line": 1243,
+      "id": "hardcoded_secret",
+      "sev": "warn",
+      "priority": "P3",
+      "category": "합성 테스트/테스트 설정",
+      "domains": [
+        "보안",
+        "권한/인증"
+      ]
+    },
+    {
+      "rel": "artifacts/api-server/src/__tests__/db-security.test.ts",
+      "line": 1251,
+      "id": "hardcoded_secret",
+      "sev": "warn",
+      "priority": "P3",
+      "category": "합성 테스트/테스트 설정",
+      "domains": [
+        "보안",
+        "권한/인증"
+      ]
+    },
+    {
+      "rel": "artifacts/api-server/src/__tests__/db-security.test.ts",
+      "line": 1268,
+      "id": "hardcoded_secret",
+      "sev": "warn",
+      "priority": "P3",
+      "category": "합성 테스트/테스트 설정",
+      "domains": [
+        "보안",
+        "권한/인증"
+      ]
+    },
+    {
+      "rel": "artifacts/api-server/src/__tests__/db-security.test.ts",
+      "line": 1273,
+      "id": "hardcoded_secret",
+      "sev": "warn",
+      "priority": "P3",
+      "category": "합성 테스트/테스트 설정",
+      "domains": [
+        "보안",
+        "권한/인증"
+      ]
+    },
+    {
+      "rel": "artifacts/api-server/src/__tests__/db-security.test.ts",
+      "line": 1290,
+      "id": "hardcoded_secret",
+      "sev": "warn",
+      "priority": "P3",
+      "category": "합성 테스트/테스트 설정",
+      "domains": [
+        "보안",
+        "권한/인증"
+      ]
+    },
+    {
+      "rel": "artifacts/api-server/src/__tests__/db-security.test.ts",
+      "line": 1295,
+      "id": "hardcoded_secret",
+      "sev": "warn",
+      "priority": "P3",
+      "category": "합성 테스트/테스트 설정",
+      "domains": [
+        "보안",
+        "권한/인증"
+      ]
+    },
+    {
+      "rel": "artifacts/api-server/src/__tests__/db-security.test.ts",
+      "line": 1302,
+      "id": "hardcoded_secret",
+      "sev": "warn",
+      "priority": "P3",
+      "category": "합성 테스트/테스트 설정",
+      "domains": [
+        "보안",
+        "권한/인증"
+      ]
+    },
+    {
+      "rel": "artifacts/api-server/src/__tests__/db-security.test.ts",
+      "line": 1332,
+      "id": "hardcoded_secret",
+      "sev": "warn",
+      "priority": "P3",
+      "category": "합성 테스트/테스트 설정",
+      "domains": [
+        "보안",
+        "권한/인증"
+      ]
+    },
+    {
+      "rel": "artifacts/api-server/src/__tests__/db-security.test.ts",
+      "line": 1343,
+      "id": "hardcoded_secret",
+      "sev": "warn",
+      "priority": "P3",
+      "category": "합성 테스트/테스트 설정",
+      "domains": [
+        "보안",
+        "권한/인증"
+      ]
+    },
+    {
+      "rel": "artifacts/api-server/src/__tests__/hearts-chat-group-invariants.test.ts",
+      "line": 10,
+      "id": "hardcoded_secret",
+      "sev": "warn",
+      "priority": "P3",
+      "category": "합성 테스트/테스트 설정",
+      "domains": [
+        "보안"
+      ]
+    },
+    {
+      "rel": "artifacts/api-server/src/__tests__/load-venue-150.test.ts",
+      "line": 9,
+      "id": "hardcoded_secret",
+      "sev": "warn",
+      "priority": "P3",
+      "category": "합성 테스트/테스트 설정",
+      "domains": [
+        "보안"
+      ]
+    },
+    {
+      "rel": "artifacts/api-server/src/__tests__/push-self-test.test.ts",
+      "line": 6,
+      "id": "hardcoded_secret",
+      "sev": "warn",
+      "priority": "P3",
+      "category": "합성 테스트/테스트 설정",
+      "domains": [
+        "보안"
+      ]
+    },
+    {
+      "rel": "artifacts/api-server/src/__tests__/sulbun-event-reset.test.ts",
+      "line": 9,
+      "id": "hardcoded_secret",
+      "sev": "warn",
+      "priority": "P3",
+      "category": "합성 테스트/테스트 설정",
+      "domains": [
+        "보안",
+        "개인정보"
+      ]
+    },
+    {
+      "rel": "artifacts/api-server/src/lib/db-app-settings-boot.test.ts",
+      "line": 14,
+      "id": "hardcoded_secret",
+      "sev": "warn",
+      "priority": "P3",
+      "category": "합성 테스트/테스트 설정",
+      "domains": [
+        "보안",
+        "개인정보"
+      ]
+    },
+    {
+      "rel": "artifacts/api-server/src/lib/db-app-settings-boot.test.ts",
+      "line": 22,
+      "id": "hardcoded_secret",
+      "sev": "warn",
+      "priority": "P3",
+      "category": "합성 테스트/테스트 설정",
+      "domains": [
+        "보안",
+        "개인정보"
+      ]
+    },
+    {
+      "rel": "artifacts/api-server/src/lib/db-app-settings-boot.test.ts",
+      "line": 23,
+      "id": "hardcoded_secret",
+      "sev": "warn",
+      "priority": "P3",
+      "category": "합성 테스트/테스트 설정",
+      "domains": [
+        "보안",
+        "개인정보"
+      ]
+    },
+    {
+      "rel": "artifacts/api-server/src/lib/db-app-settings-boot.test.ts",
+      "line": 25,
+      "id": "hardcoded_secret",
+      "sev": "warn",
+      "priority": "P3",
+      "category": "합성 테스트/테스트 설정",
+      "domains": [
+        "보안",
+        "개인정보"
+      ]
+    },
+    {
+      "rel": "artifacts/api-server/src/lib/db-app-settings-boot.test.ts",
+      "line": 43,
+      "id": "hardcoded_secret",
+      "sev": "warn",
+      "priority": "P3",
+      "category": "합성 테스트/테스트 설정",
+      "domains": [
+        "보안",
+        "개인정보"
+      ]
+    },
+    {
+      "rel": "artifacts/api-server/src/lib/db-app-settings-boot.test.ts",
+      "line": 51,
+      "id": "hardcoded_secret",
+      "sev": "warn",
+      "priority": "P3",
+      "category": "합성 테스트/테스트 설정",
+      "domains": [
+        "보안",
+        "개인정보"
+      ]
+    },
+    {
+      "rel": "artifacts/api-server/src/lib/db-app-settings-boot.test.ts",
+      "line": 60,
+      "id": "hardcoded_secret",
+      "sev": "warn",
+      "priority": "P3",
+      "category": "합성 테스트/테스트 설정",
+      "domains": [
+        "보안",
+        "개인정보"
+      ]
+    },
+    {
+      "rel": "artifacts/api-server/src/lib/db-app-settings-boot.test.ts",
+      "line": 68,
+      "id": "hardcoded_secret",
+      "sev": "warn",
+      "priority": "P3",
+      "category": "합성 테스트/테스트 설정",
+      "domains": [
+        "보안",
+        "개인정보"
+      ]
+    },
+    {
+      "rel": "artifacts/api-server/src/lib/db-app-settings-boot.test.ts",
+      "line": 69,
+      "id": "hardcoded_secret",
+      "sev": "warn",
+      "priority": "P3",
+      "category": "합성 테스트/테스트 설정",
+      "domains": [
+        "보안",
+        "개인정보"
+      ]
+    },
+    {
+      "rel": "artifacts/api-server/src/lib/db-app-settings-boot.test.ts",
+      "line": 70,
+      "id": "hardcoded_secret",
+      "sev": "warn",
+      "priority": "P3",
+      "category": "합성 테스트/테스트 설정",
+      "domains": [
+        "보안",
+        "개인정보"
+      ]
+    },
+    {
+      "rel": "artifacts/api-server/src/lib/db-app-settings-boot.test.ts",
+      "line": 113,
+      "id": "hardcoded_secret",
+      "sev": "warn",
+      "priority": "P3",
+      "category": "합성 테스트/테스트 설정",
+      "domains": [
+        "보안",
+        "개인정보"
+      ]
+    },
+    {
+      "rel": "artifacts/api-server/src/lib/db-app-settings-boot.test.ts",
+      "line": 114,
+      "id": "hardcoded_secret",
+      "sev": "warn",
+      "priority": "P3",
+      "category": "합성 테스트/테스트 설정",
+      "domains": [
+        "보안",
+        "개인정보"
+      ]
+    },
+    {
+      "rel": "artifacts/api-server/src/lib/db-app-settings-boot.test.ts",
+      "line": 115,
+      "id": "hardcoded_secret",
+      "sev": "warn",
+      "priority": "P3",
+      "category": "합성 테스트/테스트 설정",
+      "domains": [
+        "보안",
+        "개인정보"
+      ]
+    },
+    {
+      "rel": "artifacts/api-server/src/lib/db-app-settings-view.test.ts",
+      "line": 40,
+      "id": "hardcoded_secret",
+      "sev": "warn",
+      "priority": "P3",
+      "category": "합성 테스트/테스트 설정",
+      "domains": [
+        "보안",
+        "개인정보"
+      ]
+    },
+    {
+      "rel": "artifacts/api-server/src/lib/db-app-settings-view.test.ts",
+      "line": 41,
+      "id": "hardcoded_secret",
+      "sev": "warn",
+      "priority": "P3",
+      "category": "합성 테스트/테스트 설정",
+      "domains": [
+        "보안",
+        "개인정보"
+      ]
+    },
+    {
+      "rel": "artifacts/api-server/src/lib/db-app-settings-view.test.ts",
+      "line": 42,
+      "id": "hardcoded_secret",
+      "sev": "warn",
+      "priority": "P3",
+      "category": "합성 테스트/테스트 설정",
+      "domains": [
+        "보안",
+        "개인정보"
+      ]
+    },
+    {
+      "rel": "artifacts/api-server/src/lib/db-app-settings-view.test.ts",
+      "line": 43,
+      "id": "hardcoded_secret",
+      "sev": "warn",
+      "priority": "P3",
+      "category": "합성 테스트/테스트 설정",
+      "domains": [
+        "보안",
+        "개인정보"
+      ]
+    },
+    {
+      "rel": "artifacts/api-server/src/lib/db-app-settings-view.test.ts",
+      "line": 115,
+      "id": "hardcoded_secret",
+      "sev": "warn",
+      "priority": "P3",
+      "category": "합성 테스트/테스트 설정",
+      "domains": [
+        "보안",
+        "개인정보"
+      ]
+    },
+    {
+      "rel": "artifacts/api-server/src/lib/db-session-tokens.test.ts",
+      "line": 21,
+      "id": "hardcoded_secret",
+      "sev": "warn",
+      "priority": "P3",
+      "category": "합성 테스트/테스트 설정",
+      "domains": [
+        "보안",
+        "개인정보",
+        "권한/인증"
+      ]
+    },
+    {
+      "rel": "artifacts/api-server/src/lib/event-hub.pg.test.ts",
+      "line": 673,
+      "id": "hardcoded_secret",
+      "sev": "warn",
+      "priority": "P3",
+      "category": "합성 테스트/테스트 설정",
+      "domains": [
+        "보안",
+        "개인정보",
+        "입금/회비"
+      ]
+    },
+    {
+      "rel": "artifacts/api-server/src/lib/event-hub.pg.test.ts",
+      "line": 690,
+      "id": "hardcoded_secret",
+      "sev": "warn",
+      "priority": "P3",
+      "category": "합성 테스트/테스트 설정",
+      "domains": [
+        "보안",
+        "개인정보",
+        "입금/회비"
+      ]
+    },
+    {
+      "rel": "artifacts/api-server/src/lib/event-hub.pg.test.ts",
+      "line": 700,
+      "id": "hardcoded_secret",
+      "sev": "warn",
+      "priority": "P3",
+      "category": "합성 테스트/테스트 설정",
+      "domains": [
+        "보안",
+        "개인정보",
+        "입금/회비"
+      ]
+    },
+    {
+      "rel": "artifacts/api-server/src/lib/event-hub.pg.test.ts",
+      "line": 709,
+      "id": "hardcoded_secret",
+      "sev": "warn",
+      "priority": "P3",
+      "category": "합성 테스트/테스트 설정",
+      "domains": [
+        "보안",
+        "개인정보",
+        "입금/회비"
+      ]
+    },
+    {
+      "rel": "artifacts/api-server/src/lib/event-hub.pg.test.ts",
+      "line": 748,
+      "id": "hardcoded_secret",
+      "sev": "warn",
+      "priority": "P3",
+      "category": "합성 테스트/테스트 설정",
+      "domains": [
+        "보안",
+        "개인정보",
+        "입금/회비"
+      ]
+    },
+    {
+      "rel": "artifacts/api-server/src/lib/event-hub.pg.test.ts",
+      "line": 761,
+      "id": "hardcoded_secret",
+      "sev": "warn",
+      "priority": "P3",
+      "category": "합성 테스트/테스트 설정",
+      "domains": [
+        "보안",
+        "개인정보",
+        "입금/회비"
+      ]
+    },
+    {
+      "rel": "artifacts/api-server/src/lib/event-hub.pg.test.ts",
+      "line": 784,
+      "id": "hardcoded_secret",
+      "sev": "warn",
+      "priority": "P3",
+      "category": "합성 테스트/테스트 설정",
+      "domains": [
+        "보안",
+        "개인정보",
+        "입금/회비"
+      ]
+    },
+    {
+      "rel": "artifacts/api-server/src/lib/event-hub.pg.test.ts",
+      "line": 960,
+      "id": "hardcoded_secret",
+      "sev": "warn",
+      "priority": "P3",
+      "category": "합성 테스트/테스트 설정",
+      "domains": [
+        "보안",
+        "개인정보",
+        "입금/회비"
+      ]
+    },
+    {
+      "rel": "artifacts/api-server/src/lib/event-hub.pg.test.ts",
+      "line": 976,
+      "id": "hardcoded_secret",
+      "sev": "warn",
+      "priority": "P3",
+      "category": "합성 테스트/테스트 설정",
+      "domains": [
+        "보안",
+        "개인정보",
+        "입금/회비"
+      ]
+    },
+    {
+      "rel": "artifacts/api-server/src/lib/event-hub.pg.test.ts",
+      "line": 987,
+      "id": "hardcoded_secret",
+      "sev": "warn",
+      "priority": "P3",
+      "category": "합성 테스트/테스트 설정",
+      "domains": [
+        "보안",
+        "개인정보",
+        "입금/회비"
+      ]
+    },
+    {
+      "rel": "artifacts/api-server/src/lib/event-hub.pg.test.ts",
+      "line": 996,
+      "id": "hardcoded_secret",
+      "sev": "warn",
+      "priority": "P3",
+      "category": "합성 테스트/테스트 설정",
+      "domains": [
+        "보안",
+        "개인정보",
+        "입금/회비"
+      ]
+    },
+    {
+      "rel": "artifacts/api-server/src/lib/event-hub.pg.test.ts",
+      "line": 1041,
+      "id": "hardcoded_secret",
+      "sev": "warn",
+      "priority": "P3",
+      "category": "합성 테스트/테스트 설정",
+      "domains": [
+        "보안",
+        "개인정보",
+        "입금/회비"
+      ]
+    },
+    {
+      "rel": "artifacts/api-server/src/lib/event-hub.pg.test.ts",
+      "line": 1060,
+      "id": "hardcoded_secret",
+      "sev": "warn",
+      "priority": "P3",
+      "category": "합성 테스트/테스트 설정",
+      "domains": [
+        "보안",
+        "개인정보",
+        "입금/회비"
+      ]
+    },
+    {
+      "rel": "artifacts/api-server/src/lib/event-hub.pg.test.ts",
+      "line": 1099,
+      "id": "hardcoded_secret",
+      "sev": "warn",
+      "priority": "P3",
+      "category": "합성 테스트/테스트 설정",
+      "domains": [
+        "보안",
+        "개인정보",
+        "입금/회비"
+      ]
+    },
+    {
+      "rel": "artifacts/api-server/src/lib/event-hub.pg.test.ts",
+      "line": 1195,
+      "id": "hardcoded_secret",
+      "sev": "warn",
+      "priority": "P3",
+      "category": "합성 테스트/테스트 설정",
+      "domains": [
+        "보안",
+        "개인정보",
+        "입금/회비"
+      ]
+    },
+    {
+      "rel": "artifacts/api-server/src/lib/event-hub.pg.test.ts",
+      "line": 1299,
+      "id": "hardcoded_secret",
+      "sev": "warn",
+      "priority": "P3",
+      "category": "합성 테스트/테스트 설정",
+      "domains": [
+        "보안",
+        "개인정보",
+        "입금/회비"
+      ]
+    },
+    {
+      "rel": "artifacts/api-server/src/lib/event-hub.pg.test.ts",
+      "line": 1336,
+      "id": "hardcoded_secret",
+      "sev": "warn",
+      "priority": "P3",
+      "category": "합성 테스트/테스트 설정",
+      "domains": [
+        "보안",
+        "개인정보",
+        "입금/회비"
+      ]
+    },
+    {
+      "rel": "artifacts/api-server/src/lib/event-hub.pg.test.ts",
+      "line": 1447,
+      "id": "hardcoded_secret",
+      "sev": "warn",
+      "priority": "P3",
+      "category": "합성 테스트/테스트 설정",
+      "domains": [
+        "보안",
+        "개인정보",
+        "입금/회비"
+      ]
+    },
+    {
+      "rel": "artifacts/api-server/src/lib/event-hub.pg.test.ts",
+      "line": 1571,
+      "id": "hardcoded_secret",
+      "sev": "warn",
+      "priority": "P3",
+      "category": "합성 테스트/테스트 설정",
+      "domains": [
+        "보안",
+        "개인정보",
+        "입금/회비"
+      ]
+    },
+    {
+      "rel": "artifacts/api-server/src/lib/event-hub.pg.test.ts",
+      "line": 1873,
+      "id": "hardcoded_secret",
+      "sev": "warn",
+      "priority": "P3",
+      "category": "합성 테스트/테스트 설정",
+      "domains": [
+        "보안",
+        "개인정보",
+        "입금/회비"
+      ]
+    },
+    {
+      "rel": "artifacts/api-server/src/lib/event-hub.pg.test.ts",
+      "line": 2033,
+      "id": "hardcoded_secret",
+      "sev": "warn",
+      "priority": "P3",
+      "category": "합성 테스트/테스트 설정",
+      "domains": [
+        "보안",
+        "개인정보",
+        "입금/회비"
+      ]
+    },
+    {
+      "rel": "artifacts/api-server/src/lib/event-hub.pg.test.ts",
+      "line": 2046,
+      "id": "hardcoded_secret",
+      "sev": "warn",
+      "priority": "P3",
+      "category": "합성 테스트/테스트 설정",
+      "domains": [
+        "보안",
+        "개인정보",
+        "입금/회비"
+      ]
+    },
+    {
+      "rel": "artifacts/api-server/src/lib/event-hub.pg.test.ts",
+      "line": 2425,
+      "id": "hardcoded_secret",
+      "sev": "warn",
+      "priority": "P3",
+      "category": "합성 테스트/테스트 설정",
+      "domains": [
+        "보안",
+        "개인정보",
+        "입금/회비"
+      ]
+    },
+    {
+      "rel": "artifacts/api-server/src/lib/event-hub.pg.test.ts",
+      "line": 2472,
+      "id": "hardcoded_secret",
+      "sev": "warn",
+      "priority": "P3",
+      "category": "합성 테스트/테스트 설정",
+      "domains": [
+        "보안",
+        "개인정보",
+        "입금/회비"
+      ]
+    },
+    {
+      "rel": "artifacts/api-server/src/lib/event-hub.pg.test.ts",
+      "line": 2513,
+      "id": "hardcoded_secret",
+      "sev": "warn",
+      "priority": "P3",
+      "category": "합성 테스트/테스트 설정",
+      "domains": [
+        "보안",
+        "개인정보",
+        "입금/회비"
+      ]
+    },
+    {
+      "rel": "artifacts/api-server/src/lib/event-hub.pg.test.ts",
+      "line": 2515,
+      "id": "hardcoded_secret",
+      "sev": "warn",
+      "priority": "P3",
+      "category": "합성 테스트/테스트 설정",
+      "domains": [
+        "보안",
+        "개인정보",
+        "입금/회비"
+      ]
+    },
+    {
+      "rel": "artifacts/api-server/src/lib/private-preview.test.ts",
+      "line": 5,
+      "id": "hardcoded_secret",
+      "sev": "warn",
+      "priority": "P3",
+      "category": "합성 회귀검사 상수",
+      "domains": [
+        "보안",
+        "권한/인증"
+      ]
+    },
+    {
+      "rel": "artifacts/api-server/src/lib/private-preview.test.ts",
+      "line": 6,
+      "id": "hardcoded_secret",
+      "sev": "warn",
+      "priority": "P3",
+      "category": "합성 회귀검사 상수",
+      "domains": [
+        "보안",
+        "권한/인증"
+      ]
+    },
+    {
+      "rel": "artifacts/api-server/vitest.config.ts",
+      "line": 14,
+      "id": "hardcoded_secret",
+      "sev": "warn",
+      "priority": "P3",
+      "category": "합성 테스트/테스트 설정",
+      "domains": [
+        "보안"
+      ]
+    },
+    {
+      "rel": "artifacts/boltnew-app/scripts/check-responsive-preview.mjs",
+      "line": 55,
+      "id": "hardcoded_secret",
+      "sev": "warn",
+      "priority": "P3",
+      "category": "독립 브라우저 fixture",
+      "domains": [
+        "보안"
+      ]
+    },
+    {
+      "rel": "artifacts/boltnew-app/src/admin/LoginScreen.test.tsx",
+      "line": 60,
+      "id": "hardcoded_secret",
+      "sev": "warn",
+      "priority": "P3",
+      "category": "합성 테스트/테스트 설정",
+      "domains": [
+        "보안",
+        "권한/인증"
+      ]
+    },
+    {
+      "rel": "artifacts/boltnew-app/src/event-hub/event-laboratory-store.test.ts",
+      "line": 176,
+      "id": "hardcoded_secret",
+      "sev": "warn",
+      "priority": "P3",
+      "category": "합성 테스트/테스트 설정",
+      "domains": [
+        "보안"
+      ]
+    },
+    {
+      "rel": "artifacts/boltnew-app/src/lib/signal-match.test.ts",
+      "line": 152,
+      "id": "hardcoded_secret",
+      "sev": "warn",
+      "priority": "P3",
+      "category": "합성 테스트/테스트 설정",
+      "domains": [
+        "보안"
+      ]
+    },
+    {
+      "rel": "artifacts/boltnew-app/src/lib/signal-match.test.ts",
+      "line": 247,
+      "id": "hardcoded_secret",
+      "sev": "warn",
+      "priority": "P3",
+      "category": "합성 테스트/테스트 설정",
+      "domains": [
+        "보안"
+      ]
+    },
+    {
+      "rel": "artifacts/boltnew-app/tests/event-hub-v6.spec.ts",
+      "line": 269,
+      "id": "hardcoded_secret",
+      "sev": "warn",
+      "priority": "P3",
+      "category": "합성 테스트/테스트 설정",
+      "domains": [
+        "보안"
+      ]
+    },
+    {
+      "rel": "artifacts/boltnew-app/tests/event-hub-v6.spec.ts",
+      "line": 383,
+      "id": "hardcoded_secret",
+      "sev": "warn",
+      "priority": "P3",
+      "category": "합성 테스트/테스트 설정",
+      "domains": [
+        "보안"
+      ]
+    },
+    {
+      "rel": "scripts/event-hub-browser-fixture.mjs",
+      "line": 69,
+      "id": "hardcoded_secret",
+      "sev": "warn",
+      "priority": "P3",
+      "category": "독립 격리 시험용 설정",
+      "domains": [
+        "보안",
+        "개인정보",
+        "입금",
+        "권한/인증"
+      ]
+    },
+    {
+      "rel": "scripts/event-hub-http-soak.mjs",
+      "line": 98,
+      "id": "hardcoded_secret",
+      "sev": "warn",
+      "priority": "P3",
+      "category": "독립 격리 시험용 설정",
+      "domains": [
+        "보안",
+        "개인정보",
+        "입금",
+        "권한/인증"
+      ]
+    },
+    {
+      "rel": "scripts/full-code-audit.mjs",
+      "line": 55,
+      "id": "ts_ignore",
+      "sev": "warn",
+      "priority": "P3",
+      "category": "감사 규칙 자기 탐지",
+      "domains": [
+        "보안"
+      ]
+    },
+    {
+      "rel": "scripts/lib/ops-client.mjs",
+      "line": 103,
+      "id": "hardcoded_secret",
+      "sev": "warn",
+      "priority": "P3",
+      "category": "마스킹 문자열",
+      "domains": [
+        "보안",
+        "권한/인증"
+      ]
+    },
+    {
+      "rel": "scripts/rotate-exposed-secrets.mjs",
+      "line": 9,
+      "id": "hardcoded_secret",
+      "sev": "warn",
+      "priority": "P3",
+      "category": "주석의 토큰 예시",
+      "domains": [
+        "보안"
+      ]
+    },
+    {
+      "rel": "scripts/rotate-exposed-secrets.mjs",
+      "line": 10,
+      "id": "hardcoded_secret",
+      "sev": "warn",
+      "priority": "P3",
+      "category": "주석의 토큰 예시",
+      "domains": [
+        "보안"
+      ]
+    },
+    {
+      "rel": "scripts/test/ops-client.test.mjs",
+      "line": 127,
+      "id": "hardcoded_secret",
+      "sev": "warn",
+      "priority": "P3",
+      "category": "합성 테스트/테스트 설정",
+      "domains": [
+        "보안",
+        "권한/인증"
+      ]
+    },
+    {
+      "rel": "scripts/test/ops-client.test.mjs",
+      "line": 128,
+      "id": "hardcoded_secret",
+      "sev": "warn",
+      "priority": "P3",
+      "category": "합성 테스트/테스트 설정",
+      "domains": [
+        "보안",
+        "권한/인증"
+      ]
+    }
+  ],
+  "priorityCounts": {
+    "P3": 92
+  },
+  "interpretation": "Pattern warnings are reviewed categories, not 92 real credential leaks or independent penetration-test certification. No security/request-limit checks were removed."
+}

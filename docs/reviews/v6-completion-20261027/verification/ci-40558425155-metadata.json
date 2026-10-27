@@ -1,0 +1,214 @@
+{
+  "headSha": "7b5558aee69cf8e471d6c0c823f5988b926b50b3",
+  "status": "completed",
+  "conclusion": "success",
+  "url": "https://github.com/aoaldhkd-spec/BINPC2/actions/runs/40558425155",
+  "jobs": [
+    {
+      "name": "event-hub",
+      "status": "completed",
+      "conclusion": "success",
+      "startedAt": "2026-10-27T18:16:32Z",
+      "completedAt": "2026-10-27T18:22:10Z",
+      "steps": [
+        {
+          "name": "Set up job",
+          "conclusion": "success",
+          "status": "completed",
+          "startedAt": "2026-10-27T18:16:32Z",
+          "completedAt": "2026-10-27T18:16:33Z"
+        },
+        {
+          "name": "Initialize containers",
+          "conclusion": "success",
+          "status": "completed",
+          "startedAt": "2026-10-27T18:16:33Z",
+          "completedAt": "2026-10-27T18:16:47Z"
+        },
+        {
+          "name": "Run actions/checkout@v4",
+          "conclusion": "success",
+          "status": "completed",
+          "startedAt": "2026-10-27T18:16:47Z",
+          "completedAt": "2026-10-27T18:16:49Z"
+        },
+        {
+          "name": "Run pnpm/action-setup@v4",
+          "conclusion": "success",
+          "status": "completed",
+          "startedAt": "2026-10-27T18:16:49Z",
+          "completedAt": "2026-10-27T18:16:50Z"
+        },
+        {
+          "name": "Run actions/setup-node@v4",
+          "conclusion": "success",
+          "status": "completed",
+          "startedAt": "2026-10-27T18:16:50Z",
+          "completedAt": "2026-10-27T18:16:54Z"
+        },
+        {
+          "name": "Run corepack enable",
+          "conclusion": "success",
+          "status": "completed",
+          "startedAt": "2026-10-27T18:16:54Z",
+          "completedAt": "2026-10-27T18:16:54Z"
+        },
+        {
+          "name": "Run pnpm install --frozen-lockfile",
+          "conclusion": "success",
+          "status": "completed",
+          "startedAt": "2026-10-27T18:16:54Z",
+          "completedAt": "2026-10-27T18:17:00Z"
+        },
+        {
+          "name": "Run node scripts/prepare-event-hub-e2e.mjs database",
+          "conclusion": "success",
+          "status": "completed",
+          "startedAt": "2026-10-27T18:17:00Z",
+          "completedAt": "2026-10-27T18:17:00Z"
+        },
+        {
+          "name": "Run pnpm run build",
+          "conclusion": "success",
+          "status": "completed",
+          "startedAt": "2026-10-27T18:17:00Z",
+          "completedAt": "2026-10-27T18:17:18Z"
+        },
+        {
+          "name": "Existing API unit regression checks",
+          "conclusion": "success",
+          "status": "completed",
+          "startedAt": "2026-10-27T18:17:18Z",
+          "completedAt": "2026-10-27T18:17:30Z"
+        },
+        {
+          "name": "Existing UI unit regression checks",
+          "conclusion": "success",
+          "status": "completed",
+          "startedAt": "2026-10-27T18:17:30Z",
+          "completedAt": "2026-10-27T18:17:45Z"
+        },
+        {
+          "name": "Existing core-protection guards",
+          "conclusion": "success",
+          "status": "completed",
+          "startedAt": "2026-10-27T18:17:45Z",
+          "completedAt": "2026-10-27T18:17:46Z"
+        },
+        {
+          "name": "Current documentation checks",
+          "conclusion": "success",
+          "status": "completed",
+          "startedAt": "2026-10-27T18:17:46Z",
+          "completedAt": "2026-10-27T18:17:46Z"
+        },
+        {
+          "name": "Production-entry guards and redaction",
+          "conclusion": "success",
+          "status": "completed",
+          "startedAt": "2026-10-27T18:17:46Z",
+          "completedAt": "2026-10-27T18:17:46Z"
+        },
+        {
+          "name": "Actual PostgreSQL invariants and existing reset safety",
+          "conclusion": "success",
+          "status": "completed",
+          "startedAt": "2026-10-27T18:17:46Z",
+          "completedAt": "2026-10-27T18:17:54Z"
+        },
+        {
+          "name": "Run pnpm --filter @workspace/boltnew-app exec playwright install --with-deps chromium",
+          "conclusion": "success",
+          "status": "completed",
+          "startedAt": "2026-10-27T18:17:54Z",
+          "completedAt": "2026-10-27T18:18:14Z"
+        },
+        {
+          "name": "Pin an explicit internal business clock for admission and mobile regression",
+          "conclusion": "success",
+          "status": "completed",
+          "startedAt": "2026-10-27T18:18:14Z",
+          "completedAt": "2026-10-27T18:18:14Z"
+        },
+        {
+          "name": "Start dedicated local API and frontend",
+          "conclusion": "success",
+          "status": "completed",
+          "startedAt": "2026-10-27T18:18:14Z",
+          "completedAt": "2026-10-27T18:18:15Z"
+        },
+        {
+          "name": "Run node scripts/prepare-event-hub-e2e.mjs activate",
+          "conclusion": "success",
+          "status": "completed",
+          "startedAt": "2026-10-27T18:18:15Z",
+          "completedAt": "2026-10-27T18:18:16Z"
+        },
+        {
+          "name": "Browser recovery, inquiry, layout and 100-session HTTP tests",
+          "conclusion": "success",
+          "status": "completed",
+          "startedAt": "2026-10-27T18:18:16Z",
+          "completedAt": "2026-10-27T18:20:38Z"
+        },
+        {
+          "name": "Actual 150-person HTTP/PostgreSQL mixed regression on accumulated records",
+          "conclusion": "success",
+          "status": "completed",
+          "startedAt": "2026-10-27T18:20:38Z",
+          "completedAt": "2026-10-27T18:22:07Z"
+        },
+        {
+          "name": "Preserve synthetic actual-app screenshots and videos",
+          "conclusion": "success",
+          "status": "completed",
+          "startedAt": "2026-10-27T18:22:07Z",
+          "completedAt": "2026-10-27T18:22:10Z"
+        },
+        {
+          "name": "Post Run actions/setup-node@v4",
+          "conclusion": "success",
+          "status": "completed",
+          "startedAt": "2026-10-27T18:22:10Z",
+          "completedAt": "2026-10-27T18:22:10Z"
+        },
+        {
+          "name": "Post Run pnpm/action-setup@v4",
+          "conclusion": "success",
+          "status": "completed",
+          "startedAt": "2026-10-27T18:22:10Z",
+          "completedAt": "2026-10-27T18:22:10Z"
+        },
+        {
+          "name": "Post Run actions/checkout@v4",
+          "conclusion": "success",
+          "status": "completed",
+          "startedAt": "2026-10-27T18:22:10Z",
+          "completedAt": "2026-10-27T18:22:10Z"
+        },
+        {
+          "name": "Stop containers",
+          "conclusion": "success",
+          "status": "completed",
+          "startedAt": "2026-10-27T18:22:10Z",
+          "completedAt": "2026-10-27T18:22:10Z"
+        },
+        {
+          "name": "Complete job",
+          "conclusion": "success",
+          "status": "completed",
+          "startedAt": "2026-10-27T18:22:10Z",
+          "completedAt": "2026-10-27T18:22:10Z"
+        }
+      ]
+    }
+  ],
+  "evidenceTransport": {
+    "kind": "official-public-HTML",
+    "reason": "GitHub API returned403; official public summary Success and each actual check-step data-conclusion success independently read",
+    "jobUrl": "https://github.com/aoaldhkd-spec/BINPC2/actions/runs/40558425155/job/122380615193",
+    "checkedAt": "2026-10-27T18:23:42.853520+00:00",
+    "summarySha256": "6e328cc594a4e4c4d0c25841cb37d3118c869e3a035a4bf0ad0f66a1f9c786a0",
+    "jobSha256": "1927041060018abb4e5ffe49994b5f6dd514cdc312d750230eb537305e69695f"
+  }
+}

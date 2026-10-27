@@ -165,6 +165,356 @@
           "reason": "내부 HTTP/Chromium 결과이며 실제 기기를 사용하지 않았음."
         }
       ]
+    },
+    {
+      "id": "github-40553262142",
+      "sourceVersion": "e83048a146b1c7e0ed4c2631db0baaccd404f1ec",
+      "codeFingerprint": "a4edcac439ef94f1c52693951dc462ba0544714011871c9f80db82113efe4a29",
+      "environment": "GitHub Actions Ubuntu24.04 · 실제 React/Express · PostgreSQL16 · Chromium",
+      "startedAt": "2026-10-27T17:43:31Z",
+      "finishedAt": "2026-10-27T17:44:31Z",
+      "reportUrl": "https://github.com/aoaldhkd-spec/BINPC2/actions/runs/40553262142",
+      "checks": [
+        {
+          "id": "build",
+          "title": "실제 앱 빌드",
+          "kind": "build",
+          "status": "FAIL",
+          "reason": "Run pnpm run build 실패. 연결된 실제 실행 기록을 확인하세요."
+        },
+        {
+          "id": "unit",
+          "title": "API·React 단위 회귀검사",
+          "kind": "unit",
+          "status": "NOT_RUN"
+        },
+        {
+          "id": "postgres",
+          "title": "실제 격리 PostgreSQL·초기화 보호",
+          "kind": "postgres",
+          "status": "NOT_RUN"
+        },
+        {
+          "id": "browser",
+          "title": "실제 React/API/DB 브라우저",
+          "kind": "browser",
+          "status": "NOT_RUN"
+        },
+        {
+          "id": "mixed",
+          "title": "150명 실제 HTTP/PostgreSQL 혼합 검사",
+          "kind": "mixed-http-postgres",
+          "status": "NOT_RUN"
+        },
+        {
+          "id": "guard",
+          "title": "기존 기능 보호검사",
+          "kind": "guard",
+          "status": "NOT_RUN"
+        },
+        {
+          "id": "physical",
+          "title": "물리 Galaxy/iPhone",
+          "kind": "physical-device",
+          "status": "UNKNOWN",
+          "reason": "실기기 검사 이력 없음. Chromium을 실기기 성적으로 바꾸지 않음."
+        }
+      ]
+    },
+    {
+      "id": "github-40553363879",
+      "sourceVersion": "55eae3dcf161b8408e4fb652022d800e529156ff",
+      "codeFingerprint": "4b4a67120a021644ffde89acb1aaecaca3b577628714004d38c53a2738d3c1ec",
+      "environment": "GitHub Actions Ubuntu24.04 · 실제 React/Express · PostgreSQL16 · Chromium",
+      "startedAt": "2026-10-27T17:44:11Z",
+      "finishedAt": "2026-10-27T17:50:58Z",
+      "reportUrl": "https://github.com/aoaldhkd-spec/BINPC2/actions/runs/40553363879",
+      "checks": [
+        {
+          "id": "build",
+          "title": "실제 앱 빌드",
+          "kind": "build",
+          "status": "PASS"
+        },
+        {
+          "id": "unit",
+          "title": "API·React 단위 회귀검사",
+          "kind": "unit",
+          "status": "PASS"
+        },
+        {
+          "id": "postgres",
+          "title": "실제 격리 PostgreSQL·초기화 보호",
+          "kind": "postgres",
+          "status": "PASS"
+        },
+        {
+          "id": "browser",
+          "title": "실제 React/API/DB 브라우저",
+          "kind": "browser",
+          "status": "PASS"
+        },
+        {
+          "id": "mixed",
+          "title": "150명 실제 HTTP/PostgreSQL 혼합 검사",
+          "kind": "mixed-http-postgres",
+          "status": "PASS"
+        },
+        {
+          "id": "guard",
+          "title": "기존 기능 보호검사",
+          "kind": "guard",
+          "status": "PASS"
+        },
+        {
+          "id": "physical",
+          "title": "물리 Galaxy/iPhone",
+          "kind": "physical-device",
+          "status": "UNKNOWN",
+          "reason": "실기기 검사 이력 없음. Chromium을 실기기 성적으로 바꾸지 않음."
+        }
+      ]
+    },
+    {
+      "id": "github-40557665536",
+      "sourceVersion": "79eba69cd6e6f9e4bfa2bcb676e9c3023b5e6b3e",
+      "codeFingerprint": "4dd7d885095d2ff2689c123c1d32a1f24ea87832435439bae58f7e337cd920d2",
+      "environment": "GitHub Actions Ubuntu24.04 · 실제 React/Express · PostgreSQL16 · Chromium",
+      "startedAt": "2026-10-27T18:11:44Z",
+      "finishedAt": "2026-10-27T18:17:01Z",
+      "reportUrl": "https://github.com/aoaldhkd-spec/BINPC2/actions/runs/40557665536",
+      "checks": [
+        {
+          "id": "build",
+          "title": "실제 앱 빌드",
+          "kind": "build",
+          "status": "PASS"
+        },
+        {
+          "id": "unit",
+          "title": "API·React 단위 회귀검사",
+          "kind": "unit",
+          "status": "PASS"
+        },
+        {
+          "id": "postgres",
+          "title": "실제 격리 PostgreSQL·초기화 보호",
+          "kind": "postgres",
+          "status": "PASS"
+        },
+        {
+          "id": "browser",
+          "title": "실제 React/API/DB 브라우저",
+          "kind": "browser",
+          "status": "PASS"
+        },
+        {
+          "id": "mixed",
+          "title": "150명 실제 HTTP/PostgreSQL 혼합 검사",
+          "kind": "mixed-http-postgres",
+          "status": "PASS"
+        },
+        {
+          "id": "guard",
+          "title": "기존 기능 보호검사",
+          "kind": "guard",
+          "status": "PASS"
+        },
+        {
+          "id": "physical",
+          "title": "물리 Galaxy/iPhone",
+          "kind": "physical-device",
+          "status": "UNKNOWN",
+          "reason": "실기기 검사 이력 없음. Chromium을 실기기 성적으로 바꾸지 않음."
+        }
+      ]
+    },
+    {
+      "id": "mixed-1793122086440",
+      "sourceVersion": "50a5248c5c9937d13903df0c4d4fd49421cb7d8a",
+      "codeFingerprint": "a4edcac439ef94f1c52693951dc462ba0544714011871c9f80db82113efe4a29",
+      "environment": "real HTTP -> compiled Express -> actual PostgreSQL16; loopback only; development mode with normal rate limits and PG-backed sessions; business clock offset fixture only",
+      "startedAt": "2026-10-27T17:28:06.446Z",
+      "finishedAt": "2026-10-27T17:43:12.569Z",
+      "reportUrl": "https://github.com/aoaldhkd-spec/BINPC2/blob/feat/event-hub-v6-20261027/docs/EVENT_HUB_V6_COMPLETION_2026-10-27.md",
+      "checks": [
+        {
+          "id": "mixed-http-postgres",
+          "title": "150명 실제 HTTP/PostgreSQL · 906초",
+          "kind": "mixed-http-postgres",
+          "status": "PASS",
+          "count": 9170,
+          "reason": "9170요청. 재시작 복구=true. 기존 누적 소유자5842건. 실제 벽시계906초, 행사 시각만 격리 fixture로 이동. 기간을5시간/실기기로 확대 해석하지 않음."
+        },
+        {
+          "id": "physical",
+          "title": "물리 Galaxy/iPhone",
+          "kind": "physical-device",
+          "status": "UNKNOWN",
+          "reason": "내부 HTTP/Chromium 결과이며 실제 기기를 사용하지 않았음."
+        }
+      ]
+    },
+    {
+      "id": "github-40558425155",
+      "sourceVersion": "7b5558aee69cf8e471d6c0c823f5988b926b50b3",
+      "codeFingerprint": "9796b778cc5226e8b2971ff085b1352263fbddd5a15dbff0b303dee5ebb8a35a",
+      "environment": "GitHub Actions Ubuntu24.04 · 실제 React/Express · PostgreSQL16 · Chromium",
+      "startedAt": "2026-10-27T18:16:32Z",
+      "finishedAt": "2026-10-27T18:22:10Z",
+      "reportUrl": "https://github.com/aoaldhkd-spec/BINPC2/actions/runs/40558425155",
+      "checks": [
+        {
+          "id": "build",
+          "title": "실제 앱 빌드",
+          "kind": "build",
+          "status": "PASS"
+        },
+        {
+          "id": "unit",
+          "title": "API·React 단위 회귀검사",
+          "kind": "unit",
+          "status": "PASS"
+        },
+        {
+          "id": "postgres",
+          "title": "실제 격리 PostgreSQL·초기화 보호",
+          "kind": "postgres",
+          "status": "PASS"
+        },
+        {
+          "id": "browser",
+          "title": "실제 React/API/DB 브라우저",
+          "kind": "browser",
+          "status": "PASS"
+        },
+        {
+          "id": "mixed",
+          "title": "150명 실제 HTTP/PostgreSQL 혼합 검사",
+          "kind": "mixed-http-postgres",
+          "status": "PASS"
+        },
+        {
+          "id": "guard",
+          "title": "기존 기능 보호검사",
+          "kind": "guard",
+          "status": "PASS"
+        },
+        {
+          "id": "physical",
+          "title": "물리 Galaxy/iPhone",
+          "kind": "physical-device",
+          "status": "UNKNOWN",
+          "reason": "실기기 검사 이력 없음. Chromium을 실기기 성적으로 바꾸지 않음."
+        },
+        {
+          "id": "save-recover",
+          "title": "단계별 저장·유실 응답·재시작 후 승인 복구",
+          "kind": "postgres",
+          "status": "PASS",
+          "reason": "실제 CI의 전체 PostgreSQL 검사 단계 성공. 실제 소스 내 검사: restores every saved stage; lost COMMIT acknowledgement; 100 concurrent applications. 운영/실기기 실행을 뜻하지 않음."
+        },
+        {
+          "id": "schedule",
+          "title": "예약 정각·토요일 자동방·중복/재시작/수동중지",
+          "kind": "postgres",
+          "status": "PASS",
+          "reason": "실제 CI의 전체 PostgreSQL 검사 단계 성공. 실제 소스 내 검사: scheduled opens exactly at20:00; Saturday scheduler idempotent; Friday skipped. 운영/실기기 실행을 뜻하지 않음."
+        },
+        {
+          "id": "late-phone",
+          "title": "늦참 개입·전화번호 저장만·타인/결과 접근 차단",
+          "kind": "postgres",
+          "status": "PASS",
+          "reason": "실제 CI의 전체 PostgreSQL 검사 단계 성공. 실제 소스 내 검사: stores benefit phone without verification or identity merging; late review preserves payment. 운영/실기기 실행을 뜻하지 않음."
+        },
+        {
+          "id": "admission",
+          "title": "프로필 미완료 차단·중복 입장·진짜17시 복원 거절",
+          "kind": "postgres",
+          "status": "PASS",
+          "reason": "실제 CI의 전체 PostgreSQL 검사 단계 성공. 실제 소스 내 검사: blocks incomplete and unstarted entry; refuses cached admission replay after reset. 운영/실기기 실행을 뜻하지 않음."
+        },
+        {
+          "id": "modules-cards",
+          "title": "모듈 OFF 이력 보존·17시 테마 만료·카드/재고/지급",
+          "kind": "postgres",
+          "status": "PASS",
+          "reason": "실제 CI의 전체 PostgreSQL 검사 단계 성공. 실제 소스 내 검사: soft OFF and exact campaign end; durable cards; real atomic17:00 reset. 운영/실기기 실행을 뜻하지 않음."
+        },
+        {
+          "id": "logos",
+          "title": "로고 원본·권한·새 버전/행사 연결/이전 버전 복원",
+          "kind": "browser",
+          "status": "PASS",
+          "reason": "실제 CI의 전체 브라우저 검사 단계 성공. 실제 소스 내 검사: administrator verification history and immutable logo upload/select/restore; original byte comparison. 운영/실기기 실행을 뜻하지 않음."
+        },
+        {
+          "id": "mobile-browser",
+          "title": "Chromium 부분200/503/실제offline·복귀·기존하트/채팅",
+          "kind": "browser",
+          "status": "PASS",
+          "reason": "실제 CI의 전체 브라우저 검사 단계 성공. 실제 소스 내 검사: actual browser saved stages/payment/private profile/exactly-once entry; real participant message/heart preserved. 운영/실기기 실행을 뜻하지 않음."
+        },
+        {
+          "id": "layout",
+          "title": "작은 화면·다크모드·기존 신청/뒤로/다시열기",
+          "kind": "browser",
+          "status": "PASS",
+          "reason": "실제 CI의 전체 브라우저 검사 단계 성공. 실제 소스 내 검사: mobile/tablet layouts and administrator sandbox; actual React/API/PG browser suite. 운영/실기기 실행을 뜻하지 않음."
+        },
+        {
+          "id": "policy-release",
+          "title": "초안/확정·정책지문·production 별도승인 차단",
+          "kind": "postgres",
+          "status": "PASS",
+          "reason": "실제 CI의 전체 PostgreSQL 검사 단계 성공. 실제 소스 내 검사: policy approval never opens production without exact release; stale notice fingerprint rejected. 운영/실기기 실행을 뜻하지 않음."
+        }
+      ]
+    },
+    {
+      "id": "baseline-1793118838367",
+      "sourceVersion": "UNKNOWN",
+      "environment": "real HTTP -> compiled Express -> actual PostgreSQL16; loopback only; development mode with normal rate limits and PG-backed sessions; business clock offset fixture only",
+      "startedAt": "2026-10-27T16:33:58.373Z",
+      "finishedAt": "2026-10-27T16:34:05.955Z",
+      "reportUrl": "https://github.com/aoaldhkd-spec/BINPC2/blob/feat/event-hub-v6-20261027/docs/EVENT_HUB_V6_COMPLETION_2026-10-27.md",
+      "checks": [
+        {
+          "id": "accumulated-503",
+          "title": "과거 누적100세션 503 재현",
+          "kind": "mixed-http-postgres",
+          "status": "FAIL",
+          "count": 100,
+          "reason": "기반688d9925 + 오류분류만 추가한 진단 빌드(정확한 build fingerprint는 미수집). 누적5044 소유자,100요청 중48성공/52×503. POOL_CONNECTION_TIMEOUT 확인. 현재 PASS로 바꾸지 않음."
+        }
+      ]
+    },
+    {
+      "id": "mixed-1793124714953",
+      "sourceVersion": "79eba69cd6e6f9e4bfa2bcb676e9c3023b5e6b3e",
+      "codeFingerprint": "4dd7d885095d2ff2689c123c1d32a1f24ea87832435439bae58f7e337cd920d2",
+      "environment": "real HTTP -> compiled Express -> actual PostgreSQL16; loopback only; development mode with normal rate limits and PG-backed sessions; business clock offset fixture only",
+      "startedAt": "2026-10-27T18:11:54.959Z",
+      "finishedAt": "2026-10-27T18:27:00.648Z",
+      "reportUrl": "https://github.com/aoaldhkd-spec/BINPC2/blob/feat/event-hub-v6-20261027/docs/EVENT_HUB_V6_COMPLETION_2026-10-27.md",
+      "checks": [
+        {
+          "id": "mixed-http-postgres",
+          "title": "150명 실제 HTTP/PostgreSQL · 906초",
+          "kind": "mixed-http-postgres",
+          "status": "PASS",
+          "count": 9170,
+          "reason": "9170요청. 재시작 복구=true. 기존 누적 소유자5993건. 실제 벽시계906초, 행사 시각만 격리 fixture로 이동. 기간을5시간/실기기로 확대 해석하지 않음."
+        },
+        {
+          "id": "physical",
+          "title": "물리 Galaxy/iPhone",
+          "kind": "physical-device",
+          "status": "UNKNOWN",
+          "reason": "내부 HTTP/Chromium 결과이며 실제 기기를 사용하지 않았음."
+        }
+      ]
     }
   ]
 }

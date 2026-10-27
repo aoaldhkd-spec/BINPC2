@@ -1,0 +1,88 @@
+{
+  "comparison": "Normal production Vite build, baseline688d9925 (same UI as530279a4) versus frozen50a5248c; original logo bytes retained",
+  "before": {
+    "totalBytes": 8012167,
+    "fileCount": 404,
+    "logosBytes": 3204867,
+    "entry": [
+      {
+        "file": "index-BmPzsbPL.js",
+        "bytes": 348324,
+        "gzipBytes": 105356
+      }
+    ],
+    "eventHub": [
+      {
+        "file": "EventHubPage-Dnkk30QW.js",
+        "bytes": 40198,
+        "gzipBytes": 12804
+      },
+      {
+        "file": "EventHubAdmin-Kay_ThY1.js",
+        "bytes": 68904,
+        "gzipBytes": 21691
+      }
+    ],
+    "administrator": [
+      {
+        "file": "AdminApp-DwiR8aZT.js",
+        "bytes": 63753,
+        "gzipBytes": 18217
+      },
+      {
+        "file": "AdminQrTab-Bl3LPOmF.js",
+        "bytes": 6706,
+        "gzipBytes": 2375
+      },
+      {
+        "file": "AdminInquiry-C8qFqgfd.js",
+        "bytes": 4895,
+        "gzipBytes": 2319
+      }
+    ]
+  },
+  "after": {
+    "totalBytes": 8025158,
+    "fileCount": 404,
+    "logosBytes": 3204867,
+    "entry": [
+      {
+        "file": "index-BXRKRSvy.js",
+        "bytes": 348324,
+        "gzipBytes": 105358
+      }
+    ],
+    "eventHub": [
+      {
+        "file": "EventHubPage-DiPYdx6f.js",
+        "bytes": 46659,
+        "gzipBytes": 14665
+      },
+      {
+        "file": "EventHubAdmin-DTitc0ba.js",
+        "bytes": 75356,
+        "gzipBytes": 23676
+      }
+    ],
+    "administrator": [
+      {
+        "file": "AdminInquiry-D3da-78j.js",
+        "bytes": 4895,
+        "gzipBytes": 2318
+      },
+      {
+        "file": "AdminApp-D2MeW69n.js",
+        "bytes": 63753,
+        "gzipBytes": 18223
+      },
+      {
+        "file": "AdminQrTab-Bl3LPOmF.js",
+        "bytes": 6706,
+        "gzipBytes": 2375
+      }
+    ]
+  },
+  "deletedOriginalsOrBackups": 0,
+  "newCleanupDeletedBytes": 0,
+  "cleanupReason": "No additional files were proven both unused and safe to remove. Existing originals, generated failure evidence, keys and recovery backups retained."
+}
