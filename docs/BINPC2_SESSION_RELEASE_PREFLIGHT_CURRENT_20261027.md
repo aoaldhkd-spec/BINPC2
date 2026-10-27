@@ -63,3 +63,16 @@ select to_regclass('public.app_sessions')::text as session_table,
 - `LIVE_SCHEMA_MUTATION`: NOT_STARTED.
 - `LIVE_RELEASE`: NOT_STARTED. 코드 테스트는 PASS이나 운영 성공과 별개.
 - 사용자가 이미 승인한 최소 수정 범위를 유지하되, 정확한 연결 증거와 복원 가능 백업 없이는 운영 DB를 임의 변경하지 않음.
+
+## 2026-10-27 사용자 확인 반영 — 비밀정보 재질문 금지
+- 사용자가 Render `DATABASE_URL`에 표시되는 프로젝트 식별자와 Supabase `BINPC2` 프로젝트 ref `dlliqqlqdtdkfakdtwyw`가 **일치함을 직접 확인**함. 상태는 `USER_CONFIRMED`로 갱신하며 동일 확인을 다시 요청하지 않는다. 커넥터는 환경변수의 실제 원문을 읽지 않았고 사용자도 비밀번호를 제공하지 않았다.
+- 사용자 제공 Supabase **Database Backups → Scheduled backups** 화면에서 **`Free Plan does not include project backups`** 문구 확인. 기존에 보유한 소스 ZIP/부분 OpenPGP 백업은 자동 일일 백업 또는 현재 DB 전체 복원 가능한 파일이 아님.
+- Supabase 조직 도구의 `plan=free`와 화면 표시도 일치. **유료 업그레이드 불필요**: 공식 가이드는 무료 프로젝트가 `supabase db dump` 또는 `pg_dump`로 논리 백업을 만들도록 안내.
+  - 공식: https://supabase.com/docs/guides/platform/backups
+  - 공식 절차: https://supabase.com/docs/guides/platform/migrating-within-supabase/backup-restore
+  - 대상 DB의 public 앱 테이블 2개에는 민감한 `app_kv_rows.data` 및 이미지 `app_image_store.data_url`이 있어 평문 ZIP/공용 PC/공개 GitHub에 내보내기 금지.
+- 연결된 소유 PC의 안전한 읽기 점검에서 `pg_dump`, `pg_restore`, `psql`, Supabase CLI, Docker, GPG, 7-Zip을 PATH에서 발견하지 못했다. 비밀 설정 탐색·프로그램 설치·PC방 로컬 자료 생성 없음.
+- 신규 스키마 작성·실배포 전에 개인 관리 PC에서 공식 덤프 도구를 준비하고 **시점이 일치하는 전체 데이터와 스키마 백업을 강력하게 암호화**, 비공개 독립 복원까지 검증한다. 백업/암호화 도구가 준비되고 사용자만 직접 안전하게 비밀번호를 입력하도록 한다. 비밀번호·DATABASE_URL 전문을 채팅/문서/로그에 남기지 않는다.
+- Supabase `BINPC2` 메타데이터의 최신 읽기: `app_sessions` 없음, `app_kv_rows` 3,250행, `app_image_store` 102행. 수치는 백업·검증 순간 다시 확인하며 개인 행 본문 조회 없음.
+- 이 문단은 위의 역사적 `LIVE_DATABASE_URL_MATCH=UNKNOWN` 기록을 **사용자 확인 후 USER_CONFIRMED로 업데이트하는 추가 결정**이다. 과거 미확인 기록을 삭제하지 않는다.
+- **현재 운영 DB 변경: 0건; GitHub main 병합: 0건; Render 새 배포: 0건.** 현재 상태는 `CODE_TESTED / BACKUP_BLOCKED`이며 사용자의 기존 최소 DB 수정·배포 승인 범위는 유지한다.
