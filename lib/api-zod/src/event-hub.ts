@@ -102,6 +102,7 @@ export type HubAudit = {
   reason?: string;
 };
 export type HubApplication = {
+  erasedAt?:string;
   id: string;
   eventId: string;
   owner: string;

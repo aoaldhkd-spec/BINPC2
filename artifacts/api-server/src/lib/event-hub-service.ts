@@ -1,4 +1,5 @@
 import {
+  createHmac,
   randomUUID,
   randomInt,
   randomBytes,
@@ -6,6 +7,12 @@ import {
   timingSafeEqual,
 } from "node:crypto";
 import {
+  participantApplication,
+  applicationAdmissionIssue,
+  DEFAULT_PRIVACY_POLICY,
+  PrivacyPolicyInput,
+  type PrivacyPolicy,
+  type PrivacyCase,
   containsBannedNicknameWord,
   recruitmentIsOpen,
   HubBasic,
@@ -23,6 +30,7 @@ import {
   type HubAudit,
 } from "@workspace/api-zod";
 import { z } from "@workspace/api-zod";
+import { planPrivacy } from "./event-hub-privacy.js";
 import { HubStore, HubTx, fail, digest } from "./event-hub-store.js";
 import { eventCycleMilestones } from "./db-event-cycle-heart.js";
 import { parseModuleFlags } from "./db-module-flags.js";
@@ -43,6 +51,10 @@ export type HubOwner = {
   restricted?: { active: boolean; reason: string; at: string };
   history?: HubAudit[];
   deleteRequestedAt?: string;
+  marketingConsent?: { enabled: boolean; at: string; version: string };
+  erasedAt?: string;
+  privacyCase?: PrivacyCase;
+  privacyHold?: { reason: string; until?: string };
   loginFailures?: number;
   loginLockedUntil?: string;
 };
@@ -52,6 +64,7 @@ export type HubMember = {
   nicknameKey: string;
   salt: string;
   passwordHash: string;
+  lastActivityAt?: string;
   nicknameChanges?: number;
   basic: HubApplication["basic"];
   profile: HubApplication["profile"];
@@ -164,7 +177,8 @@ export class EventHubService {
       const owner = (await tx.all<HubOwner>("owner")).find(
         (o) => o.recoveryHash === digest(code),
       );
-      if (owner) return owner.id;
+      if (owner && !owner.erasedAt) return owner.id;
+      if (owner?.erasedAt) fail("RECOVERY", "삭제 처리된 복구수단입니다.", 401);
       if (!create) fail("RECOVERY", "복구코드가 일치하지 않습니다.", 401);
       const id = randomUUID();
       await tx.put("owner", id, {
@@ -198,15 +212,24 @@ export class EventHubService {
   }
   private async app(tx: HubTx, id: string, owner: string, admin: boolean) {
     const a = await tx.get<HubApplication>("application", id);
-    if (!a || (!admin && a.owner !== owner))
+    if (!a || (!admin && (a.owner !== owner || a.erasedAt)))
       fail("APPLICATION", "신청정보에 접근할 수 없습니다.", 404);
     return a;
   }
   async state(owner?: string, admin = false) {
     return this.store.transaction(async (tx) => {
       const enabled = await this.enabled(tx);
+      const account = owner
+        ? await tx.get<HubOwner>("owner", owner)
+        : undefined;
+      if (account?.erasedAt && !admin)
+        fail("AUTH", "삭제 처리된 신청 세션입니다.", 401);
       if (!enabled && !owner && !admin)
         return {
+          privacyPolicy: undefined,
+          privacyCase: undefined,
+          marketingPreference: undefined,
+          unsubscribeToken: undefined,
           retentionDays: 180,
           enabled: false,
           events: [],
@@ -230,7 +253,9 @@ export class EventHubService {
         : events
             .filter(
               (e) =>
-                (enabled && recruitmentIsOpen(e, this.now())) ||
+                (enabled &&
+                  process.env.NODE_ENV !== "production" &&
+                  recruitmentIsOpen(e, this.now())) ||
                 apps.some((a) => a.eventId === e.id),
             )
             .map((e) => ({
@@ -248,34 +273,20 @@ export class EventHubService {
                 at: v.at,
                 notice: v.notice,
               })),
-              recruitment: enabled && recruitmentIsOpen(e, this.now()),
+              recruitment:
+                enabled &&
+                process.env.NODE_ENV !== "production" &&
+                recruitmentIsOpen(e, this.now()),
               cardsEnabled: e.cardsEnabled,
             }));
       const safeApps = admin
         ? apps
-        : apps.map((a) => {
-            const e = events.find((e) => e.id === a.eventId)!;
-            const { rank, owner: _, quote, ...safe } = a;
-            return {
-              ...safe,
-              profileMissing: profileMissing(a.profile),
-              ...(a.stage >= 3
-                ? {
-                    quote,
-                    billing: {
-                      quote: a.quote,
-                      account: e.account,
-                      deadline: e.deadline,
-                      included: e.included,
-                      deposit: Math.min(e.deposit, a.quote?.fee ?? 0),
-                    },
-                  }
-                : {}),
-              ...(a.payment === "approved"
-                ? { venue: { address: e.address, mapUrl: e.mapUrl } }
-                : {}),
-            };
-          });
+        : apps.map((a) =>
+            participantApplication(
+              a,
+              events.find((e) => e.id === a.eventId)!,
+            ),
+          );
       const threads = (await tx.all<HubThread>("thread")).filter(
         (t) => admin || t.id === owner,
       );
@@ -309,6 +320,29 @@ export class EventHubService {
         retentionDays:
           (await tx.get<HubSettings>("settings", "global"))?.retentionDays ??
           180,
+        marketingPreference:
+          account?.marketingConsent ??
+          (member
+            ? {
+                enabled: member.marketing,
+                at: member.history.at(-1)?.at ?? "",
+                version: HUB_CONSENT_VERSION,
+              }
+            : undefined),
+        unsubscribeToken:
+          owner && !admin ? this.unsubscribeToken(owner) : undefined,
+        privacyPolicy: admin
+          ? ((await tx.get<PrivacyPolicy>("settings", "privacy-policy")) ??
+            DEFAULT_PRIVACY_POLICY)
+          : undefined,
+        privacyCase: account?.privacyCase
+          ? {
+              status: account.privacyCase.status,
+              createdAt: account.privacyCase.createdAt,
+              updatedAt: account.privacyCase.updatedAt,
+              publicMessage: account.privacyCase.publicMessage,
+            }
+          : undefined,
         owners,
         members,
         errors,
@@ -351,6 +385,8 @@ export class EventHubService {
           fail("IDEMPOTENCY", "같은 요청번호의 내용이 다릅니다.", 409);
         if (m.action !== "application.enter") return prior.result;
       }
+      if (!admin && (await tx.get<HubOwner>("owner", owner))?.erasedAt)
+        fail("AUTH", "삭제 처리된 신청 세션입니다.", 401);
       if (!owner && !admin)
         fail("AUTH", "개인 신청 세션을 먼저 복구해 주세요.", 401);
       const enabled = await this.enabled(tx);
@@ -408,6 +444,12 @@ export class EventHubService {
         const e = await this.event(tx, m.target);
         revision(e.revision);
         const on = z.boolean().parse(m.data.enabled);
+        if (on && process.env.NODE_ENV === "production")
+          fail(
+            "PRIVACY_POLICY_UNCONFIRMED",
+            "운영 개인정보 정책이 미확정입니다. 운영 모집 공개는 검토·승인 전 차단됩니다.",
+            403,
+          );
         if (on && (!e.account || !e.deadline || !e.area))
           fail("CONFIG", "계좌·입금기한·지역을 먼저 설정해 주세요.");
         e.recruitment = on;
@@ -436,6 +478,12 @@ export class EventHubService {
         });
       } else if (m.action === "application.basic") {
         requireEnabled();
+        if (process.env.NODE_ENV === "production")
+          fail(
+            "PRIVACY_POLICY_UNCONFIRMED",
+            "운영 개인정보 정책 확정 전 신규 신청은 차단됩니다.",
+            403,
+          );
         const e = await this.event(tx, text(m.data.eventId));
         if (!recruitmentIsOpen(e, this.now()))
           fail("CLOSED", "현재 신청 접수 중이 아닙니다.", 403);
@@ -595,6 +643,33 @@ export class EventHubService {
             };
             await tx.put("member", member.id, member);
           }
+          if (!c.reuse && a.consent?.reuse) {
+            const existing = (await tx.all<HubMember>("member")).find(
+              (v) => v.owner === a.owner,
+            );
+            if (existing)
+              await tx.db.query(
+                "DELETE FROM event_hub_records WHERE kind='member' AND id=$1",
+                [existing.id],
+              );
+          }
+          const person = await tx.get<HubOwner>("owner", a.owner);
+          if (person) {
+            person.marketingConsent = {
+              enabled: c.marketing,
+              at: now,
+              version: HUB_CONSENT_VERSION,
+            };
+            person.history = [
+              ...(person.history ?? []),
+              audit(
+                a.owner,
+                c.marketing ? "marketing.optin" : "marketing.optout",
+                now,
+              ),
+            ];
+            await tx.put("owner", person.id, person);
+          }
           a.consent = { ...c, acceptedAt: now, noticeVersion: e.noticeVersion };
           a.quote ??= quoteFor(e, a.rank);
           a.stage = 3;
@@ -694,25 +769,8 @@ export class EventHubService {
               "관리자 확인이 필요한 신청입니다. 문의해 주세요.",
               403,
             );
-          const missing = profileMissing(a.profile);
-          if (
-            !a.confirmedAt ||
-            a.payment !== "approved" ||
-            a.attendance !== "confirmed" ||
-            !a.checkin
-          )
-            fail("ATTENDANCE", "입금·참가 확정·현장 확인이 필요합니다.", 403);
-          if (missing.length)
-            fail(
-              "PROFILE_INCOMPLETE",
-              `입장하려면 프로필을 먼저 완성해야 합니다: ${missing.join(", ")}`,
-              403,
-            );
-          if (
-            a.consent?.version !== HUB_CONSENT_VERSION ||
-            a.consent.noticeVersion !== e.noticeVersion
-          )
-            fail("CONSENT", "변경된 공지를 확인해 주세요.", 403);
+          const issue = applicationAdmissionIssue(a, e);
+          if (issue) fail(issue.code, issue.message, 403);
           const settings = (
             await tx.db.query(
               "SELECT data FROM app_kv_rows WHERE table_name='app_settings' ORDER BY updated_at DESC LIMIT 1 FOR UPDATE",
@@ -958,10 +1016,107 @@ export class EventHubService {
           ),
         ];
         await tx.put("owner", own.id, own);
+      } else if (m.action === "admin.privacy.policy") {
+        requireAdmin();
+        const old =
+          (await tx.get<PrivacyPolicy>("settings", "privacy-policy")) ??
+          DEFAULT_PRIVACY_POLICY;
+        revision(old.revision);
+        const policy = {
+          ...PrivacyPolicyInput.parse(m.data),
+          revision: old.revision + 1,
+          updatedAt: now,
+          history: [
+            ...(old.history ?? []),
+            audit(actor, "privacy.policy.draft", now),
+          ],
+        };
+        await tx.put("settings", "privacy-policy", policy);
+      } else if (m.action === "admin.privacy.plan") {
+        requireAdmin();
+        result.plan = await planPrivacy(tx, m.target, this.now());
+      } else if (m.action === "admin.privacy.review") {
+        requireAdmin();
+        const own = await tx.get<HubOwner>("owner", m.target);
+        if (!own?.privacyCase)
+          fail("PRIVACY_CASE", "삭제 요청이 없습니다.", 404);
+        revision(own.privacyCase.revision);
+        const status = z.enum(["hold", "reviewed"]).parse(m.data.status);
+        const reason = text(m.data.reason, 1000);
+        if (status === "reviewed" && m.data.identityConfirmed !== true)
+          fail("IDENTITY", "별도 본인 확인 완료를 기록해 주세요.");
+        own.privacyCase = {
+          ...own.privacyCase,
+          revision: own.privacyCase.revision + 1,
+          status,
+          identityConfirmed: m.data.identityConfirmed === true,
+          publicMessage: z
+            .string()
+            .max(500)
+            .parse(m.data.publicMessage ?? ""),
+          updatedAt: now,
+          history: [
+            ...own.privacyCase.history,
+            audit(actor, `privacy.${status}`, now, reason),
+          ],
+        };
+        await tx.put("owner", own.id, own);
+      } else if (m.action === "admin.privacy.hold") {
+        requireAdmin();
+        const own = await tx.get<HubOwner>("owner", m.target);
+        if (!own) fail("OWNER", "대상을 찾을 수 없습니다.", 404);
+        const reason = text(m.data.reason, 1000);
+        own.privacyHold =
+          m.data.enabled === true
+            ? {
+                reason,
+                until: z.string().datetime().optional().parse(m.data.until),
+              }
+            : undefined;
+        own.history = [
+          ...(own.history ?? []),
+          audit(actor, "privacy.hold.change", now, reason),
+        ];
+        await tx.put("owner", own.id, own);
+      } else if (
+        m.action === "admin.owner.unlock" ||
+        m.action === "admin.owner.recover"
+      ) {
+        requireAdmin();
+        const own = await tx.get<HubOwner>("owner", m.target);
+        if (!own || own.erasedAt)
+          fail("OWNER", "대상을 찾을 수 없습니다.", 404);
+        if (m.data.identityConfirmed !== true)
+          fail("IDENTITY", "본인 확인 완료를 먼저 기록해 주세요.");
+        const reason = text(m.data.reason, 1000);
+        own.loginFailures = 0;
+        own.loginLockedUntil = undefined;
+        if (m.action === "admin.owner.recover") {
+          const code = randomBytes(32).toString("base64url");
+          own.recoveryHash = digest(code);
+          result.recoveryCode = code;
+        }
+        own.history = [
+          ...(own.history ?? []),
+          audit(actor, m.action, now, reason),
+        ];
+        await tx.put("owner", own.id, own);
       } else if (m.action === "privacy.request") {
         const own = await tx.get<HubOwner>("owner", owner);
         if (!own) fail("AUTH", "개인 신청 세션을 복구해 주세요.", 401);
         own.deleteRequestedAt = now;
+        if (
+          !own.privacyCase ||
+          ["cancelled", "completed"].includes(own.privacyCase.status)
+        )
+          own.privacyCase = {
+            id: m.requestId,
+            revision: 1,
+            status: "requested",
+            createdAt: now,
+            updatedAt: now,
+            history: [audit(actor, "privacy.request", now)],
+          };
         own.history = [
           ...(own.history ?? []),
           audit(actor, "privacy.delete.request", now),
@@ -969,13 +1124,36 @@ export class EventHubService {
         await tx.put("owner", own.id, own);
       } else if (
         m.action === "member.withdraw" ||
-        m.action === "member.marketing"
+        m.action === "member.marketing" ||
+        m.action === "marketing.preference"
       ) {
         const member = (await tx.all<HubMember>("member")).find(
           (v) => v.owner === owner,
         );
-        if (!member) fail("MEMBER", "재사용 회원정보가 없습니다.", 404);
-        if (m.action === "member.withdraw") {
+        if (!member && m.action === "member.withdraw")
+          fail("MEMBER", "재사용 회원정보가 없습니다.", 404);
+        const own = await tx.get<HubOwner>("owner", owner);
+        if (!own) fail("AUTH", "신청 세션이 필요합니다.", 401);
+        own.marketingConsent = {
+          enabled:
+            m.action === "member.withdraw"
+              ? false
+              : z.boolean().parse(m.data.enabled),
+          at: now,
+          version: HUB_CONSENT_VERSION,
+        };
+        own.history = [
+          ...(own.history ?? []),
+          audit(
+            actor,
+            own.marketingConsent.enabled
+              ? "marketing.optin"
+              : "marketing.optout",
+            now,
+          ),
+        ];
+        await tx.put("owner", own.id, own);
+        if (m.action === "member.withdraw" && member) {
           await tx.db.query(
             "DELETE FROM event_hub_records WHERE kind='member' AND id=$1",
             [member.id],
@@ -989,7 +1167,7 @@ export class EventHubService {
             a.history.push(audit(actor, "member.withdraw", now));
             await tx.put("application", a.id, a);
           }
-        } else {
+        } else if (member) {
           member.marketing = z.boolean().parse(m.data.enabled);
           member.history.push(
             audit(
@@ -1074,8 +1252,106 @@ export class EventHubService {
         }
         await tx.put("thread", id, t);
       } else fail("ACTION", "지원하지 않는 동작입니다.");
-      await tx.put("request", key, { hash, result, createdAt: now });
+      // Recovery codes are one-time responses, never durable receipt payloads.
+      const { recoveryCode, ...receiptResult } = result;
+      await tx.put("request", key, {
+        hash,
+        result: receiptResult,
+        owner: admin ? undefined : owner,
+        createdAt: now,
+      });
       return result;
+    });
+  }
+  unsubscribeToken(owner: string) {
+    const payload = Buffer.from(
+      JSON.stringify({ owner, expires: this.now().getTime() + 30 * 86400000 }),
+    ).toString("base64url");
+    return (
+      payload +
+      "." +
+      createHmac("sha256", this.secret)
+        .update("hub-marketing-unsubscribe:" + payload)
+        .digest("hex")
+    );
+  }
+  async unsubscribe(token: string) {
+    let owner = "";
+    try {
+      if (token.length > 512) throw new Error();
+      const parts = token.split(".");
+      if (parts.length !== 2) throw new Error();
+      const [payload, mac] = parts;
+      if (!/^[A-Za-z0-9_-]+$/.test(payload) || !/^[a-f0-9]{64}$/.test(mac)) throw new Error();
+      const expected = createHmac("sha256", this.secret)
+        .update("hub-marketing-unsubscribe:" + payload)
+        .digest();
+      if (!mac || !timingSafeEqual(expected, Buffer.from(mac, "hex")))
+        throw new Error();
+      const value = JSON.parse(
+        Buffer.from(payload, "base64url").toString("utf8"),
+      );
+      if (
+        typeof value.owner !== "string" ||
+        !Number.isFinite(value.expires) ||
+        value.expires < this.now().getTime()
+      )
+        throw new Error();
+      owner = value.owner;
+    } catch {
+      fail(
+        "UNSUBSCRIBE",
+        "수신거부 링크가 만료되었거나 올바르지 않습니다.",
+        400,
+      );
+    }
+    return this.store.transaction(async (tx) => {
+      const own = await tx.get<HubOwner>("owner", owner);
+      if (!own || own.erasedAt) return { unsubscribed: true };
+      if (own.marketingConsent?.enabled === false)
+        return { unsubscribed: true };
+      own.marketingConsent = {
+        enabled: false,
+        at: this.now().toISOString(),
+        version: HUB_CONSENT_VERSION,
+      };
+      own.history = [
+        ...(own.history ?? []),
+        audit("recipient", "marketing.unsubscribe", this.now().toISOString()),
+      ];
+      await tx.put("owner", own.id, own);
+      for (const member of (await tx.all<HubMember>("member")).filter(
+        (m) => m.owner === owner,
+      )) {
+        member.marketing = false;
+        await tx.put("member", member.id, member);
+      }
+      return { unsubscribed: true };
+    });
+  }
+  async campaignPreview(eventId: string) {
+    return this.store.transaction(async (tx) => {
+      const e = await this.event(tx, eventId);
+      const enabled = await this.enabled(tx);
+      const owners = await tx.all<HubOwner>("owner");
+      const members = await tx.all<HubMember>("member");
+      const selected =
+        enabled && e.notificationsEnabled
+          ? owners.filter(
+              (o) =>
+                !o.erasedAt &&
+                !o.restricted?.active &&
+                (o.marketingConsent?.enabled ??
+                  members.some((m) => m.owner === o.id && m.marketing)),
+            )
+          : [];
+      return {
+        eventId,
+        eligibleCount: new Set(selected.map((o) => o.id)).size,
+        externalSendingEnabled: false,
+        reason:
+          "대상 수 확인만 제공합니다. 실제 외부 발송은 별도 승인 전 비활성 상태입니다.",
+      };
     });
   }
   async recordFailure(
@@ -1144,6 +1420,8 @@ export class EventHubService {
         }
         return null;
       }
+      member.lastActivityAt = this.now().toISOString();
+      await tx.put("member", member.id, member);
       own.loginFailures = 0;
       own.loginLockedUntil = undefined;
       const recoveryCode = randomBytes(32).toString("base64url");

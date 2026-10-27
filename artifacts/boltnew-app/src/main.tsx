@@ -9,6 +9,7 @@ import { AppErrorBoundary } from './components/AppErrorBoundary';
 import { TestGate } from './components/TestGate';
 import { clientNavigationHref, resolveClientNavigation } from './lib/client-navigation';
 
+const UnsubscribePage = lazy(() => import('./event-hub/NotificationReadiness').then(m=>({default:m.UnsubscribePage})));
 const EventHubPage = lazy(() => import('./event-hub/EventHubPage'));
 const AdminInquiry = lazy(() => import('./event-hub/AdminInquiry').then(m => ({default:m.AdminInquiry})));
 
@@ -88,6 +89,7 @@ function Root() {
 
   if (normalized.startsWith('/admin')) return <AppErrorBoundary variant="app" onReset={() => window.location.reload()}><AdminApp /></AppErrorBoundary>;
   if (normalized.startsWith('/test')) return <><TestGate /><AdminInquiry /></>;
+  if (normalized.startsWith('/events/unsubscribe')) return <UnsubscribePage />;
   if (normalized.startsWith('/events')) return <><EventHubPage path={normalized} /><AdminInquiry /></>;
   return <AppErrorBoundary variant="app" onReset={() => window.location.reload()}><App /><AdminInquiry /></AppErrorBoundary>;
 }

@@ -5,6 +5,7 @@ import { randomBytes, randomUUID } from "node:crypto";
 import { EventHubService } from "./event-hub-service.js";
 import { atomicEventReset } from "./db-event-reset-transaction.js";
 import { HubStore } from "./event-hub-store.js";
+import { executePrivacyPlanForIsolatedTest } from "./event-hub-privacy.js";
 import type { HubApplication, HubEvent } from "@workspace/api-zod";
 import {
   HUB_CONSENT_VERSION,
@@ -1237,4 +1238,61 @@ suite("event hub V6 — actual isolated PostgreSQL transactions", () => {
       feature_msg: "활발함",
     });
   });
+  it("keeps internal administrator notes out of the participant projection", async () => {
+    const id = await create();
+    await call("admin.application.note", id, {reason:"PRIVATE-ADMIN-NOTE"}, (await app(id)).revision, true);
+    expect(JSON.stringify(await adminState())).toContain("PRIVATE-ADMIN-NOTE");
+    expect(JSON.stringify(await service.state(owner))).not.toContain("PRIVATE-ADMIN-NOTE");
+  });
+  it("reviews privacy cases with separate identity evidence and participant-safe messages; draft plans never execute", async () => {
+    await create();
+    await call("privacy.request");
+    await expect(call("admin.privacy.review", owner, {status:"reviewed",reason:"PRIVATE-REVIEW"}, 1, false)).rejects.toThrow();
+    await expect(call("admin.privacy.review", owner, {status:"reviewed",reason:"PRIVATE-REVIEW"}, 1, true)).rejects.toThrow();
+    await call("admin.privacy.review", owner, {status:"reviewed",reason:"PRIVATE-REVIEW",identityConfirmed:true,publicMessage:"검토 중입니다"}, 1, true);
+    const state = await service.state(owner);
+    expect(state.privacyCase).toMatchObject({status:"reviewed",publicMessage:"검토 중입니다"});
+    expect(JSON.stringify(state)).not.toContain("PRIVATE-REVIEW");
+    const result = await call("admin.privacy.plan", owner, {}, undefined, true);
+    expect((result.plan as {blocked:string[]}).blocked).toContain("운영 보관·파기 정책이 검토 초안입니다. 운영 파기는 승인 전 실행하지 않습니다.");
+    expect((await adminState()).applications).toHaveLength(1);
+  });
+  it("rotates recovery only after administrator identity checks and never stores the new code in receipts", async () => {
+    await expect(call("admin.owner.recover",owner,{reason:"격리 본인 확인"},undefined,true)).rejects.toThrow();
+    const result=await call("admin.owner.recover",owner,{reason:"격리 본인 확인",identityConfirmed:true},undefined,true);
+    expect(typeof result.recoveryCode).toBe("string");
+    expect(await service.session(String(result.recoveryCode),false)).toBe(owner);
+    const records=await pool.query("SELECT data FROM event_hub_records");
+    expect(JSON.stringify(records.rows)).not.toContain(String(result.recoveryCode));
+  });
+  it("separates advertising consent from membership and provides an idempotent purpose-limited unsubscribe", async () => {
+    await create();
+    await call("marketing.preference","",{enabled:true});
+    expect((await service.state(owner)).marketingPreference).toMatchObject({enabled:true});
+    const token=service.unsubscribeToken(owner);
+    await expect(service.unsubscribe(token+"invalid")).rejects.toThrow();
+    await service.unsubscribe(token);
+    await service.unsubscribe(token);
+    expect((await service.state(owner)).marketingPreference).toMatchObject({enabled:false});
+    expect((await adminState()).applications).toHaveLength(1);
+    const preview=await service.campaignPreview(eventId);
+    expect(preview).toMatchObject({externalSendingEnabled:false});
+  });
+  it("removes reusable membership if reuse consent is explicitly withdrawn before confirmation", async () => {
+    const id=await create();
+    await call("application.consent",id,{consent:{...consent,reuse:true},password:"Synthetic-test-pass-123"},(await app(id)).revision);
+    expect((await pool.query("SELECT id FROM event_hub_records WHERE kind='member'")).rowCount).toBe(1);
+    await call("application.consent",id,{consent:{...consent,reuse:false}},(await app(id)).revision);
+    expect((await pool.query("SELECT id FROM event_hub_records WHERE kind='member'")).rowCount).toBe(0);
+  });
+
+  it("refuses privacy execution without explicit isolated-test confirmations or with a stale fingerprint", async () => {
+    await create();
+    const store=new HubStore(pool);
+    const denied={mode:"isolated-test" as const,policyConfirmed:false,identityConfirmed:false,backupConfirmed:false};
+    await expect(executePrivacyPlanForIsolatedTest(store,owner,"stale",denied,now())).rejects.toThrow("운영 파기는 승인 전 비활성");
+    await expect(executePrivacyPlanForIsolatedTest(store,owner,"stale",{...denied,policyConfirmed:true,identityConfirmed:true,backupConfirmed:true},now())).rejects.toThrow("원본 또는 정책이 변경");
+    expect((await adminState()).applications).toHaveLength(1);
+  });
+
 });

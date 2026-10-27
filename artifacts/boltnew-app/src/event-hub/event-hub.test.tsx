@@ -24,7 +24,7 @@ vi.mock("../lib/webPush", () => ({
 afterEach(() => {
   cleanup();
   vi.restoreAllMocks();
-  localStorage.clear();
+  localStorage.clear();sessionStorage.clear();
 });
 describe("event hub profile draft persistence and sandbox", () => {
   it("keeps the existing MBTI screen until the actual server save resolves, then skips already-known birth year/location", async () => {

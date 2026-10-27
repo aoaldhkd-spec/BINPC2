@@ -283,12 +283,27 @@ export default function EventHubPage({ path }: { path: string }) {
               </HubCard>
             </>
           )}
+          {!s.member && (
+            <HubCard>
+              <h2 className="font-black">향후 행사 안내 수신</h2>
+              <HubCheck
+                label="향후 행사 광고성 안내 받기 (재사용 회원 동의와 별도)"
+                checked={s.marketingPreference?.enabled ?? false}
+                onChange={(enabled) => {
+                  void hub.mutate({
+                    action: "marketing.preference",
+                    data: { enabled },
+                  });
+                }}
+              />
+            </HubCard>
+          )}
           {s.member && (
             <HubCard>
               <h2 className="font-black">재사용 프로필·안내 수신</h2>
               <HubCheck
                 label="향후 행사 광고성 안내 받기 (별도 선택)"
-                checked={s.member.marketing}
+                checked={s.marketingPreference?.enabled ?? s.member.marketing}
                 onChange={(enabled) => {
                   void hub.mutate({
                     action: "member.marketing",
@@ -326,6 +341,13 @@ export default function EventHubPage({ path }: { path: string }) {
               >
                 개인정보 삭제 검토 요청
               </HubButton>
+              {s.privacyCase && (
+                <p role="status" className="text-sm mt-3">
+                  처리 상태: {s.privacyCase.status} ·{" "}
+                  {s.privacyCase.publicMessage ||
+                    "운영자가 본인 확인·보관 예외를 검토합니다. 삭제 완료 전 기록은 유지됩니다."}
+                </p>
+              )}
             </details>
           </HubCard>
           <HubCard>

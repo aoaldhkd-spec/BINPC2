@@ -9,6 +9,8 @@ import {
   type HubSettings,
   type HubController,
 } from "../lib/event-hub-client";
+import { PrivacyManagement, OwnerRecoveryControls } from "./PrivacyManagement";
+import { NotificationReadiness } from "./NotificationReadiness";
 import { EventLaboratory } from "./EventLaboratory";
 import {
   formatHubTime,
@@ -184,6 +186,8 @@ export default function EventHubAdmin() {
       )}
       {tab === "이력·개인정보" && (
         <>
+          <NotificationReadiness event={event} />
+          <PrivacyManagement hub={hub} />
           <MemberManagement hub={hub} state={s} />
           <HubCard>
             <h3 className="font-black">현장·운영·재사용 기록 분리</h3>
@@ -1082,6 +1086,7 @@ function MemberManagement({ hub, state }: { hub: Hub; state: HubState }) {
                 ? "사유 기록 후 제한 해제"
                 : "사유 기록 후 개별 제한"}
             </HubButton>
+            <OwnerRecoveryControls owner={o} hub={hub} />
             <Audit rows={o.history ?? []} />
           </div>
         ))}

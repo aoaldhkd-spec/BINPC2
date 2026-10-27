@@ -64,6 +64,26 @@ router.get("/receipt/:requestId", async (req, res, next) => {
     next(e);
   }
 });
+router.post("/unsubscribe", async (req, res, next) => {
+  try {
+    res.json(
+      await eventHubService.unsubscribe(
+        z.string().max(512).parse(req.body?.token),
+      ),
+    );
+  } catch (e) {
+    next(e);
+  }
+});
+router.get("/campaign-preview/:eventId", async (req, res, next) => {
+  try {
+    if (!admin(req))
+      throw new HubError(403, "ADMIN", "관리자 인증이 필요합니다.");
+    res.json(await eventHubService.campaignPreview(String(req.params.eventId)));
+  } catch (e) {
+    next(e);
+  }
+});
 router.post("/session", async (req, res, next) => {
   try {
     const b = z

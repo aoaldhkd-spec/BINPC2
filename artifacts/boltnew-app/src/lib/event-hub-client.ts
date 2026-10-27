@@ -38,11 +38,21 @@ export type HubThread = {
   history: HubAudit[];
 };
 export type HubState = {
+  privacyPolicy?: import("../../../../lib/api-zod/src/event-hub-privacy").PrivacyPolicy;
+  privacyCase?: Pick<
+    import("../../../../lib/api-zod/src/event-hub-privacy").PrivacyCase,
+    "status" | "createdAt" | "updatedAt" | "publicMessage"
+  >;
+  marketingPreference?: { enabled: boolean; at: string; version: string };
+  unsubscribeToken?: string;
   retentionDays?: number;
   owners?: {
     id: string;
     restricted?: { active: boolean; reason: string };
     deleteRequestedAt?: string;
+    privacyCase?: import("../../../../lib/api-zod/src/event-hub-privacy").PrivacyCase;
+    privacyHold?: { reason: string; until?: string };
+    loginLockedUntil?: string;
     history?: HubAudit[];
   }[];
   members?: { id: string; owner: string; marketing: boolean }[];
@@ -105,9 +115,42 @@ export async function hubFetch<T>(
   return data;
 }
 const RECOVERY_KEY = "binpc2_event_recovery_v6";
+const BOOTSTRAP_KEY = RECOVERY_KEY + ":creating";
+let memoryCode = "";
+let memoryCreating = false;
+function recoveryRead() {
+  try {
+    return localStorage.getItem(RECOVERY_KEY) ?? memoryCode;
+  } catch {
+    return memoryCode;
+  }
+}
+function recoveryWrite(code: string) {
+  memoryCode = code;
+  try {
+    localStorage.setItem(RECOVERY_KEY, code);
+  } catch {
+    /* HttpOnly session and manual code backup remain available */
+  }
+}
+function creatingRead() {
+  try {
+    return localStorage.getItem(BOOTSTRAP_KEY) === "1" || memoryCreating;
+  } catch {
+    return memoryCreating;
+  }
+}
+function creatingWrite(value: boolean) {
+  memoryCreating = value;
+  try {
+    if (value) localStorage.setItem(BOOTSTRAP_KEY, "1");
+    else localStorage.removeItem(BOOTSTRAP_KEY);
+  } catch {}
+}
+
 let sessionPromise: Promise<void> | null = null;
 export function savedRecoveryCode() {
-  return localStorage.getItem(RECOVERY_KEY) ?? "";
+  return recoveryRead();
 }
 export function clearOnsiteBrowserIdentity() {
   localStorage.removeItem("matching_app_user_id");
@@ -122,7 +165,8 @@ export function clearOnsiteBrowserIdentity() {
 export async function recoverHub(code: string) {
   await hubFetch("/session", { recoveryCode: code, create: false });
   clearOnsiteBrowserIdentity();
-  localStorage.setItem(RECOVERY_KEY, code);
+  recoveryWrite(code);
+  creatingWrite(false);
 }
 async function ensureSession() {
   if (sessionPromise) return sessionPromise;
@@ -131,16 +175,18 @@ async function ensureSession() {
     if (state.hasSession || (!state.enabled && !state.applications.length))
       return;
     let code = savedRecoveryCode();
-    const create = !code;
+    const create = !code || creatingRead();
     if (!code) {
       const bytes = crypto.getRandomValues(new Uint8Array(32));
       code = btoa(String.fromCharCode(...bytes))
         .replace(/\+/g, "-")
         .replace(/\//g, "_")
         .replace(/=+$/, "");
-      localStorage.setItem(RECOVERY_KEY, code);
+      recoveryWrite(code);
+      creatingWrite(true);
     }
     await hubFetch("/session", { recoveryCode: code, create });
+    creatingWrite(false);
   })();
   try {
     await sessionPromise;
