@@ -89,6 +89,13 @@ test("actual browser + API + PostgreSQL: saved stages, payment recovery, private
   request,
   browser,
 }, testInfo) => {
+  // At midnight KST the real rainbow guide legitimately covers the coach.
+  // Acknowledge it through its real button; do not force-click or seed a seen key.
+  await page.addLocatorHandler(
+    page.getByRole("dialog", { name: "🌈 무지개하트가 열렸어요", exact: true }),
+    async (dialog) => { await dialog.getByRole("button", { name: "확인했어요", exact: true }).click(); },
+    { times: 3 },
+  );
   await page.goto(`/events/e/${eventId}`);
   await page
     .getByLabel("닉네임", { exact: true })
