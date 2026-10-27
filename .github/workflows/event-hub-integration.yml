@@ -53,12 +53,16 @@ jobs:
       - run: pnpm install --frozen-lockfile
       - run: node scripts/prepare-event-hub-e2e.mjs database
       - run: pnpm run build
-      - name: Existing unit and core-protection regression checks
-        run: |
-          pnpm run test:unit
-          pnpm run verify:guards
-          pnpm run verify:records
-          node --test scripts/test/production-entry-guards.test.mjs scripts/test/ops-client.test.mjs
+      - name: Existing API unit regression checks
+        run: pnpm --filter @workspace/api-server exec vitest run --config vitest.config.ts --reporter=verbose --reporter=github-actions
+      - name: Existing UI unit regression checks
+        run: pnpm --filter @workspace/boltnew-app exec vitest run --config vitest.config.ts --reporter=verbose --reporter=github-actions
+      - name: Existing core-protection guards
+        run: pnpm run verify:guards
+      - name: Current documentation checks
+        run: pnpm run verify:records
+      - name: Production-entry guards and redaction
+        run: node --test scripts/test/production-entry-guards.test.mjs scripts/test/ops-client.test.mjs
       - name: Actual PostgreSQL invariants and existing reset safety
         run: pnpm --filter @workspace/api-server exec vitest run src/lib/event-hub.pg.test.ts src/lib/db-event-reset-transaction.pg.test.ts
       - run: pnpm --filter @workspace/boltnew-app exec playwright install --with-deps chromium
