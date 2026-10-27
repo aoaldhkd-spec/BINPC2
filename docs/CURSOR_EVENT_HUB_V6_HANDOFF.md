@@ -1,5 +1,22 @@
 # Cursor 인계 — 기존 BINPC2 V6 이어서 개발
 
+## 최신 상태 — GitHub 개발 브랜치 저장 완료
+
+이 절은 아래의 과거 push 차단/로컬 bundle 우선 설명보다 우선합니다. 사용자가 Netlify `Build status = Stopped builds` 변경을 확인했고, Render는 main 자동 배포를 유지합니다. PR은 만들지 않았습니다.
+
+검증 코드 커밋 `73861cf5dfdde94044b36ebde5688b6584090eba`를 GitHub `feat/event-hub-v6-20261027`에 push하고 원격 ref와 일치를 확인했습니다. 이후 문서/다운로드 보존 커밋이 추가되므로 Cursor는 **해당 브랜치의 최신 원격 HEAD**에서 시작합니다. 코드의 재구현이나 main 병합은 필요 없습니다.
+
+- 저장소/브랜치: https://github.com/aoaldhkd-spec/BINPC2/tree/feat/event-hub-v6-20261027
+- 다운로드: 같은 브랜치의 `docs/previews/BINPC2-V6-demo.html`, `BINPC2-V6-review.zip`, `SHA256SUMS.txt`
+- 시작: `git clone --branch feat/event-hub-v6-20261027 https://github.com/aoaldhkd-spec/BINPC2.git`
+- 현재 운영 미배포, main/운영 DB/실제 모집/외부 발송 변경 없음. Netlify 실제 관리 설정은 사용자 확인을 근거로 했으며 API 독립 조회는 미실행입니다.
+- 검증 보존: 단위1300, Node13, 실제 브라우저5 통과. DB56은 기존 증거 보존. 이번 원격 저장 단계는 문서/다운로드 파일만 추가하고 기능 코드는 변경하지 않았습니다.
+- 남은 작업: 개인정보 목적별 기간/예외/백업 정책 확정 전 production 신규 접수 차단 유지, 실제 Android/iOS/Windows 알림·영상·파일 열기, 일부 전용 UI/시험실 다중 행사 체험 보완. 정확한 파일은 아래 인계 및 후속 위험 보고서 참조.
+
+## 아래 기록의 해석
+
+로컬 커밋·bundle·검증 기록은 그대로 보존합니다. 아래 과거 `push BLOCKED`, `원격 브랜치 없음`은 그 당시 상태이며 현재 저장 상태가 아닙니다.
+
 ## 기준과 금지사항
 
 - 저장소: https://github.com/aoaldhkd-spec/BINPC2
