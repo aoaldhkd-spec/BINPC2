@@ -199,6 +199,50 @@ suite("event hub V6 — actual isolated PostgreSQL transactions", () => {
     await call("event.recruitment", eventId, { enabled: true }, 1, true);
   });
   afterAll(() => pool.end());
+  it("blocks all ledger writes under a replaced key and recovers unchanged approved records with the original key", async () => {
+    const id = await create();
+    await call("application.consent", id, { consent }, 1);
+    await call("application.confirm", id, {}, 2);
+    const a = await app(id);
+    await call(
+      "admin.application.payment",
+      id,
+      { status: "approved", bankChecked: true },
+      a.revision,
+      true,
+    );
+    const before = (
+      await pool.query(
+        "SELECT kind,id,data FROM event_hub_records ORDER BY kind,id",
+      )
+    ).rows;
+    let enteredCallback = false;
+    await expect(
+      new HubStore(pool, "replacement-key-not-for-deployment").transaction(
+        async (tx) => {
+          enteredCallback = true;
+          await tx.put("event", eventId, { title: "must-not-overwrite" });
+        },
+      ),
+    ).rejects.toMatchObject({ code: "LEDGER_KEY_UNAVAILABLE", status: 503 });
+    expect(enteredCallback).toBe(false);
+    expect(
+      (
+        await pool.query(
+          "SELECT kind,id,data FROM event_hub_records ORDER BY kind,id",
+        )
+      ).rows,
+    ).toEqual(before);
+    const restarted = new EventHubService(
+      new HubStore(pool),
+      "isolated-test-session-secret",
+      now,
+    );
+    expect(
+      (await restarted.state(owner)).applications.find((a) => a.id === id)
+        ?.payment,
+    ).toBe("approved");
+  });
   it("does not save PII without first collection consent; hides money/address/rank before notice save", async () => {
     await expect(
       call("application.basic", "", {
@@ -990,6 +1034,7 @@ suite("event hub V6 — actual isolated PostgreSQL transactions", () => {
     await call("application.draw", id, {}, rev, false, owner, req);
     await call("application.draw", id, {}, rev, false, owner, req);
     expect((await app(id)).cards).toHaveLength(1);
+    expect((await app(id)).cards[0].prizeLabel).toBe("소품 10번");
     expect((await adminState()).stocks[0].remaining).toBe(0);
     const cardId = (await app(id)).cards[0].id;
     await call(

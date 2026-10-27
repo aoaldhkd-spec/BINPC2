@@ -11,6 +11,8 @@ import {
 } from "@testing-library/react";
 import { NicknameSetupScreen } from "../components/NicknameSetupScreen";
 import { EventLaboratory } from "./EventLaboratory";
+import { AdminThreads, ApplicationAdmin } from "./EventHubAdmin";
+import { NoticeHistory } from "./NoticeHistory";
 import { WaitingRoom } from "./EventHubPage";
 import { EventLaboratoryStore } from "./event-laboratory-store";
 import { useEventHub } from "../lib/event-hub-client";
@@ -288,4 +290,163 @@ it("does not commit live admission if browser identity storage is blocked", () =
   expect(setError).toHaveBeenCalledWith(
     expect.stringContaining("신청·입금 기록은 보존"),
   );
+});
+
+describe("administrator inquiry recipient safety", () => {
+  it("keeps drafts per recipient and clears only the successfully sent draft, even after changing recipients", async () => {
+    const store = new EventLaboratoryStore();
+    const state = store.state(true);
+    state.threads = ["owner-a", "owner-b"].map((id) => ({
+      id,
+      messages: [],
+      readAdminAt: "",
+      readUserAt: "",
+      tags: [],
+      history: [],
+    }));
+    let resolve!: (result: Record<string, unknown>) => void;
+    const mutate = vi.fn((command) =>
+      command.action === "thread.send"
+        ? new Promise<Record<string, unknown>>((r) => {
+            resolve = r;
+          })
+        : Promise.resolve({}),
+    );
+    const hub = {
+      state,
+      error: "",
+      status: "",
+      load: vi.fn(),
+      mutate,
+      setError: vi.fn(),
+    };
+    render(<AdminThreads hub={hub} state={state} />);
+    const target = screen.getByLabelText("문의 대상");
+    fireEvent.change(target, { target: { value: "owner-a" } });
+    fireEvent.change(screen.getByLabelText("관리자 답장"), {
+      target: { value: "A 답장" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "수정한 답장 보내기" }));
+    fireEvent.change(target, { target: { value: "owner-b" } });
+    expect(
+      (screen.getByLabelText("관리자 답장") as HTMLTextAreaElement).value,
+    ).toBe("");
+    fireEvent.change(screen.getByLabelText("관리자 답장"), {
+      target: { value: "B 답장" },
+    });
+    await act(async () => resolve({ saved: true }));
+    expect(
+      (screen.getByLabelText("관리자 답장") as HTMLTextAreaElement).value,
+    ).toBe("B 답장");
+    fireEvent.change(target, { target: { value: "owner-a" } });
+    expect(
+      (screen.getByLabelText("관리자 답장") as HTMLTextAreaElement).value,
+    ).toBe("");
+    expect(mutate).toHaveBeenCalledWith(
+      expect.objectContaining({
+        action: "thread.send",
+        target: "owner-a",
+        data: { text: "A 답장" },
+      }),
+    );
+  });
+  it("disables all payment, attendance and prize controls while a server save is being reconciled", () => {
+    const state = new EventLaboratoryStore().state(true);
+    const mutate = vi.fn();
+    render(
+      <ApplicationAdmin
+        app={state.applications[0]}
+        hub={{
+          state,
+          error: "",
+          status: "checking",
+          mutate,
+          load: vi.fn(),
+          setError: vi.fn(),
+        }}
+      />,
+    );
+    const fieldset = screen.getByRole("group", {
+      name: /신청 처리/,
+    }) as HTMLFieldSetElement;
+    expect(fieldset.disabled).toBe(true);
+    expect(mutate).not.toHaveBeenCalled();
+  });
+});
+
+describe("actual waiting-room cards", () => {
+  it("waits for server admission before enabling draws and renders the durable prize name", () => {
+    const store = new EventLaboratoryStore();
+    store.jump("프로필 완료");
+    const state = store.state();
+    const hub = {
+      state,
+      error: "",
+      status: "",
+      mutate: vi.fn(),
+      load: vi.fn(),
+      setError: vi.fn(),
+    };
+    const app = state.applications[0];
+    const { rerender } = render(
+      <WaitingRoom
+        app={app}
+        event={state.events[0]}
+        hub={hub}
+        edit={() => {}}
+      />,
+    );
+    expect(
+      (
+        screen.getByRole("button", {
+          name: "카드 한 장 뽑기",
+        }) as HTMLButtonElement
+      ).disabled,
+    ).toBe(true);
+    const admitted = {
+      ...app,
+      profileId: "synthetic-profile",
+      cards: [
+        {
+          id: "synthetic-card",
+          prize: "stock-internal-id",
+          prizeLabel: "소품 24번",
+          at: new Date().toISOString(),
+        },
+      ],
+    };
+    rerender(
+      <WaitingRoom
+        app={admitted}
+        event={state.events[0]}
+        hub={hub}
+        edit={() => {}}
+      />,
+    );
+    expect(
+      (
+        screen.getByRole("button", {
+          name: "카드 한 장 뽑기",
+        }) as HTMLButtonElement
+      ).disabled,
+    ).toBe(false);
+    expect(screen.getByText("🎁 소품 24번")).toBeTruthy();
+    expect(screen.queryByText(/stock-internal-id/)).toBeNull();
+  });
+});
+
+it("notice history renders only public notices and dates, without old venue or bank fields", () => {
+  const history = [
+    {
+      at: "2026-10-27T00:00:00Z",
+      notice: "이전 필독 공지",
+      address: "private-old-venue",
+      account: "private-old-bank",
+      fee: 99999,
+    },
+  ];
+  render(<NoticeHistory history={history} />);
+  expect(screen.getByText("이전 필독 공지")).toBeTruthy();
+  expect(screen.queryByText(/private-old/)).toBeNull();
+  expect(screen.queryByText(/99999/)).toBeNull();
 });

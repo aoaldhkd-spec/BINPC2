@@ -99,6 +99,7 @@ export type HubEvent = z.infer<typeof HubEventInput> & {
   nextRank: number;
   autoDate?: string;
   history: HubAudit[];
+  noticeHistory?: { at: string; notice: string }[];
   versions?: {
     at: string;
     notice: string;
@@ -136,7 +137,7 @@ export type HubApplication = {
   profile: HubProfileData;
   profileId?: string;
   cycleId?: string;
-  cards: { id: string; prize: string; at: string }[];
+  cards: { id: string; prize: string; prizeLabel?: string; at: string }[];
   candy?: string;
   prizesGiven: string[];
   history: HubAudit[];

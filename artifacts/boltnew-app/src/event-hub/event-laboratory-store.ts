@@ -20,6 +20,7 @@ export type LabStage =
   | "기본정보 작성 중"
   | "공지 동의 완료"
   | "회비 확인"
+  | "신청 확정"
   | "입금 신고"
   | "입금 승인"
   | "입금확정 대기자"
@@ -105,14 +106,16 @@ function eventFixture(input?: HubEvent): HubEvent {
 export class EventLaboratoryStore {
   value: LabSnapshot;
   private listeners = new Set<() => void>();
+  private readonly storageKey: string;
   constructor(
     event?: HubEvent,
     readonly storage?: Pick<Storage, "getItem" | "setItem" | "removeItem">,
   ) {
+    this.storageKey = event ? `${KEY}:${event.id}` : KEY;
     this.value = this.fresh(event);
     let restored = false;
     try {
-      const raw = storage?.getItem(KEY);
+      const raw = storage?.getItem(this.storageKey);
       if (raw) {
         const parsed = JSON.parse(raw) as LabSnapshot;
         if (parsed.version === 1 && parsed.event?.id === "lab-event-only") {
@@ -155,7 +158,7 @@ export class EventLaboratoryStore {
   private emit() {
     try {
       this.storage?.setItem(
-        KEY,
+        this.storageKey,
         JSON.stringify({
           ...this.value,
           receipts: Object.fromEntries(
@@ -200,7 +203,9 @@ export class EventLaboratoryStore {
     this.emit();
   }
   jump(stage: LabStage, rank = this.value.rank) {
-    this.value = this.fresh(this.value.event);
+    const configuredEvent = copy(this.value.event);
+    this.value = this.fresh();
+    this.value.event = configuredEvent;
     this.value.rank = rank;
     if (stage !== "기본정보 작성 중") {
       const a = this.create({
@@ -446,6 +451,7 @@ export class EventLaboratoryStore {
               a.cards.push({
                 id: `lab-card-${a.cards.length + 1}`,
                 prize,
+                prizeLabel: prize === "다음 기회에" ? prize : "소품 2번",
                 at: now,
               });
             }
@@ -511,4 +517,21 @@ export class EventLaboratoryStore {
       throw error;
     }
   }
+}
+
+/** Reconstruct the selector from durable sandbox state rather than a hard-coded default. */
+export function laboratoryStage(value: LabSnapshot): LabStage {
+  const app = value.applications[0];
+  if (!app) return "기본정보 작성 중";
+  if (value.entered) return "현장 입장";
+  if (app.stage < 3) return "공지 동의 완료";
+  if (app.stage < 4) return "회비 확인";
+  if (app.payment === "reported") return "입금 신고";
+  if (app.payment === "approved") {
+    if (app.attendance === "paid_waitlist") return "입금확정 대기자";
+    if (app.attendance === "confirmed")
+      return app.profile.lastStep === 6 ? "프로필 완료" : "프로필 미완료";
+    return "입금 승인";
+  }
+  return "신청 확정";
 }

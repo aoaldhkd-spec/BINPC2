@@ -1,4 +1,24 @@
-import type { ReactNode, ButtonHTMLAttributes } from "react";
+import {
+  useEffect,
+  useState,
+  type ReactNode,
+  type ButtonHTMLAttributes,
+} from "react";
+import { readHubBrowserValue } from "../lib/event-hub-browser-storage";
+import "./event-hub.css";
+
+export function useHubDark() {
+  const [dark, setDark] = useState(
+    () => readHubBrowserValue("local", "dark_mode") === "1",
+  );
+  useEffect(() => {
+    const sync = () =>
+      setDark(readHubBrowserValue("local", "dark_mode") === "1");
+    window.addEventListener("storage", sync);
+    return () => window.removeEventListener("storage", sync);
+  }, []);
+  return dark;
+}
 export function HubButton({
   children,
   ...p

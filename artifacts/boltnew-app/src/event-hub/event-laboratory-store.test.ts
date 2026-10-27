@@ -1,5 +1,8 @@
 import { describe, it, expect } from "vitest";
-import { EventLaboratoryStore } from "./event-laboratory-store";
+import {
+  EventLaboratoryStore,
+  laboratoryStage,
+} from "./event-laboratory-store";
 import {
   HUB_CONSENT_VERSION,
   PROFILE_CONSENT_VERSION,
@@ -187,5 +190,63 @@ describe("complete event laboratory adapter", () => {
           removeItem: () => {},
         }),
     ).not.toThrow();
+  });
+});
+
+describe("laboratory event selection and restored controls", () => {
+  it("preserves edited synthetic dates, title, address, card flags and fee when switching ranks and stages", () => {
+    const store = new EventLaboratoryStore();
+    store.configureEvent({
+      ...store.value.event,
+      title: "시험 금요일",
+      date: "2026-10-30",
+      address: "가상 장소 수정",
+      cardsEnabled: false,
+      fee: 60000,
+    });
+    store.jump("프로필 완료", 4);
+    expect(store.value.event).toMatchObject({
+      title: "시험 금요일",
+      date: "2026-10-30",
+      address: "가상 장소 수정",
+      cardsEnabled: false,
+      fee: 60000,
+    });
+    expect(store.state().applications[0].billing?.quote.fee).toBe(60000);
+    expect(laboratoryStage(store.value)).toBe("프로필 완료");
+    store.jump("신청 확정", 3);
+    expect(store.value.applications[0].payment).toBe("none");
+    expect(laboratoryStage(store.value)).toBe("신청 확정");
+  });
+  it("separates sandbox state per selected real event without copying its private data", () => {
+    const values = new Map<string, string>();
+    const storage = {
+      getItem: (key: string) => values.get(key) ?? null,
+      setItem: (key: string, value: string) => {
+        values.set(key, value);
+      },
+      removeItem: (key: string) => {
+        values.delete(key);
+      },
+    };
+    const fixture = new EventLaboratoryStore().value.event;
+    const first = {
+      ...fixture,
+      id: "source-a",
+      address: "never-copy-real-address",
+      account: "never-copy-real-account",
+    };
+    const second = { ...fixture, id: "source-b" };
+    const a = new EventLaboratoryStore(first, storage);
+    a.jump("입금 승인", 3);
+    const b = new EventLaboratoryStore(second, storage);
+    b.jump("프로필 완료", 4);
+    const restored = new EventLaboratoryStore(first, storage);
+    expect(laboratoryStage(restored.value)).toBe("입금 승인");
+    expect(restored.value.rank).toBe(3);
+    expect(new EventLaboratoryStore(second, storage).value.rank).toBe(4);
+    expect(JSON.stringify([...values.values()])).not.toContain(
+      "never-copy-real",
+    );
   });
 });

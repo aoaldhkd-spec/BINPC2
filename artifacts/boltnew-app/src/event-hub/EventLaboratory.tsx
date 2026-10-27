@@ -4,7 +4,11 @@ import type {
   HubCommand,
   HubEvent,
 } from "../lib/event-hub-client";
-import { EventLaboratoryStore, type LabStage } from "./event-laboratory-store";
+import {
+  EventLaboratoryStore,
+  laboratoryStage,
+  type LabStage,
+} from "./event-laboratory-store";
 import {
   BasicForm,
   ApplicationSteps,
@@ -24,6 +28,7 @@ const stages: LabStage[] = [
   "기본정보 작성 중",
   "공지 동의 완료",
   "회비 확인",
+  "신청 확정",
   "입금 신고",
   "입금 승인",
   "입금확정 대기자",
@@ -42,8 +47,10 @@ export function EventLaboratory({ event }: { event?: HubEvent }) {
   });
   const [participant, setParticipant] = useState(() => engine.state()),
     [administrator, setAdministrator] = useState(() => engine.state(true));
-  const [role, setRole] = useState<"참가자" | "관리자">(window.location.hash === "#admin" ? "관리자" : "참가자"),
-    [stage, setStage] = useState<LabStage>("회비 확인"),
+  const [role, setRole] = useState<"참가자" | "관리자">(
+      window.location.hash === "#admin" ? "관리자" : "참가자",
+    ),
+    [stage, setStage] = useState<LabStage>(() => laboratoryStage(engine.value)),
     [editing, setEditing] = useState(false),
     [inquiry, setInquiry] = useState(false),
     [draft, setDraft] = useState(""),
@@ -60,6 +67,7 @@ export function EventLaboratory({ event }: { event?: HubEvent }) {
   const sync = () => {
     setParticipant(engine.state());
     setAdministrator(engine.state(true));
+    setStage(laboratoryStage(engine.value));
   };
   const load = async () => {
     if (offline) throw new Error("가상 연결이 끊겼습니다.");
@@ -263,22 +271,117 @@ export function EventLaboratory({ event }: { event?: HubEvent }) {
         <strong>
           {role} 체험 · 가상 {engine.value.rank}등
         </strong>
-        <p>선택 행사: {engine.value.event.title} · {engine.value.event.date} {engine.value.event.start} · {engine.value.event.area}</p>
-        {role === "관리자" && <HubCard><details><summary>가상 행사·혜택·카드 설정 변경</summary><form className="space-y-3" onSubmit={e => {
-          e.preventDefault();
-          const f = new FormData(e.currentTarget);
-          try {
-            engine.configureEvent({...engine.value.event, title: String(f.get('title')), date: String(f.get('date')), start: String(f.get('start')), area: String(f.get('area')), address: String(f.get('address')), notice: String(f.get('notice')), fee: Number(f.get('fee')), benefitsEnabled: f.get('benefits') === 'on', cardsEnabled: f.get('cards') === 'on', benefits:[{from:1,to:3,type:'discount',value:Number(f.get('discount')),label:'가상 1~3등 할인'}]});
-            sync(); setStatus('saved'); setError('');
-          } catch { setError('날짜·금액·필수 행사 정보를 확인해 주세요.'); }
-        }}>
-          {[['title','행사 제목'],['date','행사 날짜'],['start','시작 시간'],['area','공개 지역'],['address','승인 후 상세 장소'],['notice','공지'],['fee','기본 회비']].map(([name,label]) => <HubField key={name} label={label}><input className={inputClass} name={name} type={name === 'date' ? 'date' : name === 'start' ? 'time' : name === 'fee' ? 'number' : 'text'} defaultValue={String((engine.value.event as unknown as Record<string,unknown>)[name])}/></HubField>)}
-          <label className="block"><input type="checkbox" name="benefits" defaultChecked={engine.value.event.benefitsEnabled}/> 선착순 혜택 ON</label>
-          <HubField label="가상 1~3등 할인액"><input name="discount" className={inputClass} type="number" min="0" defaultValue={10000}/></HubField>
-          <label className="block"><input type="checkbox" name="cards" defaultChecked={engine.value.event.cardsEnabled}/> 카드 기능 ON</label>
-          <HubButton type="submit">가상 행사 설정 저장</HubButton>
-          <p className="text-xs">한 행사 설정만 체험합니다. 여러 행사 생성·매주 토요일 자동 생성·전체 모듈 설정은 이 파일에서 실행하지 않습니다.</p>
-        </form></details></HubCard>}
+        <p>
+          선택 행사: {engine.value.event.title} · {engine.value.event.date}{" "}
+          {engine.value.event.start} · {engine.value.event.area}
+        </p>
+        {role === "관리자" && (
+          <HubCard>
+            <details>
+              <summary>가상 행사·혜택·카드 설정 변경</summary>
+              <form
+                className="space-y-3"
+                onSubmit={(e) => {
+                  e.preventDefault();
+                  const f = new FormData(e.currentTarget);
+                  try {
+                    engine.configureEvent({
+                      ...engine.value.event,
+                      title: String(f.get("title")),
+                      date: String(f.get("date")),
+                      start: String(f.get("start")),
+                      area: String(f.get("area")),
+                      address: String(f.get("address")),
+                      notice: String(f.get("notice")),
+                      fee: Number(f.get("fee")),
+                      benefitsEnabled: f.get("benefits") === "on",
+                      cardsEnabled: f.get("cards") === "on",
+                      benefits: [
+                        {
+                          from: 1,
+                          to: 3,
+                          type: "discount",
+                          value: Number(f.get("discount")),
+                          label: "가상 1~3등 할인",
+                        },
+                      ],
+                    });
+                    sync();
+                    setStatus("saved");
+                    setError("");
+                  } catch {
+                    setError("날짜·금액·필수 행사 정보를 확인해 주세요.");
+                  }
+                }}
+              >
+                {[
+                  ["title", "행사 제목"],
+                  ["date", "행사 날짜"],
+                  ["start", "시작 시간"],
+                  ["area", "공개 지역"],
+                  ["address", "승인 후 상세 장소"],
+                  ["notice", "공지"],
+                  ["fee", "기본 회비"],
+                ].map(([name, label]) => (
+                  <HubField key={name} label={label}>
+                    <input
+                      className={inputClass}
+                      name={name}
+                      type={
+                        name === "date"
+                          ? "date"
+                          : name === "start"
+                            ? "time"
+                            : name === "fee"
+                              ? "number"
+                              : "text"
+                      }
+                      defaultValue={String(
+                        (
+                          engine.value.event as unknown as Record<
+                            string,
+                            unknown
+                          >
+                        )[name],
+                      )}
+                    />
+                  </HubField>
+                ))}
+                <label className="block">
+                  <input
+                    type="checkbox"
+                    name="benefits"
+                    defaultChecked={engine.value.event.benefitsEnabled}
+                  />{" "}
+                  선착순 혜택 ON
+                </label>
+                <HubField label="가상 1~3등 할인액">
+                  <input
+                    name="discount"
+                    className={inputClass}
+                    type="number"
+                    min="0"
+                    defaultValue={10000}
+                  />
+                </HubField>
+                <label className="block">
+                  <input
+                    type="checkbox"
+                    name="cards"
+                    defaultChecked={engine.value.event.cardsEnabled}
+                  />{" "}
+                  카드 기능 ON
+                </label>
+                <HubButton type="submit">가상 행사 설정 저장</HubButton>
+                <p className="text-xs">
+                  위의 관리할 행사 선택으로 행사별 시험 상태를 분리해 이어볼 수
+                  있습니다. 새 행사 생성·자동방 예약·전체 모듈 설정은 실제 관리
+                  탭에서 검증하세요.
+                </p>
+              </form>
+            </details>
+          </HubCard>
+        )}
         {role === "참가자" ? (
           editing && app ? (
             <EventProfileEditor

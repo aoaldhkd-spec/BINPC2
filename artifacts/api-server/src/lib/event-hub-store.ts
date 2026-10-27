@@ -81,6 +81,24 @@ export class HubTx {
       ]).toString("utf8"),
     ) as T;
   }
+  /** Fail before the callback can write with an accidentally replaced encryption key. */
+  async assertLedgerReadable() {
+    const row = (
+      await this.db.query(
+        "SELECT kind,id,data FROM event_hub_records WHERE data ? 'crypto_box' ORDER BY kind,id LIMIT 1",
+      )
+    ).rows[0];
+    if (!row) return;
+    try {
+      this.decode(row.kind, row.id, row.data);
+    } catch {
+      fail(
+        "LEDGER_KEY_UNAVAILABLE",
+        "행사 기록의 암호화 키를 확인할 수 없습니다. 기존 키를 복원한 뒤 다시 시도해 주세요. 기록은 변경하지 않았습니다.",
+        503,
+      );
+    }
+  }
   async get<T>(kind: string, id: string): Promise<T | undefined> {
     const row = (
       await this.db.query(
@@ -131,7 +149,9 @@ export class HubStore {
       await c.query(
         "SELECT pg_advisory_xact_lock(hashtext('binpc2:event-hub:v6'))",
       );
-      const result = await fn(new HubTx(c, this.key));
+      const tx = new HubTx(c, this.key);
+      await tx.assertLedgerReadable();
+      const result = await fn(tx);
       await c.query("COMMIT");
       return result;
     } catch (e) {

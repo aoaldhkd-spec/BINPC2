@@ -10,6 +10,7 @@ import {
   type HubController,
 } from "../lib/event-hub-client";
 import { PrivacyManagement, OwnerRecoveryControls } from "./PrivacyManagement";
+import { NoticeHistory } from "./NoticeHistory";
 import { NotificationReadiness } from "./NotificationReadiness";
 import { EventLaboratory } from "./EventLaboratory";
 import {
@@ -209,7 +210,9 @@ export default function EventHubAdmin() {
           ))}
         </>
       )}
-      {tab === "🧪 선착순 시험실" && <EventLaboratory event={event} />}
+      {tab === "🧪 선착순 시험실" && (
+        <EventLaboratory key={event?.id ?? "default"} event={event} />
+      )}
     </div>
   );
 }
@@ -234,6 +237,7 @@ function EventEditor({
       <h3 className="font-black">
         {event ? "행사 설정·변경" : "새 술번개 초안"}
       </h3>
+      <NoticeHistory history={event?.versions} />
       <HubField label="저장된 행사·공지 템플릿">
         <select
           className={inputClass}
@@ -782,133 +786,145 @@ export function ApplicationAdmin({
     });
   return (
     <HubCard>
-      <strong>
-        {app.basic.nickname} · 접수 {app.rank}번
-      </strong>
-      <p className="text-xs break-all">신청번호 {app.id}</p>
-      <p className="text-sm">
-        입금자명: {app.basic.depositor} · 회비{" "}
-        {app.quote?.fee.toLocaleString() ?? "미확정"}원
-      </p>
-      <p className="text-sm">
-        단계 {app.stage} · 입금 {app.payment} · 참가 {app.attendance} · 현장{" "}
-        {app.checkin ? "확인" : "미확인"}
-      </p>
-      <p className="text-xs">
-        입금 신고 시각 {formatHubTime(app.reportedAt)} · 최근 저장{" "}
-        {formatHubTime(app.updatedAt)}
-      </p>
-      <p className="text-sm">
-        프로필{" "}
-        {profileMissing(app.profile).length
-          ? "미완료: " + profileMissing(app.profile).join(", ")
-          : "완료"}
-      </p>
-      <div className="flex gap-2 flex-wrap">
-        {!onsite && (
-          <>
-            <HubButton
-              disabled={hub.status === "saving"}
-              onClick={() => {
-                if (
-                  window.confirm(
-                    "실제 은행 거래의 입금자명·금액·시간을 대조했습니까?",
+      <fieldset
+        disabled={hub.status === "saving" || hub.status === "checking"}
+        className="space-y-3 min-w-0"
+      >
+        <legend className="sr-only">신청 처리 · {app.basic.nickname}</legend>
+        <strong>
+          {app.basic.nickname} · 접수 {app.rank}번
+        </strong>
+        <p className="text-xs break-all">신청번호 {app.id}</p>
+        <p className="text-sm">
+          입금자명: {app.basic.depositor} · 회비{" "}
+          {app.quote?.fee.toLocaleString() ?? "미확정"}원
+        </p>
+        <p className="text-sm">
+          단계 {app.stage} · 입금 {app.payment} · 참가 {app.attendance} · 현장{" "}
+          {app.checkin ? "확인" : "미확인"}
+        </p>
+        <p className="text-xs">
+          입금 신고 시각 {formatHubTime(app.reportedAt)} · 최근 저장{" "}
+          {formatHubTime(app.updatedAt)}
+        </p>
+        <p className="text-sm">
+          프로필{" "}
+          {profileMissing(app.profile).length
+            ? "미완료: " + profileMissing(app.profile).join(", ")
+            : "완료"}
+        </p>
+        <div className="flex gap-2 flex-wrap">
+          {!onsite && (
+            <>
+              <HubButton
+                disabled={hub.status === "saving"}
+                onClick={() => {
+                  if (
+                    window.confirm(
+                      "실제 은행 거래의 입금자명·금액·시간을 대조했습니까?",
+                    )
                   )
-                )
-                  void act("payment", {
-                    status: "approved",
-                    bankChecked: true,
-                  });
-              }}
-            >
-              입금 승인
-            </HubButton>
-            <HubButton onClick={() => act("payment", { status: "mismatch" })}>
-              불일치
-            </HubButton>
-            <HubButton onClick={() => act("payment", { status: "held" })}>
-              보류
-            </HubButton>
-            <HubButton
-              onClick={() => act("attendance", { status: "paid_waitlist" })}
-            >
-              입금확정 대기자
-            </HubButton>
-            <HubButton
-              onClick={() => act("attendance", { status: "confirmed" })}
-            >
-              참가 확정
-            </HubButton>
+                    void act("payment", {
+                      status: "approved",
+                      bankChecked: true,
+                    });
+                }}
+              >
+                입금 승인
+              </HubButton>
+              <HubButton onClick={() => act("payment", { status: "mismatch" })}>
+                불일치
+              </HubButton>
+              <HubButton onClick={() => act("payment", { status: "held" })}>
+                보류
+              </HubButton>
+              <HubButton
+                onClick={() => act("attendance", { status: "paid_waitlist" })}
+              >
+                입금확정 대기자
+              </HubButton>
+              <HubButton
+                onClick={() => act("attendance", { status: "confirmed" })}
+              >
+                참가 확정
+              </HubButton>
+            </>
+          )}
+          <HubButton onClick={() => act("checkin", { checked: true })}>
+            현장 확인
+          </HubButton>
+        </div>
+        {onsite && (
+          <>
+            <div className="flex flex-wrap gap-2">
+              <HubButton
+                disabled={!!app.candy}
+                onClick={() => act("candy", { kind: "haribo-a" })}
+              >
+                하리보 A 지급
+              </HubButton>
+              <HubButton
+                disabled={!!app.candy}
+                onClick={() => act("candy", { kind: "haribo-b" })}
+              >
+                하리보 B 지급
+              </HubButton>
+            </div>
+            {app.cards.map((c) => (
+              <p key={c.id}>
+                카드:{" "}
+                {c.prizeLabel ??
+                  hub.state?.stocks.find((stock) => stock.id === c.prize)
+                    ?.label ??
+                  (c.prize === "다음 기회에"
+                    ? c.prize
+                    : "당첨 상품 · 기록 확인")}{" "}
+                {app.prizesGiven.includes(c.id)
+                  ? "지급 완료"
+                  : c.prize !== "다음 기회에" && (
+                      <HubButton onClick={() => act("prize", { cardId: c.id })}>
+                        상품 지급 확인
+                      </HubButton>
+                    )}
+              </p>
+            ))}
           </>
         )}
-        <HubButton onClick={() => act("checkin", { checked: true })}>
-          현장 확인
-        </HubButton>
-      </div>
-      {onsite && (
-        <>
-          <div className="flex flex-wrap gap-2">
+        <details>
+          <summary>메모·회비 변경·처리 이력</summary>
+          <div className="space-y-2 mt-3">
+            <HubField label="메모·변경 사유">
+              <textarea
+                className={inputClass}
+                value={note}
+                onChange={(e) => setNote(e.target.value)}
+              />
+            </HubField>
             <HubButton
-              disabled={!!app.candy}
-              onClick={() => act("candy", { kind: "haribo-a" })}
+              disabled={!note.trim()}
+              onClick={() => act("note", { reason: note })}
             >
-              하리보 A 지급
+              메모 저장
             </HubButton>
+            <HubField label="변경할 회비 (기존 금액·사유 보존)">
+              <input
+                className={inputClass}
+                type="number"
+                min={0}
+                value={fee}
+                onChange={(e) => setFee(e.target.value)}
+              />
+            </HubField>
             <HubButton
-              disabled={!!app.candy}
-              onClick={() => act("candy", { kind: "haribo-b" })}
+              disabled={!note.trim()}
+              onClick={() => act("reprice", { fee: Number(fee), reason: note })}
             >
-              하리보 B 지급
+              사유와 함께 회비 변경
             </HubButton>
+            <Audit rows={app.history} />
           </div>
-          {app.cards.map((c) => (
-            <p key={c.id}>
-              카드: {c.prize}{" "}
-              {app.prizesGiven.includes(c.id)
-                ? "지급 완료"
-                : c.prize !== "다음 기회에" && (
-                    <HubButton onClick={() => act("prize", { cardId: c.id })}>
-                      상품 지급 확인
-                    </HubButton>
-                  )}
-            </p>
-          ))}
-        </>
-      )}
-      <details>
-        <summary>메모·회비 변경·처리 이력</summary>
-        <div className="space-y-2 mt-3">
-          <HubField label="메모·변경 사유">
-            <textarea
-              className={inputClass}
-              value={note}
-              onChange={(e) => setNote(e.target.value)}
-            />
-          </HubField>
-          <HubButton
-            disabled={!note.trim()}
-            onClick={() => act("note", { reason: note })}
-          >
-            메모 저장
-          </HubButton>
-          <HubField label="변경할 회비 (기존 금액·사유 보존)">
-            <input
-              className={inputClass}
-              type="number"
-              min={0}
-              value={fee}
-              onChange={(e) => setFee(e.target.value)}
-            />
-          </HubField>
-          <HubButton
-            disabled={!note.trim()}
-            onClick={() => act("reprice", { fee: Number(fee), reason: note })}
-          >
-            사유와 함께 회비 변경
-          </HubButton>
-          <Audit rows={app.history} />
-        </div>
-      </details>
+        </details>
+      </fieldset>
     </HubCard>
   );
 }
@@ -929,7 +945,10 @@ function Audit({
 }
 export function AdminThreads({ hub, state }: { hub: Hub; state: HubState }) {
   const [selected, setSelected] = useState(""),
-    [draft, setDraft] = useState("");
+    [drafts, setDrafts] = useState<Record<string, string>>({});
+  const draft = drafts[selected] ?? "";
+  const setDraft = (text: string) =>
+    setDrafts((previous) => ({ ...previous, [selected]: text }));
   const t = state.threads.find((v) => v.id === selected);
   const owners = [
     ...new Set([
@@ -1029,6 +1048,7 @@ export function AdminThreads({ hub, state }: { hub: Hub; state: HubState }) {
         <textarea
           className={inputClass}
           value={draft}
+          disabled={!selected}
           onChange={(e) => setDraft(e.target.value)}
           rows={3}
         />
@@ -1043,7 +1063,11 @@ export function AdminThreads({ hub, state }: { hub: Hub; state: HubState }) {
               data: { text: draft },
             })
           )
-            setDraft("");
+            setDrafts((previous) =>
+              previous[selected] === draft
+                ? { ...previous, [selected]: "" }
+                : previous,
+            );
         }}
       >
         수정한 답장 보내기

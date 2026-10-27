@@ -3,6 +3,7 @@ import {
   canStoreHubOnsiteIdentity,
 } from "../lib/event-hub-browser-storage";
 import "./event-hub.css";
+import { NoticeHistory } from "./NoticeHistory";
 import { EventMedia } from "./EventMedia";
 import { useEffect, useState } from "react";
 import {
@@ -590,6 +591,7 @@ export function ApplicationSteps({
           상세 주소는 입금 승인 후 본인 대기방에만 공개합니다.
         </p>
       </details>
+      <NoticeHistory history={event.noticeHistory} />
       {panelStage === 2 ? (
         <>
           <HubCheck
@@ -868,6 +870,7 @@ export function WaitingRoom({
             {event.notice}
           </p>
         </details>
+        <NoticeHistory history={event.noticeHistory} />
         {app.consent?.noticeVersion !== event.noticeVersion && (
           <HubButton
             onClick={() =>
@@ -904,13 +907,15 @@ export function WaitingRoom({
                 {app.cards[i]
                   ? app.cards[i].prize === "다음 기회에"
                     ? "다음 기회에"
-                    : `🎁 ${app.cards[i].prize.split(":").at(-1)}`
+                    : `🎁 ${app.cards[i].prizeLabel ?? "당첨 상품 · 관리자에게 확인해 주세요"}`
                   : "✦"}
               </div>
             ))}
           </div>
           <HubButton
-            disabled={app.cards.length >= 3 || hub.status === "saving"}
+            disabled={
+              !app.profileId || app.cards.length >= 3 || hub.status === "saving"
+            }
             onClick={() =>
               hub.mutate({
                 action: "application.draw",

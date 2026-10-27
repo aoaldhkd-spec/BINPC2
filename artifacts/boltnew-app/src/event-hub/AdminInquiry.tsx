@@ -4,8 +4,15 @@ import {
 } from "../lib/event-hub-browser-storage";
 import { useEffect, useState, useRef } from "react";
 import { useEventHub } from "../lib/event-hub-client";
-import { HubButton, HubCheck, HubFeedback, inputClass } from "./HubUi";
+import {
+  HubButton,
+  HubCheck,
+  HubFeedback,
+  inputClass,
+  useHubDark,
+} from "./HubUi";
 export function AdminInquiry() {
+  const dark = useHubDark();
   const [open, setOpen] = useState(false),
     [message, setMessage] = useState(
       () => readHubBrowserValue("session", "binpc2_inquiry_draft_v6") ?? "",
@@ -93,7 +100,7 @@ export function AdminInquiry() {
   if (!hub.state?.enabled && !hub.state?.applications.length) return null;
   const inEventHub = window.location.pathname.includes("/events");
   return (
-    <>
+    <div className="event-hub-theme" data-event-dark={dark}>
       <div
         className={
           inEventHub
@@ -216,6 +223,6 @@ export function AdminInquiry() {
           </section>
         </div>
       )}
-    </>
+    </div>
   );
 }

@@ -15,7 +15,10 @@ export default defineConfig({
   use: {
     baseURL,
     headless: true,
-    launchOptions: { executablePath: "/usr/bin/chromium" },
+    launchOptions: existsSync("/usr/bin/chromium")
+      ? { executablePath: "/usr/bin/chromium" }
+      : {},
+    video: "on",
     screenshot: "only-on-failure",
   },
 });

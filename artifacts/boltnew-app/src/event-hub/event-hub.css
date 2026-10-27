@@ -43,10 +43,42 @@ body:has(.event-profile-draft) .event-hub-dock {
 
 /* Reveal durable server results only; motion never changes the draw outcome. */
 @keyframes hub-card-reveal {
-  from { transform: perspective(600px) rotateY(-90deg); opacity: .3; }
-  to { transform: perspective(600px) rotateY(0); opacity: 1; }
+  from {
+    transform: perspective(600px) rotateY(-90deg);
+    opacity: 0.3;
+  }
+  to {
+    transform: perspective(600px) rotateY(0);
+    opacity: 1;
+  }
 }
-.hub-card-revealed { animation: hub-card-reveal 400ms ease-out; }
+.hub-card-revealed {
+  animation: hub-card-reveal 400ms ease-out;
+}
 @media (prefers-reduced-motion: reduce) {
-  .hub-card-revealed { animation: none; }
+  .hub-card-revealed {
+    animation: none;
+  }
+}
+
+/* Inquiry is mounted beside the app route: give it the same scoped dark palette. */
+.event-hub-theme[data-event-dark="true"] .bg-slate-100 {
+  background-color: #1e293b;
+}
+.event-hub-theme[data-event-dark="true"] .bg-slate-200 {
+  background-color: #334155;
+}
+.event-hub-theme[data-event-dark="true"] .bg-rose-50 {
+  background-color: #4c0519;
+}
+.event-hub-theme[data-event-dark="true"] .text-rose-800 {
+  color: #fda4af;
+}
+.event-hub-theme input,
+.event-hub-theme textarea,
+.event-hub-theme select {
+  scroll-margin-block: 5rem;
+}
+.event-hub-theme [role="dialog"] {
+  overscroll-behavior: contain;
 }

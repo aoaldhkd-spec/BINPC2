@@ -2,9 +2,11 @@ import {
   test,
   expect,
   type APIRequestContext,
+  type BrowserContext,
   request as apiRequest,
 } from "@playwright/test";
 import { randomUUID } from "node:crypto";
+import { readFileSync } from "node:fs";
 const token = process.env.HUB_E2E_ADMIN_TOKEN;
 if (!token)
   throw new Error("Missing isolated local administrator test binding");
@@ -32,6 +34,20 @@ async function application(request: APIRequestContext, id: string) {
   expect(r.status()).toBe(200);
   return (await r.json()).applications.find((a: { id: string }) => a.id === id);
 }
+// Every browser page is denied non-local network access, including popups and media.
+async function restrictToLocal(context: BrowserContext) {
+  await context.route("**/*", (route) => {
+    const url = new URL(route.request().url());
+    if (
+      url.protocol === "http:" &&
+      url.hostname === "127.0.0.1" &&
+      ["3001", "3002"].includes(url.port)
+    )
+      return route.continue();
+    return route.abort("blockedbyclient");
+  });
+}
+test.beforeEach(async ({ context }) => restrictToLocal(context));
 test.beforeAll(async ({ request }) => {
   const date = new Date(Date.now() + 9 * 3600000).toISOString().slice(0, 10);
   const e = await command(request, "event.save", "", {
@@ -45,6 +61,7 @@ test.beforeAll(async ({ request }) => {
     account: "격리 시험 계좌",
     deadline: "테스트 행사 전",
     notice: "격리 자동시험 전용입니다. 운영 모집이 아닙니다.",
+    cardsEnabled: true,
     benefitsEnabled: true,
     benefits: [
       {
@@ -58,6 +75,11 @@ test.beforeAll(async ({ request }) => {
   });
   eventId = e.id;
   await command(request, "event.recruitment", eventId, { enabled: true }, 1);
+  await command(request, "stock.save", "", {
+    eventId,
+    label: "소품 2번",
+    add: 3,
+  });
 });
 test("actual browser + API + PostgreSQL: saved stages, payment recovery, private profile and exactly-once entry", async ({
   page,
@@ -75,6 +97,10 @@ test("actual browser + API + PostgreSQL: saved stages, payment recovery, private
   await expect(page.getByText("격리 시험 계좌", { exact: true })).toHaveCount(
     0,
   );
+  await page.screenshot({
+    path: testInfo.outputPath("00-actual-basic-privacy.png"),
+    fullPage: true,
+  });
   await page.getByLabel("[필수] 위 개인정보").check();
   let release!: () => void;
   const delay = new Promise<void>((r) => {
@@ -89,6 +115,10 @@ test("actual browser + API + PostgreSQL: saved stages, payment recovery, private
   await expect(
     page.getByRole("button", { name: "◌ 저장 중…", exact: true }),
   ).toBeVisible();
+  await page.screenshot({
+    path: testInfo.outputPath("00-actual-saving.png"),
+    fullPage: true,
+  });
   release();
   await expect(page).toHaveURL(/\/events\/a\//);
   await page.unroute("**/api/event-hub/mutate");
@@ -101,6 +131,10 @@ test("actual browser + API + PostgreSQL: saved stages, payment recovery, private
   await expect(
     page.getByRole("heading", { name: "공지 확인·동의" }),
   ).toBeVisible();
+  await page.screenshot({
+    path: testInfo.outputPath("00-actual-notice-before-fee.png"),
+    fullPage: true,
+  });
   for (const label of [
     "[필수] 행사 공지를 확인했습니다",
     "[필수] 행사 운영을 위한 개인정보 수집",
@@ -135,6 +169,10 @@ test("actual browser + API + PostgreSQL: saved stages, payment recovery, private
     page.getByRole("heading", { name: "회비 확인 및 신청 확정" }),
   ).toBeVisible();
   await expect(page.getByText("최종 납부 금액 40,000원")).toBeVisible();
+  await page.screenshot({
+    path: testInfo.outputPath("01-actual-saved-fee.png"),
+    fullPage: true,
+  });
   await page.getByRole("button", { name: "금액 확인 후 신청 확정" }).click();
   await expect(
     page.getByRole("heading", { name: "👤 내 프로필" }),
@@ -149,13 +187,40 @@ test("actual browser + API + PostgreSQL: saved stages, payment recovery, private
   ).toBeVisible();
   expect((await application(request, id)).payment).toBe("reported");
   let a = await application(request, id);
-  await command(
-    request,
-    "admin.application.payment",
-    id,
-    { status: "approved", bankChecked: true },
-    a.revision,
-  );
+  const approvalContext = await browser.newContext({
+    baseURL: process.env.HUB_E2E_BASE_URL,
+    recordVideo: { dir: testInfo.outputPath("approval-video") },
+  });
+  await restrictToLocal(approvalContext);
+  await approvalContext.addInitScript((value) => {
+    localStorage.setItem("admin_token_v1", value);
+    localStorage.setItem(
+      "admin_session_v1",
+      JSON.stringify({ phone: "01000000000", authedAt: Date.now() }),
+    );
+  }, token!);
+  const approvalPage = await approvalContext.newPage();
+  await approvalPage.goto("/admin");
+  await approvalPage
+    .getByRole("button", { name: "🎉 술번개", exact: true })
+    .click();
+  await approvalPage.getByLabel("관리할 행사").selectOption(eventId);
+  await approvalPage
+    .getByRole("button", { name: "신청·입금", exact: true })
+    .click();
+  const approvalCard = approvalPage
+    .locator("section")
+    .filter({ has: approvalPage.getByText(`신청번호 ${id}`, { exact: true }) });
+  approvalPage.once("dialog", (dialog) => dialog.accept());
+  await approvalCard
+    .getByRole("button", { name: "입금 승인", exact: true })
+    .click();
+  await expect(approvalCard.getByText(/입금 approved/)).toBeVisible();
+  await approvalPage.screenshot({
+    path: testInfo.outputPath("01-actual-admin-payment-approved.png"),
+    fullPage: true,
+  });
+  await approvalContext.close();
   a = await application(request, id);
   await command(
     request,
@@ -191,7 +256,15 @@ test("actual browser + API + PostgreSQL: saved stages, payment recovery, private
   });
   expect(blocked.status()).toBe(403);
   expect((await blocked.json()).code).toBe("PROFILE_INCOMPLETE");
+  await page.screenshot({
+    path: testInfo.outputPath("02-actual-incomplete-entry-blocked.png"),
+    fullPage: true,
+  });
   await page.getByRole("button", { name: "프로필 미리 설정하기" }).click();
+  await page.screenshot({
+    path: testInfo.outputPath("02-actual-profile-wizard.png"),
+    fullPage: true,
+  });
   await page.getByRole("button", { name: "ENFP", exact: true }).click();
   await page.getByRole("button", { name: "다음", exact: true }).click();
   await expect(
@@ -251,6 +324,7 @@ test("actual browser + API + PostgreSQL: saved stages, payment recovery, private
   const other = await browser.newContext({
     viewport: { width: 390, height: 844 },
   });
+  await restrictToLocal(other);
   const p2 = await other.newPage();
   await p2.goto("/events");
   await p2.getByText("이전 신청 복구 / 기존 신청자 로그인").click();
@@ -301,6 +375,62 @@ test("actual browser + API + PostgreSQL: saved stages, payment recovery, private
     .click();
   await expect(page).toHaveURL(/127\.0\.0\.1:300[12]\/?$/);
   expect((await application(request, id)).profileId).toBe(profileId);
+  await page.goto(`/events/a/${id}`);
+  for (let count = 1; count <= 3; count++) {
+    await page
+      .getByRole("button", { name: "카드 한 장 뽑기", exact: true })
+      .click();
+    await expect(
+      page.getByRole("heading", { name: `🎃 행사 카드 · ${count}/3` }),
+    ).toBeVisible();
+  }
+  await expect(
+    page.getByRole("button", { name: "카드 한 장 뽑기", exact: true }),
+  ).toBeDisabled();
+  const cards = (await application(request, id)).cards;
+  await page.reload();
+  await expect(
+    page.getByRole("heading", { name: "🎃 행사 카드 · 3/3" }),
+  ).toBeVisible();
+  expect((await application(request, id)).cards).toEqual(cards);
+  const fourth = await page.request.post("/api/event-hub/mutate", {
+    data: {
+      action: "application.draw",
+      target: id,
+      revision: (await application(request, id)).revision,
+      requestId: randomUUID(),
+    },
+  });
+  expect(fourth.status()).toBe(409);
+  expect((await fourth.json()).code).toBe("CARD_LIMIT");
+  await page.screenshot({
+    path: testInfo.outputPath("04-actual-three-cards-restored.png"),
+    fullPage: true,
+  });
+  const rewardContext = await browser.newContext({baseURL:process.env.HUB_E2E_BASE_URL,recordVideo:{dir:testInfo.outputPath("reward-video")}});
+  await restrictToLocal(rewardContext);
+  await rewardContext.addInitScript(value => {
+    localStorage.setItem("admin_token_v1",value);
+    localStorage.setItem("admin_session_v1",JSON.stringify({phone:"01000000000",authedAt:Date.now()}));
+  },token!);
+  try {
+    const admin = await rewardContext.newPage();
+    await admin.goto("/admin");
+    await admin.getByRole("button",{name:"🎉 술번개",exact:true}).click();
+    await admin.getByLabel("관리할 행사").selectOption(eventId);
+    await admin.getByRole("button",{name:"현장·상품",exact:true}).click();
+    const card = admin.locator("section").filter({has:admin.getByText(`신청번호 ${id}`,{exact:true})});
+    await card.getByRole("button",{name:"하리보 A 지급",exact:true}).click();
+    await expect(card.getByRole("button",{name:"하리보 B 지급",exact:true})).toBeDisabled();
+    const winning = cards.find((c:{prize:string}) => c.prize !== "다음 기회에");
+    if (winning) {
+      await card.getByRole("button",{name:"상품 지급 확인",exact:true}).first().click();
+      await expect(card.getByText("지급 완료",{exact:false})).toBeVisible();
+      expect((await application(request,id)).prizesGiven).toHaveLength(1);
+    }
+    await card.screenshot({path:testInfo.outputPath("04-actual-admin-rewards.png")});
+  } finally { await rewardContext.close(); }
+
 });
 
 test("mobile/tablet/desktop layouts and administrator sandbox remain isolated", async ({
@@ -337,6 +467,29 @@ test("mobile/tablet/desktop layouts and administrator sandbox remain isolated", 
         ),
         fullPage: true,
       });
+      await inquiry.click();
+      const dialog = page.getByRole("dialog", {
+        name: "관리자 문의",
+        exact: true,
+      });
+      await expect(dialog).toBeVisible();
+      expect(
+        await dialog.evaluate(
+          (element) => getComputedStyle(element).backgroundColor,
+        ),
+      ).toBe(dark ? "rgb(15, 23, 42)" : "rgb(255, 255, 255)");
+      const dialogRect = await dialog.boundingBox();
+      expect(dialogRect!.x).toBeGreaterThanOrEqual(0);
+      expect(dialogRect!.width).toBeLessThanOrEqual(width);
+      expect(dialogRect!.height).toBeLessThanOrEqual(844);
+      if (width === 390)
+        await page.screenshot({
+          path: testInfo.outputPath(
+            `inquiry-390-${dark ? "dark" : "light"}.png`,
+          ),
+        });
+      await page.keyboard.press("Escape");
+      await expect(dialog).toHaveCount(0);
     }
   }
   const before = await (
@@ -355,6 +508,10 @@ test("mobile/tablet/desktop layouts and administrator sandbox remain isolated", 
     .getByRole("button", { name: "🧪 선착순 시험실", exact: true })
     .click();
   await expect(page.getByText("최종 납부 금액 40,000원")).toBeVisible();
+  await page.screenshot({
+    path: testInfo.outputPath("admin-rank-3-sandbox.png"),
+    fullPage: true,
+  });
   await page.getByRole("button", { name: "4등", exact: true }).click();
   await expect(page.getByText("최종 납부 금액 50,000원")).toBeVisible();
   await page.screenshot({
@@ -398,7 +555,7 @@ test("inquiry drafts, participant messages and administrator replies survive reo
   page,
   browser,
   request,
-}) => {
+}, testInfo) => {
   const text = `격리 문의 ${suffix}`;
   await page.goto("/events");
   await page.getByRole("button", { name: /💬 관리자 문의/ }).click();
@@ -429,6 +586,7 @@ test("inquiry drafts, participant messages and administrator replies survive reo
   const context = await browser.newContext({
     baseURL: process.env.HUB_E2E_BASE_URL,
   });
+  await restrictToLocal(context);
   await context.addInitScript((value) => {
     localStorage.setItem("admin_token_v1", value);
     localStorage.setItem(
@@ -478,6 +636,14 @@ test("inquiry drafts, participant messages and administrator replies survive reo
   await expect(page.getByLabel("문의 내용", { exact: true })).toHaveValue(
     "보내지 않은 임시 문의",
   );
+  await page.screenshot({
+    path: testInfo.outputPath("actual-inquiry-drawer.png"),
+    fullPage: true,
+  });
+  await admin.screenshot({
+    path: testInfo.outputPath("actual-admin-inquiry.png"),
+    fullPage: true,
+  });
   await context.close();
 });
 
@@ -644,6 +810,44 @@ test("protected media HTTP, privacy review and participant-safe notices use the 
     (await application(request, id)).revision,
   );
   expect((await page.request.get(url)).status()).toBe(200);
+  const videoEvent = (
+    await (
+      await request.get("/api/event-hub/admin", { headers: adminHeaders })
+    ).json()
+  ).events.find((v: { id: string }) => v.id === eventId);
+  const uploadedVideo = await command(
+    request,
+    "event.media.upload",
+    eventId,
+    {
+      mime: "video/webm",
+      base64: readFileSync(
+        new URL("./fixtures/event-hub-synthetic.webm", import.meta.url),
+      ).toString("base64"),
+    },
+    videoEvent.revision,
+  );
+  expect((await request.get(String(uploadedVideo.mediaUrl))).status()).toBe(
+    404,
+  );
+  await page.goto(`/events/a/${id}`);
+  const video = page.locator("video");
+  await video.evaluate(async (element: HTMLVideoElement) => {
+    element.muted = true;
+    await element.play();
+  });
+  await expect
+    .poll(() =>
+      video.evaluate((element: HTMLVideoElement) => element.readyState),
+    )
+    .toBeGreaterThanOrEqual(2);
+  expect(
+    await video.evaluate((element: HTMLVideoElement) => element.videoWidth),
+  ).toBe(160);
+  await page.screenshot({
+    path: testInfo.outputPath("actual-protected-video-playback.png"),
+    fullPage: true,
+  });
   await page.goto("/events");
   await page.getByText("개인정보 열람·삭제 문의", { exact: true }).click();
   await page
@@ -657,6 +861,7 @@ test("protected media HTTP, privacy review and participant-safe notices use the 
     baseURL: process.env.HUB_E2E_BASE_URL,
   });
   try {
+    await restrictToLocal(ctx);
     await ctx.addInitScript((value) => {
       localStorage.setItem("admin_token_v1", value);
       localStorage.setItem(
@@ -690,18 +895,16 @@ test("protected media HTTP, privacy review and participant-safe notices use the 
     ).json();
     expect(
       latest.events.find((v: { id: string }) => v.id === eventId).media,
-    ).toHaveLength(2);
+    ).toHaveLength(3);
     await admin
       .getByRole("button", { name: "이력·개인정보", exact: true })
       .click();
-    const card = admin
-      .locator("section")
-      .filter({
-        has: admin.getByRole("heading", {
-          name: `개인정보 요청 · ${nick}`,
-          exact: true,
-        }),
-      });
+    const card = admin.locator("section").filter({
+      has: admin.getByRole("heading", {
+        name: `개인정보 요청 · ${nick}`,
+        exact: true,
+      }),
+    });
     await card
       .getByLabel("관리자 검토·보관 보류 사유 (비공개)", { exact: true })
       .fill("PRIVATE-UI-REVIEW");
@@ -750,5 +953,57 @@ test("protected media HTTP, privacy review and participant-safe notices use the 
     expect(owner).toBeTruthy();
   } finally {
     await ctx.close();
+  }
+});
+
+test("actual administrator Saturday toggle survives reload and returns to the original isolated configuration", async ({
+  page,
+  request,
+}, testInfo) => {
+  await page.addInitScript((value) => {
+    localStorage.setItem("admin_token_v1", value);
+    localStorage.setItem(
+      "admin_session_v1",
+      JSON.stringify({ phone: "01000000000", authedAt: Date.now() }),
+    );
+  }, token!);
+  const initial = await (
+    await request.get("/api/event-hub/admin", { headers: adminHeaders })
+  ).json();
+  try {
+    await page.goto("/admin");
+    await page.getByRole("button", { name: "🎉 술번개", exact: true }).click();
+    const toggle = page.getByLabel("토요일 자동 초안 생성", { exact: true });
+    await toggle.setChecked(!initial.settings.autoSaturday);
+    await page
+      .getByRole("button", { name: "자동방 설정 저장", exact: true })
+      .click();
+    await expect(
+      page.getByText("저장되었습니다 ✓", { exact: true }),
+    ).toBeVisible();
+    const saved = await (
+      await request.get("/api/event-hub/admin", { headers: adminHeaders })
+    ).json();
+    expect(saved.settings.autoSaturday).toBe(!initial.settings.autoSaturday);
+    await page.reload();
+    await page.getByRole("button", { name: "🎉 술번개", exact: true }).click();
+    await expect(toggle).toBeChecked({
+      checked: !initial.settings.autoSaturday,
+    });
+    await page.screenshot({
+      path: testInfo.outputPath("actual-admin-saturday-toggle.png"),
+      fullPage: true,
+    });
+  } finally {
+    const current = await (
+      await request.get("/api/event-hub/admin", { headers: adminHeaders })
+    ).json();
+    await command(
+      request,
+      "settings.save",
+      "",
+      initial.settings,
+      current.settings.revision,
+    );
   }
 });

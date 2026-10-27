@@ -1,5 +1,13 @@
 name: Isolated event hub V6
 on:
+  push:
+    branches: ["feat/event-hub-v6-20261027"]
+    paths:
+      - "artifacts/api-server/**"
+      - "artifacts/boltnew-app/**"
+      - "lib/api-zod/**"
+      - "scripts/**"
+      - ".github/workflows/event-hub-integration.yml"
   pull_request:
     paths:
       - "artifacts/api-server/**"
@@ -45,6 +53,12 @@ jobs:
       - run: pnpm install --frozen-lockfile
       - run: node scripts/prepare-event-hub-e2e.mjs database
       - run: pnpm run build
+      - name: Existing unit and core-protection regression checks
+        run: |
+          pnpm run test:unit
+          pnpm run verify:guards
+          pnpm run verify:records
+          node --test scripts/test/production-entry-guards.test.mjs scripts/test/ops-client.test.mjs
       - name: Actual PostgreSQL invariants and existing reset safety
         run: pnpm --filter @workspace/api-server exec vitest run src/lib/event-hub.pg.test.ts src/lib/db-event-reset-transaction.pg.test.ts
       - run: pnpm --filter @workspace/boltnew-app exec playwright install --with-deps chromium
@@ -60,3 +74,13 @@ jobs:
       - run: node scripts/prepare-event-hub-e2e.mjs activate
       - name: Browser recovery, inquiry, layout and 100-session HTTP tests
         run: pnpm --filter @workspace/boltnew-app exec playwright test --config playwright.event-hub.config.ts
+      - name: Preserve synthetic actual-app screenshots and videos
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: isolated-v6-actual-app-evidence
+          retention-days: 7
+          path: |
+            artifacts/boltnew-app/test-results/event-hub-v6/**/*.png
+            artifacts/boltnew-app/test-results/event-hub-v6/**/*.webm
+          if-no-files-found: ignore

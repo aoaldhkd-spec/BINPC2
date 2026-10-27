@@ -1019,6 +1019,7 @@ export class EventHubService {
           a.cards.push({
             id: randomUUID(),
             prize: stock?.id ?? "다음 기회에",
+            prizeLabel: stock?.label ?? "다음 기회에",
             at: now,
           });
         } else if (m.action === "admin.application.candy") {
