@@ -105,7 +105,6 @@ import {
   ACTIVE_KV_TABLES,
   isCriticalWriteLog,
   buildKvUpsertSql,
-  buildKvInsertIfAbsentSql,
   buildKvDeleteRowSql,
   buildKvDeleteRowsSql,
   buildKvDeleteTableSql,
@@ -467,7 +466,6 @@ import {
 import {
   FIXED_DAILY_EVENT_SCHEDULE,
   dailyCycleBootstrapPatch,
-  seoulDateKey,
   planEventCycleStartPatch,
   dueDailyCycleActions,
   nextDailyCycleDelayMs,
@@ -508,7 +506,6 @@ import {
 } from '../lib/db-legacy-cleanup';
 import {
   heartUsageFromLikeRows,
-  parseHeartOps,
   serializeEventSchedule,
 } from '../lib/db-heart-ops';
 import {
@@ -1687,8 +1684,9 @@ function defaultAppSettings(): Record<string, unknown> {
     now: ts(),
     bootstrapAdmin: process.env.BOOTSTRAP_ADMIN_PASSWORD?.trim(),
     bootstrapTest: process.env.BOOTSTRAP_TEST_PASSWORD?.trim(),
-    panelDefault: PANEL_DEFAULT_PASSWORD,
-    productionQrBase: PRODUCTION_QR_BASE,
+    panelDefault: process.env.APP_MODE === "private-preview" ? process.env.BOOTSTRAP_ADMIN_PASSWORD : PANEL_DEFAULT_PASSWORD,
+    productionQrBase: process.env.APP_MODE === "private-preview" ? (process.env.PREVIEW_PUBLIC_ORIGIN ?? process.env.RENDER_EXTERNAL_URL) : PRODUCTION_QR_BASE,
+    privatePreview: process.env.APP_MODE === "private-preview",
   });
 }
 
@@ -1785,6 +1783,8 @@ async function ensureAppSettingsSecrets(): Promise<void> {
     bootstrapAdmin: process.env.BOOTSTRAP_ADMIN_PASSWORD?.trim(),
     bootstrapTest: process.env.BOOTSTRAP_TEST_PASSWORD?.trim(),
     panelDefault: PANEL_DEFAULT_PASSWORD,
+    privatePreviewOrigin: process.env.APP_MODE === "private-preview"
+      ? (process.env.PREVIEW_PUBLIC_ORIGIN ?? process.env.RENDER_EXTERNAL_URL) : undefined,
   });
   if (!shouldApply) return;
 
@@ -3688,9 +3688,7 @@ router.post('/op', async (req: Request, res: Response) => {
           if (!referenceCheck.ok) return sendReferenceFailure(res, referenceCheck);
 
           // 하트 운영: 일반(종류별 1) vs 무지개(4) — like_source로 구분.
-          const eventScheduleRaw = (getTable('app_settings')[0] as Record<string, unknown> | undefined)?.event_schedule;
           const now = new Date();
-          const heartOps = parseHeartOps(eventScheduleRaw);
           const usage = heartUsageFromLikeRows(tableData, likeLiker);
           // API/security/load tests exercise write invariants independent of wall-clock heart windows.
           // Production always uses the fixed 23:00/24:00 schedule.
@@ -5841,6 +5839,15 @@ export function eventHubProfileCommitted(profile: Record<string, unknown>, bindi
     if (i < 0) rows.push(signal); else rows[i] = signal;
     smartBroadcast('user_signals', signal, { type: 'change', table: 'user_signals', event: 'INSERT', newRow: signal, oldRow: null });
   }
+}
+
+
+
+// No application, owner, phone, payment, venue or result data enters public SSE.
+// Consumers must re-fetch through their existing owner/admin authorization.
+export function eventHubChanged() {
+  const row = {id:"refresh"};
+  smartBroadcast("event_hub_updates",row,{type:"change",table:"event_hub_updates",event:"UPDATE",newRow:row,oldRow:null});
 }
 
 export default router;

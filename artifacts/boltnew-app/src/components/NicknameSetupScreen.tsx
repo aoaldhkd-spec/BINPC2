@@ -1,8 +1,9 @@
+import { readProfileSetupDraft, saveProfileSetupDraft } from '../lib/profile-setup-draft';
 import type { NicknameSetupInput } from '../lib/nickname-registration';
 import { RegistrationConsentRows } from './RegistrationConsentRows';
 import { REGISTRATION_CONSENT_VERSION, hasRequiredConsent, type RegistrationConsent } from '../lib/registration-consent';
 import { DisplayScaleControls } from './DisplayScaleControls';
-import { useState, useRef, useCallback } from 'react';
+import { useState, useRef, useCallback, useEffect } from 'react';
 import { ArrowLeft, ChevronRight, RefreshCw } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import { BIO_CATEGORY_GROUPS } from '../lib/interests';
@@ -111,43 +112,45 @@ export function NicknameSetupScreen({ onSubmit, loading, registrationError, onRe
   eventDraft?: { initial: Partial<NicknameSetupInput> & { lastStep?: number; pushDecision?: 'enable'|'skip' }; save: (data: Partial<NicknameSetupInput> & { pushDecision?: 'enable'|'skip' }, nextStep: number) => Promise<boolean> };
   loading: boolean; registrationError?: string | null; onReset: () => void; onShowRecovery?: () => void;
 }) {
-  const [step, setStep] = useState<Step>((eventDraft?.initial.lastStep ?? 1) as Step);
+  const [localDraft] = useState(() => eventDraft ? {} : readProfileSetupDraft());
+  const initial = eventDraft?.initial ?? localDraft;
+  const [step, setStep] = useState<Step>((initial.lastStep ?? 1) as Step);
 
   // 닉네임
-  const [customInput, setCustomInput] = useState(eventDraft?.initial.nickname ?? '');
+  const [customInput, setCustomInput] = useState(initial.nickname ?? '');
   const [customError, setCustomError] = useState<string | null>(null);
   const [checkingDup, setCheckingDup] = useState(false);
   const [dupChecked, setDupChecked] = useState(!!eventDraft);
   const dupTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const customInputRef = useRef('');
+  const customInputRef = useRef(initial.nickname ?? '');
   const nickInputElRef = useRef<HTMLInputElement>(null);
   const nickComposingRef = useRef(false);
   const nickFinishSyllableRef = useRef(false);
 
   // MBTI
-  const [mbti, setMbti] = useState<string | null>(eventDraft?.initial.mbti ?? null);
+  const [mbti, setMbti] = useState<string | null>(initial.mbti ?? null);
 
   // 년생·지역
   const [decadeFilter, setDecadeFilter] = useState<string>('90년대');
-  const [birthYear, setBirthYear] = useState<string>(String(eventDraft?.initial.birthYear ?? 1995));
+  const [birthYear, setBirthYear] = useState<string>(String(initial.birthYear ?? 1995));
   const [regionFilter, setRegionFilter] = useState<string>('광역시');
-  const [location, setLocation] = useState<string>(eventDraft?.initial.location ?? '부산');
+  const [location, setLocation] = useState<string>(initial.location ?? '부산');
 
   // 관심사
-  const [selectedBio, setSelectedBio] = useState<string[]>(eventDraft?.initial.interests ?? []);
+  const [selectedBio, setSelectedBio] = useState<string[]>(initial.interests ?? []);
 
   // 성향
-  const [positionScore, setPositionScore] = useState<number | null>(eventDraft?.initial.personalityScore ?? null);
+  const [positionScore, setPositionScore] = useState<number | null>(initial.personalityScore ?? null);
 
   // 이상형·나는 어떤 사람인가요? (선택 — Step 6)
-  const [idealTags, setIdealTags] = useState<string[]>(parseIdealTags(eventDraft?.initial.idealMsg));
-  const [featureTags, setFeatureTags] = useState<string[]>(parseIdealTags(eventDraft?.initial.featureMsg));
+  const [idealTags, setIdealTags] = useState<string[]>(parseIdealTags(initial.idealMsg));
+  const [featureTags, setFeatureTags] = useState<string[]>(parseIdealTags(initial.featureMsg));
   const [bioFilter, setBioFilter] = useState<string>(BIO_CATEGORY_GROUPS[0].label);
-  const [privacyConsent, setPrivacyConsent] = useState<RegistrationConsent>(eventDraft?.initial.privacyConsent ?? { collection: false, sharing: false, version: REGISTRATION_CONSENT_VERSION });
-  const [pushOptIn, setPushOptIn] = useState(eventDraft?.initial.pushOptIn ?? false);
+  const [privacyConsent, setPrivacyConsent] = useState<RegistrationConsent>(initial.privacyConsent ?? { collection: false, sharing: false, version: REGISTRATION_CONSENT_VERSION });
+  const [pushOptIn, setPushOptIn] = useState(initial.pushOptIn ?? false);
   // A decision is mandatory, receiving notifications is not. Browsers require
   // a real gesture and users must retain the ability to decline permission.
-  const [pushDecision, setPushDecision] = useState<'enable' | 'skip' | null>(eventDraft?.initial.pushDecision ?? null);
+  const [pushDecision, setPushDecision] = useState<'enable' | 'skip' | null>(initial.pushDecision ?? null);
   const [pushStatus, setPushStatus] = useState<PushSetupStatus | null>(null);
 
   // contact (숨김 — 입장 후 설정)
@@ -157,6 +160,16 @@ export function NicknameSetupScreen({ onSubmit, loading, registrationError, onRe
   const contactPrivate = false;
   const birthMonth = null;
   const birthDay = null;
+
+  useEffect(() => {
+    if (eventDraft) return; // The event waiting room already uses server-owned drafts.
+    saveProfileSetupDraft({
+      lastStep: step, nickname: customInput, mbti: mbti ?? undefined,
+      birthYear: Number(birthYear), location, interests: selectedBio,
+      personalityScore: positionScore ?? undefined,
+      idealMsg: encodeSignalMsg(idealTags, ''), featureMsg: encodeSignalMsg(featureTags, ''),
+    });
+  }, [eventDraft, step, customInput, mbti, birthYear, location, selectedBio, positionScore, idealTags, featureTags]);
 
   // ── 닉네임 검증 ───────────────────────────────────────────────────────────────
   const validateCustom = useCallback(async (val: string) => {
@@ -170,16 +183,23 @@ export function NicknameSetupScreen({ onSubmit, loading, registrationError, onRe
     setCheckingDup(true);
     setDupChecked(false);
     try {
-      const { data } = await supabase.from('profiles').select('id').eq('nickname', trimmed).limit(1);
-      if (data && data.length > 0) {
+      const { data, error } = await supabase.from('profiles').select('id').eq('nickname', trimmed).limit(1);
+      if (error || !Array.isArray(data)) throw new Error('NICKNAME_READ_UNAVAILABLE');
+      if (data.length > 0) {
         setCustomError('이미 사용 중인 닉네임이에요');
         setDupChecked(false);
       } else {
         setCustomError(null);
         setDupChecked(true);
       }
-    } catch { setCustomError(null); setDupChecked(true); }
+    } catch { setCustomError('연결 확인 후 닉네임을 다시 확인해 주세요. 입력 내용은 보존됩니다.'); setDupChecked(false); }
     setCheckingDup(false);
+  }, []);
+
+  useEffect(() => {
+    if (!eventDraft && initial.nickname) void validateCustom(initial.nickname);
+  // Revalidate restored nickname once; restoring text never bypasses duplicate checks.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const applyCustomInput = (val: string, isComposing: boolean) => {
@@ -268,6 +288,7 @@ export function NicknameSetupScreen({ onSubmit, loading, registrationError, onRe
           <DisplayScaleControls dark />
         </div>
         <h2 className="text-white font-black text-xl leading-tight mb-3">{STEP_LABELS[step - 1]}</h2>
+        {!eventDraft && <p className="text-white/80 text-xs">작성 내용은 이 브라우저에 최대24시간 임시 보관됩니다. 다시 열면 동의·알림 선택을 확인해 주세요.</p>}
         {onShowRecovery && step === 1 && (
           <button
             type="button"

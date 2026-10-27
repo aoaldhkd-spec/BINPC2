@@ -1,3 +1,5 @@
+import { VenueLogo, GoraeThanks } from "./VenueLogos";
+import { ParticipantOperations, ScheduledOpening } from "./EventOperations";
 import { eventEnded } from "../../../../lib/api-zod/src/event-hub-modules";
 import { ApplicationGuide, ScreeningPhoto } from "./CampaignParticipant";
 import {
@@ -96,16 +98,6 @@ export default function EventHubPage({ path }: { path: string }) {
   useEffect(() => {
     setEditing(false);
   }, [appId, eventId]);
-  const waitingForEvent = !!app && app.stage >= 4;
-  const refreshHub = hub.load;
-  useEffect(() => {
-    if (!waitingForEvent) return;
-    const timer = window.setInterval(() => {
-      if (document.visibilityState === "visible")
-        void refreshHub().catch(() => {});
-    }, 10000);
-    return () => clearInterval(timer);
-  }, [waitingForEvent, refreshHub]);
   if (!s)
     return (
       <main className="min-h-screen bg-slate-50 p-5">
@@ -173,7 +165,7 @@ export default function EventHubPage({ path }: { path: string }) {
               />
             )
           ) : event ? (
-            <BasicForm key={event.id} eventId={event.id} hub={hub} />
+            event.recruitment ? <BasicForm key={event.id} eventId={event.id} hub={hub} /> : <ScheduledOpening event={event} hub={hub}/>
           ) : (
             <>
               {s.applications.length > 0 && (
@@ -202,7 +194,7 @@ export default function EventHubPage({ path }: { path: string }) {
               <HubCard>
                 <h2 className="font-black">신청 가능한 행사</h2>
                 {s.events
-                  .filter((e) => e.recruitment)
+                  .filter((e) => e.recruitment || (e.scheduleEnabled&&!e.schedulePaused))
                   .map((e) => (
                     <button
                       className="w-full text-left border-t py-4"
@@ -824,6 +816,8 @@ export function WaitingRoom({
         )}
       </HubCard>
       <HubCard>
+        {event.type==="tour"&&<GoraeThanks/>}
+        <ParticipantOperations app={app} event={event} hub={hub}/>
         {app.eligibility && <ScreeningPhoto app={app} hub={hub} />}
         <h2 className="font-black">{event.title}</h2>
         <p>
@@ -841,13 +835,13 @@ export function WaitingRoom({
           {attendanceLabel[app.attendance]} · 현장 확인{" "}
           {app.checkin ? "완료" : "대기"}
         </p>
-        {!paymentSatisfied(app) && !app.waivedAt && (
+        {!paymentSatisfied(app) && !app.waivedAt && app.lateArrival?.status!=="review" && app.lateArrival?.status!=="declined" && (
           <p className="text-sm">
             관리자가 업무 중이거나 취침 중이면 입금 승인이 늦어질 수 있습니다.
             이미 송금했다면 다시 송금하지 마세요.
           </p>
         )}
-        {app.billing && (
+        {app.billing && (paymentSatisfied(app) || (app.lateArrival?.status!=="review"&&app.lateArrival?.status!=="declined")) && (
           <details open={app.payment === "none"}>
             <summary>내 회비·계좌 안내</summary>
             <p>
@@ -861,7 +855,7 @@ export function WaitingRoom({
             <p>기한 {app.billing.deadline}</p>
           </details>
         )}
-        {!app.waivedAt &&
+        {!app.waivedAt && app.lateArrival?.status!=="review" && app.lateArrival?.status!=="declined" &&
         app.quote?.fee !== 0 &&
         (app.payment === "none" ||
           app.payment === "held" ||
@@ -880,7 +874,7 @@ export function WaitingRoom({
           </HubButton>
         ) : (
           <p className="text-sm">
-            {app.waivedAt
+            {(app.lateArrival?.status==="review"||app.lateArrival?.status==="declined")&&!paymentSatisfied(app) ? "도착 예정시간을 관리자와 확인 중입니다. 먼저 송금하지 마세요." : app.waivedAt
               ? "무료 참가 승인 기록이 보관되어 있습니다. 재입금하지 마세요."
               : event.campaign && app.quote?.fee === 0
                 ? "무료 참가 관리자 승인을 기다려 주세요. 송금할 필요가 없습니다."
@@ -894,6 +888,7 @@ export function WaitingRoom({
           {app.venue?.address ??
             `${event.area} · 상세 주소는 입금 승인 후 공개`}
         </p>
+        {app.venue?.logoId && <VenueLogo id={app.venue.logoId}/>}
         {app.venue?.mapUrl && (
           <a
             className="underline text-teal-700"

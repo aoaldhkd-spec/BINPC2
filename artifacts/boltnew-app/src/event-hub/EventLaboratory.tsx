@@ -1,3 +1,5 @@
+import {eventExpiryAt} from "../../../../lib/api-zod/src/event-hub-modules";
+import {BenefitResults} from "./EventOperations";
 import { useState, useRef } from "react";
 import type {
   HubController,
@@ -164,27 +166,20 @@ export function EventLaboratory({ event }: { event?: HubEvent }) {
             }
           />
         </HubField>
-        {engine.value.event.campaign && (
-          <HubField label="시험 기준 시각 (한국시간)">
-            <select
-              className={inputClass}
-              value={
-                engine.value.quoteAt?.includes("21:00")
-                  ? "21:00:00"
-                  : "20:59:59"
-              }
-              onChange={(e) => {
-                engine.configureClock(
-                  `${engine.value.event.date}T${e.target.value}+09:00`,
-                );
-                jump(stage);
-              }}
-            >
-              <option value="20:59:59">당일20:59:59</option>
-              <option value="21:00:00">당일21:00:00</option>
-            </select>
-          </HubField>
-        )}
+        <HubField label="시험 기준 시각 (한국시간)">
+         <select className={inputClass} value={engine.value.quoteAt?new Date(engine.value.quoteAt).toISOString():""} onChange={e=>{if(e.target.value){engine.configureClock(e.target.value);sync();}}}>
+          <option value="">현재 기준</option>
+          {[
+           ...(engine.value.event.opensAt?[["접수 시작 직전",Date.parse(engine.value.event.opensAt)-1000],["접수 시작 정각",Date.parse(engine.value.event.opensAt)]]:[]),
+           ["당일20:59:59",Date.parse(engine.value.event.date+"T20:59:59+09:00")],
+           ["당일21:00:00",Date.parse(engine.value.event.date+"T21:00:00+09:00")],
+           ["해당 회차17시 직전",eventExpiryAt(engine.value.event)-1000],
+           ["해당 회차17시 만료",eventExpiryAt(engine.value.event)],
+          ].map(([label,at])=><option key={String(label)} value={new Date(Number(at)).toISOString()}>{String(label)}</option>)}
+         </select>
+         <p className="text-xs">이 시계는 독립 시험실만 바꿉니다. 기존 확정 회비·운영 시계는 바꾸지 않습니다.</p>
+        </HubField>
+        <HubButton onClick={()=>{document.dispatchEvent(new Event("visibilitychange"));setStatus("가상 앱 복귀 이벤트 실행 · 실기기 판정 아님");sync();}}>다른 앱에 갔다 복귀 (가상)</HubButton>
         <HubField label="가상 진행 상태">
           <select
             className={inputClass}
@@ -477,7 +472,7 @@ export function EventLaboratory({ event }: { event?: HubEvent }) {
             ) : (
               <p>가상 신청을 먼저 작성하거나 가상 상태를 선택하세요.</p>
             )}
-            <AdminThreads hub={adminHub} state={administrator} />
+            <BenefitResults hub={adminHub}/><AdminThreads hub={adminHub} state={administrator} />
           </>
         )}
       </section>

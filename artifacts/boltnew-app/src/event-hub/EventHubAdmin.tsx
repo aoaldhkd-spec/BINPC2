@@ -1,3 +1,6 @@
+import { OperationalReadiness } from "./OperationalReadiness";
+import { VenueLogoSettings } from "./VenueLogos";
+import { RecruitmentSchedule, BenefitResults } from "./EventOperations";
 import { EVENT_THEME_PRESETS } from "../../../../lib/api-zod/src/event-hub-modules";
 import { ScreeningPhoto } from "./CampaignParticipant";
 import {
@@ -81,6 +84,8 @@ export default function EventHubAdmin() {
     "공지·미디어",
     "관리자 문의",
     "현장·상품",
+    "경품·상금·할인 결과",
+    "운영 점검",
     "이력·개인정보",
     "🧪 선착순 시험실",
   ];
@@ -143,6 +148,8 @@ export default function EventHubAdmin() {
               }}
             />
           )}
+          {event && <VenueLogoSettings key={"logo:"+event.id+":"+event.revision} event={event} hub={hub}/>}
+          {event && <RecruitmentSchedule key={event.id+":"+event.revision} event={event} hub={hub}/>}
           {s.settings && (
             <AutoSettings
               value={s.settings}
@@ -161,6 +168,8 @@ export default function EventHubAdmin() {
           onSaved={setSelected}
         />
       )}
+      {tab === "운영 점검" && <OperationalReadiness hub={hub} event={event} onLaboratory={()=>setTab("🧪 선착순 시험실")}/>}
+      {tab === "경품·상금·할인 결과" && <BenefitResults hub={hub}/>}
       {tab === "신청·입금" && (
         <>
           {event && <CampaignOperations event={event} hub={hub} />}
@@ -1306,6 +1315,12 @@ function StockForm({ eventId, hub }: { eventId: string; hub: Hub }) {
 }
 
 function MemberManagement({ hub, state }: { hub: Hub; state: HubState }) {
+  const [search,setSearch]=useState(""),[page,setPage]=useState(0);
+  const appByOwner=new Map<string|undefined,PrivateApplication>();
+  for(const app of state.applications)if(!appByOwner.has(app.owner))appByOwner.set(app.owner,app);
+  const memberOwners=new Set(state.members?.map(m=>m.owner)??[]);
+  const owners=(state.owners??[]).filter(o=>!search||o.id.includes(search)||appByOwner.get(o.id)?.basic.nickname.includes(search));
+  const currentPage=Math.min(page,Math.max(0,Math.ceil(owners.length/50)-1));
   return (
     <>
       <HubCard>
@@ -1314,18 +1329,20 @@ function MemberManagement({ hub, state }: { hub: Hub; state: HubState }) {
           IP·년생·지역으로 자동 제한하지 않습니다. 확인된 개인에게만 사유를
           기록해 처리합니다.
         </p>
-        {state.owners?.map((o) => (
+        <HubField label="회원 닉네임·신청 식별 검색"><input className={inputClass} value={search} onChange={e=>{setSearch(e.target.value);setPage(0);}}/></HubField>
+        <p className="text-xs">한 화면에50명씩 표시합니다. 기록을 삭제하거나 조회 권한을 바꾸지 않습니다. {currentPage+1}/{Math.max(1,Math.ceil(owners.length/50))}쪽</p>
+        <div className="flex gap-2"><HubButton disabled={currentPage===0} onClick={()=>setPage(currentPage-1)}>이전 회원</HubButton><HubButton disabled={(currentPage+1)*50>=owners.length} onClick={()=>setPage(currentPage+1)}>다음 회원</HubButton></div>
+        {owners.slice(currentPage*50,currentPage*50+50).map((o) => (
           <div className="border-t py-3 space-y-2" key={o.id}>
             <strong>
-              {state.applications.find((a) => a.owner === o.id)?.basic
-                .nickname ?? "신청 전 문의자"}
+              {appByOwner.get(o.id)?.basic.nickname ?? "신청 전 문의자"}
             </strong>
             <p className="text-xs">
               {o.restricted?.active
                 ? "제한 중: " + o.restricted.reason
                 : "제한 없음"}{" "}
               · 재사용{" "}
-              {state.members?.some((m) => m.owner === o.id) ? "동의" : "미선택"}
+              {memberOwners.has(o.id) ? "동의" : "미선택"}
             </p>
             {o.deleteRequestedAt && (
               <p className="text-sm text-amber-800">

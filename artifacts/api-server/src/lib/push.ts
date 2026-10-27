@@ -12,7 +12,7 @@ const logger = pino({ name: 'push' });
 
 const VAPID_PUBLIC_KEY = process.env.VAPID_PUBLIC_KEY ?? '';
 const VAPID_PRIVATE_KEY = process.env.VAPID_PRIVATE_KEY ?? '';
-const vapidConfigured = Boolean(VAPID_PUBLIC_KEY && VAPID_PRIVATE_KEY);
+const vapidConfigured = process.env.APP_MODE !== 'private-preview' && Boolean(VAPID_PUBLIC_KEY && VAPID_PRIVATE_KEY);
 
 if (vapidConfigured) {
   webpush.setVapidDetails('mailto:admin@boltnew.app', VAPID_PUBLIC_KEY, VAPID_PRIVATE_KEY);

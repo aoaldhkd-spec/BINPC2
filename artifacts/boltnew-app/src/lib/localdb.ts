@@ -1,3 +1,4 @@
+import { ls } from './storage';
 /**
  * localdb.ts — HTTP client that calls the shared API server.
  *
@@ -1497,16 +1498,13 @@ export async function ensureWriteSession(): Promise<boolean> {
 
 export function getDeviceSecret(userId: string): string {
   const key = DEVICE_SECRET_PREFIX + userId;
-  try {
-    const existing = localStorage.getItem(key);
-    if (existing) return existing;
-    // 최초 실행 시 새 비밀값 생성 후 저장
-    const secret = crypto.randomUUID();
-    localStorage.setItem(key, secret);
-    return secret;
-  } catch {
-    // 시크릿/프라이빗 모드 등 localStorage 접근 불가 시 메모리 내 UUID 반환
-    // (재시작 시 다시 first-claim 처리됨 — 자동 재바인딩 허용)
-    return crypto.randomUUID();
-  }
+  const existing = ls.getItem(key);
+  if (existing) return existing;
+  // An inaccessible store is not evidence of a first visit. Generating a new
+  // random value on every catch caused DEVICE_MISMATCH on mobile resume.
+  if (ls.isReadUnavailable()) throw new Error('DEVICE_STORAGE_RECOVERY_REQUIRED');
+  const secret = crypto.randomUUID();
+  ls.setItem(key, secret);
+  if (!ls.hasPersistentValue(key)) throw new Error('DEVICE_STORAGE_RECOVERY_REQUIRED');
+  return secret;
 }

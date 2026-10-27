@@ -1,6 +1,10 @@
+import { productionHubBlocked } from "./private-preview.js";
+import { applyScheduledRecruitment, applyApplicationOperation, recruitmentConfigurationIssue } from "./event-operations.js";
 import { halloweenTiming, tourFirstTiming } from "@workspace/api-zod";
 import {
+  effectiveHalloweenHours,
   eventEnded,
+  eventExpired,
   effectiveEventTheme,
   drawModuleEnabled,
   campaignEligibility,
@@ -290,7 +294,7 @@ export class EventHubService {
   private async event(tx: HubTx, id: string) {
     const e = await tx.get<HubEvent>("event", id);
     if (!e) fail("EVENT", "행사를 찾을 수 없습니다.", 404);
-    return e;
+    return {...e,...effectiveHalloweenHours(e)};
   }
   private async app(tx: HubTx, id: string, owner: string, admin: boolean) {
     const a = await tx.get<HubApplication>("application", id);
@@ -312,6 +316,7 @@ export class EventHubService {
           privacyCase: undefined,
           marketingPreference: undefined,
           unsubscribeToken: undefined,
+          serverNow: this.now().toISOString(),
           retentionDays: 180,
           enabled: false,
           events: [] as HubEventView[],
@@ -329,7 +334,8 @@ export class EventHubService {
       const switches =
         (await tx.get<HubSettings>("settings", "global")) ??
         DEFAULT_HUB_SETTINGS;
-      const events = await tx.all<HubEvent>("event");
+      await applyScheduledRecruitment(tx, this.now(), enabled);
+      const events = (await tx.all<HubEvent>("event")).map(e=>({...e,...effectiveHalloweenHours(e)}));
       const apps = (
         admin
           ? await tx.all<HubApplication>("application")
@@ -341,8 +347,8 @@ export class EventHubService {
             .filter(
               (e) =>
                 (enabled &&
-                  process.env.NODE_ENV !== "production" &&
-                  recruitmentIsOpen(e, this.now())) ||
+                  !productionHubBlocked() &&
+                  (recruitmentIsOpen(e, this.now()) || (e.scheduleEnabled && !e.schedulePaused && !eventEnded(e,this.now())))) ||
                 apps.some((a) => a.eventId === e.id),
             )
             .map((e) => ({
@@ -353,6 +359,7 @@ export class EventHubService {
               start: e.start,
               end: e.end,
               area: e.area,
+              opensAt: e.opensAt, closesAt:e.closesAt, scheduleEnabled:e.scheduleEnabled, schedulePaused:e.schedulePaused,
               notice: e.notice,
               campaign: e.campaign
                 ? {
@@ -372,16 +379,17 @@ export class EventHubService {
               })),
               recruitment:
                 enabled &&
-                process.env.NODE_ENV !== "production" &&
+                !productionHubBlocked() &&
                 recruitmentIsOpen(e, this.now()),
               cardsEnabled:
                 enabled &&
                 drawModuleEnabled(e, switches) &&
-                !eventEnded(e, this.now()),
+                !eventExpired(e, this.now()),
             }));
       const safeApps: HubApplicationView[] = admin
         ? apps.map((a) => ({
             ...a,
+            resultDetails: a.cards,
             cards: a.cards.map(({ couponAmount: _couponAmount, ...card }) =>
               eTour(a.eventId, events)
                 ? {
@@ -457,6 +465,7 @@ export class EventHubService {
           : undefined,
         owners,
         members,
+        serverNow: this.now().toISOString(),
         errors,
         enabled,
         events: safeEvents,
@@ -515,6 +524,7 @@ export class EventHubService {
       if (!owner && !admin)
         fail("AUTH", "개인 신청 세션을 먼저 복구해 주세요.", 401);
       const enabled = await this.enabled(tx);
+      await applyScheduledRecruitment(tx, this.now(), enabled);
       const requireEnabled = () => {
         if (!enabled)
           fail("MODULE_DISABLED", "술번개 신청 기능이 꺼져 있습니다.", 403);
@@ -608,9 +618,26 @@ export class EventHubService {
           if (old.notice !== e.notice || old.address !== e.address)
             e.noticeVersion = old.noticeVersion + 1;
         }
+        if (old?.scheduleEnabled && old.opensAt !== e.opensAt) e.recruitment=false;
+        if (e.benefitsOpensAt&&e.benefitsClosesAt&&Date.parse(e.benefitsClosesAt)<=Date.parse(e.benefitsOpensAt))fail("CONFIG","혜택 종료는 시작 이후여야 합니다.");
         if (old) e.noticeVersion = Math.max(old.noticeVersion, e.noticeVersion);
         await tx.put("event", e.id, e);
         result.id = e.id;
+      } else if (m.action === "event.schedule") {
+        requireAdmin();
+        const e = await this.event(tx,m.target); revision(e.revision);
+        const data=z.object({enabled:z.boolean(),paused:z.boolean()}).parse(m.data);
+        if (data.enabled && !data.paused) {
+          requireEnabled();
+          if (productionHubBlocked()) fail("PRIVACY_POLICY_UNCONFIRMED","운영 개인정보 정책·배포 승인이 미확정입니다.",403);
+          if (!e.opensAt || recruitmentConfigurationIssue(e)) fail("CONFIG",recruitmentConfigurationIssue(e)??"예약 시작 시각을 입력하세요.");
+        }
+        e.scheduleEnabled=data.enabled; e.schedulePaused=data.paused;
+        e.recruitment=false;
+        if (!data.enabled || data.paused) e.recruitment=false;
+        e.revision++;e.history.push(audit(actor,data.paused?"schedule.paused":"schedule.enabled",now));
+        await tx.put("event",e.id,e);
+        await applyScheduledRecruitment(tx,this.now(),enabled);
       } else if (m.action === "event.recruitment") {
         requireAdmin();
         const e = await this.event(tx, m.target);
@@ -618,7 +645,7 @@ export class EventHubService {
         const on = z.boolean().parse(m.data.enabled);
         if (on && eventEnded(e, this.now()))
           fail("EVENT_ENDED", "종료된 행사의 신규 접수는 열 수 없습니다.", 403);
-        if (on && process.env.NODE_ENV === "production")
+        if (on && productionHubBlocked())
           fail(
             "PRIVACY_POLICY_UNCONFIRMED",
             "운영 개인정보 정책이 미확정입니다. 운영 모집 공개는 검토·승인 전 차단됩니다.",
@@ -646,7 +673,9 @@ export class EventHubService {
             "같은 날짜의 자동방·전국투어 모집을 중복 공개할 수 없습니다.",
             409,
           );
+        if(on&&m.data.immediate===true){e.opensAt=now;e.scheduleEnabled=false;e.schedulePaused=true;}
         e.recruitment = on;
+        if (!on && e.scheduleEnabled) e.schedulePaused=true;
         e.revision++;
         e.history.push(
           audit(actor, on ? "recruitment.open" : "recruitment.close", now),
@@ -691,7 +720,7 @@ export class EventHubService {
         });
       } else if (m.action === "application.basic") {
         requireEnabled();
-        if (process.env.NODE_ENV === "production")
+        if (productionHubBlocked())
           fail(
             "PRIVACY_POLICY_UNCONFIRMED",
             "운영 개인정보 정책 확정 전 신규 신청은 차단됩니다.",
@@ -835,7 +864,9 @@ export class EventHubService {
         const a = await this.app(tx, m.target, owner, admin);
         const e = await this.event(tx, a.eventId);
         if (!prior) revision(a.revision);
-        if (m.action === "application.consent") {
+        if (applyApplicationOperation(a,e,m.action,m.data,this.now(),admin)) {
+          // Ownership, revision, durable receipt, audit and encryption use the common engine.
+        } else if (m.action === "application.consent") {
           requireEnabled();
           const c = HubConsent.parse(m.data.consent);
           if (a.confirmedAt)
@@ -917,6 +948,8 @@ export class EventHubService {
           a.stage = 4;
           a.confirmedAt = now;
         } else if (m.action === "application.report") {
+          if (a.lateArrival?.status === "review" || a.lateArrival?.status === "declined")
+            fail("ARRIVAL_REVIEW","입금 전 도착 예정시간을 관리자와 확인해 주세요.");
           if (!a.confirmedAt)
             fail("STAGE", "먼저 금액을 확인하고 신청을 확정해 주세요.");
           if (a.waivedAt || (e.campaign && a.quote?.fee === 0))
@@ -949,7 +982,7 @@ export class EventHubService {
               "사진 수집 동의는 신청자 본인이 제출해야 합니다.",
               403,
             );
-          if (process.env.NODE_ENV === "production")
+          if (productionHubBlocked())
             fail(
               "PRIVACY_POLICY_UNCONFIRMED",
               "사진 보관·백업 정책 승인 전 운영 업로드는 차단됩니다.",
@@ -1074,7 +1107,7 @@ export class EventHubService {
           };
         } else if (m.action === "application.enter") {
           requireEnabled();
-          if (eventEnded(e, this.now()))
+          if (eventEnded(e, this.now()) && (!a.profileId || (e.type==="halloween"&&eventExpired(e,this.now()))))
             fail(
               "EVENT_ENDED",
               "행사 입장 기간이 종료되었습니다. 기존 신청·입금 기록은 보존됩니다.",
@@ -1094,13 +1127,16 @@ export class EventHubService {
               "SELECT data FROM app_kv_rows WHERE table_name='app_settings' ORDER BY updated_at DESC LIMIT 1 FOR UPDATE",
             )
           ).rows[0]?.data;
+          const cycleTimes=settings?.event_cycle_started_at ? eventCycleMilestones(String(settings.event_cycle_started_at)) : null;
+          const mayResume=Boolean(a.profileId && cycleTimes && !settings.event_cycle_reset_complete
+            && a.cycleId===settings.event_cycle_archive_id && this.now().getTime()<cycleTimes.resetAt.getTime());
           if (
             !settings ||
-            newParticipantAdmissionReject(
+            (!mayResume && newParticipantAdmissionReject(
               settings,
               { isAdmin: false, isTestRuntime: false },
               this.now(),
-            )
+            ))
           )
             fail(
               "EVENT_NOT_STARTED",
@@ -1240,7 +1276,7 @@ export class EventHubService {
           }
         } else if (m.action === "application.draw") {
           requireEnabled();
-          if (eventEnded(e, this.now()))
+          if (eventExpired(e, this.now()))
             fail(
               "EVENT_ENDED",
               "행사 뽑기 기간이 종료되었습니다. 기존 결과는 보존됩니다.",
@@ -1280,7 +1316,8 @@ export class EventHubService {
             )
           ).rows[0];
           if (
-            !currentSettings?.session_active ||
+            !currentSettings ||
+            (!currentSettings.session_active && e.type!=="halloween") ||
             currentSettings.event_cycle_reset_complete ||
             currentSettings.event_cycle_archive_id !== a.cycleId ||
             !liveProfile
@@ -1851,6 +1888,7 @@ export class EventHubService {
   async autoTick() {
     return this.store.transaction(async (tx) => {
       if (!(await this.enabled(tx))) return;
+      await applyScheduledRecruitment(tx,this.now(),true);
       const s =
         (await tx.get<HubSettings>("settings", "global")) ??
         DEFAULT_HUB_SETTINGS;

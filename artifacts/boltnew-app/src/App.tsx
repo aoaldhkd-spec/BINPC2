@@ -1,3 +1,4 @@
+import { preserveDraftForEarlierReset, readProfileSetupDraft } from './lib/profile-setup-draft';
 import { RainbowUnlockGuide } from './components/RainbowUnlockGuide';
 import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { supabase, setLocalDbUserId, fetchAndSetSseToken, ensureWriteSession, onSseReconnect } from './lib/supabase';
@@ -34,6 +35,7 @@ import {
 import { isCompleteProfile } from './lib/profile-session';
 import {
   shouldShowWaitingOverlay,
+  shouldApplyAdminResetSignal,
   shouldShowNicknameSetup,
   shouldShowRecoveryScreen,
 } from './lib/entry-gate';
@@ -53,7 +55,7 @@ import { renderAppEntryGates } from './components/AppEntryGates';
 import { AppMainShell } from './components/AppMainShell';
 import { AppOverlays } from './components/AppOverlays';
 import {
-  MATCHING_USER_KEY, MATCHING_DRAFT_KEY,
+  MATCHING_USER_KEY, MATCHING_DRAFT_KEY, MATCHING_LAST_RESET_KEY,
   MATCHING_PROFILES_CACHE_KEY,
   SCANNED_CONTACTS_KEY,
 } from './lib/constants';
@@ -136,9 +138,9 @@ function App() {
   // New users go straight to nickname setup — no waiting overlay.
   const [shownWaiting, setShownWaiting] = useState(() => {
     try {
-      return Boolean(ls.getItem(MATCHING_USER_KEY) || localStorage.getItem('test_token_v1'));
+      return Boolean(ls.getItem(MATCHING_USER_KEY) || readProfileSetupDraft().lastStep || localStorage.getItem('test_token_v1'));
     } catch {
-      return Boolean(ls.getItem(MATCHING_USER_KEY));
+      return Boolean(ls.getItem(MATCHING_USER_KEY) || readProfileSetupDraft().lastStep);
     }
   });
   const [profiles, setProfiles] = useState<Profile[]>(() => {
@@ -156,14 +158,14 @@ function App() {
   const [selectedProfile, setSelectedProfile] = useState<Profile | null>(null);
   const [view, setView] = useState<View>(() => {
     // localStorage UUID만으로 main 진입 금지 — 서버 프로필 검증 후 전환
-    if (ls.getItem(MATCHING_USER_KEY)) return 'loading-main';
+    if (ls.getItem(MATCHING_USER_KEY) || ls.isReadUnavailable()) return 'loading-main';
     return 'entry-1';
   });
   const viewRef = useRef(view);
   viewRef.current = view;
   /** 프로필 부트스트랩: checking=검증 중, ok=완료, recover=복구번호 필요, register=신규 등록 필요 */
   const [profileBoot, setProfileBoot] = useState<'checking' | 'ok' | 'recover' | 'register'>(
-    () => (ls.getItem(MATCHING_USER_KEY) ? 'checking' : 'register'),
+    () => (ls.getItem(MATCHING_USER_KEY) || ls.isReadUnavailable() ? 'checking' : 'register'),
   );
   const [mainTab, setMainTab] = useState<MainTab>('profiles');
   const [coachReplayToken, setCoachReplayToken] = useState(0);
@@ -299,6 +301,7 @@ function App() {
   } = useProfilePrivacyLoaders({
     currentUserId,
     userIdRef,
+    profilesRef,
     loadProfilesRef,
     setProfiles,
     setUserSignals,
@@ -338,6 +341,7 @@ function App() {
       setView('main');
     },
     onRegister: () => {
+      if (ls.isReadUnavailable()) {setProfileBoot('checking');return;}
       setProfileBoot('register');
       setView('entry-1');
     },
@@ -809,6 +813,14 @@ function App() {
 
   // Admin reset wipe — planner/runner; shared by /ready bootstrap + settings SSE apply.
   const applyResetSignal = useCallback((serverReset: string) => {
+    if (!shouldApplyAdminResetSignal(serverReset, ls.getItem(MATCHING_LAST_RESET_KEY))) return;
+    const me = profilesRef.current.find(p => p.id === userIdRef.current);
+    // A delayed previous-cycle reset must not delete a newer admitted profile.
+    if ((me && Date.parse(me.created_at) > Date.parse(serverReset))
+      || (!userIdRef.current && preserveDraftForEarlierReset(serverReset))) {
+      ls.setItem(MATCHING_LAST_RESET_KEY, serverReset);
+      return;
+    }
     runAdminResetWipe(planAdminResetWipe(serverReset), {
       setItem: (k, v) => ls.setItem(k, v),
       removeItem: (k) => ls.removeItem(k),
@@ -899,7 +911,7 @@ function App() {
       setTimerLabel(patch.timerLabel ?? null);
       if (patch.eventScheduleRaw !== undefined) setEventScheduleRaw(patch.eventScheduleRaw ?? null);
     }
-  }, []);
+  }, [acceptCycleMeta]);
 
   useParticipantSoTResync({
     currentUserId,
@@ -1109,7 +1121,7 @@ function App() {
   const isTester = (() => {
     try { return Boolean(localStorage.getItem('test_token_v1')); } catch { return false; }
   })();
-  const showWaiting = shouldShowWaitingOverlay({
+  const showWaiting = profileBoot !== "checking" && shouldShowWaitingOverlay({
     shownWaiting,
     currentUserId,
     hasValidProfile,
@@ -1162,6 +1174,12 @@ function App() {
     view,
     loading,
     registrationError,
+    onRetryProfile: () => {
+      const restored=ls.getItem(MATCHING_USER_KEY);
+      if(restored){setCurrentUserId(restored);setProfileBoot("checking");setView("loading-main");}
+      else if(!ls.isReadUnavailable()){setProfileBoot("register");setView("entry-1");}
+      void loadProfilesRef.current().catch(()=>{});
+    },
     onWaitingEnter: () => { setMainTab('profiles'); setShownWaiting(true); },
     onRecover: handleProfileRecovery,
     onRecoveryBackToRegister: () => { setProfileBoot('register'); setView('entry-1'); },

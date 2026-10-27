@@ -1,6 +1,6 @@
 import {
   effectiveEventTheme,
-  eventEndAt,
+  eventExpiryAt,
 } from "../../../../lib/api-zod/src/event-hub-modules";
 import type { HubEvent } from "../lib/event-hub-client";
 import {
@@ -152,7 +152,7 @@ export function formatHubTime(value: string | undefined) {
 /** A route-local deadline timer; never touches the global 17:00 reset or theme preference. */
 export function useEventTheme(event: HubEvent) {
   const [now, setNow] = useState(() => Date.now());
-  const end = eventEndAt(event);
+  const end = eventExpiryAt(event);
   useEffect(() => {
     let timer: ReturnType<typeof setTimeout> | undefined;
     let active = true;

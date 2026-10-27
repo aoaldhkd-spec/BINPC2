@@ -154,7 +154,18 @@ export function buildPublicTableRlsSql(): string {
         FOR r IN SELECT tablename FROM pg_tables WHERE schemaname = 'public'
         LOOP
           EXECUTE format('ALTER TABLE public.%I ENABLE ROW LEVEL SECURITY', r.tablename);
-          EXECUTE format('REVOKE ALL ON public.%I FROM anon, authenticated', r.tablename);
+          EXECUTE format('REVOKE ALL ON public.%I FROM PUBLIC', r.tablename);
+          IF EXISTS (SELECT 1 FROM pg_roles WHERE rolname='anon')
+             AND EXISTS (SELECT 1 FROM pg_roles WHERE rolname='authenticated') THEN
+            EXECUTE format('REVOKE ALL ON public.%I FROM anon, authenticated', r.tablename);
+          ELSE
+            IF EXISTS (SELECT 1 FROM pg_roles WHERE rolname='anon') THEN
+              EXECUTE format('REVOKE ALL ON public.%I FROM anon', r.tablename);
+            END IF;
+            IF EXISTS (SELECT 1 FROM pg_roles WHERE rolname='authenticated') THEN
+              EXECUTE format('REVOKE ALL ON public.%I FROM authenticated', r.tablename);
+            END IF;
+          END IF;
         END LOOP;
       END $$
     `;

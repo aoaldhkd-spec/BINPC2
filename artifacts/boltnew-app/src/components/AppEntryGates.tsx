@@ -22,6 +22,7 @@ export type AppEntryGatesProps = {
   currentUserId: string | null;
   hasValidProfile: boolean;
   profileBoot: string;
+  onRetryProfile?: () => void;
   view: View;
   loading: boolean;
   registrationError: string | null;
@@ -85,10 +86,11 @@ export function renderAppEntryGates(props: AppEntryGatesProps): ReactNode {
         />
       );
     }
-    return <CompactSpinner label="프로필 확인 중..." />;
+    return <div className="relative"><CompactSpinner label="연결 확인 중 · 기존 프로필을 불러오는 중..." /><div className="fixed inset-x-0 bottom-20 text-center text-white"><p>입력·고유번호는 지우지 않았습니다. 관리자 문의를 이용할 수 있습니다.</p><button type="button" className="mt-3 rounded-xl border px-4 py-3" onClick={props.onRetryProfile}>기존 프로필 다시 불러오기</button></div></div>;
   }
 
   if (props.view === 'loading-main') {
+    if (!props.currentUserId && props.profileBoot === "checking") return <div><CompactSpinner label="저장소 연결 확인 중 · 기존 참가 여부를 확인하는 중..." /><div className="fixed inset-x-0 bottom-20 text-center text-white"><button className="border rounded-xl px-4 py-3" onClick={props.onRetryProfile}>기존 참가 정보 다시 확인</button><button className="border rounded-xl px-4 py-3" onClick={props.onShowRecovery}>기존 고유번호로 복구</button></div></div>;
     return <CompactSpinner label="프로필 저장 중..." />;
   }
 
@@ -114,7 +116,7 @@ export function renderAppEntryGates(props: AppEntryGatesProps): ReactNode {
   }
 
   if (props.currentUserId && (props.view === 'entry-1' || props.view === 'entry-recover')) {
-    return <CompactSpinner label="프로필 확인 중..." />;
+    return <div className="relative"><CompactSpinner label="연결 확인 중 · 기존 프로필을 불러오는 중..." /><div className="fixed inset-x-0 bottom-20 text-center text-white"><p>입력·고유번호는 지우지 않았습니다. 관리자 문의를 이용할 수 있습니다.</p><button type="button" className="mt-3 rounded-xl border px-4 py-3" onClick={props.onRetryProfile}>기존 프로필 다시 불러오기</button></div></div>;
   }
 
   return null;

@@ -1,11 +1,14 @@
+import { effectiveHalloweenHours } from "./event-policy-halloween";
+import { eventCycleMilestones } from "./event-cycle-clock";
 import type { HubEvent, HubSettings } from "./event-hub";
 export const DEFAULT_CAMPAIGN_MODULES = { halloweenDraw: true, tourDraw: true };
 export function eventEndAt(
-  e: Pick<HubEvent, "date" | "start" | "end">,
+  e: Pick<HubEvent, "date" | "start" | "end"> & Partial<Pick<HubEvent,"type"|"campaign">>,
 ): number {
+  const hours=effectiveHalloweenHours(e);
   return (
-    Date.parse(`${e.date}T${e.end}:00+09:00`) +
-    (e.end <= e.start ? 86400000 : 0)
+    Date.parse(`${e.date}T${hours.end}:00+09:00`) +
+    (hours.end <= hours.start ? 86400000 : 0)
   );
 }
 export function eventEnded(
@@ -13,6 +16,19 @@ export function eventEnded(
   now: Date,
 ) {
   const end = eventEndAt(e);
+  return !Number.isFinite(end) || now.getTime() >= end;
+}
+/** Halloween theme/cards last until the same existing next 17:00 cycle reset.
+ * Admission and recruitment still use eventEnded (01:00).
+ */
+export function eventExpiryAt(e: Pick<HubEvent, "date" | "start" | "end" | "type">) {
+  if (e.type === "halloween") {
+    return eventCycleMilestones(`${e.date}T${e.start}:00+09:00`)?.resetAt.getTime() ?? NaN;
+  }
+  return eventEndAt(e);
+}
+export function eventExpired(e: Pick<HubEvent, "date" | "start" | "end" | "type">, now: Date) {
+  const end = eventExpiryAt(e);
   return !Number.isFinite(end) || now.getTime() >= end;
 }
 export function effectiveEventTheme(
@@ -24,7 +40,7 @@ export function effectiveEventTheme(
 ) {
   return e.themeEnabled &&
     !(e.theme === "halloween" && e.type !== "halloween") &&
-    !eventEnded(e, now)
+    !eventExpired(e, now)
     ? (e.theme ?? "default")
     : "default";
 }

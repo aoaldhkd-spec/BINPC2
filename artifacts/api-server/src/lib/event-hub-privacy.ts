@@ -182,6 +182,9 @@ export async function executePrivacyPlanForIsolatedTest(
           );
           a.screeningPhoto = undefined;
         }
+        a.rewardPhone = undefined;
+        if (a.lateArrival) a.lateArrival={...a.lateArrival,reason:"",reviewReason:undefined};
+        if (a.manualResults) a.manualResults=a.manualResults.map(r=>({...r,reason:"",label:"수동 지급 기록"}));
         a.eligibility = undefined;
         a.benefitContact = undefined;
         if (item.action === "erase")

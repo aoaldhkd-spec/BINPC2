@@ -219,6 +219,71 @@ suite("event hub V6 — actual isolated PostgreSQL transactions", () => {
     expect(mine.applications.map((v) => v.id)).toEqual([id]);
     await expect(service.state(owner, true)).rejects.toThrow();
   });
+  for (const [date,startDate] of [["2026-10-30","2026-10-28"],["2026-10-31","2026-10-29"]]) {
+    it(`scheduled ${date} opens exactly at 20:00 once, survives restart and stays manually paused`,async()=>{
+      let time=new Date(startDate+"T19:59:59+09:00");
+      service=new EventHubService(new HubStore(pool),"isolated-test-session-secret",()=>time);
+      const e=(await adminState()).events.find(e=>e.id===eventId)!;
+      await call("event.save",eventId,{...e,date,opensAt:new Date(startDate+"T20:00:00+09:00").toISOString(),closesAt:new Date(startDate+"T20:10:00+09:00").toISOString()},e.revision,true);
+      await call("event.schedule",eventId,{enabled:true,paused:false},(await adminState()).events.find(e=>e.id===eventId)!.revision,true);
+      await expect(create("예약전")).rejects.toMatchObject({code:"CLOSED"});
+      expect((await adminState()).events.find(e=>e.id===eventId)!.nextRank).toBe(0);
+      time=new Date(startDate+"T20:00:00+09:00");
+      await Promise.all([service.autoTick(),service.autoTick()]);
+      const opened=(await adminState()).events.find(e=>e.id===eventId)!;
+      expect(opened.recruitment).toBe(true);
+      expect(opened.history.filter(h=>h.action==="schedule.opened")).toHaveLength(1);
+      const id=await create("예약정각");expect((await app(id)).rank).toBe(1);
+      await call("event.recruitment",eventId,{enabled:false},opened.revision,true);
+      service=new EventHubService(new HubStore(pool),"isolated-test-session-secret",()=>time);
+      await service.autoTick();
+      expect((await adminState()).events.find(e=>e.id===eventId)!.recruitment).toBe(false);
+      time=new Date(startDate+"T20:10:00+09:00");
+      await service.autoTick();
+      await expect(create("마감후")).rejects.toMatchObject({code:"CLOSED"});
+    });
+  }
+  it("keeps venue logos behind payment approval just like the private address",async()=>{
+    const e=(await adminState()).events.find(e=>e.id===eventId)!;
+    await call("event.save",eventId,{...e,venueLogoId:"jack"},e.revision,true);
+    const id=await create();
+    let view=await service.state(owner);
+    expect(view.applications[0].venue).toBeUndefined();
+    expect(JSON.stringify(view.events)).not.toContain("venueLogoId");
+    await call("application.consent",id,{consent},1);
+    await call("application.confirm",id,{},2);
+    await call("admin.application.payment",id,{status:"approved",bankChecked:true},3,true);
+    view=await service.state(owner);
+    expect(view.applications[0].venue?.logoId).toBe("jack");
+  });
+  it("stores benefit phone without verification or identity merging; late review preserves payment and results are admin-only/idempotent",async()=>{
+    const id=await create();
+    await call("application.phone",id,{phone:"01000000000"},1);
+    const other=await service.session(randomBytes(32).toString("base64url"),true);
+    await expect(call("application.phone",id,{phone:"01011111111"},2,false,other)).rejects.toMatchObject({code:"APPLICATION"});
+    const id2=await create("다른분",other);
+    await call("application.phone",id2,{phone:"01000000000"},1,false,other);
+    expect((await service.state(other)).applications.map(a=>a.id)).toEqual([id2]);
+    await call("application.consent",id,{consent},2);
+    await call("application.confirm",id,{},3);
+    await call("admin.application.payment",id,{status:"approved",bankChecked:true},4,true);
+    await call("application.late",id,{at:"2026-10-31T16:00:00.000Z",reason:"업무 후 도착"},5);
+    expect((await app(id)).lateArrival?.status).toBe("review");
+    expect((await app(id)).payment).toBe("approved");
+    const resultId=randomUUID(),requestId=randomUUID();
+    const result={id:resultId,label:"운영자 수동 결과",amount:3000,reason:"현장 확인"};
+    await expect(call("admin.application.result",id,result,6)).rejects.toMatchObject({code:"ADMIN"});
+    await call("admin.application.result",id,result,6,true,owner,requestId);
+    await call("admin.application.result",id,result,6,true,owner,requestId);
+    expect((await app(id)).manualResults).toHaveLength(1);
+    expect((await service.state(owner)).applications[0].manualResults?.[0]).not.toHaveProperty("reason");
+    await expect(call("admin.application.result.confirm",id,{id:resultId,field:"paidAt"},7,true)).rejects.toMatchObject({code:"DOUBLE_CHECK"});
+    await call("admin.application.result.confirm",id,{id:resultId,field:"receivedAt"},7,true);
+    expect((await app(id)).manualResults![0].paidAt).toBeUndefined();
+    await call("admin.application.result.confirm",id,{id:resultId,field:"paidAt",doubleChecked:true},8,true);
+    expect((await app(id)).manualResults![0].paidAt).toBeTruthy();
+    await expect(call("admin.application.result.confirm",id,{id:resultId,field:"paidAt",doubleChecked:true},9,true)).rejects.toMatchObject({code:"RESULT_DUPLICATE"});
+  });
   it("blocks all ledger writes under a replaced key and recovers unchanged approved records with the original key", async () => {
     const id = await create();
     await call("application.consent", id, { consent }, 1);
@@ -2347,26 +2412,24 @@ suite("event hub V6 — actual isolated PostgreSQL transactions", () => {
     service = new EventHubService(
       new HubStore(pool),
       "isolated-test-session-secret",
-      () => new Date("2026-10-31T15:30:00Z"),
+      () => new Date("2026-10-31T16:00:00Z"),
     );
     await expect(
       call("application.confirm", lateDraft, {}, 2, false, lateOwner),
     ).rejects.toMatchObject({ code: "CLOSED" });
 
-    await expect(
-      call("application.draw", id, {}, (await app(id)).revision),
-    ).rejects.toMatchObject({ code: "EVENT_ENDED" });
-    await expect(
-      call(
-        "application.enter",
-        id,
-        { deviceSecret: "same-device" },
-        (await app(id)).revision,
-      ),
-    ).rejects.toMatchObject({ code: "EVENT_ENDED" });
+    await pool.query("UPDATE app_kv_rows SET data=jsonb_set(data,'{session_active}','false'::jsonb) WHERE table_name='app_settings'");
+    await call("application.draw", id, {}, (await app(id)).revision);
+    expect((await app(id)).cards).toHaveLength(3);
+    expect((await service.state(owner)).events.find(e => e.id === eventId)?.themeEnabled).toBe(true);
+    const resumed=await call("application.enter",id,{deviceSecret:"same-device"},(await app(id)).revision);
+    expect((resumed.profile as {id:string}).id).toBe((await app(id)).profileId);
+    await expect(call("application.enter",lateDraft,{deviceSecret:"never-admitted"},2,false,lateOwner)).rejects.toMatchObject({code:"EVENT_ENDED"});
+    service = new EventHubService(new HubStore(pool), "isolated-test-session-secret", () => new Date("2026-11-01T08:00:00Z"));
+    await expect(call("application.draw", id, {}, (await app(id)).revision)).rejects.toMatchObject({code:"EVENT_ENDED"});
     const view = await service.state(owner);
     expect(view.events.find((e) => e.id === eventId)?.themeEnabled).toBe(false);
-    expect(view.applications[0].cards).toHaveLength(2);
+    expect(view.applications[0].cards).toHaveLength(3);
     await atomicEventReset(pool, {
       clearTables: ["profiles", "device_secrets", "likes", "chats", "messages"],
       now: new Date("2026-11-01T08:00:00Z"),
@@ -2382,7 +2445,7 @@ suite("event hub V6 — actual isolated PostgreSQL transactions", () => {
         event_cycle_reset_complete: true,
       }),
     });
-    expect((await app(id)).cards).toHaveLength(2);
+    expect((await app(id)).cards).toHaveLength(3);
     expect((await app(id)).waivedAt).toBeTruthy();
     expect((await app(id)).candy).toBe("haribo-a");
     expect(
@@ -2422,4 +2485,16 @@ suite("event hub V6 — actual isolated PostgreSQL transactions", () => {
       ),
     ).rejects.toMatchObject({ code: "MODULE_DISABLED" });
   });
+});
+
+suite('private PostgreSQL roles and RLS compatibility',()=>{
+ it('enables RLS even when managed PostgreSQL has no Supabase anon/authenticated roles',async()=>{
+  const {buildPublicTableRlsSql}=await import('./db-table-policy');
+  const pool=new pg.Pool({connectionString:url,max:1});
+  try{
+   await pool.query(buildPublicTableRlsSql());
+   const row=(await pool.query("SELECT relrowsecurity FROM pg_class WHERE oid='public.event_hub_records'::regclass")).rows[0];
+   expect(row.relrowsecurity).toBe(true);
+  }finally{await pool.end();}
+ });
 });

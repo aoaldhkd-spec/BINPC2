@@ -1,3 +1,4 @@
+import {eventCycleMilestones} from "../../../lib/api-zod/src/event-cycle-clock";
 import {
   test,
   expect,
@@ -5,7 +6,7 @@ import {
   type BrowserContext,
   request as apiRequest,
 } from "@playwright/test";
-import { randomUUID } from "node:crypto";
+import { randomUUID, randomBytes } from "node:crypto";
 import { readFileSync } from "node:fs";
 const token = process.env.HUB_E2E_ADMIN_TOKEN;
 if (!token)
@@ -49,7 +50,9 @@ async function restrictToLocal(context: BrowserContext) {
 }
 test.beforeEach(async ({ context }) => restrictToLocal(context));
 test.beforeAll(async ({ request }) => {
-  const date = new Date(Date.now() + 9 * 3600000).toISOString().slice(0, 10);
+  const ready=await (await request.get("/api/db/ready")).json();
+  const milestones=eventCycleMilestones(String(ready.settings?.event_cycle_started_at??""));
+  const date = new Date((milestones?.grantAt.getTime()??Date.now()) + 9 * 3600000).toISOString().slice(0, 10);
   const e = await command(request, "event.save", "", {
     title: `격리 V6 시험 ${suffix}`,
     date,
@@ -375,6 +378,40 @@ test("actual browser + API + PostgreSQL: saved stages, payment recovery, private
     .click();
   await expect(page).toHaveURL(/127\.0\.0\.1:300[12]\/?$/);
   expect((await application(request, id)).profileId).toBe(profileId);
+  await expect(page.getByRole("navigation",{name:"참여자 메뉴"})).toBeVisible();
+  if(await page.getByTestId("first-entry-coach").isVisible()) await page.getByTestId("first-entry-coach").getByRole("button",{name:"건너뛰기",exact:true}).click();
+  await page.getByRole("button",{name:"하트, 채팅",exact:true}).click();
+  await expect(page.getByRole("group",{name:"내 고유번호",exact:true})).toBeVisible();
+  const originalIdentity=await page.evaluate(()=>localStorage.getItem("matching_app_user_id"));
+  let profileReadMode="empty";
+  const partialProfileRead=async (route: import("@playwright/test").Route)=>{
+    const body=route.request().postDataJSON();
+    if(body?.table==="profiles"&&body?.op==="select"){
+      if(profileReadMode==="failure")return route.fulfill({status:503,json:{data:null,error:{code:"TEMPORARY"}}});
+      return route.fulfill({status:200,json:{data:[],error:null}});
+    }
+    return route.continue();
+  };
+  await page.route("**/api/db/op",partialProfileRead);
+  await page.reload();
+  await expect(page.getByRole("navigation",{name:"참여자 메뉴"})).toBeVisible();
+  if(await page.getByTestId("first-entry-coach").isVisible()) await page.getByTestId("first-entry-coach").getByRole("button",{name:"건너뛰기",exact:true}).click();
+  await page.getByRole("button",{name:"하트, 채팅",exact:true}).click();
+  expect(await page.evaluate(()=>localStorage.getItem("matching_app_user_id"))).toBe(originalIdentity);
+  await expect(page.getByRole("group",{name:"내 고유번호",exact:true})).toBeVisible();
+  await page.evaluate(()=>{
+    Object.defineProperty(document,"visibilityState",{configurable:true,value:"hidden"});
+    document.dispatchEvent(new Event("visibilitychange"));
+    Object.defineProperty(document,"visibilityState",{configurable:true,value:"visible"});
+    document.dispatchEvent(new Event("visibilitychange"));
+  });
+  profileReadMode="failure";
+  await page.reload();
+  await expect(page.getByRole("navigation",{name:"참여자 메뉴"})).toBeVisible();
+  expect(await page.evaluate(()=>localStorage.getItem("matching_app_user_id"))).toBe(originalIdentity);
+  await page.screenshot({path:testInfo.outputPath("mobile-profile-resume-api-unavailable.png"),fullPage:true});
+  await page.unroute("**/api/db/op",partialProfileRead);
+  expect((await application(request,id)).profileId).toBe(profileId);
   await page.goto(`/events/a/${id}`);
   for (let count = 1; count <= 3; count++) {
     await page
@@ -519,7 +556,7 @@ test("mobile/tablet/desktop layouts and administrator sandbox remain isolated", 
     localStorage.setItem("admin_token_v1", value);
     localStorage.setItem(
       "admin_session_v1",
-      JSON.stringify({ phone: "010-3878-6740", authedAt: Date.now() }),
+      JSON.stringify({ phone: "010-0000-0000", authedAt: Date.now() }),
     );
   }, token!);
   await page.goto("/admin");
@@ -611,7 +648,7 @@ test("inquiry drafts, participant messages and administrator replies survive reo
     localStorage.setItem("admin_token_v1", value);
     localStorage.setItem(
       "admin_session_v1",
-      JSON.stringify({ phone: "010-3878-6740", authedAt: Date.now() }),
+      JSON.stringify({ phone: "010-0000-0000", authedAt: Date.now() }),
     );
   }, token!);
   const admin = await context.newPage();
@@ -886,10 +923,21 @@ test("protected media HTTP, privacy review and participant-safe notices use the 
       localStorage.setItem("admin_token_v1", value);
       localStorage.setItem(
         "admin_session_v1",
-        JSON.stringify({ phone: "010-3878-6740", authedAt: Date.now() }),
+        JSON.stringify({ phone: "010-0000-0000", authedAt: Date.now() }),
       );
     }, token!);
     const admin = await ctx.newPage();
+  admin.on("response", async response=>{
+    const path=new URL(response.url()).pathname;
+    if(path!=="/api/event-hub/mutate"&&path!=="/api/event-hub/admin")return;
+    const request=response.request(), action=request.postDataJSON()?.action;
+    if(action==="admin.privacy.review"||path==="/api/event-hub/admin"){
+      const timing=request.timing();
+      const body=action==="admin.privacy.review"?await response.json().catch(()=>({code:"UNREADABLE"})):undefined;
+      console.log("V3_PRIVACY_TRACE",JSON.stringify({path,action,status:response.status(),responseStartMs:timing.responseStart,code:body?.code}));
+    }
+  });
+
     await admin.goto("/admin");
     await admin.getByRole("button", { name: "🎉 술번개", exact: true }).click();
     await admin
@@ -1048,7 +1096,7 @@ test("latest campaign actual API: first-rank free approval stays separate from b
     request,
     "event.save",
     id,
-    { ...e, account: "격리 시험 계좌", deadline: "관리자 개별 안내" },
+    { ...e, opensAt:"2000-01-01T00:00:00.000Z", account: "격리 시험 계좌", deadline: "관리자 개별 안내" },
     e.revision,
   );
   state = await (
@@ -1174,6 +1222,7 @@ test("tour actual API advance and shared-component lab enforce rank ten/eleven w
     id,
     {
       ...e,
+      opensAt:"2000-01-01T00:00:00.000Z",
       account: "격리 시험 계좌",
       deadline: "관리자 안내",
       campaign: { ...e.campaign, advance: 17000 },
@@ -1283,7 +1332,7 @@ test("private screening photo UI requires explicit consent, administrator review
     request,
     "event.save",
     id,
-    { ...e, account: "격리 시험 계좌", deadline: "개별 사전 안내" },
+    { ...e, end:"01:00", opensAt:"2000-01-01T00:00:00.000Z", account: "격리 시험 계좌", deadline: "개별 사전 안내" },
     e.revision,
   );
   state = await (
@@ -1502,9 +1551,9 @@ test("independent draw module switches persist and the Halloween theme expires i
   await page.clock.install({ time: new Date("2026-10-31T00:00:00+09:00") });
   await page.goto(`/events/a/${id}`);
   await expect(page.locator('[data-campaign-theme="halloween"]')).toBeVisible();
-  await page.clock.pauseAt(new Date("2026-10-31T00:59:59+09:00"));
+  await page.clock.pauseAt(new Date("2026-10-31T16:59:59+09:00"));
   await page.screenshot({
-    path: testInfo.outputPath("halloween-before-0100.png"),
+    path: testInfo.outputPath("halloween-before-1700.png"),
     fullPage: true,
   });
   await page.clock.runFor(1000);
@@ -1513,11 +1562,68 @@ test("independent draw module switches persist and the Halloween theme expires i
   );
   await expect(page.locator('[data-campaign-theme="default"]')).toBeVisible();
   await page.screenshot({
-    path: testInfo.outputPath("halloween-at-0100-restored.png"),
+    path: testInfo.outputPath("halloween-at-1700-restored.png"),
     fullPage: true,
   });
   const after = await application(request, id);
   expect(after.payment).toBe(before.payment);
   expect(after.quote).toEqual(before.quote);
   expect(after.cards).toEqual(before.cards);
+});
+
+test("V3 actual app: phone-only reward record, late-arrival review and eight received logos preserve ownership",async({page,request,browser},testInfo)=>{
+ const code=randomBytes(32).toString("base64url");
+ await page.request.post("/api/event-hub/session",{data:{recoveryCode:code,create:true}});
+ const user=async(action:string,target:string,data:Record<string,unknown>,revision?:number)=>{
+  const response=await page.request.post("/api/event-hub/mutate",{data:{action,target,data,revision,requestId:randomUUID()}});
+  expect(response.status()).toBe(200);return response.json();
+ };
+ const nickname="추가"+suffix.slice(-3);
+ const {id}=await user("application.basic","",{eventId,basic:{nickname,birthYear:1995,location:"부산",phone:"01000000000",depositor:"합성",collection:true,version:"2026-10-27-event-v6"}});
+ await user("application.consent",id,{consent:{collection:true,sharing:true,notice:true,version:"2026-10-27-event-v6"}},1);
+ await user("application.confirm",id,{},2);
+ await page.addInitScript((id)=>sessionStorage.setItem("binpc2_application_guide_v6:"+id,"1"),eventId);
+ await page.goto("/events/a/"+id);
+ await page.getByLabel("상품·상금·할인 기록용 전화번호",{exact:true}).fill("01011110000");
+ await page.getByRole("button",{name:"기록용 전화번호 저장",exact:true}).click();
+ await expect.poll(async()=> (await application(request,id)).rewardPhone).toBe("01011110000");
+ const initial=await application(request,id);
+ await page.getByRole("button",{name:"늦게 도착해요 / 도착 예정시간",exact:true}).click();
+ const state=await (await request.get("/api/event-hub/admin",{headers:adminHeaders})).json();
+ const event=state.events.find((e:{id:string})=>e.id===eventId);
+ const nextDate=new Date(Date.parse(event.date+"T00:00:00Z")+86400000).toISOString().slice(0,10);
+ await page.getByLabel("도착 예정 (한국시간)",{exact:true}).fill(nextDate+"T01:00");
+ await page.getByLabel("늦참 사유 (선택)",{exact:true}).fill("합성 늦참 검토");
+ await page.getByRole("button",{name:"내용 확인 · 도착시간 저장",exact:true}).click();
+ await expect.poll(async()=> (await application(request,id)).lateArrival?.status).toBe("review");
+ const after=await application(request,id);
+ expect(after.quote).toEqual(initial.quote);expect(after.payment).toBe(initial.payment);
+ await expect(page.getByRole("button",{name:"입금했어요 (신고)",exact:true})).toHaveCount(0);
+ const adminContext=await browser.newContext({baseURL:process.env.HUB_E2E_BASE_URL});
+ await restrictToLocal(adminContext);
+ await adminContext.addInitScript(token=>{
+  localStorage.setItem("admin_token_v1",token);localStorage.setItem("admin_session_v1",JSON.stringify({phone:"01000000000",authedAt:Date.now()}));
+ },token);
+ const admin=await adminContext.newPage();
+ try{
+  await admin.goto("/admin");
+  await admin.getByRole("button",{name:"🎉 술번개",exact:true}).click();
+  await admin.getByLabel("관리할 행사").selectOption(eventId);
+  await admin.getByRole("button",{name:"경품·상금·할인 결과",exact:true}).click();
+  await admin.getByLabel("번호·닉네임·행사 검색",{exact:true}).fill(nickname);
+  await admin.getByRole("button",{name:"권한 있는 관리자 상세 열람",exact:true}).click();
+  await expect(admin.getByText("전화번호 01011110000",{exact:true})).toBeVisible();
+  await admin.getByLabel("늦참 검토 사유",{exact:true}).fill("현장 확인 후 안내");
+  await admin.getByRole("button",{name:"늦참 승인",exact:true}).click();
+  await expect.poll(async()=> (await application(request,id)).lateArrival?.status).toBe("approved");
+  await admin.screenshot({path:testInfo.outputPath("v3-admin-benefit-phone-late-review.png"),fullPage:true});
+  await admin.getByRole("button",{name:"행사·자동방",exact:true}).click();
+  await admin.getByText("수령한 7개 매장 로고 확인",{exact:true}).click();
+  for(const name of ["레드홀 · RED HOLE","페이크 · FAKE","자크 · JACK","M가라오케 · M KARAOKE (기존 제작 시안)","스피드 · SPEED","체크인 · CHECK-IN","온탑 · ON TOP","고래 Gorae 감사용 로고"]){
+   await admin.getByAltText(name,{exact:true}).scrollIntoViewIfNeeded();
+   await expect.poll(()=>admin.getByAltText(name,{exact:true}).evaluate((img:HTMLImageElement)=>img.complete&&img.naturalWidth>0)).toBe(true);
+  }
+  await admin.screenshot({path:testInfo.outputPath("v3-eight-logos-actual-admin.png"),fullPage:true});
+ }finally{await adminContext.close();}
+ await page.screenshot({path:testInfo.outputPath("v3-participant-late-arrival-phone.png"),fullPage:true});
 });

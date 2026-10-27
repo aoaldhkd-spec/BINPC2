@@ -348,4 +348,14 @@ describe('[Realtime] long-session stability', () => {
     channel.unsubscribe();
     removeReconnect();
   });
+
+  it('retains the exact device secret after localStorage starts throwing; never invents a replacement', async () => {
+    const api = await import('../lib/localdb');
+    localStorage.setItem('bolt_device_secret_mobile-owner', 'stable-device-fixture');
+    expect(api.getDeviceSecret('mobile-owner')).toBe('stable-device-fixture');
+    vi.spyOn(localStorage,'getItem').mockImplementation(()=>{throw new Error('storage suspended');});
+    expect(api.getDeviceSecret('mobile-owner')).toBe('stable-device-fixture');
+    expect(api.getDeviceSecret('mobile-owner')).toBe('stable-device-fixture');
+    expect(()=>api.getDeviceSecret('unread-existing-owner')).toThrow('DEVICE_STORAGE_RECOVERY_REQUIRED');
+  });
 });

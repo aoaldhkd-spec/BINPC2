@@ -168,3 +168,12 @@ describe('shouldApplyAdminResetSignal', () => {
     expect(shouldApplyAdminResetSignal(null, 'r1')).toBe(false);
   });
 });
+
+describe('delayed reset signals on mobile resume', () => {
+  it('ignores older and repeated real timestamps but applies the next genuine reset', () => {
+    const seen = '2026-10-31T08:00:00.000Z';
+    expect(shouldApplyAdminResetSignal('2026-10-30T08:00:00.000Z', seen)).toBe(false);
+    expect(shouldApplyAdminResetSignal(seen, seen)).toBe(false);
+    expect(shouldApplyAdminResetSignal('2026-11-01T08:00:00.000Z', seen)).toBe(true);
+  });
+});

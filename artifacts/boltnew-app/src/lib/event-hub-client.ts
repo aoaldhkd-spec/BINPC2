@@ -1,3 +1,4 @@
+import { supabase, onSseReconnect, isSseHealthy } from "./supabase";
 import { useState, useEffect, useCallback, useRef } from "react";
 import type {
   HubApplication,
@@ -27,7 +28,8 @@ export type PrivateApplication = Omit<HubApplication, "rank" | "owner"> & {
     included: string;
     deposit: number;
   };
-  venue?: { address: string; mapUrl: string };
+  venue?: { address: string; mapUrl: string; logoId?: string };
+  resultDetails?: HubApplication["cards"];
 };
 export type HubThread = {
   status?: "open" | "resolved";
@@ -39,6 +41,7 @@ export type HubThread = {
   history: HubAudit[];
 };
 export type HubState = {
+  serverNow?: string;
   privacyPolicy?: import("../../../../lib/api-zod/src/event-hub-privacy").PrivacyPolicy;
   privacyCase?: Pick<
     import("../../../../lib/api-zod/src/event-hub-privacy").PrivacyCase,
@@ -220,13 +223,15 @@ export function useEventHub(admin = false) {
     signature: string;
     command: HubCommand & { requestId: string };
   } | null>(null);
+  const readSequence = useRef(0);
   const load = useCallback(async () => {
+    const sequence = ++readSequence.current;
     const value = await hubFetch<HubState>(
       admin ? "/admin" : "/state",
       undefined,
       admin,
     );
-    setState(value);
+    if (sequence === readSequence.current) setState(value);
     return value;
   }, [admin]);
   useEffect(() => {
@@ -251,6 +256,33 @@ export function useEventHub(admin = false) {
       active = false;
     };
   }, [admin, load]);
+  useEffect(() => {
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    let active = true, inFlight = false;
+    const refresh = () => {
+      if (!active || document.visibilityState !== "visible" || timer || busy.current || inFlight) return;
+      timer = setTimeout(() => {
+        timer = undefined;
+        if (!active || busy.current) return;
+        inFlight=true;
+        void load().catch(()=>{}).finally(()=>{inFlight=false;});
+      }, 350);
+    };
+    const channel=supabase.channel("event-hub-invalidation").on("postgres_changes",
+      {event:"UPDATE",schema:"public",table:"event_hub_updates"},refresh).subscribe();
+    const reconnect=onSseReconnect(refresh);
+    const foreground=()=>{if(document.visibilityState==="visible") refresh();};
+    document.addEventListener("visibilitychange",foreground);
+    // Existing waiting-room fallback cadence; never poll every second.
+    const fallback=setInterval(()=>{if(!isSseHealthy()) refresh();},10000);
+    return ()=>{active=false;if(timer)clearTimeout(timer);clearInterval(fallback);reconnect();document.removeEventListener("visibilitychange",foreground);supabase.removeChannel(channel);};
+  }, [load]);
+  useEffect(() => {
+    const times=(state?.events??[]).flatMap(e=>[e.opensAt,e.closesAt]).filter((v):v is string=>!!v).map(Date.parse).filter(t=>t>Date.parse(state?.serverNow??new Date().toISOString()));
+    if (!times.length) return;
+    const timer=setTimeout(()=>{void load().catch(()=>{});},Math.min(Math.min(...times)-Date.parse(state?.serverNow??new Date().toISOString())+20,2147483647));
+    return ()=>clearTimeout(timer);
+  },[state?.events,state?.serverNow,load]);
   const mutate = useCallback(
     async (command: HubCommand) => {
       if (busy.current) return null;

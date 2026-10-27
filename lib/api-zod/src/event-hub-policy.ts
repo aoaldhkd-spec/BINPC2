@@ -44,6 +44,7 @@ export function participantApplication(a: HubApplication, e: HubEvent) {
     owner,
     quote,
     history,
+    manualResults,
     benefitRank,
     benefitExcluded,
     benefitContact,
@@ -72,6 +73,7 @@ export function participantApplication(a: HubApplication, e: HubEvent) {
     }));
   return {
     ...safe,
+    manualResults: manualResults?.map(({reason:_reason,...r})=>r),
     ...(a.stage >= 3 ? { benefitRank, benefitExcluded } : {}),
     history: visibleHistory,
     profileMissing: profileMissing(a.profile),
@@ -91,7 +93,7 @@ export function participantApplication(a: HubApplication, e: HubEvent) {
         }
       : {}),
     ...(paymentSatisfied(a)
-      ? { venue: { address: e.address, mapUrl: e.mapUrl } }
+      ? { venue: { address: e.address, logoId: e.venueLogoId, mapUrl: e.mapUrl } }
       : {}),
   };
 }

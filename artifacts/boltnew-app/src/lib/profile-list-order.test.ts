@@ -1,3 +1,4 @@
+import { mergeProfileRefresh } from './profile-list-order';
 import { describe, expect, it } from 'vitest';
 import type { Profile } from '../types/app';
 import { filterProfilesForDeck } from './profile-deck-filter';
@@ -100,4 +101,22 @@ describe('profile list stable order', () => {
     expect(forward).toEqual(['me', 'a', 'z']);
     expect(reverse).toEqual(forward);
   });
+});
+describe('mobile partial or delayed profile refresh', () => {
+  it('preserves the existing owner and PIN when a successful partial read omits them', () => {
+    const me = { id: 'owner', nickname: '본인', pin_code: '123456', created_at: '2026-10-30T13:00:00Z' } as Profile;
+    expect(mergeProfileRefresh([me], [], me.id)).toEqual([me]);
+    expect(mergeProfileRefresh([me], [], null)).toEqual([]);
+  });
+  it('does not replace a newer complete profile with a delayed incomplete row', () => {
+    const me = { id: 'owner', nickname: '본인', pin_code: '123456', updated_at: '2026-10-30T14:00:00Z' } as unknown as Profile;
+    const delayed = { ...me, pin_code: '', updated_at: '2026-10-30T13:00:00Z' };
+    expect(mergeProfileRefresh([me], [delayed], me.id)[0].pin_code).toBe('123456');
+  });
+});
+
+it('keeps the existing owner PIN through a temporary partial own-row response, without authenticating other profiles',()=>{
+ const me={id:'owner',nickname:'본인',pin_code:'123456'} as Profile;
+ expect(mergeProfileRefresh([me],[{...me,pin_code:null}],me.id)[0].pin_code).toBe('123456');
+ expect(mergeProfileRefresh([me],[{...me,pin_code:null}],'different-owner')[0].pin_code).toBeNull();
 });

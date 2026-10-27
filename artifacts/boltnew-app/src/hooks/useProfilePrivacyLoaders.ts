@@ -2,10 +2,10 @@
  * Profile list + user_signals + privacy (blocked/visitors) loaders.
  * App owns setState; this hook owns fetches + merge/filter planners.
  */
-import { useCallback, useEffect, type Dispatch, type MutableRefObject, type SetStateAction } from 'react';
+import { useCallback, useEffect, useRef, type Dispatch, type MutableRefObject, type SetStateAction } from 'react';
 import { supabase } from '../lib/supabase';
 import { excludeSwipeGestureVerifyProfiles } from '../lib/profile';
-import { mergeProfilesPreserveOrder, sortProfilesStable } from '../lib/profile-list-order';
+import { mergeProfileRefresh, mergeProfilesPreserveOrder, sortProfilesStable } from '../lib/profile-list-order';
 import { mergeUserSignalRow } from '../lib/user-signal-merge';
 import { filterBlockedUsersForMe } from '../lib/realtime-row-upsert';
 import {
@@ -23,6 +23,7 @@ type SetState<T> = Dispatch<SetStateAction<T>>;
 export type UseProfilePrivacyLoadersArgs = {
   currentUserId: string | null;
   userIdRef: MutableRefObject<string | null>;
+  profilesRef: MutableRefObject<Profile[]>;
   loadProfilesRef: MutableRefObject<() => Promise<Profile[]>>;
   setProfiles: SetState<Profile[]>;
   setUserSignals: SetState<UserSignal[]>;
@@ -34,6 +35,7 @@ export function useProfilePrivacyLoaders(args: UseProfilePrivacyLoadersArgs) {
   const {
     currentUserId,
     userIdRef,
+    profilesRef,
     loadProfilesRef,
     setProfiles,
     setUserSignals,
@@ -41,22 +43,27 @@ export function useProfilePrivacyLoaders(args: UseProfilePrivacyLoadersArgs) {
     setProfileVisitors,
   } = args;
 
+  const readSequence = useRef(0);
   const loadProfiles = useCallback(async () => {
-    const { data } = await supabase.from('profiles').select(PROFILE_ROW_SELECT).order('created_at', { ascending: false });
-    if (data) {
+    const sequence = ++readSequence.current;
+    const owner = userIdRef.current;
+    const { data, error } = await supabase.from('profiles').select(PROFILE_ROW_SELECT).order('created_at', { ascending: false });
+    if (sequence !== readSequence.current || owner !== userIdRef.current) return profilesRef.current;
+    if (error) throw new Error('PROFILE_READ_UNAVAILABLE');
+    if (Array.isArray(data)) {
       const visible = excludeSwipeGestureVerifyProfiles(data as Profile[], userIdRef.current);
       // 전량 교체 금지: SSE 패치 중 리프레시해도 기존 상대 순서 유지 + 안정 키로 신규만 삽입
       setProfiles(prev => {
         const merged = prev.length === 0
           ? sortProfilesStable(visible)
-          : mergeProfilesPreserveOrder(prev, visible);
+          : owner ? mergeProfileRefresh(prev, visible, owner) : mergeProfilesPreserveOrder(prev, visible);
         try { ls.setItem(MATCHING_PROFILES_CACHE_KEY, JSON.stringify(merged)); } catch { /* quota */ }
         return merged;
       });
-      return visible;
+      return mergeProfileRefresh(profilesRef.current, visible, owner);
     }
-    return [];
-  }, [setProfiles, userIdRef]);
+    throw new Error('PROFILE_READ_UNAVAILABLE');
+  }, [setProfiles, userIdRef, profilesRef]);
 
   // loading-main 지수 백오프 재시도에서 항상 최신 함수 참조 유지
   loadProfilesRef.current = loadProfiles;

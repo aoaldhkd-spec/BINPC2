@@ -24,7 +24,10 @@ import {
   profileMissing,
   quoteFor,
 } from "../../../../lib/api-zod/src/event-hub";
-vi.mock("../lib/supabase", () => ({ supabase: { from: vi.fn() } }));
+vi.mock("../lib/supabase", () => ({
+ supabase: {from:vi.fn(),channel:()=>({on(){return this;},subscribe(){return this;}}),removeChannel:vi.fn()},
+ onSseReconnect:()=>()=>{},isSseHealthy:()=>true,
+}));
 vi.mock("../lib/webPush", () => ({
   currentPushStatus: () => ({ code: "unsupported" }),
   requestPushPermissionFromClick: vi.fn(),
@@ -477,7 +480,7 @@ import { useEventTheme } from "./HubUi";
 it("automatically restores the route-local theme without a page refresh or a 17:00 timer", () => {
   vi.useFakeTimers();
   try {
-    vi.setSystemTime(new Date("2026-10-30T15:59:59.999Z"));
+    vi.setSystemTime(new Date("2026-10-31T07:59:59.999Z"));
     const e = new EventLaboratoryStore().value.event;
     e.date = "2026-10-30";
     e.start = "22:30";

@@ -63,5 +63,9 @@ export function shouldApplyAdminResetSignal(
   serverReset: string | null | undefined,
   localReset: string | null | undefined,
 ): boolean {
-  return Boolean(serverReset && serverReset !== localReset);
+  if (!serverReset || serverReset === localReset) return false;
+  const serverAt = Date.parse(serverReset), localAt = Date.parse(localReset ?? '');
+  if (Number.isFinite(serverAt) && Number.isFinite(localAt)) return serverAt > localAt;
+  return true; // Legacy opaque reset IDs remain supported.
+
 }

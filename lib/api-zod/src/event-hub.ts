@@ -61,6 +61,13 @@ export const HubEventInput = z.object({
   replyNotice: z.string().max(4000).optional(),
   venueCandidates: z.array(z.string().max(100)).max(10).optional(),
   opensAt: z.string().datetime().optional(),
+  closesAt: z.string().datetime().optional(),
+  scheduleEnabled: z.boolean().optional(),
+  schedulePaused: z.boolean().optional(),
+  benefitsOpensAt: z.string().datetime().optional(),
+  benefitsClosesAt: z.string().datetime().optional(),
+  lateReviewAfter: z.string().datetime().optional(),
+  venueLogoId: z.enum(["red_hole","fake","jack","m_karaoke","speed","check_in","on_top"]).optional(),
   title: z.string().trim().min(1).max(100),
   type: z.enum(["normal", "halloween", "tour", "custom"]).default("normal"),
   date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
@@ -147,6 +154,9 @@ export type HubApplication = {
   reportedAt?: string;
   approvedAt?: string;
   waivedAt?: string;
+  rewardPhone?: string;
+  lateArrival?: { at: string; reason: string; status: "noted"|"review"|"approved"|"declined"; reviewReason?: string };
+  manualResults?: {id:string;label:string;amount:number;at:string;reason?:string;receivedAt?:string;paidAt?:string}[];
   benefitRank?: number;
   benefitExcluded?: boolean;
   benefitContact?: string;
@@ -220,10 +230,12 @@ export function profileMissing(p: Partial<HubProfileData>): string[] {
 }
 export function quoteFor(
   e: Pick<HubEvent, "fee" | "benefitsEnabled" | "benefits" | "revision"> &
-    Partial<Pick<HubEvent, "campaign" | "date">>,
+    Partial<Pick<HubEvent, "campaign" | "date" | "benefitsOpensAt" | "benefitsClosesAt">>,
   rank: number,
   at: Date = new Date(),
 ) {
+  const outsideBenefitWindow = (e.benefitsOpensAt && at.getTime()<Date.parse(e.benefitsOpensAt)) || (e.benefitsClosesAt && at.getTime()>=Date.parse(e.benefitsClosesAt));
+  if (outsideBenefitWindow) e={...e,benefitsEnabled:false};
   if (e.campaign) return campaignQuote(e as HubEvent, rank, at);
   return normalQuote(e, rank);
 }
@@ -247,13 +259,14 @@ export function nextSaturday(now: Date, skipDates: string[] = []): string {
 
 export function recruitmentIsOpen(
   e: Pick<HubEvent, "recruitment" | "opensAt"> &
-    Partial<Pick<HubEvent, "date" | "start" | "end">>,
+    Partial<Pick<HubEvent, "date" | "start" | "end" | "closesAt">>,
   now: Date = new Date(),
 ): boolean {
   return (
     e.recruitment &&
     (!(e.date && e.start && e.end) || !eventEnded(e as HubEvent, now)) &&
-    (!e.opensAt || Date.parse(e.opensAt) <= now.getTime())
+    (!e.opensAt || Date.parse(e.opensAt) <= now.getTime()) &&
+    (!e.closesAt || now.getTime() < Date.parse(e.closesAt))
   );
 }
 

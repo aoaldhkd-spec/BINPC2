@@ -81,5 +81,12 @@ export function halloweenTiming(
 ) {
   return kind === "halloween-friday"
     ? { start: "22:30", end: "01:00" }
-    : { start: "22:00", end: "00:30" };
+    : { start: "22:00", end: "01:00" };
+}
+
+// Apply the corrected official hours to existing drafts without rewriting history.
+export function effectiveHalloweenHours(e: {type?:string;date:string;start:string;end:string;campaign?:{kind:string}}) {
+  if(e.type==="halloween"&&e.campaign?.kind.startsWith("halloween-")&&(e.date==="2026-10-30"||e.date==="2026-10-31"))
+    return {start:e.date==="2026-10-30"?"22:30":"22:00",end:"01:00"};
+  return {start:e.start,end:e.end};
 }

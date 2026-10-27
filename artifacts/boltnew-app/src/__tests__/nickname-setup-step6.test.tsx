@@ -1,3 +1,5 @@
+import { ls } from '../lib/storage';
+import { MATCHING_DRAFT_KEY } from '../lib/constants';
 // @vitest-environment happy-dom
 /**
  * NicknameSetupScreen step 6 — optional 이상형·나는 어떤 사람인가요?, skip vs save.
@@ -5,7 +7,7 @@
 
 import React from 'react';
 import { render, screen, fireEvent, cleanup } from '@testing-library/react';
-import { describe, it, expect, vi, afterEach } from 'vitest';
+import { describe, it, expect, vi, afterEach, beforeEach } from 'vitest';
 import { NicknameSetupScreen } from '../components/NicknameSetupScreen';
 
 vi.mock('../lib/supabase', () => ({
@@ -40,6 +42,8 @@ function advanceToStep6() {
     }, 600);
   });
 }
+
+beforeEach(() => ls.removeItem(MATCHING_DRAFT_KEY));
 
 describe('NicknameSetupScreen — step 6 optional signal fields', () => {
   afterEach(() => cleanup());

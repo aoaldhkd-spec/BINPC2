@@ -1,3 +1,4 @@
+import {eventEnded,eventExpired,eventEndAt,effectiveEventTheme} from "../../../../lib/api-zod/src/event-hub-modules";
 import {
   campaignInitialStocks,
   paymentSatisfied,
@@ -14,6 +15,7 @@ import {
   PROFILE_CONSENT_VERSION,
   DEFAULT_HUB_SETTINGS,
   quoteFor,
+  recruitmentIsOpen,
   type HubApplication,
   type HubEvent,
 } from "../../../../lib/api-zod/src/event-hub";
@@ -302,7 +304,8 @@ export class EventLaboratoryStore {
   }
   state(admin = false): HubState {
     const e = this.value.event;
-    const publicEvent = { ...e };
+    const simulatedNow=new Date(this.value.quoteAt??Date.now());
+    const publicEvent = { ...e, themeEnabled: effectiveEventTheme(e,simulatedNow)!=="default", cardsEnabled:e.cardsEnabled&&!eventExpired(e,simulatedNow) };
     if (!admin) {
       for (const k of [
         "fee",
@@ -322,6 +325,7 @@ export class EventLaboratoryStore {
       applications: admin
         ? this.value.applications.map((a) => ({
             ...a,
+            resultDetails:a.cards,
             cards:
               e.campaign?.kind === "tour"
                 ? a.cards.map((c) => ({
@@ -395,6 +399,7 @@ export class EventLaboratoryStore {
       if ((action.startsWith("admin.") || action === "stock.save") && !admin)
         throw new Error("관리자만 처리할 수 있습니다.");
       if (action === "application.basic") {
+        if(!recruitmentIsOpen(this.value.event,new Date(this.value.quoteAt??Date.now()))) throw new Error("정식 접수 시작 전이거나 마감되었습니다.");
         let a = this.value.applications[0];
         if (!a) a = this.create(data.basic);
         else if (data.edit === true) {
@@ -424,7 +429,28 @@ export class EventLaboratoryStore {
               throw new Error("비밀번호는 10자 이상입니다.");
             a.stage = 3;
             break;
+          case "application.phone":
+            a.rewardPhone=HubBasic.shape.phone.parse(data.phone);break;
+          case "application.late": {
+            const at=String(data.at),millis=Date.parse(at);
+            if(!Number.isFinite(millis)||millis<Date.parse(e.date+"T00:00:00+09:00")||millis>Date.parse(e.date+"T00:00:00+09:00")+2*86400000)throw new Error("행사 날짜와 차수를 확인하세요.");
+            a.lateArrival={at,reason:String(data.reason??"").slice(0,500),status:millis>=eventEndAt(e)?"review":"noted"};break;
+          }
+          case "admin.application.late":
+            if(!a.lateArrival||!String(data.reason??"").trim())throw new Error("도착 신고와 검토 사유가 필요합니다.");
+            a.lateArrival={...a.lateArrival,status:data.status==="approved"?"approved":"declined",reviewReason:String(data.reason)};break;
+          case "admin.application.result":
+            if(a.manualResults?.some(r=>r.id===data.id))throw new Error("중복 결과입니다.");
+            a.manualResults=[...(a.manualResults??[]),{id:String(data.id),label:String(data.label),amount:Number(data.amount),reason:String(data.reason),at:now}];break;
+          case "admin.application.result.confirm": {
+            const r=a.manualResults?.find(r=>r.id===data.id);
+            if(!r)throw new Error("저장된 결과가 없습니다.");
+            const field=data.field==="paidAt"?"paidAt":"receivedAt";
+            if(r[field]||(field==="paidAt"&&data.doubleChecked!==true))throw new Error("중복 확인 또는 지급 전 더블체크가 필요합니다.");
+            r[field]=now;break;
+          }
           case "application.confirm":
+            if(!recruitmentIsOpen(e,new Date(this.value.quoteAt??Date.now())))throw new Error("정식 접수 시작 전이거나 마감되었습니다.");
             if (a.stage !== 3 || !a.consent)
               throw new Error("공지와 회비를 확인해 주세요.");
             a.stage = 4;
@@ -484,6 +510,7 @@ export class EventLaboratoryStore {
             };
             break;
           case "application.enter": {
+            if(eventEnded(e,new Date(this.value.quoteAt??Date.now())))throw new Error("신규 입장 기간이 종료되었습니다.");
             const issue = applicationAdmissionIssue(a, e);
             if (issue) throw new Error(issue.message);
             if (!this.value.active)
@@ -494,6 +521,7 @@ export class EventLaboratoryStore {
             break;
           }
           case "application.draw":
+            if(eventExpired(e,new Date(this.value.quoteAt??Date.now())))throw new Error("해당 회차 이벤트 이용 기간이 만료되었습니다.");
             if (
               !e.cardsEnabled ||
               !a.profileId ||

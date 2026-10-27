@@ -1,0 +1,45 @@
+# A NEW isolated preview stack only. Never apply to the operational Blueprint.
+# Creation and billing require separate user approval; no services created by this file alone.
+databases:
+  - name: binpc2-private-v6-db
+    databaseName: binpc2_private_v6
+    user: binpc2_private
+    plan: basic-256mb
+    ipAllowList: []
+services:
+  - type: web
+    name: binpc2-private-v6
+    runtime: node
+    buildCommand: node scripts/private-preview-build.mjs
+    startCommand: node --dns-result-order=ipv4first artifacts/api-server/dist/index.mjs
+    repo: https://github.com/aoaldhkd-spec/BINPC2
+    branch: feat/event-hub-v6-20261027
+    autoDeploy: false
+    plan: starter
+    numInstances: 1
+    healthCheckPath: /api/healthz
+    envVars:
+      - key: NODE_VERSION
+        value: "24"
+      - key: PREVIEW_SOURCE_SHA
+        sync: false
+      - key: NODE_ENV
+        value: production
+      - key: APP_MODE
+        value: private-preview
+      - key: DATABASE_URL
+        fromDatabase:
+          name: binpc2-private-v6-db
+          property: connectionString
+      - key: PG_POOL_MAX
+        value: "5"
+      - key: SESSION_SECRET
+        generateValue: true
+      - key: PREVIEW_ACCESS_USER
+        value: binpc2-preview
+      - key: PREVIEW_ACCESS_PASSWORD
+        generateValue: true
+      - key: BOOTSTRAP_ADMIN_PASSWORD
+        generateValue: true
+      - key: BOOTSTRAP_TEST_PASSWORD
+        generateValue: true

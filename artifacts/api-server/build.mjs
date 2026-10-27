@@ -127,6 +127,11 @@ globalThis.__dirname = __bannerPath.dirname(globalThis.__filename);
     path.join(distDir, 'table.sql'),
   );
 
+  await cp(
+    path.join(artifactDir,"migrations/20261027_event_hub.sql"),
+    path.join(distDir,"event-hub-schema.sql"),
+  );
+
   const frontendDist = path.resolve(artifactDir, "../boltnew-app/dist/public");
   const publicDir = path.resolve(distDir, "public");
   if (existsSync(path.join(frontendDist, "index.html"))) {

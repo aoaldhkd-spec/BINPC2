@@ -9,3 +9,5 @@ export * from "./event-hub-privacy";
 export * from "./event-campaign";
 
 export * from "./event-hub-modules";
+
+export * from "./event-cycle-clock";

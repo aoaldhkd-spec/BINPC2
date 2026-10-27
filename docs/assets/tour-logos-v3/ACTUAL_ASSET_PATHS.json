@@ -1,0 +1,262 @@
+[
+  {
+    "id": "red_hole",
+    "venue_name": "레드홀",
+    "english_label": "RED HOLE",
+    "region": "인천",
+    "role": "venue",
+    "source_library_file_id": "file_00000000ccb88206b212ea1110be99ee",
+    "source_original_filename": "KakaoTalk_20251115_150610914_02.jpg",
+    "original_path": "03_원본보존/레드홀_RED_HOLE_제공화면_원본.jpg",
+    "app_asset_path": "02_앱연결용_로고/레드홀_RED_HOLE_로고영역추출.png",
+    "source_kind": "사용자 제공 화면에서 로고 영역만 추출",
+    "source_note": "별도 벡터 원본 아님",
+    "original_dimensions_px": [
+      1038,
+      2048
+    ],
+    "app_dimensions_px": [
+      650,
+      650
+    ],
+    "crop_xyxy_on_source": [
+      195,
+      720,
+      845,
+      1370
+    ],
+    "original_sha256": "97c260115fa80545a4e5db5fb9852952b2410b8b43eac6f3dd0ca70601058c22",
+    "app_sha256": "a11302bbdb4fc1eb188b5d04226c30017ea1096fd0f53a212a318d711f7b51b6",
+    "original_bytes_preserved": true,
+    "new_ai_generation": false,
+    "retrieval_status": "FILE_RECOVERED_AND_VISUALLY_VERIFIED",
+    "integration_status": "DEVELOPMENT_BROWSER_VERIFIED_NOT_DEPLOYED",
+    "actual_app_path": "artifacts/boltnew-app/public/tour-logos-v3/red_hole.png",
+    "preserved_original_path": "docs/assets/tour-logos-v3/03_원본보존/레드홀_RED_HOLE_제공화면_원본.jpg"
+  },
+  {
+    "id": "fake",
+    "venue_name": "페이크",
+    "english_label": "FAKE",
+    "region": "인천",
+    "role": "venue",
+    "source_library_file_id": "file_00000000f3b48206aba25ffc724bd714",
+    "source_original_filename": "KakaoTalk_20251117_203812649.png",
+    "original_path": "03_원본보존/페이크_FAKE_제공원본.png",
+    "app_asset_path": "02_앱연결용_로고/페이크_FAKE_제공원본.png",
+    "source_kind": "사용자 제공 로고 이미지 원본",
+    "source_note": "제공 파일 그대로",
+    "original_dimensions_px": [
+      738,
+      733
+    ],
+    "app_dimensions_px": [
+      738,
+      733
+    ],
+    "crop_xyxy_on_source": null,
+    "original_sha256": "c999ef3948a9258c26525f7b60e493feea43b652666748e07e922b569cf9217d",
+    "app_sha256": "c999ef3948a9258c26525f7b60e493feea43b652666748e07e922b569cf9217d",
+    "original_bytes_preserved": true,
+    "new_ai_generation": false,
+    "retrieval_status": "FILE_RECOVERED_AND_VISUALLY_VERIFIED",
+    "integration_status": "DEVELOPMENT_BROWSER_VERIFIED_NOT_DEPLOYED",
+    "actual_app_path": "artifacts/boltnew-app/public/tour-logos-v3/fake.png",
+    "preserved_original_path": "docs/assets/tour-logos-v3/03_원본보존/페이크_FAKE_제공원본.png"
+  },
+  {
+    "id": "jack",
+    "venue_name": "자크",
+    "english_label": "JACK",
+    "region": "종로",
+    "role": "venue",
+    "source_library_file_id": "file_0000000017fc8206b7f77bb3f92673dd",
+    "source_original_filename": "1662128226307.png",
+    "original_path": "03_원본보존/자크_JACK_최신지퍼로고_제공원본.png",
+    "app_asset_path": "02_앱연결용_로고/자크_JACK_최신지퍼로고_제공원본.png",
+    "source_kind": "사용자가 최신본으로 지정한 지퍼 로고 원본",
+    "source_note": "이전 빨간 네온 시안 대체",
+    "original_dimensions_px": [
+      879,
+      856
+    ],
+    "app_dimensions_px": [
+      879,
+      856
+    ],
+    "crop_xyxy_on_source": null,
+    "original_sha256": "5b42a89062901fbb0ec9ddf7b59b65ccc0ef0154c62a158652a6c16e8cd68c6e",
+    "app_sha256": "5b42a89062901fbb0ec9ddf7b59b65ccc0ef0154c62a158652a6c16e8cd68c6e",
+    "original_bytes_preserved": true,
+    "new_ai_generation": false,
+    "retrieval_status": "FILE_RECOVERED_AND_VISUALLY_VERIFIED",
+    "integration_status": "DEVELOPMENT_BROWSER_VERIFIED_NOT_DEPLOYED",
+    "actual_app_path": "artifacts/boltnew-app/public/tour-logos-v3/jack.png",
+    "preserved_original_path": "docs/assets/tour-logos-v3/03_원본보존/자크_JACK_최신지퍼로고_제공원본.png"
+  },
+  {
+    "id": "m_karaoke",
+    "venue_name": "M가라오케",
+    "english_label": "M KARAOKE",
+    "region": "광주",
+    "role": "venue",
+    "source_library_file_id": "file_000000007bf88206abcf3b521e830a36",
+    "source_original_filename": "image-gen-1(20261027-080705).png",
+    "original_path": "03_원본보존/M가라오케_M_KARAOKE_기존제작시안_원본.png",
+    "app_asset_path": "02_앱연결용_로고/M가라오케_M_KARAOKE_기존제작시안.png",
+    "source_kind": "이전 대화에서 만든 네온 원형 제작 시안",
+    "source_note": "공식 원본 아님 / 새로 생성하지 않음",
+    "original_dimensions_px": [
+      1254,
+      1254
+    ],
+    "app_dimensions_px": [
+      1254,
+      1254
+    ],
+    "crop_xyxy_on_source": null,
+    "original_sha256": "c7a9e1420097f7ca3fc2e21ca52bab803d03c99ae3a2c7cc0f2b7b68657b73f3",
+    "app_sha256": "c7a9e1420097f7ca3fc2e21ca52bab803d03c99ae3a2c7cc0f2b7b68657b73f3",
+    "original_bytes_preserved": true,
+    "new_ai_generation": false,
+    "retrieval_status": "FILE_RECOVERED_AND_VISUALLY_VERIFIED",
+    "integration_status": "DEVELOPMENT_BROWSER_VERIFIED_NOT_DEPLOYED",
+    "actual_app_path": "artifacts/boltnew-app/public/tour-logos-v3/m_karaoke.png",
+    "preserved_original_path": "docs/assets/tour-logos-v3/03_원본보존/M가라오케_M_KARAOKE_기존제작시안_원본.png"
+  },
+  {
+    "id": "speed",
+    "venue_name": "스피드",
+    "english_label": "SPEED",
+    "region": "광주",
+    "role": "venue",
+    "source_library_file_id": "file_00000000592c8206a281a3ef5c42fcc2",
+    "source_original_filename": "KakaoTalk_20251115_150610914_01.jpg",
+    "original_path": "03_원본보존/스피드_SPEED_제공디자인_원본.jpg",
+    "app_asset_path": "02_앱연결용_로고/스피드_SPEED_표제영역추출.png",
+    "source_kind": "사용자 제공 핑크 디자인에서 SPEED 표제만 추출",
+    "source_note": "별도 로고 파일이 아닌 제공 디자인의 표제",
+    "original_dimensions_px": [
+      1080,
+      1673
+    ],
+    "app_dimensions_px": [
+      650,
+      200
+    ],
+    "crop_xyxy_on_source": [
+      215,
+      112,
+      865,
+      312
+    ],
+    "original_sha256": "3d997baef5855ca627f6e1a700f3220b397330c92786bf62680d0b84584d96c3",
+    "app_sha256": "554c2cf489a4cc3a8ae6b0d429255a690d67b0a5f4e8fff641a123d2b34042e7",
+    "original_bytes_preserved": true,
+    "new_ai_generation": false,
+    "retrieval_status": "FILE_RECOVERED_AND_VISUALLY_VERIFIED",
+    "integration_status": "DEVELOPMENT_BROWSER_VERIFIED_NOT_DEPLOYED",
+    "actual_app_path": "artifacts/boltnew-app/public/tour-logos-v3/speed.png",
+    "preserved_original_path": "docs/assets/tour-logos-v3/03_원본보존/스피드_SPEED_제공디자인_원본.jpg"
+  },
+  {
+    "id": "check_in",
+    "venue_name": "체크인",
+    "english_label": "CHECK-IN",
+    "region": "신림",
+    "role": "venue",
+    "source_library_file_id": "file_00000000f51482068d6a221211dcab2b",
+    "source_original_filename": "KakaoTalk_20251118_030434478.jpg",
+    "original_path": "03_원본보존/체크인_CHECK_IN_제공화면_원본.jpg",
+    "app_asset_path": "02_앱연결용_로고/체크인_CHECK_IN_로고영역추출.png",
+    "source_kind": "사용자 제공 화면에서 로고 영역만 추출",
+    "source_note": "원본 안의 COMING SOON 문구 임의 수정 안 함",
+    "original_dimensions_px": [
+      1038,
+      2048
+    ],
+    "app_dimensions_px": [
+      650,
+      650
+    ],
+    "crop_xyxy_on_source": [
+      195,
+      720,
+      845,
+      1370
+    ],
+    "original_sha256": "e1252da4f434fa36ca6e615b512c8f073dbbacb9cf71b93dfda4718b2ae4a695",
+    "app_sha256": "4c90ef692142368adb67ee6830fc209db0fbe7f882f5d5c8b8d5a73d7032727d",
+    "original_bytes_preserved": true,
+    "new_ai_generation": false,
+    "retrieval_status": "FILE_RECOVERED_AND_VISUALLY_VERIFIED",
+    "integration_status": "DEVELOPMENT_BROWSER_VERIFIED_NOT_DEPLOYED",
+    "actual_app_path": "artifacts/boltnew-app/public/tour-logos-v3/check_in.png",
+    "preserved_original_path": "docs/assets/tour-logos-v3/03_원본보존/체크인_CHECK_IN_제공화면_원본.jpg"
+  },
+  {
+    "id": "on_top",
+    "venue_name": "온탑",
+    "english_label": "ON TOP",
+    "region": "신림",
+    "role": "venue",
+    "source_library_file_id": "file_0000000022bc820698e725b6f141cfc6",
+    "source_original_filename": "ONTOP_공식로고_원본_20261027.png",
+    "original_path": "03_원본보존/온탑_ONTOP_제공원본.png",
+    "app_asset_path": "02_앱연결용_로고/온탑_ONTOP_제공원본.png",
+    "source_kind": "현재 대화에서 사용자가 직접 제공한 로고 원본",
+    "source_note": "제공 파일 그대로",
+    "original_dimensions_px": [
+      864,
+      1222
+    ],
+    "app_dimensions_px": [
+      864,
+      1222
+    ],
+    "crop_xyxy_on_source": null,
+    "original_sha256": "9bb8c93b7f87269903aea33df451126146b7a39da9260a2ca1b2c5c98bd8e330",
+    "app_sha256": "9bb8c93b7f87269903aea33df451126146b7a39da9260a2ca1b2c5c98bd8e330",
+    "original_bytes_preserved": true,
+    "new_ai_generation": false,
+    "retrieval_status": "FILE_RECOVERED_AND_VISUALLY_VERIFIED",
+    "integration_status": "DEVELOPMENT_BROWSER_VERIFIED_NOT_DEPLOYED",
+    "actual_app_path": "artifacts/boltnew-app/public/tour-logos-v3/on_top.png",
+    "preserved_original_path": "docs/assets/tour-logos-v3/03_원본보존/온탑_ONTOP_제공원본.png"
+  },
+  {
+    "id": "gorae",
+    "venue_name": "고래",
+    "english_label": "Gorae",
+    "region": null,
+    "role": "venue_arrangement_thanks",
+    "source_library_file_id": "file_0000000057f8820696d3f0cb69dd58c9",
+    "source_original_filename": "KakaoTalk_20251115_150610914_04.jpg",
+    "original_path": "03_원본보존/고래_GORAE_제공화면_원본.jpg",
+    "app_asset_path": "02_앱연결용_로고/고래_GORAE_감사용_로고영역추출.png",
+    "source_kind": "사용자 제공 화면에서 흰색 로고 영역만 추출",
+    "source_note": "대관 도움 감사용, 행사장/공동주최로 임의 지정 금지",
+    "original_dimensions_px": [
+      837,
+      2048
+    ],
+    "app_dimensions_px": [
+      837,
+      839
+    ],
+    "crop_xyxy_on_source": [
+      0,
+      605,
+      837,
+      1444
+    ],
+    "original_sha256": "bbe02281926fff7a032a53c636dd8dffb7a9d0cf3abfe68c8eafc4b4796ceb70",
+    "app_sha256": "66357b5575610113923e968213a6ba69f0447d357fbfe0a9dd956b74545e3f29",
+    "original_bytes_preserved": true,
+    "new_ai_generation": false,
+    "retrieval_status": "FILE_RECOVERED_AND_VISUALLY_VERIFIED",
+    "integration_status": "DEVELOPMENT_BROWSER_VERIFIED_NOT_DEPLOYED",
+    "actual_app_path": "artifacts/boltnew-app/public/tour-logos-v3/gorae.png",
+    "preserved_original_path": "docs/assets/tour-logos-v3/03_원본보존/고래_GORAE_제공화면_원본.jpg"
+  }
+]

@@ -7,7 +7,7 @@ import { logger } from './logger';
 const moduleDir = path.dirname(fileURLToPath(import.meta.url));
 
 function resolveFrontendDist(): string {
-  return path.resolve(moduleDir, '../public');
+  return path.resolve(moduleDir, 'public');
 }
 
 /** Serve the Vite production build from the same origin as /api (Render single-URL deploy). */

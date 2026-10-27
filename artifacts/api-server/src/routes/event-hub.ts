@@ -3,7 +3,7 @@ import { z } from "@workspace/api-zod";
 import { pgPool } from "../lib/pg-pool.js";
 import { EventHubService } from "../lib/event-hub-service.js";
 import { HubStore, HubError } from "../lib/event-hub-store.js";
-import { verifyAdminToken, eventHubProfileCommitted } from "./db.js";
+import { verifyAdminToken, eventHubProfileCommitted, eventHubChanged } from "./db.js";
 import { issueSessionToken } from "../lib/db-session-tokens.js";
 import { logger } from "../lib/logger.js";
 
@@ -197,6 +197,7 @@ router.post("/mutate", async (req, res, next) => {
       admin(req),
       req.body,
     );
+    eventHubChanged();
     if (result.profile) {
       const profile = result.profile as Record<string, unknown>;
       eventHubProfileCommitted(
@@ -276,8 +277,11 @@ router.use(
   },
 );
 // Only creates unpublished drafts, defaults OFF, no external messages or operating-clock changes.
-const timer = setInterval(() => {
-  void eventHubService.autoTick().catch(() => {});
-}, 60000);
-timer.unref();
+function scheduleTick() {
+  const timer = setTimeout(() => {
+    void eventHubService.autoTick().then(()=>eventHubChanged()).catch(()=>{}).finally(scheduleTick);
+  }, 60000 - Date.now()%60000);
+  timer.unref();
+}
+scheduleTick();
 export default router;

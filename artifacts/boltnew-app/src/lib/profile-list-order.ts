@@ -1,3 +1,4 @@
+import { isCompleteProfile } from './profile-session';
 import type { Profile } from '../types/app';
 
 /**
@@ -95,4 +96,19 @@ export function patchProfileInPlace(
     return merged;
   });
   return changed ? next : [...prev];
+}
+
+/** A list read is not proof of deletion; explicit DELETE/reset remains authoritative. */
+export function mergeProfileRefresh(
+  prev: readonly Profile[], incoming: readonly Profile[], owner: string | null,
+): Profile[] {
+  const rows = incoming.map(row => {
+    const before = prev.find(p => p.id === row.id);
+    const older = before && Date.parse(String((row as Profile & {updated_at?: string}).updated_at ?? '')) < Date.parse(String((before as Profile & {updated_at?: string}).updated_at ?? ''));
+    const partialOwner = row.id === owner && before && isCompleteProfile(before) && !isCompleteProfile(row);
+    return older || partialOwner ? before! : row;
+  });
+  const me = prev.find(p => p.id === owner);
+  if (me && !rows.some(p => p.id === owner)) rows.push(me);
+  return mergeProfilesPreserveOrder(prev, rows);
 }

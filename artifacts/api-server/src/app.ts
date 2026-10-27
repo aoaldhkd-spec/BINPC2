@@ -1,3 +1,4 @@
+import { createPrivatePreviewGate } from "./lib/private-preview";
 import express, { type Express, type Request, type Response, type NextFunction } from "express";
 import cors from "cors";
 import helmet from "helmet";
@@ -102,6 +103,7 @@ const app: Express = express();
 // 운영 환경에서는 기존과 동일하게 프록시 한 단계를 신뢰합니다.
 // 로컬에서는 직접 접속하므로 전달된 IP 헤더를 신뢰하지 않습니다.
 app.set('trust proxy', process.env.NODE_ENV === 'production' ? 1 : false);
+app.use(createPrivatePreviewGate());
 
 // ─── Security headers (helmet) ────────────────────────────────────────────────
 // Helmet sets X-Frame-Options, X-Content-Type-Options, X-XSS-Protection,

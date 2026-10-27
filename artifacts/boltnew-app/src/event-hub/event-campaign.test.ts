@@ -110,16 +110,18 @@ describe("latest campaign policy, never the V7 draft", () => {
 import {
   effectiveEventTheme,
   eventEndAt,
+  eventExpiryAt,
   drawModuleEnabled,
 } from "../../../../lib/api-zod/src/event-hub-modules";
 describe("soft-detached modules and KST theme expiry", () => {
   for (const [day, expiry] of [
-    ["2026-10-30", "2026-10-31T01:00:00+09:00"],
-    ["2026-10-31", "2026-11-01T00:30:00+09:00"],
+    ["2026-10-30", "2026-10-31T17:00:00+09:00"],
+    ["2026-10-31", "2026-11-01T17:00:00+09:00"],
   ])
     it(`${day} restores the base theme exactly at ${expiry}`, () => {
       const e = event(`halloween-${day}`);
-      expect(eventEndAt(e)).toBe(Date.parse(expiry));
+      expect(eventExpiryAt(e)).toBe(Date.parse(expiry));
+      expect(eventEndAt(e)).toBe(Date.parse(expiry) - 16 * 3600000);
       expect(effectiveEventTheme(e, new Date(Date.parse(expiry) - 1))).toBe(
         "halloween",
       );
@@ -152,4 +154,14 @@ describe("soft-detached modules and KST theme expiry", () => {
       }),
     ).toBe(false);
   });
+});
+
+it("V3 corrects an existing Saturday 00:30 draft to 01:00 while keeping tour's distinct end",()=>{
+ const legacy={...event("halloween-2026-10-31"),end:"00:30"};
+ expect(eventEndAt(legacy)).toBe(Date.parse("2026-11-01T01:00:00+09:00"));
+ expect(eventExpiryAt(legacy)).toBe(Date.parse("2026-11-01T17:00:00+09:00"));
+ const tour=event("tour-2026-11-06");
+ expect(eventEndAt(tour)).toBe(Date.parse("2026-11-07T00:30:00+09:00"));
+ const saturday=event("halloween-2026-10-31");
+ expect(effectiveEventTheme(saturday,new Date("2026-10-31T17:00:00+09:00"))).toBe("halloween");
 });

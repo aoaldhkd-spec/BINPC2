@@ -1,5 +1,7 @@
 import './lib/dns-ipv4-first.js';
+import './lib/private-preview-preflight.js';
 import app from "./app";
+import { initializePrivatePreviewSchema } from "./lib/private-preview.js";
 import { logger } from "./lib/logger";
 import { pgPool } from "./lib/pg-pool.js";
 import { gracefulShutdown, prepareForShutdown } from "./routes/db";
@@ -27,6 +29,7 @@ if (Number.isNaN(port) || port <= 0) {
   throw new Error(`Invalid PORT value: "${rawPort}"`);
 }
 
+await initializePrivatePreviewSchema();
 const server = app.listen(port, (err) => {
   if (err) {
     logger.error({ err }, "Error listening on port");
