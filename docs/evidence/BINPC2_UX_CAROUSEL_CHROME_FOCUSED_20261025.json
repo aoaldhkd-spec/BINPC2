@@ -1,0 +1,36 @@
+{
+  "schema": "BINPC2_UX_REACT_CAROUSEL_ACTUAL_CHROME_FOCUSED_V1",
+  "dateKst": "2026-10-25",
+  "branch": "feat/binpc2-carousel-ux-navigation-20261025",
+  "sourceBuildFrom": "b06a900280404f79c92e17cdbc6af907a0414c30 + UX",
+  "context": "SYNTHETIC_API_REAL_CHROMIUM, localhost only, external requests rejected",
+  "viewport": {
+    "width": 390,
+    "height": 844,
+    "theme": "light"
+  },
+  "status": "PASS",
+  "checksPassed": 13,
+  "checks": [
+    "profiles",
+    "carousel-keyboard-end-reaches-last-visible-participant",
+    "carousel-keyboard-home-returns-first",
+    "carousel-uses-auto-scroll-when-reduced-motion",
+    "carousel-responsive",
+    "carousel-returns-to-default-grid",
+    "real-touch-scroll-no-flip",
+    "settings",
+    "settings-110%",
+    "profiles-110%-reopened",
+    "하트, 채팅-110%",
+    "통계-110%",
+    "랭킹-110%"
+  ],
+  "javascriptErrors": 0,
+  "counterObservation": "23 visible other participants out of 24 synthetic profiles including self; test asserts last displayed position independent of count",
+  "testFailureHistory": "Initial test assumed 24/24; app correctly excluded own profile and displayed 23/23. Test corrected to assert exact visible last index without weakening navigation.",
+  "actualIosAndroidVerified": false,
+  "customerDbReadOrWritten": false,
+  "productionDeployment": false,
+  "screenshot": "qa-checkpoints/BINPC2_UX_CAROUSEL_REAL_CHROME_RETRY_RESULT_20261025/carousel-390-light.png"
+}
