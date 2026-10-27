@@ -278,7 +278,7 @@ function EventEditor({
         <HubButton
           onClick={() => {
             const s = hub.state!.settings!;
-            const { date, ...template } = v;
+            const { date: _date, ...template } = v;
             void hub.mutate({
               action: "settings.save",
               revision: s.revision ?? 0,
@@ -293,7 +293,11 @@ function EventEditor({
                       media: media
                         .split("\n")
                         .map((s) => s.trim())
-                        .filter(Boolean),
+                        .filter(
+                          (url) =>
+                            Boolean(url) &&
+                            !url.startsWith("/api/event-hub/media/"),
+                        ),
                     },
                   },
                 ],
@@ -301,7 +305,7 @@ function EventEditor({
             });
           }}
         >
-          현재 공지·장소·회비를 기본 템플릿으로 저장
+          현재 공지·장소·회비를 기본 템플릿으로 저장 (행사별 업로드 제외)
         </HubButton>
       )}
       <form
@@ -444,6 +448,49 @@ function EventEditor({
             onChange={(e) => setMedia(e.target.value)}
           />
         </HubField>
+        {event ? (
+          <HubField label="사진·포스터·영상 파일 업로드 (승인자 전용)">
+            <input
+              type="file"
+              accept="image/png,image/jpeg,image/webp,video/mp4,video/webm"
+              disabled={hub.status === "saving"}
+              onChange={async (e) => {
+                const file = e.currentTarget.files?.[0];
+                if (!file) return;
+                const max = file.type.startsWith("image/")
+                  ? 2 * 1024 * 1024
+                  : 5 * 1024 * 1024;
+                if (file.size > max) {
+                  hub.setError("이미지 2MB·영상 5MB 이하만 가능합니다.");
+                  return;
+                }
+                const bytes = new Uint8Array(await file.arrayBuffer());
+                let binary = "";
+                for (let i = 0; i < bytes.length; i += 8192)
+                  binary += String.fromCharCode(...bytes.subarray(i, i + 8192));
+                const r = await hub.mutate({
+                  action: "event.media.upload",
+                  target: event.id,
+                  revision: event.revision,
+                  data: { mime: file.type, base64: btoa(binary) },
+                });
+                if (r?.mediaUrl)
+                  setMedia((current) =>
+                    [current, String(r.mediaUrl)].filter(Boolean).join("\n"),
+                  );
+              }}
+            />
+            <p className="text-xs">
+              행사를 저장한 뒤 업로드합니다. PNG/JPEG/WebP 2MB, MP4/WebM 5MB
+              이하. 실제 신청자의 입금 승인 후 열람할 수 있습니다.
+              얼굴·연락처·계좌가 없는 안내 자료만 올리세요.
+            </p>
+          </HubField>
+        ) : (
+          <p className="text-xs">
+            행사 초안을 저장하면 파일 업로드가 열립니다.
+          </p>
+        )}
         <HubCheck
           label="선착순 혜택 ON"
           checked={v.benefitsEnabled}
@@ -892,6 +939,37 @@ export function AdminThreads({ hub, state }: { hub: Hub; state: HubState }) {
   return (
     <HubCard>
       <h3 className="font-black">문의함 · 관리자 먼저 연락</h3>
+      <p className="text-sm">
+        미처리 {state.threads.filter((t) => t.status !== "resolved").length}건 ·
+        안 읽은 문의{" "}
+        {
+          state.threads.filter((t) =>
+            t.messages.some((m) => m.sender === "user" && m.at > t.readAdminAt),
+          ).length
+        }
+        건
+      </p>
+      {t && (
+        <div className="flex items-center gap-2">
+          <span>{t.status === "resolved" ? "처리 완료" : "처리 중"}</span>
+          <HubButton
+            onClick={() => {
+              const reason = window.prompt("처리 상태 변경 사유");
+              if (reason)
+                void hub.mutate({
+                  action: "thread.resolve",
+                  target: t.id,
+                  data: {
+                    status: t.status === "resolved" ? "open" : "resolved",
+                    reason,
+                  },
+                });
+            }}
+          >
+            {t.status === "resolved" ? "다시 열기" : "처리 완료로 변경"}
+          </HubButton>
+        </div>
+      )}
       <HubField label="문의 대상">
         <select
           className={inputClass}

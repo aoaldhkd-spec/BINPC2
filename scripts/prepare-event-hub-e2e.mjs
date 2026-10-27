@@ -14,6 +14,7 @@ const names = new Set([
   "binpc2_hub_test",
   "binpc2_reset_test",
   "binpc2_hub_resume_dev",
+  "binpc2_hub_handoff_dev",
   "binpc2_hub_test_resume",
   "binpc2_reset_test_resume",
 ]);
@@ -21,6 +22,11 @@ function localDb(raw) {
   if (!raw) throw new Error("An explicit isolated database URL is required");
   const url = new URL(raw);
   if (
+    !["postgres:", "postgresql:"].includes(url.protocol) ||
+    url.hash ||
+    [...url.searchParams].some(
+      ([key, value]) => key !== "sslmode" || value !== "disable",
+    ) ||
     !["127.0.0.1", "localhost"].includes(url.hostname) ||
     !names.has(url.pathname.slice(1))
   )

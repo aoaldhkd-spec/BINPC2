@@ -8,6 +8,7 @@ import {
 } from "node:crypto";
 import {
   participantApplication,
+  participantThread,
   applicationAdmissionIssue,
   DEFAULT_PRIVACY_POLICY,
   PrivacyPolicyInput,
@@ -21,7 +22,6 @@ import {
   HubEventInput,
   HUB_CONSENT_VERSION,
   DEFAULT_HUB_SETTINGS,
-  profileMissing,
   quoteFor,
   nextSaturday,
   type HubApplication,
@@ -30,6 +30,11 @@ import {
   type HubAudit,
 } from "@workspace/api-zod";
 import { z } from "@workspace/api-zod";
+import {
+  HUB_MEDIA_PATH,
+  validateHubMedia,
+  type HubMedia,
+} from "./event-hub-media.js";
 import { planPrivacy } from "./event-hub-privacy.js";
 import { HubStore, HubTx, fail, digest } from "./event-hub-store.js";
 import { eventCycleMilestones } from "./db-event-cycle-heart.js";
@@ -72,6 +77,7 @@ export type HubMember = {
   history: HubAudit[];
 };
 export type HubThread = {
+  status?: "open" | "resolved";
   id: string;
   messages: { id: string; sender: string; text: string; at: string }[];
   readUserAt: string;
@@ -156,6 +162,7 @@ function validateEvent(raw: unknown) {
       fail("BENEFITS", "혜택 금액을 확인해 주세요.");
   }
   for (const u of [...e.media, ...(e.mapUrl ? [e.mapUrl] : [])]) {
+    if (e.media.includes(u) && HUB_MEDIA_PATH.test(u)) continue;
     const p = new URL(u);
     if (p.protocol !== "https:" || p.username || p.password)
       fail("MEDIA", "HTTPS 링크만 사용할 수 있습니다.");
@@ -299,11 +306,13 @@ export class EventHubService {
         ? (await tx.all<HubMember>("member")).find((m) => m.owner === owner)
         : undefined;
       const owners = admin
-        ? (await tx.all<HubOwner>("owner")).map(({ recoveryHash, ...o }) => o)
+        ? (await tx.all<HubOwner>("owner")).map(
+            ({ recoveryHash: _recoveryHash, ...o }) => o,
+          )
         : undefined;
       const members = admin
         ? (await tx.all<HubMember>("member")).map(
-            ({ salt, passwordHash, ...m }) => m,
+            ({ salt: _salt, passwordHash: _passwordHash, ...m }) => m,
           )
         : undefined;
       const errors = admin
@@ -349,7 +358,7 @@ export class EventHubService {
         enabled,
         events: safeEvents,
         applications: safeApps,
-        threads,
+        threads: admin ? threads : threads.map(participantThread),
         stocks,
         ...(settings
           ? {
@@ -405,11 +414,33 @@ export class EventHubService {
             409,
           );
       };
-      let result: Record<string, unknown> = {
+      const result: Record<string, unknown> = {
         saved: true,
         requestId: m.requestId,
       };
-      if (m.action === "event.save") {
+      if (m.action === "event.media.upload") {
+        requireAdmin();
+        const e = await this.event(tx, m.target);
+        revision(e.revision);
+        if (e.media.length >= 10)
+          fail("MEDIA_LIMIT", "행사 자료는 10개까지입니다.");
+        const file = validateHubMedia(m.data);
+        const id = randomUUID();
+        await tx.put("settings", `media:${id}`, {
+          id,
+          eventId: e.id,
+          mime: file.mime,
+          base64: file.base64,
+          createdAt: now,
+        });
+        const url = `/api/event-hub/media/${id}.${file.extension}`;
+        e.media.push(url);
+        e.revision++;
+        e.history.push(audit(actor, "event.media.upload", now));
+        await tx.put("event", e.id, e);
+        result.id = e.id;
+        result.mediaUrl = url;
+      } else if (m.action === "event.save") {
         requireAdmin();
         const old = m.target ? await this.event(tx, m.target) : undefined;
         if (old) revision(old.revision);
@@ -421,6 +452,17 @@ export class EventHubService {
           nextRank: old?.nextRank ?? 0,
           history: [...(old?.history ?? []), audit(actor, "event.save", now)],
         };
+        for (const url of e.media) {
+          const match = HUB_MEDIA_PATH.exec(url);
+          if (match) {
+            const media = await tx.get<HubMedia>(
+              "settings",
+              `media:${match[1]}`,
+            );
+            if (!media || media.eventId !== e.id)
+              fail("MEDIA", "이 행사에 업로드한 자료만 사용할 수 있습니다.");
+          }
+        }
         // A changed important notice invalidates prior entry consent, but never re-prices old quotes.
         if (old) {
           e.versions = [
@@ -472,6 +514,16 @@ export class EventHubService {
           validateEvent({ ...t.event, date: "2099-01-03" });
         if (saved.autoTemplate)
           validateEvent({ ...saved.autoTemplate, date: "2099-01-03" });
+        if (
+          [
+            ...saved.templates.map((t) => t.event),
+            ...(saved.autoTemplate ? [saved.autoTemplate] : []),
+          ].some((t) => t.media.some((url) => HUB_MEDIA_PATH.test(url)))
+        )
+          fail(
+            "MEDIA_SCOPE",
+            "업로드 파일은 행사별 자료입니다. 새 행사에서 다시 업로드하세요.",
+          );
         await tx.put("settings", "global", {
           ...saved,
           revision: (old?.revision ?? 0) + 1,
@@ -1201,7 +1253,8 @@ export class EventHubService {
       } else if (
         m.action === "thread.send" ||
         m.action === "thread.read" ||
-        m.action === "thread.tag"
+        m.action === "thread.tag" ||
+        m.action === "thread.resolve"
       ) {
         const id = admin ? text(m.target) : owner;
         if (!(await tx.get<HubOwner>("owner", id)))
@@ -1223,6 +1276,7 @@ export class EventHubService {
               "THREAD_LIMIT",
               "문의 기록 보관 한도에 도달했습니다. 관리자에게 문의해 주세요.",
             );
+          if (!admin) t.status = "open";
           t.messages.push({
             id: m.requestId,
             sender: admin ? "admin" : "user",
@@ -1232,6 +1286,12 @@ export class EventHubService {
         } else if (m.action === "thread.read") {
           if (admin) t.readAdminAt = now;
           else t.readUserAt = now;
+        } else if (m.action === "thread.resolve") {
+          requireAdmin();
+          t.status = z.enum(["open", "resolved"]).parse(m.data.status);
+          t.history.push(
+            audit(actor, `thread.${t.status}`, now, text(m.data.reason, 500)),
+          );
         } else {
           requireAdmin();
           t.tags = z
@@ -1253,7 +1313,7 @@ export class EventHubService {
         await tx.put("thread", id, t);
       } else fail("ACTION", "지원하지 않는 동작입니다.");
       // Recovery codes are one-time responses, never durable receipt payloads.
-      const { recoveryCode, ...receiptResult } = result;
+      const { recoveryCode: _recoveryCode, ...receiptResult } = result;
       await tx.put("request", key, {
         hash,
         result: receiptResult,
@@ -1282,7 +1342,8 @@ export class EventHubService {
       const parts = token.split(".");
       if (parts.length !== 2) throw new Error();
       const [payload, mac] = parts;
-      if (!/^[A-Za-z0-9_-]+$/.test(payload) || !/^[a-f0-9]{64}$/.test(mac)) throw new Error();
+      if (!/^[A-Za-z0-9_-]+$/.test(payload) || !/^[a-f0-9]{64}$/.test(mac))
+        throw new Error();
       const expected = createHmac("sha256", this.secret)
         .update("hub-marketing-unsubscribe:" + payload)
         .digest();
@@ -1387,6 +1448,29 @@ export class EventHubService {
         : { saved: false, requestId };
     });
   }
+  async media(id: string, owner: string, admin = false) {
+    return this.store.transaction(async (tx) => {
+      const file = await tx.get<HubMedia>("settings", `media:${id}`);
+      if (!file) fail("MEDIA", "자료에 접근할 수 없습니다.", 404);
+      if (!admin) {
+        const account = await tx.get<HubOwner>("owner", owner);
+        const apps = await tx.all<HubApplication>("application");
+        if (
+          !account ||
+          account.erasedAt ||
+          !apps.some(
+            (a) =>
+              a.owner === owner &&
+              a.eventId === file.eventId &&
+              a.payment === "approved" &&
+              !a.erasedAt,
+          )
+        )
+          fail("MEDIA", "자료에 접근할 수 없습니다.", 404);
+      }
+      return file;
+    });
+  }
   async memberLogin(nickname: string, password: string) {
     const result = await this.store.transaction(async (tx) => {
       const member = (await tx.all<HubMember>("member")).find(
@@ -1408,6 +1492,7 @@ export class EventHubService {
       if (
         !member ||
         !own ||
+        own.erasedAt ||
         !timingSafeEqual(candidate, Buffer.from(member.passwordHash, "hex"))
       ) {
         if (own) {

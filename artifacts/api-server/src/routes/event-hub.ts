@@ -64,6 +64,48 @@ router.get("/receipt/:requestId", async (req, res, next) => {
     next(e);
   }
 });
+router.get("/media/:file", async (req, res, next) => {
+  try {
+    const match = /^([a-f0-9-]{36})\.(png|jpg|webp|mp4|webm)$/.exec(
+      String(req.params.file),
+    );
+    if (!match) throw new HubError(404, "MEDIA", "자료에 접근할 수 없습니다.");
+    const file = await eventHubService.media(
+      match[1],
+      req.session.hubOwner ?? "",
+      admin(req),
+    );
+    const bytes = Buffer.from(file.base64, "base64");
+    res.setHeader("Content-Type", file.mime);
+    res.setHeader("X-Content-Type-Options", "nosniff");
+    res.setHeader("Content-Security-Policy", "default-src 'none'; sandbox");
+    res.setHeader("Accept-Ranges", "bytes");
+    const range = req.get("range");
+    if (range) {
+      const m = /^bytes=(\d+)-(\d*)$/.exec(range);
+      const start = m ? Number(m[1]) : -1,
+        end = m?.[2] ? Number(m[2]) : bytes.length - 1;
+      if (
+        !m ||
+        !Number.isSafeInteger(start) ||
+        !Number.isSafeInteger(end) ||
+        start < 0 ||
+        start > end ||
+        end >= bytes.length
+      ) {
+        res.setHeader("Content-Range", `bytes */${bytes.length}`);
+        res.status(416).end();
+        return;
+      }
+      res.setHeader("Content-Range", `bytes ${start}-${end}/${bytes.length}`);
+      res.status(206).send(bytes.subarray(start, end + 1));
+      return;
+    }
+    res.send(bytes);
+  } catch (e) {
+    next(e);
+  }
+});
 router.post("/unsubscribe", async (req, res, next) => {
   try {
     res.json(

@@ -1,5 +1,6 @@
 import { beforeEach, afterAll, describe, expect, it } from 'vitest';
 import pg from 'pg';
+import { isolatedFixtureDatabase } from './event-hub-isolation.js';
 import { atomicEventReset, type ResetPgPool, type ResetPgClient } from './db-event-reset-transaction.js';
 import { EventAdmissionClosedDuringWrite, persistNewParticipantForCycle } from './db-event-profile-write.js';
 import { persistNpcHeartAtomically } from './db-npc-heart-atomic.js';
@@ -62,6 +63,7 @@ function options() {
 describe('real ephemeral PostgreSQL reset and rollback (no production data)', () => {
   beforeEach(async () => {
     if (!pool) return;
+    isolatedFixtureDatabase(url!, ["binpc2_reset_test","binpc2_reset_test_resume"]);
     await pool.query(SQL);
     await pool.query('TRUNCATE app_kv_rows');
     await insert('app_settings','settings',settings);

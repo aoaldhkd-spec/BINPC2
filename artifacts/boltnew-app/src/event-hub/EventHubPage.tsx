@@ -7,6 +7,7 @@ import {
   HUB_CONSENT_VERSION,
   profileMissing,
   savedRecoveryCode,
+  rememberRecoveryCode,
   recoverHub,
   hubFetch,
   type PrivateApplication,
@@ -70,18 +71,26 @@ export default function EventHubPage({ path }: { path: string }) {
       !app.profile.mbti
     )
       setEditing(true);
-  }, [app?.id, app?.stage]);
+  }, [
+    app?.id,
+    app?.stage,
+    app?.consent?.profileNow,
+    app?.profile.lastStep,
+    app?.profile.mbti,
+  ]);
   useEffect(() => {
     setEditing(false);
   }, [appId, eventId]);
+  const waitingForEvent = !!app && app.stage >= 4;
+  const refreshHub = hub.load;
   useEffect(() => {
-    if (!app || app.stage < 4) return;
+    if (!waitingForEvent) return;
     const timer = window.setInterval(() => {
       if (document.visibilityState === "visible")
-        void hub.load().catch(() => {});
+        void refreshHub().catch(() => {});
     }, 10000);
     return () => clearInterval(timer);
-  }, [app?.id, app?.stage, hub.load]);
+  }, [waitingForEvent, refreshHub]);
   if (!s)
     return (
       <main className="min-h-screen bg-slate-50 p-5">
@@ -265,10 +274,7 @@ export default function EventHubPage({ path }: { path: string }) {
                             password: loginPw,
                           });
                           clearOnsiteBrowserIdentity();
-                          localStorage.setItem(
-                            "binpc2_event_recovery_v6",
-                            login.recoveryCode,
-                          );
+                          rememberRecoveryCode(login.recoveryCode);
                           setLoginPw("");
                           await hub.load();
                         } catch (e) {

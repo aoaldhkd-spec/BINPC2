@@ -1,3 +1,4 @@
+import { isolatedFixtureDatabase } from "./event-hub-isolation.js";
 import { beforeAll, beforeEach, afterAll, describe, expect, it } from "vitest";
 import pg from "pg";
 import { readFileSync } from "node:fs";
@@ -5,7 +6,10 @@ import { randomBytes, randomUUID } from "node:crypto";
 import { EventHubService } from "./event-hub-service.js";
 import { atomicEventReset } from "./db-event-reset-transaction.js";
 import { HubStore } from "./event-hub-store.js";
-import { executePrivacyPlanForIsolatedTest } from "./event-hub-privacy.js";
+import {
+  executePrivacyPlanForIsolatedTest,
+  planPrivacy,
+} from "./event-hub-privacy.js";
 import type { HubApplication, HubEvent } from "@workspace/api-zod";
 import {
   HUB_CONSENT_VERSION,
@@ -13,6 +17,7 @@ import {
   profileMissing,
   nextSaturday,
   DEFAULT_HUB_SETTINGS,
+  DEFAULT_PRIVACY_POLICY,
 } from "@workspace/api-zod";
 const url = process.env.HUB_TEST_DATABASE_URL;
 const suite = describe.skipIf(!url);
@@ -160,10 +165,8 @@ suite("event hub V6 — actual isolated PostgreSQL transactions", () => {
       ],
     );
   beforeAll(async () => {
-    if (!url || !/^binpc2_hub_test/.test(new URL(url).pathname.slice(1)))
-      throw new Error(
-        "Refuse to modify any DB except explicitly named binpc2_hub_test*",
-      );
+    if (!url) throw new Error("An explicit isolated fixture URL is required");
+    isolatedFixtureDatabase(url, ["binpc2_hub_test", "binpc2_hub_test_resume"]);
     await pool.query(
       readFileSync(
         new URL("../../migrations/20261027_event_hub.sql", import.meta.url),
@@ -1149,7 +1152,7 @@ suite("event hub V6 — actual isolated PostgreSQL transactions", () => {
   });
   it("saved templates reproduce explicitly chosen fees/notices in a Saturday draft without opening recruitment", async () => {
     const e = (await adminState()).events[0];
-    const { date, ...template } = e;
+    const { date: _date, ...template } = e;
     await call(
       "settings.save",
       "",
@@ -1240,59 +1243,463 @@ suite("event hub V6 — actual isolated PostgreSQL transactions", () => {
   });
   it("keeps internal administrator notes out of the participant projection", async () => {
     const id = await create();
-    await call("admin.application.note", id, {reason:"PRIVATE-ADMIN-NOTE"}, (await app(id)).revision, true);
+    await call(
+      "admin.application.note",
+      id,
+      { reason: "PRIVATE-ADMIN-NOTE" },
+      (await app(id)).revision,
+      true,
+    );
     expect(JSON.stringify(await adminState())).toContain("PRIVATE-ADMIN-NOTE");
-    expect(JSON.stringify(await service.state(owner))).not.toContain("PRIVATE-ADMIN-NOTE");
+    expect(JSON.stringify(await service.state(owner))).not.toContain(
+      "PRIVATE-ADMIN-NOTE",
+    );
   });
   it("reviews privacy cases with separate identity evidence and participant-safe messages; draft plans never execute", async () => {
     await create();
     await call("privacy.request");
-    await expect(call("admin.privacy.review", owner, {status:"reviewed",reason:"PRIVATE-REVIEW"}, 1, false)).rejects.toThrow();
-    await expect(call("admin.privacy.review", owner, {status:"reviewed",reason:"PRIVATE-REVIEW"}, 1, true)).rejects.toThrow();
-    await call("admin.privacy.review", owner, {status:"reviewed",reason:"PRIVATE-REVIEW",identityConfirmed:true,publicMessage:"검토 중입니다"}, 1, true);
+    await expect(
+      call(
+        "admin.privacy.review",
+        owner,
+        { status: "reviewed", reason: "PRIVATE-REVIEW" },
+        1,
+        false,
+      ),
+    ).rejects.toThrow();
+    await expect(
+      call(
+        "admin.privacy.review",
+        owner,
+        { status: "reviewed", reason: "PRIVATE-REVIEW" },
+        1,
+        true,
+      ),
+    ).rejects.toThrow();
+    await call(
+      "admin.privacy.review",
+      owner,
+      {
+        status: "reviewed",
+        reason: "PRIVATE-REVIEW",
+        identityConfirmed: true,
+        publicMessage: "검토 중입니다",
+      },
+      1,
+      true,
+    );
     const state = await service.state(owner);
-    expect(state.privacyCase).toMatchObject({status:"reviewed",publicMessage:"검토 중입니다"});
+    expect(state.privacyCase).toMatchObject({
+      status: "reviewed",
+      publicMessage: "검토 중입니다",
+    });
     expect(JSON.stringify(state)).not.toContain("PRIVATE-REVIEW");
     const result = await call("admin.privacy.plan", owner, {}, undefined, true);
-    expect((result.plan as {blocked:string[]}).blocked).toContain("운영 보관·파기 정책이 검토 초안입니다. 운영 파기는 승인 전 실행하지 않습니다.");
+    expect((result.plan as { blocked: string[] }).blocked).toContain(
+      "운영 보관·파기 정책이 검토 초안입니다. 운영 파기는 승인 전 실행하지 않습니다.",
+    );
     expect((await adminState()).applications).toHaveLength(1);
   });
   it("rotates recovery only after administrator identity checks and never stores the new code in receipts", async () => {
-    await expect(call("admin.owner.recover",owner,{reason:"격리 본인 확인"},undefined,true)).rejects.toThrow();
-    const result=await call("admin.owner.recover",owner,{reason:"격리 본인 확인",identityConfirmed:true},undefined,true);
+    await expect(
+      call(
+        "admin.owner.recover",
+        owner,
+        { reason: "격리 본인 확인" },
+        undefined,
+        true,
+      ),
+    ).rejects.toThrow();
+    const result = await call(
+      "admin.owner.recover",
+      owner,
+      { reason: "격리 본인 확인", identityConfirmed: true },
+      undefined,
+      true,
+    );
     expect(typeof result.recoveryCode).toBe("string");
-    expect(await service.session(String(result.recoveryCode),false)).toBe(owner);
-    const records=await pool.query("SELECT data FROM event_hub_records");
-    expect(JSON.stringify(records.rows)).not.toContain(String(result.recoveryCode));
+    expect(await service.session(String(result.recoveryCode), false)).toBe(
+      owner,
+    );
+    const records = await pool.query("SELECT data FROM event_hub_records");
+    expect(JSON.stringify(records.rows)).not.toContain(
+      String(result.recoveryCode),
+    );
   });
   it("separates advertising consent from membership and provides an idempotent purpose-limited unsubscribe", async () => {
     await create();
-    await call("marketing.preference","",{enabled:true});
-    expect((await service.state(owner)).marketingPreference).toMatchObject({enabled:true});
-    const token=service.unsubscribeToken(owner);
-    await expect(service.unsubscribe(token+"invalid")).rejects.toThrow();
+    await call("marketing.preference", "", { enabled: true });
+    expect((await service.state(owner)).marketingPreference).toMatchObject({
+      enabled: true,
+    });
+    const token = service.unsubscribeToken(owner);
+    await expect(service.unsubscribe(token + "invalid")).rejects.toThrow();
     await service.unsubscribe(token);
     await service.unsubscribe(token);
-    expect((await service.state(owner)).marketingPreference).toMatchObject({enabled:false});
+    expect((await service.state(owner)).marketingPreference).toMatchObject({
+      enabled: false,
+    });
     expect((await adminState()).applications).toHaveLength(1);
-    const preview=await service.campaignPreview(eventId);
-    expect(preview).toMatchObject({externalSendingEnabled:false});
+    const preview = await service.campaignPreview(eventId);
+    expect(preview).toMatchObject({ externalSendingEnabled: false });
   });
   it("removes reusable membership if reuse consent is explicitly withdrawn before confirmation", async () => {
-    const id=await create();
-    await call("application.consent",id,{consent:{...consent,reuse:true},password:"Synthetic-test-pass-123"},(await app(id)).revision);
-    expect((await pool.query("SELECT id FROM event_hub_records WHERE kind='member'")).rowCount).toBe(1);
-    await call("application.consent",id,{consent:{...consent,reuse:false}},(await app(id)).revision);
-    expect((await pool.query("SELECT id FROM event_hub_records WHERE kind='member'")).rowCount).toBe(0);
+    const id = await create();
+    await call(
+      "application.consent",
+      id,
+      {
+        consent: { ...consent, reuse: true },
+        password: "Synthetic-test-pass-123",
+      },
+      (await app(id)).revision,
+    );
+    expect(
+      (await pool.query("SELECT id FROM event_hub_records WHERE kind='member'"))
+        .rowCount,
+    ).toBe(1);
+    await call(
+      "application.consent",
+      id,
+      { consent: { ...consent, reuse: false } },
+      (await app(id)).revision,
+    );
+    expect(
+      (await pool.query("SELECT id FROM event_hub_records WHERE kind='member'"))
+        .rowCount,
+    ).toBe(0);
   });
 
   it("refuses privacy execution without explicit isolated-test confirmations or with a stale fingerprint", async () => {
     await create();
-    const store=new HubStore(pool);
-    const denied={mode:"isolated-test" as const,policyConfirmed:false,identityConfirmed:false,backupConfirmed:false};
-    await expect(executePrivacyPlanForIsolatedTest(store,owner,"stale",denied,now())).rejects.toThrow("운영 파기는 승인 전 비활성");
-    await expect(executePrivacyPlanForIsolatedTest(store,owner,"stale",{...denied,policyConfirmed:true,identityConfirmed:true,backupConfirmed:true},now())).rejects.toThrow("원본 또는 정책이 변경");
+    const store = new HubStore(pool);
+    const denied = {
+      mode: "isolated-test" as const,
+      policyConfirmed: false,
+      identityConfirmed: false,
+      backupConfirmed: false,
+    };
+    await expect(
+      executePrivacyPlanForIsolatedTest(store, owner, "stale", denied, now()),
+    ).rejects.toThrow("운영 파기는 승인 전 비활성");
+    await expect(
+      executePrivacyPlanForIsolatedTest(
+        store,
+        owner,
+        "stale",
+        {
+          ...denied,
+          policyConfirmed: true,
+          identityConfirmed: true,
+          backupConfirmed: true,
+        },
+        now(),
+      ),
+    ).rejects.toThrow("원본 또는 정책이 변경");
     expect((await adminState()).applications).toHaveLength(1);
   });
 
+  it("keeps inquiry triage private, closes/reopens cases and reopens when a participant sends again", async () => {
+    await call("thread.send", "", { text: "가상 문의", collection: true });
+    await call(
+      "thread.tag",
+      owner,
+      { tags: ["검토 필요"], reason: "PRIVATE-TRIAGE-NOTE" },
+      undefined,
+      true,
+    );
+    expect(JSON.stringify(await adminState())).toContain("PRIVATE-TRIAGE-NOTE");
+    const own = await service.state(owner);
+    expect(own.threads[0].history).toEqual([]);
+    expect(own.threads[0].tags).toEqual([]);
+    expect(JSON.stringify(own)).not.toContain("PRIVATE-TRIAGE-NOTE");
+    await expect(
+      call("thread.resolve", owner, {
+        status: "resolved",
+        reason: "권한 없음",
+      }),
+    ).rejects.toThrow();
+    await call(
+      "thread.resolve",
+      owner,
+      { status: "resolved", reason: "격리 문의 처리" },
+      undefined,
+      true,
+    );
+    expect((await adminState()).threads[0].status).toBe("resolved");
+    const id = randomUUID();
+    await call(
+      "thread.send",
+      "",
+      { text: "추가 문의", collection: true },
+      undefined,
+      false,
+      owner,
+      id,
+    );
+    await call(
+      "thread.send",
+      "",
+      { text: "추가 문의", collection: true },
+      undefined,
+      false,
+      owner,
+      id,
+    );
+    expect((await adminState()).threads[0]).toMatchObject({ status: "open" });
+    expect((await adminState()).threads[0].messages).toHaveLength(2);
+  });
+
+  it("uploads passive media with admin/revision/content/size checks and requires this event's payment approval to read", async () => {
+    const png = Buffer.from(
+      "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+jZAAAAABJRU5ErkJggg==",
+      "base64",
+    ).toString("base64");
+    await expect(
+      call(
+        "event.media.upload",
+        eventId,
+        { mime: "image/png", base64: png },
+        2,
+      ),
+    ).rejects.toThrow();
+    await expect(
+      call(
+        "event.media.upload",
+        eventId,
+        {
+          mime: "image/png",
+          base64: Buffer.from("<html>unsafe</html>").toString("base64"),
+        },
+        2,
+        true,
+      ),
+    ).rejects.toThrow();
+    await expect(
+      call(
+        "event.media.upload",
+        eventId,
+        {
+          mime: "image/png",
+          base64: Buffer.alloc(2 * 1024 * 1024 + 1).toString("base64"),
+        },
+        2,
+        true,
+      ),
+    ).rejects.toThrow();
+    const result = await call(
+      "event.media.upload",
+      eventId,
+      { mime: "image/png", base64: png },
+      2,
+      true,
+    );
+    const mediaId = String(result.mediaUrl).split("/").at(-1)!.split(".")[0];
+    await expect(service.media(mediaId, owner)).rejects.toThrow();
+    const id = await create();
+    await approved(id);
+    expect((await service.media(mediaId, owner)).base64).toBe(png);
+    const stranger = await service.session(
+      randomBytes(32).toString("base64url"),
+      true,
+    );
+    await expect(service.media(mediaId, stranger)).rejects.toThrow();
+    expect((await service.media(mediaId, "", true)).mime).toBe("image/png");
+    const second = await call(
+      "event.save",
+      "",
+      { ...event, date: "2026-11-07" },
+      undefined,
+      true,
+    );
+    await expect(
+      call(
+        "event.save",
+        String(second.id),
+        { ...event, date: "2026-11-07", media: [result.mediaUrl] },
+        1,
+        true,
+      ),
+    ).rejects.toThrow();
+  });
+  const testPrivacyPolicy = async (financeDays = 1) => {
+    await call(
+      "admin.privacy.policy",
+      "",
+      {
+        ...DEFAULT_PRIVACY_POLICY,
+        backupProcedure: "격리 fixture 백업 없음 · 시험 확인",
+        rules: Object.fromEntries(
+          Object.keys(DEFAULT_PRIVACY_POLICY.rules).map((k) => [
+            k,
+            {
+              days: k === "finance" ? financeDays : 1,
+              basis: "법적 정책이 아닌 합성 fixture 시험 기준",
+            },
+          ]),
+        ),
+      },
+      0,
+      true,
+    );
+  };
+  const eraseFixture = async (who = owner) => {
+    const future = new Date("2028-11-01T00:00:00Z");
+    const store = new HubStore(pool);
+    const plan = await store.transaction((tx) => planPrivacy(tx, who, future));
+    return executePrivacyPlanForIsolatedTest(
+      store,
+      who,
+      plan.fingerprint,
+      {
+        mode: "isolated-test",
+        policyConfirmed: true,
+        identityConfirmed: true,
+        backupConfirmed: true,
+      },
+      future,
+    );
+  };
+  it("erases only expired synthetic hub records, scrubs duplicate receipts and permits two independent erasures without hash collisions", async () => {
+    const id = await create();
+    await complete(id);
+    await call("thread.send", "", {
+      text: "synthetic private message",
+      collection: true,
+    });
+    await call("privacy.request");
+    await testPrivacyPolicy();
+    await eraseFixture();
+    expect((await adminState()).applications).toHaveLength(0);
+    expect((await adminState()).threads).toHaveLength(0);
+    await expect(service.state(owner)).rejects.toThrow();
+    const all = await new HubStore(pool).transaction(async (tx) => ({
+      requests: await tx.all<{ result: unknown }>("request"),
+      owners: await tx.all<{ erasedAt?: string }>("owner"),
+    }));
+    expect(JSON.stringify(all.requests)).not.toContain(
+      "synthetic private message",
+    );
+    expect(all.owners[0].erasedAt).toBeTruthy();
+    const secondOwner = await service.session(
+      randomBytes(32).toString("base64url"),
+      true,
+    );
+    await create("두번째가상", secondOwner);
+    await eraseFixture(secondOwner);
+    const owners = await new HubStore(pool).transaction((tx) =>
+      tx.all<{ erasedAt?: string; recoveryHash: string }>("owner"),
+    );
+    expect(owners.filter((x) => x.erasedAt)).toHaveLength(2);
+    expect(new Set(owners.map((x) => x.recoveryHash)).size).toBe(2);
+  });
+  it("preserves a paid financial ledger while minimizing expired profile/contact data and blocks holds and onsite records", async () => {
+    const id = await create();
+    await approved(id);
+    await testPrivacyPolicy(3650);
+    await call(
+      "admin.privacy.hold",
+      owner,
+      { enabled: true, reason: "격리 분쟁 보류" },
+      undefined,
+      true,
+    );
+    await expect(eraseFixture()).rejects.toThrow("보관 보류");
+    expect((await app(id)).basic.phone).toBe(basic().phone);
+    await call(
+      "admin.privacy.hold",
+      owner,
+      { enabled: false, reason: "격리 보류 해제" },
+      undefined,
+      true,
+    );
+    await eraseFixture();
+    const retained = await app(id);
+    expect(retained.payment).toBe("approved");
+    expect(retained.quote?.fee).toBe(40000);
+    expect(retained.basic.phone).toBe("");
+    expect(retained.basic.depositor).toBe("");
+    expect(retained.erasedAt).toBeTruthy();
+  });
+
+  it("refuses disposal of linked onsite profiles and rolls back when receipt scrubbing fails", async () => {
+    const id = await create();
+    await approved(id);
+    await activate();
+    await call(
+      "application.profile",
+      id,
+      { profile: fullProfile },
+      (await app(id)).revision,
+    );
+    await call(
+      "application.enter",
+      id,
+      { deviceSecret: "synthetic-private-device" },
+      (await app(id)).revision,
+    );
+    await testPrivacyPolicy();
+    await expect(eraseFixture()).rejects.toThrow("현장 데이터 범위");
+    expect(
+      (
+        await pool.query(
+          "SELECT row_id FROM app_kv_rows WHERE table_name='profiles'",
+        )
+      ).rowCount,
+    ).toBe(1);
+    // A separate, newly created owner has no linked onsite records.
+    const other = await service.session(
+      randomBytes(32).toString("base64url"),
+      true,
+    );
+    const second = await create("롤백가상", other);
+    await pool.query(
+      "CREATE OR REPLACE FUNCTION hub_privacy_fixture_fail() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN IF OLD.kind='request' THEN RAISE EXCEPTION 'fixture rollback'; END IF; RETURN NEW; END $$",
+    );
+    await pool.query(
+      "CREATE TRIGGER hub_privacy_fixture_fail BEFORE UPDATE ON event_hub_records FOR EACH ROW EXECUTE FUNCTION hub_privacy_fixture_fail()",
+    );
+    try {
+      await expect(eraseFixture(other)).rejects.toThrow("fixture rollback");
+      expect((await app(second)).basic.nickname).toBe("롤백가상");
+    } finally {
+      await pool.query(
+        "DROP TRIGGER IF EXISTS hub_privacy_fixture_fail ON event_hub_records",
+      );
+      await pool.query("DROP FUNCTION IF EXISTS hub_privacy_fixture_fail()");
+    }
+  });
+  it("blocks new production recruitment with draft privacy terms but preserves approved recovery and allows closure", async () => {
+    const id = await create();
+    await approved(id);
+    const other = await service.session(
+      randomBytes(32).toString("base64url"),
+      true,
+    );
+    const previous = process.env.NODE_ENV;
+    try {
+      process.env.NODE_ENV = "production";
+      await expect(create("운영차단가상", other)).rejects.toThrow("개인정보");
+      const revision = (await adminState()).events.find(
+        (e) => e.id === eventId,
+      )!.revision;
+      await expect(
+        call("event.recruitment", eventId, { enabled: true }, revision, true),
+      ).rejects.toThrow("개인정보");
+      const own = await service.state(owner);
+      expect(own.applications[0].payment).toBe("approved");
+      expect(own.applications[0]).toMatchObject({
+        venue: { address: event.address },
+      });
+      await call(
+        "event.recruitment",
+        eventId,
+        { enabled: false },
+        revision,
+        true,
+      );
+    } finally {
+      process.env.NODE_ENV = previous;
+    }
+  });
 });

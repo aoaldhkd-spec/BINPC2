@@ -7,20 +7,15 @@ import {
   PROFILE_CONSENT_VERSION,
   DEFAULT_HUB_SETTINGS,
   quoteFor,
-  profileMissing,
   type HubApplication,
   type HubEvent,
 } from "../../../../lib/api-zod/src/event-hub";
 import {
   applicationAdmissionIssue,
   participantApplication,
+  participantThread,
 } from "../../../../lib/api-zod/src/event-hub-policy";
-import type {
-  HubCommand,
-  HubState,
-  HubController,
-  HubThread,
-} from "../lib/event-hub-client";
+import type { HubCommand, HubState, HubThread } from "../lib/event-hub-client";
 export type LabStage =
   | "기본정보 작성 중"
   | "공지 동의 완료"
@@ -82,6 +77,12 @@ function eventFixture(input?: HubEvent): HubEvent {
           value: 10000,
           label: "선착순 1~3등 혜택",
         },
+      ],
+      media: [
+        "data:image/svg+xml," +
+          encodeURIComponent(
+            '<svg xmlns="http://www.w3.org/2000/svg" width="600" height="240"><rect width="600" height="240" fill="teal"/><text x="30" y="130" fill="white" font-size="38">BINPC2 V6 - TEST ONLY</text></svg>',
+          ),
       ],
       cardsEnabled: true,
     }),
@@ -186,7 +187,11 @@ export class EventLaboratoryStore {
   }
   configureEvent(raw: unknown) {
     const parsed = HubEventInput.parse(raw);
-    this.value.event = { ...this.value.event, ...parsed, revision: this.value.event.revision + 1 };
+    this.value.event = {
+      ...this.value.event,
+      ...parsed,
+      revision: this.value.event.revision + 1,
+    };
     // Confirmed applications keep their agreed quote, just as on the server.
     for (const app of this.value.applications) {
       if (!app.confirmedAt) app.quote = quoteFor(this.value.event, app.rank);
@@ -273,7 +278,9 @@ export class EventLaboratoryStore {
       applications: admin
         ? this.value.applications
         : this.value.applications.map((a) => participantApplication(a, e)),
-      threads: [this.value.thread],
+      threads: [
+        admin ? this.value.thread : participantThread(this.value.thread),
+      ],
       stocks: admin
         ? [
             {
@@ -475,6 +482,7 @@ export class EventLaboratoryStore {
           throw new Error("문의 수집 동의가 필요합니다.");
         const text = String(data.text ?? "").trim();
         if (!text) throw new Error("문의 내용을 입력하세요.");
+        if (!admin) this.value.thread.status = "open";
         this.value.thread.messages.push({
           id: command.requestId,
           sender: admin ? "admin" : "user",
@@ -484,9 +492,15 @@ export class EventLaboratoryStore {
       } else if (action === "thread.read") {
         if (admin) this.value.thread.readAdminAt = now;
         else this.value.thread.readUserAt = now;
-      } else if (action === "thread.tag")
+      } else if (action === "thread.tag") {
+        if (!admin) throw new Error("관리자만 처리할 수 있습니다.");
         this.value.thread.tags = data.tags as string[];
-      else if (action === "stock.save") this.value.stock += Number(data.add);
+      } else if (action === "thread.resolve") {
+        if (!admin) throw new Error("관리자만 처리할 수 있습니다.");
+        if (!["open", "resolved"].includes(String(data.status)))
+          throw new Error("상태를 확인하세요.");
+        this.value.thread.status = data.status as "open" | "resolved";
+      } else if (action === "stock.save") this.value.stock += Number(data.add);
       else throw new Error("지원하지 않는 가상 동작입니다.");
       this.value.receipts[receiptKey] = { signature, result };
       this.value.audit.push(`${now} ${action}`);

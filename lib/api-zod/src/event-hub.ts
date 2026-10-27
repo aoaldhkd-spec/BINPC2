@@ -78,7 +78,19 @@ export const HubEventInput = z.object({
   benefits: z.array(Benefit).max(30).default([]),
   cardsEnabled: z.boolean().default(false),
   notificationsEnabled: z.boolean().default(false),
-  media: z.array(z.string().url().max(500)).max(10).default([]),
+  media: z
+    .array(
+      z.union([
+        z.string().url().max(500),
+        z
+          .string()
+          .regex(
+            /^\/api\/event-hub\/media\/[a-f0-9-]{36}\.(png|jpg|webp|mp4|webm)$/,
+          ),
+      ]),
+    )
+    .max(10)
+    .default([]),
 });
 export type HubEvent = z.infer<typeof HubEventInput> & {
   id: string;
@@ -102,7 +114,7 @@ export type HubAudit = {
   reason?: string;
 };
 export type HubApplication = {
-  erasedAt?:string;
+  erasedAt?: string;
   id: string;
   eventId: string;
   owner: string;

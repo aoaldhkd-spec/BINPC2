@@ -30,6 +30,7 @@ export type PrivateApplication = Omit<HubApplication, "rank" | "owner"> & {
   venue?: { address: string; mapUrl: string };
 };
 export type HubThread = {
+  status?: "open" | "resolved";
   id: string;
   messages: { id: string; sender: string; text: string; at: string }[];
   readUserAt: string;
@@ -152,21 +153,30 @@ let sessionPromise: Promise<void> | null = null;
 export function savedRecoveryCode() {
   return recoveryRead();
 }
+export function rememberRecoveryCode(code: string) {
+  recoveryWrite(code);
+  creatingWrite(false);
+}
 export function clearOnsiteBrowserIdentity() {
-  localStorage.removeItem("matching_app_user_id");
-  for (const key of [
-    "session_bearer_v1",
-    "session_bearer_uid_v1",
-    "session_bearer_exp_v1",
-  ])
-    sessionStorage.removeItem(key);
-  sessionStorage.removeItem("binpc2_inquiry_draft_v6");
+  try {
+    localStorage.removeItem("matching_app_user_id");
+  } catch {}
+  try {
+    for (const key of [
+      "session_bearer_v1",
+      "session_bearer_uid_v1",
+      "session_bearer_exp_v1",
+      "binpc2_inquiry_draft_v6",
+    ])
+      sessionStorage.removeItem(key);
+  } catch {
+    /* A blocked browser store must not invalidate server recovery. */
+  }
 }
 export async function recoverHub(code: string) {
   await hubFetch("/session", { recoveryCode: code, create: false });
   clearOnsiteBrowserIdentity();
-  recoveryWrite(code);
-  creatingWrite(false);
+  rememberRecoveryCode(code);
 }
 async function ensureSession() {
   if (sessionPromise) return sessionPromise;
@@ -247,15 +257,31 @@ export function useEventHub(admin = false) {
       setStatus("saving");
       setError("");
       const signature = JSON.stringify(command);
-      if (pending.current?.signature !== signature)
+      const retry = pending.current?.signature === signature;
+      if (!retry)
         pending.current = {
           signature,
           command: { ...command, requestId: crypto.randomUUID() },
         };
       try {
+        // Retry checks durable acknowledgement first. Reuse the nonce if no receipt exists.
+        // Entry still replays the mutation to refresh its HttpOnly/bearer binding.
+        if (retry) {
+          const receipt = await hubFetch<{ saved: boolean; id?: string }>(
+            `/receipt/${pending.current!.command.requestId}`,
+            undefined,
+            admin,
+          );
+          if (receipt.saved && command.action !== "application.enter") {
+            await load();
+            pending.current = null;
+            setStatus("saved");
+            return { ...receipt };
+          }
+        }
         const result = await hubFetch<Record<string, unknown>>(
           "/mutate",
-          pending.current.command,
+          pending.current!.command,
           admin,
         );
         await load();

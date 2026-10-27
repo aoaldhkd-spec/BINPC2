@@ -24,7 +24,8 @@ vi.mock("../lib/webPush", () => ({
 afterEach(() => {
   cleanup();
   vi.restoreAllMocks();
-  localStorage.clear();sessionStorage.clear();
+  localStorage.clear();
+  sessionStorage.clear();
 });
 describe("event hub profile draft persistence and sandbox", () => {
   it("keeps the existing MBTI screen until the actual server save resolves, then skips already-known birth year/location", async () => {
@@ -130,7 +131,7 @@ describe("client uncertain saves", () => {
   };
   it("acknowledges a lost response only after reading its durable receipt", async () => {
     let writes = 0;
-    vi.spyOn(globalThis, "fetch").mockImplementation(async (url, options) => {
+    vi.spyOn(globalThis, "fetch").mockImplementation(async (url, _options) => {
       if (String(url).endsWith("/mutate")) {
         writes++;
         throw new TypeError("network response lost");
@@ -184,5 +185,74 @@ describe("client uncertain saves", () => {
     });
     expect(result.current.status).toBe("saved");
     expect(ids[0]).toBe(ids[1]);
+  });
+});
+
+describe("session bootstrap and receipt-first recovery", () => {
+  const empty = {
+    enabled: true,
+    hasSession: false,
+    events: [],
+    applications: [],
+    threads: [],
+    stocks: [],
+  };
+  it("retries a failed initial session creation with the same recovery code, including after remount", async () => {
+    const bodies: { recoveryCode: string; create: boolean }[] = [];
+    vi.spyOn(globalThis, "fetch").mockImplementation(async (url, options) => {
+      if (String(url).endsWith("/session")) {
+        bodies.push(JSON.parse(String(options?.body)));
+        if (bodies.length === 1)
+          throw new TypeError("first creation response lost");
+        return new Response(JSON.stringify({ ok: true }));
+      }
+      return new Response(JSON.stringify(empty));
+    });
+    const first = renderHook(() => useEventHub());
+    await waitFor(() =>
+      expect(first.result.current.error).toContain(
+        "first creation response lost",
+      ),
+    );
+    first.unmount();
+    const second = renderHook(() => useEventHub());
+    await waitFor(() => expect(bodies).toHaveLength(2));
+    await waitFor(() => expect(second.result.current.state).toBeTruthy());
+    expect(bodies[0].create).toBe(true);
+    expect(bodies[1]).toEqual(bodies[0]);
+    expect(
+      localStorage.getItem("binpc2_event_recovery_v6:creating"),
+    ).toBeNull();
+  });
+  it("checks a previously uncertain request before retrying; a durable receipt avoids a second write", async () => {
+    let durable = false;
+    const sequence: string[] = [];
+    vi.spyOn(globalThis, "fetch").mockImplementation(async (url) => {
+      const path = String(url);
+      if (path.endsWith("/mutate")) {
+        sequence.push("write");
+        throw new TypeError("lost response");
+      }
+      if (path.includes("/receipt/")) {
+        sequence.push("receipt");
+        return new Response(
+          JSON.stringify({ saved: durable, id: durable ? "app" : undefined }),
+        );
+      }
+      return new Response(JSON.stringify(empty));
+    });
+    const { result } = renderHook(() => useEventHub(true));
+    await waitFor(() => expect(result.current.state).toBeTruthy());
+    const cmd = { action: "application.report", target: "app", revision: 2 };
+    await act(async () => {
+      await result.current.mutate(cmd);
+    });
+    expect(result.current.status).toBe("failed");
+    durable = true;
+    await act(async () => {
+      await result.current.mutate(cmd);
+    });
+    expect(sequence).toEqual(["write", "receipt", "receipt"]);
+    expect(result.current.status).toBe("saved");
   });
 });

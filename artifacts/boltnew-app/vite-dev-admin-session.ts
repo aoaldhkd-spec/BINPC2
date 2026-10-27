@@ -1,48 +1,80 @@
-/**
- * Vite-dev only. Never included in Netlify production builds (`apply: 'serve'`).
- * Mints a real production admin session from the gitignored credentials file
- * so local /admin can skip the login card and still persist password changes.
- */
-import { existsSync, readFileSync } from 'node:fs';
-import path from 'node:path';
+/** Local synthetic previews only; never reads an operator credential file. */
 import type { Plugin } from 'vite';
-
-const CRED = path.resolve(import.meta.dirname, '../api-server/.security-credentials.txt');
-const API = (process.env.API_PUBLIC_URL || 'https://binpc2.onrender.com').replace(/\/$/, '');
-const PHONE = '010-3878-6740';
-
-function readCred(prefix: string): string {
-  if (!existsSync(CRED)) return '';
-  for (const line of readFileSync(CRED, 'utf8').split(/\r?\n/)) {
-    if (line.startsWith(prefix)) return line.split(':').slice(1).join(':').trim();
+export function localDevAdminOrigin(
+  env: Record<string, string | undefined>,
+): string | null {
+  if (env.LOCAL_API !== '1' || !env.API_PUBLIC_URL) return null;
+  try {
+    const url = new URL(env.API_PUBLIC_URL);
+    if (
+      url.protocol !== 'http:' ||
+      !['127.0.0.1', 'localhost', '[::1]'].includes(url.hostname) ||
+      url.username ||
+      url.password ||
+      url.pathname !== '/' ||
+      url.search ||
+      url.hash
+    )
+      return null;
+    return url.origin;
+  } catch {
+    return null;
   }
-  return '';
 }
+const PHONE = '010-3878-6740';
 
 export function viteDevAdminSession(): Plugin {
   return {
     name: 'vite-dev-admin-session',
     apply: 'serve',
     configureServer(server) {
-      server.middlewares.use('/__dev/admin-session', async (_req, res) => {
+      server.middlewares.use('/__dev/admin-session', async (req, res) => {
         try {
-          const password = readCred('Admin login (/admin)');
-          if (!password) {
+          const local = ['127.0.0.1', '::1', '::ffff:127.0.0.1'].includes(
+            req.socket.remoteAddress ?? '',
+          );
+          if (!local || req.headers['sec-fetch-site'] === 'cross-site') {
+            res.statusCode = 403;
+            res.end();
+            return;
+          }
+          const API = localDevAdminOrigin(process.env);
+          const password = process.env.DEV_ADMIN_PASSWORD ?? '';
+          if (!API || !password) {
             res.statusCode = 404;
             res.setHeader('Content-Type', 'application/json');
-            res.end(JSON.stringify({ error: 'no local operator credential' }));
+            res.end(
+              JSON.stringify({
+                error: 'explicit isolated local admin binding required',
+              }),
+            );
             return;
           }
           const rpc = await fetch(`${API}/api/db/rpc/admin_create_session`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ p_phone: PHONE, p_admin_password: password }),
+            body: JSON.stringify({
+              p_phone: PHONE,
+              p_admin_password: password,
+            }),
           });
-          const json = await rpc.json().catch(() => ({})) as { data?: unknown; error?: { message?: string } };
-          if (rpc.status !== 200 || typeof json.data !== 'string' || !json.data) {
+          const json = (await rpc.json().catch(() => ({}))) as {
+            data?: unknown;
+            error?: { message?: string };
+          };
+          if (
+            rpc.status !== 200 ||
+            typeof json.data !== 'string' ||
+            !json.data
+          ) {
             res.statusCode = 403;
             res.setHeader('Content-Type', 'application/json');
-            res.end(JSON.stringify({ error: 'operator session mint failed', status: rpc.status }));
+            res.end(
+              JSON.stringify({
+                error: 'operator session mint failed',
+                status: rpc.status,
+              }),
+            );
             return;
           }
           res.statusCode = 200;
@@ -52,7 +84,9 @@ export function viteDevAdminSession(): Plugin {
         } catch {
           res.statusCode = 503;
           res.setHeader('Content-Type', 'application/json');
-          res.end(JSON.stringify({ error: 'operator session mint unavailable' }));
+          res.end(
+            JSON.stringify({ error: 'operator session mint unavailable' }),
+          );
         }
       });
     },

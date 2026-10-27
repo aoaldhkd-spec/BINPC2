@@ -1,3 +1,4 @@
+import { randomBytes } from "node:crypto";
 import {
   DEFAULT_PRIVACY_POLICY,
   draftPrivacyPlan,
@@ -217,13 +218,25 @@ export async function executePrivacyPlanForIsolatedTest(
       );
       if (!retained) {
         own.erasedAt = now.toISOString();
-        own.recoveryHash = "";
+        // A unique, unissued tombstone cannot collide with another erased owner.
+        own.recoveryHash = digest(randomBytes(32).toString("base64url"));
+        own.marketingConsent = {
+          enabled: false,
+          at: now.toISOString(),
+          version: "withdrawn",
+        };
+        own.restricted = undefined;
       }
       own.history = (own.history ?? []).map((h) => ({
         ...h,
         reason: undefined,
       }));
       if (own.privacyCase) {
+        own.privacyCase.history = own.privacyCase.history.map((h) => ({
+          ...h,
+          reason: undefined,
+        }));
+        own.privacyCase.publicMessage = undefined;
         own.privacyCase.status = retained ? "reviewed" : "completed";
         own.privacyCase.updatedAt = now.toISOString();
         own.privacyCase.revision++;

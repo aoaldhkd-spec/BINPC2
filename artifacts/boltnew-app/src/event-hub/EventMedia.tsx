@@ -11,7 +11,8 @@ export function EventMedia({ links }: { links: string[] }) {
             className="w-full rounded-xl"
             src={url}
           />
-        ) : /\.(png|jpe?g|webp|gif)(?:\?|$)/i.test(url) ? (
+        ) : /\.(png|jpe?g|webp|gif)(?:\?|$)/i.test(url) ||
+          /^data:image\/svg\+xml,/.test(url) ? (
           <img
             key={url}
             src={url}

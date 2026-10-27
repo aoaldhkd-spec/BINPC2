@@ -76,3 +76,10 @@ export function participantApplication(a: HubApplication, e: HubEvent) {
       : {}),
   };
 }
+
+/** Administrative triage reasons and tags are not participant-facing messages. */
+export function participantThread<
+  T extends { tags: string[]; history: unknown[] },
+>(thread: T): T {
+  return { ...thread, tags: [], history: [] };
+}

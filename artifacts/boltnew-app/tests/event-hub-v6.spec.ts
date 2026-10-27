@@ -542,3 +542,213 @@ test("100 distinct cookie sessions submit concurrently through the actual HTTP A
     await Promise.all(contexts.map((c) => c.dispose()));
   }
 });
+
+test("protected media HTTP, privacy review and participant-safe notices use the real isolated DB", async ({
+  page,
+  request,
+  browser,
+}, testInfo) => {
+  const code = (randomUUID() + randomUUID()).replaceAll("-", "");
+  expect(
+    (
+      await page.request.post("/api/event-hub/session", {
+        data: { recoveryCode: code, create: true },
+      })
+    ).status(),
+  ).toBe(200);
+  const nick = `보안${suffix.slice(-4)}`;
+  const mutate = async (
+    action: string,
+    target = "",
+    data: Record<string, unknown> = {},
+    revision?: number,
+  ) => {
+    const r = await page.request.post("/api/event-hub/mutate", {
+      data: { action, target, data, revision, requestId: randomUUID() },
+    });
+    const body = await r.json();
+    expect(
+      r.status(),
+      JSON.stringify({ code: body.code, error: body.error }),
+    ).toBe(200);
+    return body;
+  };
+  const id = String(
+    (
+      await mutate("application.basic", "", {
+        eventId,
+        basic: {
+          nickname: nick,
+          birthYear: 1995,
+          location: "부산",
+          phone: "01000000000",
+          depositor: "가상 보안시험",
+          collection: true,
+          version: "2026-10-27-event-v6",
+        },
+      })
+    ).id,
+  );
+  const all = await (
+    await request.get("/api/event-hub/admin", { headers: adminHeaders })
+  ).json();
+  const e = all.events.find((v: { id: string }) => v.id === eventId);
+  const png =
+    "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+jZAAAAABJRU5ErkJggg==";
+  const uploaded = await command(
+    request,
+    "event.media.upload",
+    eventId,
+    { mime: "image/png", base64: png },
+    e.revision,
+  );
+  const url = String(uploaded.mediaUrl);
+  expect((await page.request.get(url)).status()).toBe(404);
+  expect((await request.get(url)).status()).toBe(404);
+  const range = await request.get(url, {
+    headers: { ...adminHeaders, range: "bytes=0-7" },
+  });
+  expect(range.status()).toBe(206);
+  expect((await range.body()).length).toBe(8);
+  expect(
+    (
+      await request.get(url, {
+        headers: { ...adminHeaders, range: "bytes=99999-100000" },
+      })
+    ).status(),
+  ).toBe(416);
+  await mutate(
+    "application.consent",
+    id,
+    {
+      consent: {
+        collection: true,
+        sharing: true,
+        notice: true,
+        version: "2026-10-27-event-v6",
+      },
+    },
+    (await application(request, id)).revision,
+  );
+  await mutate(
+    "application.confirm",
+    id,
+    {},
+    (await application(request, id)).revision,
+  );
+  await command(
+    request,
+    "admin.application.payment",
+    id,
+    { status: "approved", bankChecked: true },
+    (await application(request, id)).revision,
+  );
+  expect((await page.request.get(url)).status()).toBe(200);
+  await page.goto("/events");
+  await page.getByText("개인정보 열람·삭제 문의", { exact: true }).click();
+  await page
+    .getByRole("button", { name: "개인정보 삭제 검토 요청", exact: true })
+    .click();
+  await expect(
+    page.getByText("처리 상태: requested", { exact: false }),
+  ).toBeVisible();
+  const owner = (await application(request, id)).owner;
+  const ctx = await browser.newContext({
+    baseURL: process.env.HUB_E2E_BASE_URL,
+  });
+  try {
+    await ctx.addInitScript((value) => {
+      localStorage.setItem("admin_token_v1", value);
+      localStorage.setItem(
+        "admin_session_v1",
+        JSON.stringify({ phone: "010-3878-6740", authedAt: Date.now() }),
+      );
+    }, token!);
+    const admin = await ctx.newPage();
+    await admin.goto("/admin");
+    await admin.getByRole("button", { name: "🎉 술번개", exact: true }).click();
+    await admin
+      .getByRole("combobox", { name: /^관리할 행사/ })
+      .selectOption(eventId);
+    await admin
+      .getByRole("button", { name: "공지·미디어", exact: true })
+      .click();
+    const upload = admin.getByLabel(
+      "사진·포스터·영상 파일 업로드 (승인자 전용)",
+      { exact: false },
+    );
+    await upload.setInputFiles({
+      name: "synthetic-poster.png",
+      mimeType: "image/png",
+      buffer: Buffer.from(png, "base64"),
+    });
+    await expect(
+      admin.getByText("저장되었습니다 ✓", { exact: true }),
+    ).toBeVisible();
+    const latest = await (
+      await request.get("/api/event-hub/admin", { headers: adminHeaders })
+    ).json();
+    expect(
+      latest.events.find((v: { id: string }) => v.id === eventId).media,
+    ).toHaveLength(2);
+    await admin
+      .getByRole("button", { name: "이력·개인정보", exact: true })
+      .click();
+    const card = admin
+      .locator("section")
+      .filter({
+        has: admin.getByRole("heading", {
+          name: `개인정보 요청 · ${nick}`,
+          exact: true,
+        }),
+      });
+    await card
+      .getByLabel("관리자 검토·보관 보류 사유 (비공개)", { exact: true })
+      .fill("PRIVATE-UI-REVIEW");
+    await card
+      .getByLabel("신청자에게 보여줄 처리 안내", { exact: true })
+      .fill("가상 본인 확인 검토를 마쳤습니다");
+    await expect(
+      card.getByRole("button", {
+        name: "본인 확인·검토 완료 기록",
+        exact: true,
+      }),
+    ).toBeDisabled();
+    await card
+      .getByRole("checkbox", { name: /별도 절차로 요청자 본인 확인/ })
+      .check();
+    await card
+      .getByRole("button", { name: "본인 확인·검토 완료 기록", exact: true })
+      .click();
+    await expect(
+      card.getByText("상태: reviewed", { exact: false }),
+    ).toBeVisible();
+    await card.screenshot({
+      path: testInfo.outputPath("privacy-reviewed-admin.png"),
+      animations: "disabled",
+    });
+    await page.reload();
+    await page.getByText("개인정보 열람·삭제 문의", { exact: true }).click();
+    await expect(
+      page.getByText("가상 본인 확인 검토를 마쳤습니다", { exact: false }),
+    ).toBeVisible();
+    const own = await (await page.request.get("/api/event-hub/state")).json();
+    expect(JSON.stringify(own)).not.toContain("PRIVATE-UI-REVIEW");
+    expect(
+      own.applications.find((a: { id: string }) => a.id === id).payment,
+    ).toBe("approved");
+    expect(own.privacyCase.status).toBe("reviewed");
+    await card
+      .getByRole("button", { name: "파기 후보·보류 사유 확인", exact: true })
+      .click();
+    await expect(
+      admin.getByText(
+        "운영 보관·파기 정책이 검토 초안입니다. 운영 파기는 승인 전 실행하지 않습니다.",
+        { exact: true },
+      ),
+    ).toBeVisible();
+    expect(owner).toBeTruthy();
+  } finally {
+    await ctx.close();
+  }
+});
