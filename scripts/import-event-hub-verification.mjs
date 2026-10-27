@@ -63,7 +63,7 @@ checks.push({
   status: "UNKNOWN",
   reason: "실기기 검사 이력 없음. Chromium을 실기기 성적으로 바꾸지 않음.",
 });
-const file = root + "/artifacts/api-server/verification/history.json",
+const file = root + "/docs/EVENT_HUB_V6_VERIFICATION_HISTORY.json",
   history = JSON.parse(await readFile(file, "utf8"));
 const id = "github-" + meta.url.split("/").at(-1),
   run = {

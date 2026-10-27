@@ -32,7 +32,7 @@ const check = {
         .slice(0, 1800)
     : `${r.requestCount}요청. 재시작 복구=${r.restartVerified}. 기존 누적 소유자${r.preexistingOwnerRows}건. 실제 벽시계${duration}초, 행사 시각만 격리 fixture로 이동. 기간을5시간/실기기로 확대 해석하지 않음.`,
 };
-const file = root + "/artifacts/api-server/verification/history.json",
+const file = root + "/docs/EVENT_HUB_V6_VERIFICATION_HISTORY.json",
   history = JSON.parse(await readFile(file, "utf8"));
 if (history.runs.some((x) => x.id === r.runId)) {
   console.log("Existing execution retained");

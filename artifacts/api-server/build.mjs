@@ -145,7 +145,7 @@ globalThis.__dirname = __bannerPath.dirname(globalThis.__filename);
     if(dirty){const hash=createHash("sha256");hash.update(execFileSync("git",["diff","HEAD","--binary"],{cwd:repoRoot}));for(const f of execFileSync("git",["ls-files","--others","--exclude-standard","artifacts/api-server/src","artifacts/boltnew-app/src","lib/api-zod/src","scripts"],{cwd:repoRoot,encoding:"utf8"}).trim().split("\n").filter(Boolean)){hash.update(f);hash.update(readFileSync(path.join(repoRoot,f)));}sourceVersion+=`-dirty-${hash.digest("hex").slice(0,12)}`;}
   }catch{/* No verified version => historical results only. */}
   await writeFile(path.join(distDir,"build-identity.json"),JSON.stringify({sourceVersion,codeFingerprint:(()=>{try{return codeFingerprint(repoRoot);}catch{return undefined;}})(),builtAt:new Date().toISOString()}));
-  await cp(path.join(artifactDir,"verification/history.json"),path.join(distDir,"verification-history.json"));
+  await cp(path.join(artifactDir,"../../docs/EVENT_HUB_V6_VERIFICATION_HISTORY.json"),path.join(distDir,"verification-history.json"));
 
   const frontendDist = path.resolve(artifactDir, "../boltnew-app/dist/public");
   const publicDir = path.resolve(distDir, "public");
