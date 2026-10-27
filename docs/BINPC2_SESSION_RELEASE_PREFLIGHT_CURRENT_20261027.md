@@ -76,3 +76,15 @@ select to_regclass('public.app_sessions')::text as session_table,
 - Supabase `BINPC2` 메타데이터의 최신 읽기: `app_sessions` 없음, `app_kv_rows` 3,250행, `app_image_store` 102행. 수치는 백업·검증 순간 다시 확인하며 개인 행 본문 조회 없음.
 - 이 문단은 위의 역사적 `LIVE_DATABASE_URL_MATCH=UNKNOWN` 기록을 **사용자 확인 후 USER_CONFIRMED로 업데이트하는 추가 결정**이다. 과거 미확인 기록을 삭제하지 않는다.
 - **현재 운영 DB 변경: 0건; GitHub main 병합: 0건; Render 새 배포: 0건.** 현재 상태는 `CODE_TESTED / BACKUP_BLOCKED`이며 사용자의 기존 최소 DB 수정·배포 승인 범위는 유지한다.
+
+## 2026-10-27 추가: 개인 PC용 백업 자동실행 준비 (이번 회차, 본문 위의 과거 기록 보존)
+- 상태: `BACKUP_PREPARED_TESTED` / `LIVE_DATA_BACKUP_NOT_STARTED` / `PRODUCTION_UNCHANGED`. 사용자가 자동화를 명시 요청했고, 승인은 기존의 백업 검증 후 최소 세션 오류 수정·배포 범위에서 유지한다.
+- 소유자 원격 PC `DESKTOP-5F8ARA7`에서 기존 **PostgreSQL 17.11 포터블 클라이언트**(`pg_dump`, `pg_restore`, `psql`), **Supabase CLI 2.122.0**, **GnuPG 2.4.9**를 실제 실행 확인. 일반 PATH에 없었을 뿐 미설치가 아니었다.
+- 소스 복원과 관계없는 프로젝트는 건드리지 않고, 개인 PC 폴더 `C:\Users\aoald\BINPC2_SECURE_DB_BACKUP_PREP_20261027`에 전용 대화형 백업 실행기 `BINPC2_운영DB_암호화백업_실행.cmd` 및 `binpc2-safe-db-backup.cjs`, 회귀테스트·README를 추가했다.
+- 기술 동작: DB 입력은 개인 PC에서만 터미널 **마스킹**으로 받음. 프로젝트 ref `dlliqqlqdtdkfakdtwyw`와 Direct/Session 풀러 5432 식별자 확인, TLS `verify-full` 지정, `pg_dump -Fc -n public` → GPG 암호화 스트림으로 디스크에 평문 없음; 기존 원본 덮어쓰기 금지, SHA256·건수 영수증, 비공개 Google Drive 암호문 복사 시도. 범위는 **public 업무 테이블 스키마+데이터**이고 Supabase 시스템 전체 백업을 주장하지 않음.
+- 실제 실행 전 정적 검증 4/4 PASS, `--preflight`는 도구/키 존재 확인만 실행. 개인키 원본 `BINPC2_BACKUP_ENCRYPTED_PRIVATE_KEY_20261023.asc`는 소유자 전용 Google Drive 경로에서 **기존 키 공개 지문 일치** 확인, 암호는 읽거나 우회하지 않음. 현재 공개키용 격리 GPG import는 원격 무인 환경에서 종료코드 2로 차단됨. 보호키 복호화·새 실DB 백업은 아직 실행되지 않았음.
+- 개인 PC 소유자가 집에서 GPG 암호를 직접 입력하는 기존 정책과 PC방 비밀정보 반출 금지를 유지. Supabase CLI는 현재 로그인돼 있지 않고, 직접 DB hostname DNS가 소유자 PC에서 확인되지 않으며 외부 Render SSH는 안전 검사에서 차단돼 우회하지 않았음.
+- 위 다섯 개 **비민감 준비 파일**을 Google Drive [전용 비공개 폴더](https://drive.google.com/drive/folders/1saWGnlYLpvLzcKG4N_-ZQAMf1S3IYOPn)에 저장, **서버에서 RAW 재다운로드한 5개 모두 SHA256 일치** 확인. 복구키/DB 내용/Secret은 업로드하지 않았다.
+- Supabase 프로젝트의 현장 `SELECT`로 `app_kv_rows=3250`, `app_image_store=102`, `app_sessions` 없음 및 실제 인덱스·접근권한·컬럼 정의를 **읽기 전용** 스냅샷으로 작성해 같은 비공개 Drive에 저장, [서버 읽기 SHA256 PASS](https://drive.google.com/file/d/1QeGsWeanxdoSLIplTdHiGujaO2Y-FF_C/view), 4,179바이트, `8ed3730d9e4a16bb39c10b5ffd9d29cdef391ace20100356a2761d1882ca2050`. 데이터 행값을 포함하지 않는 참고자료이므로 이것을 고객 데이터 백업이라고 주장하지 않음.
+- **미해결 BLOCKED:** DB 비밀번호와 기존 보호키의 암호는 소유자가 집 PC에서만 입력 가능(채팅 금지). 현재 시점 DB 전체 암호문 생성, 서버 업로드 검증, 키로 복호화, 분리된 PostgreSQL 독립 복원은 아직 성공하지 않았음. 해당 증거가 확보되기 전 GitHub `main` 병합, `app_sessions` 운영 DB 생성, Render 자동배포 및 실제 이용자 데이터 변경을 하지 않는다.
+- 다음 재개: 개인 PC에서 `00_읽어주세요_BINPC2_운영DB_자동백업_20261027.md` 확인 후 `.cmd` 실행; GPG가 집 PC에 비밀번호를 요청하면 소유자가 직접 입력; 가려진 로컬 프롬프트에서 Supabase BINPC2 Session pooler 5432 접속 정보를 입력. 통과 영수증을 검사해 Google 서버 바이트·독립 복원을 검증하고 운영 변경 재개. 공개키 import 자체 오류가 계속되면 오류를 BLOCKED로 보고하고 보안 약화로 우회하지 않는다.
