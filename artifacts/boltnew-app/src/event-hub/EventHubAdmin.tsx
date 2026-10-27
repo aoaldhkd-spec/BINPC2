@@ -14,6 +14,7 @@ import { NotificationReadiness } from "./NotificationReadiness";
 import { EventLaboratory } from "./EventLaboratory";
 import {
   formatHubTime,
+  HubLoading,
   HubButton,
   HubCard,
   HubField,
@@ -56,7 +57,7 @@ export default function EventHubAdmin() {
   if (!s)
     return (
       <div className="p-4">
-        <p>행사 운영기록을 불러오는 중…</p>
+        <HubLoading label="행사 운영기록을 불러오는 중…" />
         <HubFeedback status={hub.status} error={hub.error} />
       </div>
     );

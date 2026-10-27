@@ -1,0 +1,1112 @@
+{
+  "baseline": "ad364b75f341430164e17cfc1e6b8250a204d577",
+  "count": 79,
+  "counts": {
+    "생성 번들/라이브러리": 1,
+    "합성 테스트/테스트 설정": 73,
+    "독립 브라우저 fixture": 1,
+    "감사 규칙 자기 탐지": 1,
+    "마스킹 문자열": 1,
+    "주석의 토큰 예시": 2
+  },
+  "notes": "P3 means reviewed low direct deployment risk, not a guarantee that the entire application has no security bugs. Original patterns are kept. Adjacent P1 operations risks are documented separately.",
+  "warnings": [
+    {
+      "rel": ".local/preview/build/assets/index-OasZ53Xf.js",
+      "line": 3,
+      "id": "empty_catch",
+      "sev": "warn",
+      "number": 1,
+      "priority": "P3",
+      "category": "생성 번들/라이브러리",
+      "domains": [
+        "보안"
+      ],
+      "decision": "생성 React 진단 코드의 예외 무시. 원본 권한/입금 catch 아님. 라이브러리 번들 임의 수정 안 함."
+    },
+    {
+      "rel": "artifacts/api-server/src/__tests__/admin-event-end-reset.test.ts",
+      "line": 9,
+      "id": "hardcoded_secret",
+      "sev": "warn",
+      "number": 2,
+      "priority": "P3",
+      "category": "합성 테스트/테스트 설정",
+      "domains": [
+        "보안",
+        "개인정보",
+        "권한/인증"
+      ],
+      "decision": "운영 인증값 아님. 유출·거절·해시 보호 검사를 위해 유지."
+    },
+    {
+      "rel": "artifacts/api-server/src/__tests__/broadcast-targets.test.ts",
+      "line": 7,
+      "id": "hardcoded_secret",
+      "sev": "warn",
+      "number": 3,
+      "priority": "P3",
+      "category": "합성 테스트/테스트 설정",
+      "domains": [
+        "보안"
+      ],
+      "decision": "운영 인증값 아님. 유출·거절·해시 보호 검사를 위해 유지."
+    },
+    {
+      "rel": "artifacts/api-server/src/__tests__/db-security.test.ts",
+      "line": 30,
+      "id": "hardcoded_secret",
+      "sev": "warn",
+      "number": 4,
+      "priority": "P3",
+      "category": "합성 테스트/테스트 설정",
+      "domains": [
+        "보안",
+        "권한/인증"
+      ],
+      "decision": "운영 인증값 아님. 유출·거절·해시 보호 검사를 위해 유지."
+    },
+    {
+      "rel": "artifacts/api-server/src/__tests__/db-security.test.ts",
+      "line": 299,
+      "id": "hardcoded_secret",
+      "sev": "warn",
+      "number": 5,
+      "priority": "P3",
+      "category": "합성 테스트/테스트 설정",
+      "domains": [
+        "보안",
+        "권한/인증"
+      ],
+      "decision": "운영 인증값 아님. 유출·거절·해시 보호 검사를 위해 유지."
+    },
+    {
+      "rel": "artifacts/api-server/src/__tests__/db-security.test.ts",
+      "line": 1013,
+      "id": "hardcoded_secret",
+      "sev": "warn",
+      "number": 6,
+      "priority": "P3",
+      "category": "합성 테스트/테스트 설정",
+      "domains": [
+        "보안",
+        "권한/인증"
+      ],
+      "decision": "운영 인증값 아님. 유출·거절·해시 보호 검사를 위해 유지."
+    },
+    {
+      "rel": "artifacts/api-server/src/__tests__/db-security.test.ts",
+      "line": 1076,
+      "id": "hardcoded_secret",
+      "sev": "warn",
+      "number": 7,
+      "priority": "P3",
+      "category": "합성 테스트/테스트 설정",
+      "domains": [
+        "보안",
+        "권한/인증"
+      ],
+      "decision": "운영 인증값 아님. 유출·거절·해시 보호 검사를 위해 유지."
+    },
+    {
+      "rel": "artifacts/api-server/src/__tests__/db-security.test.ts",
+      "line": 1077,
+      "id": "hardcoded_secret",
+      "sev": "warn",
+      "number": 8,
+      "priority": "P3",
+      "category": "합성 테스트/테스트 설정",
+      "domains": [
+        "보안",
+        "권한/인증"
+      ],
+      "decision": "운영 인증값 아님. 유출·거절·해시 보호 검사를 위해 유지."
+    },
+    {
+      "rel": "artifacts/api-server/src/__tests__/db-security.test.ts",
+      "line": 1078,
+      "id": "hardcoded_secret",
+      "sev": "warn",
+      "number": 9,
+      "priority": "P3",
+      "category": "합성 테스트/테스트 설정",
+      "domains": [
+        "보안",
+        "권한/인증"
+      ],
+      "decision": "운영 인증값 아님. 유출·거절·해시 보호 검사를 위해 유지."
+    },
+    {
+      "rel": "artifacts/api-server/src/__tests__/db-security.test.ts",
+      "line": 1102,
+      "id": "hardcoded_secret",
+      "sev": "warn",
+      "number": 10,
+      "priority": "P3",
+      "category": "합성 테스트/테스트 설정",
+      "domains": [
+        "보안",
+        "권한/인증"
+      ],
+      "decision": "운영 인증값 아님. 유출·거절·해시 보호 검사를 위해 유지."
+    },
+    {
+      "rel": "artifacts/api-server/src/__tests__/db-security.test.ts",
+      "line": 1107,
+      "id": "hardcoded_secret",
+      "sev": "warn",
+      "number": 11,
+      "priority": "P3",
+      "category": "합성 테스트/테스트 설정",
+      "domains": [
+        "보안",
+        "권한/인증"
+      ],
+      "decision": "운영 인증값 아님. 유출·거절·해시 보호 검사를 위해 유지."
+    },
+    {
+      "rel": "artifacts/api-server/src/__tests__/db-security.test.ts",
+      "line": 1112,
+      "id": "hardcoded_secret",
+      "sev": "warn",
+      "number": 12,
+      "priority": "P3",
+      "category": "합성 테스트/테스트 설정",
+      "domains": [
+        "보안",
+        "권한/인증"
+      ],
+      "decision": "운영 인증값 아님. 유출·거절·해시 보호 검사를 위해 유지."
+    },
+    {
+      "rel": "artifacts/api-server/src/__tests__/db-security.test.ts",
+      "line": 1174,
+      "id": "hardcoded_secret",
+      "sev": "warn",
+      "number": 13,
+      "priority": "P3",
+      "category": "합성 테스트/테스트 설정",
+      "domains": [
+        "보안",
+        "권한/인증"
+      ],
+      "decision": "운영 인증값 아님. 유출·거절·해시 보호 검사를 위해 유지."
+    },
+    {
+      "rel": "artifacts/api-server/src/__tests__/db-security.test.ts",
+      "line": 1175,
+      "id": "hardcoded_secret",
+      "sev": "warn",
+      "number": 14,
+      "priority": "P3",
+      "category": "합성 테스트/테스트 설정",
+      "domains": [
+        "보안",
+        "권한/인증"
+      ],
+      "decision": "운영 인증값 아님. 유출·거절·해시 보호 검사를 위해 유지."
+    },
+    {
+      "rel": "artifacts/api-server/src/__tests__/db-security.test.ts",
+      "line": 1179,
+      "id": "hardcoded_secret",
+      "sev": "warn",
+      "number": 15,
+      "priority": "P3",
+      "category": "합성 테스트/테스트 설정",
+      "domains": [
+        "보안",
+        "권한/인증"
+      ],
+      "decision": "운영 인증값 아님. 유출·거절·해시 보호 검사를 위해 유지."
+    },
+    {
+      "rel": "artifacts/api-server/src/__tests__/db-security.test.ts",
+      "line": 1185,
+      "id": "hardcoded_secret",
+      "sev": "warn",
+      "number": 16,
+      "priority": "P3",
+      "category": "합성 테스트/테스트 설정",
+      "domains": [
+        "보안",
+        "권한/인증"
+      ],
+      "decision": "운영 인증값 아님. 유출·거절·해시 보호 검사를 위해 유지."
+    },
+    {
+      "rel": "artifacts/api-server/src/__tests__/db-security.test.ts",
+      "line": 1243,
+      "id": "hardcoded_secret",
+      "sev": "warn",
+      "number": 17,
+      "priority": "P3",
+      "category": "합성 테스트/테스트 설정",
+      "domains": [
+        "보안",
+        "권한/인증"
+      ],
+      "decision": "운영 인증값 아님. 유출·거절·해시 보호 검사를 위해 유지."
+    },
+    {
+      "rel": "artifacts/api-server/src/__tests__/db-security.test.ts",
+      "line": 1251,
+      "id": "hardcoded_secret",
+      "sev": "warn",
+      "number": 18,
+      "priority": "P3",
+      "category": "합성 테스트/테스트 설정",
+      "domains": [
+        "보안",
+        "권한/인증"
+      ],
+      "decision": "운영 인증값 아님. 유출·거절·해시 보호 검사를 위해 유지."
+    },
+    {
+      "rel": "artifacts/api-server/src/__tests__/db-security.test.ts",
+      "line": 1268,
+      "id": "hardcoded_secret",
+      "sev": "warn",
+      "number": 19,
+      "priority": "P3",
+      "category": "합성 테스트/테스트 설정",
+      "domains": [
+        "보안",
+        "권한/인증"
+      ],
+      "decision": "운영 인증값 아님. 유출·거절·해시 보호 검사를 위해 유지."
+    },
+    {
+      "rel": "artifacts/api-server/src/__tests__/db-security.test.ts",
+      "line": 1273,
+      "id": "hardcoded_secret",
+      "sev": "warn",
+      "number": 20,
+      "priority": "P3",
+      "category": "합성 테스트/테스트 설정",
+      "domains": [
+        "보안",
+        "권한/인증"
+      ],
+      "decision": "운영 인증값 아님. 유출·거절·해시 보호 검사를 위해 유지."
+    },
+    {
+      "rel": "artifacts/api-server/src/__tests__/db-security.test.ts",
+      "line": 1290,
+      "id": "hardcoded_secret",
+      "sev": "warn",
+      "number": 21,
+      "priority": "P3",
+      "category": "합성 테스트/테스트 설정",
+      "domains": [
+        "보안",
+        "권한/인증"
+      ],
+      "decision": "운영 인증값 아님. 유출·거절·해시 보호 검사를 위해 유지."
+    },
+    {
+      "rel": "artifacts/api-server/src/__tests__/db-security.test.ts",
+      "line": 1295,
+      "id": "hardcoded_secret",
+      "sev": "warn",
+      "number": 22,
+      "priority": "P3",
+      "category": "합성 테스트/테스트 설정",
+      "domains": [
+        "보안",
+        "권한/인증"
+      ],
+      "decision": "운영 인증값 아님. 유출·거절·해시 보호 검사를 위해 유지."
+    },
+    {
+      "rel": "artifacts/api-server/src/__tests__/db-security.test.ts",
+      "line": 1302,
+      "id": "hardcoded_secret",
+      "sev": "warn",
+      "number": 23,
+      "priority": "P3",
+      "category": "합성 테스트/테스트 설정",
+      "domains": [
+        "보안",
+        "권한/인증"
+      ],
+      "decision": "운영 인증값 아님. 유출·거절·해시 보호 검사를 위해 유지."
+    },
+    {
+      "rel": "artifacts/api-server/src/__tests__/db-security.test.ts",
+      "line": 1332,
+      "id": "hardcoded_secret",
+      "sev": "warn",
+      "number": 24,
+      "priority": "P3",
+      "category": "합성 테스트/테스트 설정",
+      "domains": [
+        "보안",
+        "권한/인증"
+      ],
+      "decision": "운영 인증값 아님. 유출·거절·해시 보호 검사를 위해 유지."
+    },
+    {
+      "rel": "artifacts/api-server/src/__tests__/db-security.test.ts",
+      "line": 1343,
+      "id": "hardcoded_secret",
+      "sev": "warn",
+      "number": 25,
+      "priority": "P3",
+      "category": "합성 테스트/테스트 설정",
+      "domains": [
+        "보안",
+        "권한/인증"
+      ],
+      "decision": "운영 인증값 아님. 유출·거절·해시 보호 검사를 위해 유지."
+    },
+    {
+      "rel": "artifacts/api-server/src/__tests__/hearts-chat-group-invariants.test.ts",
+      "line": 10,
+      "id": "hardcoded_secret",
+      "sev": "warn",
+      "number": 26,
+      "priority": "P3",
+      "category": "합성 테스트/테스트 설정",
+      "domains": [
+        "보안"
+      ],
+      "decision": "운영 인증값 아님. 유출·거절·해시 보호 검사를 위해 유지."
+    },
+    {
+      "rel": "artifacts/api-server/src/__tests__/load-venue-150.test.ts",
+      "line": 9,
+      "id": "hardcoded_secret",
+      "sev": "warn",
+      "number": 27,
+      "priority": "P3",
+      "category": "합성 테스트/테스트 설정",
+      "domains": [
+        "보안"
+      ],
+      "decision": "운영 인증값 아님. 유출·거절·해시 보호 검사를 위해 유지."
+    },
+    {
+      "rel": "artifacts/api-server/src/__tests__/push-self-test.test.ts",
+      "line": 6,
+      "id": "hardcoded_secret",
+      "sev": "warn",
+      "number": 28,
+      "priority": "P3",
+      "category": "합성 테스트/테스트 설정",
+      "domains": [
+        "보안"
+      ],
+      "decision": "운영 인증값 아님. 유출·거절·해시 보호 검사를 위해 유지."
+    },
+    {
+      "rel": "artifacts/api-server/src/__tests__/sulbun-event-reset.test.ts",
+      "line": 9,
+      "id": "hardcoded_secret",
+      "sev": "warn",
+      "number": 29,
+      "priority": "P3",
+      "category": "합성 테스트/테스트 설정",
+      "domains": [
+        "보안",
+        "개인정보"
+      ],
+      "decision": "운영 인증값 아님. 유출·거절·해시 보호 검사를 위해 유지."
+    },
+    {
+      "rel": "artifacts/api-server/src/lib/db-app-settings-boot.test.ts",
+      "line": 14,
+      "id": "hardcoded_secret",
+      "sev": "warn",
+      "number": 30,
+      "priority": "P3",
+      "category": "합성 테스트/테스트 설정",
+      "domains": [
+        "보안",
+        "개인정보"
+      ],
+      "decision": "운영 인증값 아님. 유출·거절·해시 보호 검사를 위해 유지."
+    },
+    {
+      "rel": "artifacts/api-server/src/lib/db-app-settings-boot.test.ts",
+      "line": 22,
+      "id": "hardcoded_secret",
+      "sev": "warn",
+      "number": 31,
+      "priority": "P3",
+      "category": "합성 테스트/테스트 설정",
+      "domains": [
+        "보안",
+        "개인정보"
+      ],
+      "decision": "운영 인증값 아님. 유출·거절·해시 보호 검사를 위해 유지."
+    },
+    {
+      "rel": "artifacts/api-server/src/lib/db-app-settings-boot.test.ts",
+      "line": 23,
+      "id": "hardcoded_secret",
+      "sev": "warn",
+      "number": 32,
+      "priority": "P3",
+      "category": "합성 테스트/테스트 설정",
+      "domains": [
+        "보안",
+        "개인정보"
+      ],
+      "decision": "운영 인증값 아님. 유출·거절·해시 보호 검사를 위해 유지."
+    },
+    {
+      "rel": "artifacts/api-server/src/lib/db-app-settings-boot.test.ts",
+      "line": 25,
+      "id": "hardcoded_secret",
+      "sev": "warn",
+      "number": 33,
+      "priority": "P3",
+      "category": "합성 테스트/테스트 설정",
+      "domains": [
+        "보안",
+        "개인정보"
+      ],
+      "decision": "운영 인증값 아님. 유출·거절·해시 보호 검사를 위해 유지."
+    },
+    {
+      "rel": "artifacts/api-server/src/lib/db-app-settings-boot.test.ts",
+      "line": 42,
+      "id": "hardcoded_secret",
+      "sev": "warn",
+      "number": 34,
+      "priority": "P3",
+      "category": "합성 테스트/테스트 설정",
+      "domains": [
+        "보안",
+        "개인정보"
+      ],
+      "decision": "운영 인증값 아님. 유출·거절·해시 보호 검사를 위해 유지."
+    },
+    {
+      "rel": "artifacts/api-server/src/lib/db-app-settings-boot.test.ts",
+      "line": 48,
+      "id": "hardcoded_secret",
+      "sev": "warn",
+      "number": 35,
+      "priority": "P3",
+      "category": "합성 테스트/테스트 설정",
+      "domains": [
+        "보안",
+        "개인정보"
+      ],
+      "decision": "운영 인증값 아님. 유출·거절·해시 보호 검사를 위해 유지."
+    },
+    {
+      "rel": "artifacts/api-server/src/lib/db-app-settings-boot.test.ts",
+      "line": 55,
+      "id": "hardcoded_secret",
+      "sev": "warn",
+      "number": 36,
+      "priority": "P3",
+      "category": "합성 테스트/테스트 설정",
+      "domains": [
+        "보안",
+        "개인정보"
+      ],
+      "decision": "운영 인증값 아님. 유출·거절·해시 보호 검사를 위해 유지."
+    },
+    {
+      "rel": "artifacts/api-server/src/lib/db-app-settings-boot.test.ts",
+      "line": 62,
+      "id": "hardcoded_secret",
+      "sev": "warn",
+      "number": 37,
+      "priority": "P3",
+      "category": "합성 테스트/테스트 설정",
+      "domains": [
+        "보안",
+        "개인정보"
+      ],
+      "decision": "운영 인증값 아님. 유출·거절·해시 보호 검사를 위해 유지."
+    },
+    {
+      "rel": "artifacts/api-server/src/lib/db-app-settings-boot.test.ts",
+      "line": 63,
+      "id": "hardcoded_secret",
+      "sev": "warn",
+      "number": 38,
+      "priority": "P3",
+      "category": "합성 테스트/테스트 설정",
+      "domains": [
+        "보안",
+        "개인정보"
+      ],
+      "decision": "운영 인증값 아님. 유출·거절·해시 보호 검사를 위해 유지."
+    },
+    {
+      "rel": "artifacts/api-server/src/lib/db-app-settings-boot.test.ts",
+      "line": 64,
+      "id": "hardcoded_secret",
+      "sev": "warn",
+      "number": 39,
+      "priority": "P3",
+      "category": "합성 테스트/테스트 설정",
+      "domains": [
+        "보안",
+        "개인정보"
+      ],
+      "decision": "운영 인증값 아님. 유출·거절·해시 보호 검사를 위해 유지."
+    },
+    {
+      "rel": "artifacts/api-server/src/lib/db-app-settings-view.test.ts",
+      "line": 40,
+      "id": "hardcoded_secret",
+      "sev": "warn",
+      "number": 40,
+      "priority": "P3",
+      "category": "합성 테스트/테스트 설정",
+      "domains": [
+        "보안",
+        "개인정보",
+        "권한/인증"
+      ],
+      "decision": "운영 인증값 아님. 유출·거절·해시 보호 검사를 위해 유지."
+    },
+    {
+      "rel": "artifacts/api-server/src/lib/db-app-settings-view.test.ts",
+      "line": 41,
+      "id": "hardcoded_secret",
+      "sev": "warn",
+      "number": 41,
+      "priority": "P3",
+      "category": "합성 테스트/테스트 설정",
+      "domains": [
+        "보안",
+        "개인정보",
+        "권한/인증"
+      ],
+      "decision": "운영 인증값 아님. 유출·거절·해시 보호 검사를 위해 유지."
+    },
+    {
+      "rel": "artifacts/api-server/src/lib/db-app-settings-view.test.ts",
+      "line": 42,
+      "id": "hardcoded_secret",
+      "sev": "warn",
+      "number": 42,
+      "priority": "P3",
+      "category": "합성 테스트/테스트 설정",
+      "domains": [
+        "보안",
+        "개인정보",
+        "권한/인증"
+      ],
+      "decision": "운영 인증값 아님. 유출·거절·해시 보호 검사를 위해 유지."
+    },
+    {
+      "rel": "artifacts/api-server/src/lib/db-app-settings-view.test.ts",
+      "line": 43,
+      "id": "hardcoded_secret",
+      "sev": "warn",
+      "number": 43,
+      "priority": "P3",
+      "category": "합성 테스트/테스트 설정",
+      "domains": [
+        "보안",
+        "개인정보",
+        "권한/인증"
+      ],
+      "decision": "운영 인증값 아님. 유출·거절·해시 보호 검사를 위해 유지."
+    },
+    {
+      "rel": "artifacts/api-server/src/lib/db-app-settings-view.test.ts",
+      "line": 115,
+      "id": "hardcoded_secret",
+      "sev": "warn",
+      "number": 44,
+      "priority": "P3",
+      "category": "합성 테스트/테스트 설정",
+      "domains": [
+        "보안",
+        "개인정보"
+      ],
+      "decision": "운영 인증값 아님. 유출·거절·해시 보호 검사를 위해 유지."
+    },
+    {
+      "rel": "artifacts/api-server/src/lib/db-session-tokens.test.ts",
+      "line": 21,
+      "id": "hardcoded_secret",
+      "sev": "warn",
+      "number": 45,
+      "priority": "P3",
+      "category": "합성 테스트/테스트 설정",
+      "domains": [
+        "보안",
+        "개인정보",
+        "권한/인증"
+      ],
+      "decision": "운영 인증값 아님. 유출·거절·해시 보호 검사를 위해 유지."
+    },
+    {
+      "rel": "artifacts/api-server/src/lib/event-hub.pg.test.ts",
+      "line": 459,
+      "id": "hardcoded_secret",
+      "sev": "warn",
+      "number": 46,
+      "priority": "P3",
+      "category": "합성 테스트/테스트 설정",
+      "domains": [
+        "보안",
+        "개인정보"
+      ],
+      "decision": "운영 인증값 아님. 유출·거절·해시 보호 검사를 위해 유지."
+    },
+    {
+      "rel": "artifacts/api-server/src/lib/event-hub.pg.test.ts",
+      "line": 476,
+      "id": "hardcoded_secret",
+      "sev": "warn",
+      "number": 47,
+      "priority": "P3",
+      "category": "합성 테스트/테스트 설정",
+      "domains": [
+        "보안",
+        "개인정보"
+      ],
+      "decision": "운영 인증값 아님. 유출·거절·해시 보호 검사를 위해 유지."
+    },
+    {
+      "rel": "artifacts/api-server/src/lib/event-hub.pg.test.ts",
+      "line": 486,
+      "id": "hardcoded_secret",
+      "sev": "warn",
+      "number": 48,
+      "priority": "P3",
+      "category": "합성 테스트/테스트 설정",
+      "domains": [
+        "보안",
+        "개인정보"
+      ],
+      "decision": "운영 인증값 아님. 유출·거절·해시 보호 검사를 위해 유지."
+    },
+    {
+      "rel": "artifacts/api-server/src/lib/event-hub.pg.test.ts",
+      "line": 495,
+      "id": "hardcoded_secret",
+      "sev": "warn",
+      "number": 49,
+      "priority": "P3",
+      "category": "합성 테스트/테스트 설정",
+      "domains": [
+        "보안",
+        "개인정보"
+      ],
+      "decision": "운영 인증값 아님. 유출·거절·해시 보호 검사를 위해 유지."
+    },
+    {
+      "rel": "artifacts/api-server/src/lib/event-hub.pg.test.ts",
+      "line": 534,
+      "id": "hardcoded_secret",
+      "sev": "warn",
+      "number": 50,
+      "priority": "P3",
+      "category": "합성 테스트/테스트 설정",
+      "domains": [
+        "보안",
+        "개인정보"
+      ],
+      "decision": "운영 인증값 아님. 유출·거절·해시 보호 검사를 위해 유지."
+    },
+    {
+      "rel": "artifacts/api-server/src/lib/event-hub.pg.test.ts",
+      "line": 547,
+      "id": "hardcoded_secret",
+      "sev": "warn",
+      "number": 51,
+      "priority": "P3",
+      "category": "합성 테스트/테스트 설정",
+      "domains": [
+        "보안",
+        "개인정보"
+      ],
+      "decision": "운영 인증값 아님. 유출·거절·해시 보호 검사를 위해 유지."
+    },
+    {
+      "rel": "artifacts/api-server/src/lib/event-hub.pg.test.ts",
+      "line": 570,
+      "id": "hardcoded_secret",
+      "sev": "warn",
+      "number": 52,
+      "priority": "P3",
+      "category": "합성 테스트/테스트 설정",
+      "domains": [
+        "보안"
+      ],
+      "decision": "운영 인증값 아님. 유출·거절·해시 보호 검사를 위해 유지."
+    },
+    {
+      "rel": "artifacts/api-server/src/lib/event-hub.pg.test.ts",
+      "line": 746,
+      "id": "hardcoded_secret",
+      "sev": "warn",
+      "number": 53,
+      "priority": "P3",
+      "category": "합성 테스트/테스트 설정",
+      "domains": [
+        "보안",
+        "개인정보"
+      ],
+      "decision": "운영 인증값 아님. 유출·거절·해시 보호 검사를 위해 유지."
+    },
+    {
+      "rel": "artifacts/api-server/src/lib/event-hub.pg.test.ts",
+      "line": 762,
+      "id": "hardcoded_secret",
+      "sev": "warn",
+      "number": 54,
+      "priority": "P3",
+      "category": "합성 테스트/테스트 설정",
+      "domains": [
+        "보안",
+        "개인정보"
+      ],
+      "decision": "운영 인증값 아님. 유출·거절·해시 보호 검사를 위해 유지."
+    },
+    {
+      "rel": "artifacts/api-server/src/lib/event-hub.pg.test.ts",
+      "line": 773,
+      "id": "hardcoded_secret",
+      "sev": "warn",
+      "number": 55,
+      "priority": "P3",
+      "category": "합성 테스트/테스트 설정",
+      "domains": [
+        "보안",
+        "개인정보"
+      ],
+      "decision": "운영 인증값 아님. 유출·거절·해시 보호 검사를 위해 유지."
+    },
+    {
+      "rel": "artifacts/api-server/src/lib/event-hub.pg.test.ts",
+      "line": 782,
+      "id": "hardcoded_secret",
+      "sev": "warn",
+      "number": 56,
+      "priority": "P3",
+      "category": "합성 테스트/테스트 설정",
+      "domains": [
+        "보안",
+        "개인정보"
+      ],
+      "decision": "운영 인증값 아님. 유출·거절·해시 보호 검사를 위해 유지."
+    },
+    {
+      "rel": "artifacts/api-server/src/lib/event-hub.pg.test.ts",
+      "line": 824,
+      "id": "hardcoded_secret",
+      "sev": "warn",
+      "number": 57,
+      "priority": "P3",
+      "category": "합성 테스트/테스트 설정",
+      "domains": [
+        "보안",
+        "권한/인증"
+      ],
+      "decision": "운영 인증값 아님. 유출·거절·해시 보호 검사를 위해 유지."
+    },
+    {
+      "rel": "artifacts/api-server/src/lib/event-hub.pg.test.ts",
+      "line": 843,
+      "id": "hardcoded_secret",
+      "sev": "warn",
+      "number": 58,
+      "priority": "P3",
+      "category": "합성 테스트/테스트 설정",
+      "domains": [
+        "보안",
+        "개인정보"
+      ],
+      "decision": "운영 인증값 아님. 유출·거절·해시 보호 검사를 위해 유지."
+    },
+    {
+      "rel": "artifacts/api-server/src/lib/event-hub.pg.test.ts",
+      "line": 882,
+      "id": "hardcoded_secret",
+      "sev": "warn",
+      "number": 59,
+      "priority": "P3",
+      "category": "합성 테스트/테스트 설정",
+      "domains": [
+        "보안",
+        "개인정보",
+        "권한/인증"
+      ],
+      "decision": "운영 인증값 아님. 유출·거절·해시 보호 검사를 위해 유지."
+    },
+    {
+      "rel": "artifacts/api-server/src/lib/event-hub.pg.test.ts",
+      "line": 978,
+      "id": "hardcoded_secret",
+      "sev": "warn",
+      "number": 60,
+      "priority": "P3",
+      "category": "합성 테스트/테스트 설정",
+      "domains": [
+        "보안"
+      ],
+      "decision": "운영 인증값 아님. 유출·거절·해시 보호 검사를 위해 유지."
+    },
+    {
+      "rel": "artifacts/api-server/src/lib/event-hub.pg.test.ts",
+      "line": 1081,
+      "id": "hardcoded_secret",
+      "sev": "warn",
+      "number": 61,
+      "priority": "P3",
+      "category": "합성 테스트/테스트 설정",
+      "domains": [
+        "보안",
+        "개인정보"
+      ],
+      "decision": "운영 인증값 아님. 유출·거절·해시 보호 검사를 위해 유지."
+    },
+    {
+      "rel": "artifacts/api-server/src/lib/event-hub.pg.test.ts",
+      "line": 1118,
+      "id": "hardcoded_secret",
+      "sev": "warn",
+      "number": 62,
+      "priority": "P3",
+      "category": "합성 테스트/테스트 설정",
+      "domains": [
+        "보안",
+        "개인정보"
+      ],
+      "decision": "운영 인증값 아님. 유출·거절·해시 보호 검사를 위해 유지."
+    },
+    {
+      "rel": "artifacts/api-server/src/lib/event-hub.pg.test.ts",
+      "line": 1229,
+      "id": "hardcoded_secret",
+      "sev": "warn",
+      "number": 63,
+      "priority": "P3",
+      "category": "합성 테스트/테스트 설정",
+      "domains": [
+        "보안",
+        "개인정보"
+      ],
+      "decision": "운영 인증값 아님. 유출·거절·해시 보호 검사를 위해 유지."
+    },
+    {
+      "rel": "artifacts/api-server/src/lib/event-hub.pg.test.ts",
+      "line": 1353,
+      "id": "hardcoded_secret",
+      "sev": "warn",
+      "number": 64,
+      "priority": "P3",
+      "category": "합성 테스트/테스트 설정",
+      "domains": [
+        "보안",
+        "개인정보"
+      ],
+      "decision": "운영 인증값 아님. 유출·거절·해시 보호 검사를 위해 유지."
+    },
+    {
+      "rel": "artifacts/api-server/src/lib/event-hub.pg.test.ts",
+      "line": 1638,
+      "id": "hardcoded_secret",
+      "sev": "warn",
+      "number": 65,
+      "priority": "P3",
+      "category": "합성 테스트/테스트 설정",
+      "domains": [
+        "보안",
+        "개인정보",
+        "입금/회비"
+      ],
+      "decision": "운영 인증값 아님. 유출·거절·해시 보호 검사를 위해 유지."
+    },
+    {
+      "rel": "artifacts/api-server/vitest.config.ts",
+      "line": 14,
+      "id": "hardcoded_secret",
+      "sev": "warn",
+      "number": 66,
+      "priority": "P3",
+      "category": "합성 테스트/테스트 설정",
+      "domains": [
+        "보안"
+      ],
+      "decision": "운영 인증값 아님. 유출·거절·해시 보호 검사를 위해 유지."
+    },
+    {
+      "rel": "artifacts/boltnew-app/scripts/check-responsive-preview.mjs",
+      "line": 55,
+      "id": "hardcoded_secret",
+      "sev": "warn",
+      "number": 67,
+      "priority": "P3",
+      "category": "독립 브라우저 fixture",
+      "domains": [
+        "보안"
+      ],
+      "decision": "SYNTHETIC 응답. localhost 외 요청 차단. 유지."
+    },
+    {
+      "rel": "artifacts/boltnew-app/src/admin/LoginScreen.test.tsx",
+      "line": 60,
+      "id": "hardcoded_secret",
+      "sev": "warn",
+      "number": 68,
+      "priority": "P3",
+      "category": "합성 테스트/테스트 설정",
+      "domains": [
+        "보안",
+        "권한/인증"
+      ],
+      "decision": "운영 인증값 아님. 유출·거절·해시 보호 검사를 위해 유지."
+    },
+    {
+      "rel": "artifacts/boltnew-app/src/event-hub/event-laboratory-store.test.ts",
+      "line": 173,
+      "id": "hardcoded_secret",
+      "sev": "warn",
+      "number": 69,
+      "priority": "P3",
+      "category": "합성 테스트/테스트 설정",
+      "domains": [
+        "보안"
+      ],
+      "decision": "운영 인증값 아님. 유출·거절·해시 보호 검사를 위해 유지."
+    },
+    {
+      "rel": "artifacts/boltnew-app/src/lib/signal-match.test.ts",
+      "line": 152,
+      "id": "hardcoded_secret",
+      "sev": "warn",
+      "number": 70,
+      "priority": "P3",
+      "category": "합성 테스트/테스트 설정",
+      "domains": [
+        "보안"
+      ],
+      "decision": "운영 인증값 아님. 유출·거절·해시 보호 검사를 위해 유지."
+    },
+    {
+      "rel": "artifacts/boltnew-app/src/lib/signal-match.test.ts",
+      "line": 247,
+      "id": "hardcoded_secret",
+      "sev": "warn",
+      "number": 71,
+      "priority": "P3",
+      "category": "합성 테스트/테스트 설정",
+      "domains": [
+        "보안"
+      ],
+      "decision": "운영 인증값 아님. 유출·거절·해시 보호 검사를 위해 유지."
+    },
+    {
+      "rel": "artifacts/boltnew-app/tests/event-hub-v6.spec.ts",
+      "line": 188,
+      "id": "hardcoded_secret",
+      "sev": "warn",
+      "number": 72,
+      "priority": "P3",
+      "category": "합성 테스트/테스트 설정",
+      "domains": [
+        "보안"
+      ],
+      "decision": "운영 인증값 아님. 유출·거절·해시 보호 검사를 위해 유지."
+    },
+    {
+      "rel": "artifacts/boltnew-app/tests/event-hub-v6.spec.ts",
+      "line": 293,
+      "id": "hardcoded_secret",
+      "sev": "warn",
+      "number": 73,
+      "priority": "P3",
+      "category": "합성 테스트/테스트 설정",
+      "domains": [
+        "보안"
+      ],
+      "decision": "운영 인증값 아님. 유출·거절·해시 보호 검사를 위해 유지."
+    },
+    {
+      "rel": "scripts/full-code-audit.mjs",
+      "line": 55,
+      "id": "ts_ignore",
+      "sev": "warn",
+      "number": 74,
+      "priority": "P3",
+      "category": "감사 규칙 자기 탐지",
+      "domains": [
+        "보안"
+      ],
+      "decision": "TS 억제 주석이 아니라 검사 정규식. 보호 규칙 유지."
+    },
+    {
+      "rel": "scripts/lib/ops-client.mjs",
+      "line": 103,
+      "id": "hardcoded_secret",
+      "sev": "warn",
+      "number": 75,
+      "priority": "P3",
+      "category": "마스킹 문자열",
+      "domains": [
+        "보안",
+        "권한/인증"
+      ],
+      "decision": "[REDACTED] 대입을 비밀값으로 오탐. 보호 코드 유지."
+    },
+    {
+      "rel": "scripts/rotate-exposed-secrets.mjs",
+      "line": 9,
+      "id": "hardcoded_secret",
+      "sev": "warn",
+      "number": 76,
+      "priority": "P3",
+      "category": "주석의 토큰 예시",
+      "domains": [
+        "보안"
+      ],
+      "decision": "실제 토큰 아님. 별도로 발견한 실행 승인/오류 노출 위험은 이번에 수정."
+    },
+    {
+      "rel": "scripts/rotate-exposed-secrets.mjs",
+      "line": 10,
+      "id": "hardcoded_secret",
+      "sev": "warn",
+      "number": 77,
+      "priority": "P3",
+      "category": "주석의 토큰 예시",
+      "domains": [
+        "보안"
+      ],
+      "decision": "실제 토큰 아님. 별도로 발견한 실행 승인/오류 노출 위험은 이번에 수정."
+    },
+    {
+      "rel": "scripts/test/ops-client.test.mjs",
+      "line": 127,
+      "id": "hardcoded_secret",
+      "sev": "warn",
+      "number": 78,
+      "priority": "P3",
+      "category": "합성 테스트/테스트 설정",
+      "domains": [
+        "보안",
+        "권한/인증"
+      ],
+      "decision": "운영 인증값 아님. 유출·거절·해시 보호 검사를 위해 유지."
+    },
+    {
+      "rel": "scripts/test/ops-client.test.mjs",
+      "line": 128,
+      "id": "hardcoded_secret",
+      "sev": "warn",
+      "number": 79,
+      "priority": "P3",
+      "category": "합성 테스트/테스트 설정",
+      "domains": [
+        "보안",
+        "권한/인증"
+      ],
+      "decision": "운영 인증값 아님. 유출·거절·해시 보호 검사를 위해 유지."
+    }
+  ]
+}

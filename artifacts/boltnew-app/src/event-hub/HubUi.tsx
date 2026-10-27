@@ -83,6 +83,22 @@ export function HubFeedback({
     </div>
   );
 }
+/** Stable layout while server-owned state loads; respects reduced-motion settings. */
+export function HubLoading({ label }: { label: string }) {
+  return (
+    <div role="status" aria-busy="true" className="space-y-3 p-4">
+      <p>{label}</p>
+      <div
+        aria-hidden="true"
+        className="space-y-3 animate-pulse motion-reduce:animate-none"
+      >
+        <div className="h-5 w-2/3 rounded-xl bg-slate-200" />
+        <div className="h-24 rounded-2xl border border-slate-200 bg-slate-100" />
+        <div className="h-24 rounded-2xl border border-slate-200 bg-slate-100" />
+      </div>
+    </div>
+  );
+}
 export function HubCard({ children }: { children: ReactNode }) {
   return (
     <section className="rounded-2xl border border-slate-200 bg-white p-4 space-y-3 shadow-sm min-w-0">

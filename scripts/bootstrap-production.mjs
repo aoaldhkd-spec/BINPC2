@@ -3,6 +3,7 @@
  * Bootstrap production: set Render bootstrap env vars, redeploy, verify admin/test login.
  * Reads secrets from artifacts/api-server/.security-credentials.txt
  */
+import { parseArgs, requireProductionWrite, redactText } from './lib/ops-client.mjs';
 import { readFileSync, existsSync } from 'node:fs';
 import { resolve, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -34,7 +35,7 @@ async function renderFetch(key, path, init = {}) {
     },
   });
   const body = await res.text();
-  if (!res.ok) throw new Error(`Render ${path} → ${res.status}: ${body}`);
+  if (!res.ok) throw new Error(`Render ${path} → ${res.status} (response body withheld)`);
   return body ? JSON.parse(body) : null;
 }
 
@@ -60,6 +61,8 @@ async function waitLive(key) {
 }
 
 async function main() {
+  const permission = requireProductionWrite({args:parseArgs(),identities:[RENDER_SERVICE_ID,new URL(API_URL).host],operation:'Production bootstrap and redeployment'});
+  if(permission.dryRun){console.log('DRY RUN: no credentials read, files changed, or provider requests sent.');return;}
   const renderKey = process.env.RENDER_API_KEY?.trim() || readCred('Render API key');
   const adminPw = readCred('Admin login (/admin)');
   const testPw = readCred('Test dashboard password');
@@ -90,10 +93,10 @@ async function main() {
       console.log('  test login OK');
       return;
     }
-    console.log(`  wait ${i + 1}/12 admin=${admin.error?.message || admin.status} test=${test.error?.message || test.status}`);
+    console.log(`  wait ${i + 1}/12 admin=${admin.status} test=${test.status}`);
     await new Promise((r) => setTimeout(r, 8000));
   }
   throw new Error('login verification failed after deploy');
 }
 
-main().catch((e) => { console.error(e.message); process.exit(1); });
+main().catch((e) => { console.error(redactText(e.message)); process.exit(1); });

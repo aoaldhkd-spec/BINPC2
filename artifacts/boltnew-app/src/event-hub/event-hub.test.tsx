@@ -11,6 +11,8 @@ import {
 } from "@testing-library/react";
 import { NicknameSetupScreen } from "../components/NicknameSetupScreen";
 import { EventLaboratory } from "./EventLaboratory";
+import { WaitingRoom } from "./EventHubPage";
+import { EventLaboratoryStore } from "./event-laboratory-store";
 import { useEventHub } from "../lib/event-hub-client";
 import {
   profileMissing,
@@ -255,4 +257,35 @@ describe("session bootstrap and receipt-first recovery", () => {
     expect(sequence).toEqual(["write", "receipt", "receipt"]);
     expect(result.current.status).toBe("saved");
   });
+});
+
+it("does not commit live admission if browser identity storage is blocked", () => {
+  const store = new EventLaboratoryStore();
+  store.jump("프로필 완료");
+  const state = store.state();
+  const mutate = vi.fn(),
+    setError = vi.fn();
+  vi.spyOn(localStorage, "setItem").mockImplementation(() => {
+    throw new DOMException("blocked", "SecurityError");
+  });
+  render(
+    <WaitingRoom
+      app={state.applications[0]}
+      event={state.events[0]}
+      hub={{
+        state,
+        mutate,
+        setError,
+        error: "",
+        status: "",
+        load: async () => state,
+      }}
+      edit={() => {}}
+    />,
+  );
+  fireEvent.click(screen.getByRole("button", { name: "술번개 입장하기" }));
+  expect(mutate).not.toHaveBeenCalled();
+  expect(setError).toHaveBeenCalledWith(
+    expect.stringContaining("신청·입금 기록은 보존"),
+  );
 });

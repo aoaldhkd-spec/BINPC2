@@ -119,3 +119,13 @@ git ls-remote --heads origin refs/heads/feat/event-hub-v6-20261027
 ```
 
 원격 SHA가 HANDOFF_STATE.json과 같은지 비교한다. main은 push/merge하지 않는다. 안전성을 확인하지 못하면 동봉 bundle을 보존하고 BLOCKED를 유지한다. 현재 Cursor로 이전 실행이나 운영 배포는 하지 않았고, 인계만 준비했다.
+
+## ad364b75 이후 위험 후속 작업
+
+최신 후속 문서는 `EVENT_HUB_V6_RISK_FOLLOWUP_2026-10-27.md`, 감사 79건 개별 분류는 `EVENT_HUB_V6_AUDIT_79_2026-10-27.md`/JSON이다. 최종 HEAD는 새 전달 묶음의 HANDOFF_STATE.json을 기준으로 한다. 기존 기능 표와 보고서는 과거 증거로 보존한다.
+
+추가 변경: 운영 초기화/키 교체 스크립트 실행 gate와 민감 오류 마스킹, 브라우저 저장소가 차단된 경우의 문의/테마/현장 입장 보호, 허브 skeleton/카드 결과 효과. 전체 단위는 API522+UI778=1300 PASS, Node 운영 스크립트 검사 13 PASS, 실제 브라우저5 PASS. DB56은 기존 검증 로그를 보존했다. 서버/DB 기능 코드는 변경하지 않았다.
+
+`node --test scripts/test/production-entry-guards.test.mjs scripts/test/ops-client.test.mjs`는 운영 스크립트를 확인 없는 실행 또는 dry-run으로만 호출한다. 실제 운영 실행은 사용자 승인 전 금지다.
+
+Netlify 설정은 401/403 및 인증 부재로 확인하지 못했다. 사용자에게 요청한 한 가지 설정은 BINPC2 Netlify `Build status = Stopped builds`다. 확인된 후에만 개발 브랜치 push를 재검토하며 PR은 그 전에 만들지 않는다. Render main은 유지한다. 원격 미저장 상태에서 bundle을 우선 복구하고 커밋을 재제작하지 않는다.

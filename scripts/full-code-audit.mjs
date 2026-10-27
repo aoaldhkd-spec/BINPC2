@@ -3,7 +3,7 @@
  * 전수조사 — 모든 소스 파일을 순회하며 정적 패턴·구조 이슈를 보고한다.
  * Usage: node scripts/full-code-audit.mjs
  */
-import { readFileSync, readdirSync, statSync } from 'node:fs';
+import { readFileSync, readdirSync, statSync, writeFileSync } from 'node:fs';
 import { resolve, relative, extname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -400,4 +400,15 @@ try {
   console.log(`  ${f.rel}:${f.line} [${f.id}] ${f.text}`);
 }
 
+// Optional machine-readable evidence includes locations, never source credential literals.
+const jsonIndex = process.argv.indexOf('--json');
+if (jsonIndex !== -1) {
+  const output = process.argv[jsonIndex + 1];
+  if (!output) throw new Error('--json requires an output path');
+  const counts = { error: 0, warn: 0, info: 0 };
+  for (const finding of allFindings) counts[finding.sev]++;
+  writeFileSync(resolve(output), JSON.stringify({ files: files.length, totalLines, counts,
+    findings: allFindings.map(({ text: _text, ...finding }) => finding),
+  }, null, 2) + '\n');
+}
 process.exit(errors.length ? 1 : 0);

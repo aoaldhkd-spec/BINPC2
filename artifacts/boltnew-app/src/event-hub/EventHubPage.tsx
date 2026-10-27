@@ -1,3 +1,7 @@
+import {
+  readHubBrowserValue,
+  canStoreHubOnsiteIdentity,
+} from "../lib/event-hub-browser-storage";
 import "./event-hub.css";
 import { EventMedia } from "./EventMedia";
 import { useEffect, useState } from "react";
@@ -16,6 +20,7 @@ import {
 } from "../lib/event-hub-client";
 import { NicknameSetupScreen } from "../components/NicknameSetupScreen";
 import {
+  HubLoading,
   HubButton,
   HubField,
   HubCheck,
@@ -46,10 +51,11 @@ export default function EventHubPage({ path }: { path: string }) {
   const hub = useEventHub();
   const s = hub.state;
   const [dark, setDark] = useState(
-    () => localStorage.getItem("dark_mode") === "1",
+    () => readHubBrowserValue("local", "dark_mode") === "1",
   );
   useEffect(() => {
-    const sync = () => setDark(localStorage.getItem("dark_mode") === "1");
+    const sync = () =>
+      setDark(readHubBrowserValue("local", "dark_mode") === "1");
     window.addEventListener("storage", sync);
     return () => window.removeEventListener("storage", sync);
   }, []);
@@ -95,7 +101,7 @@ export default function EventHubPage({ path }: { path: string }) {
     return (
       <main className="min-h-screen bg-slate-50 p-5">
         <a href="/">← 뒤로</a>
-        <p role="status">신청 기록을 불러오는 중…</p>
+        <HubLoading label="신청 기록을 불러오는 중…" />
         <HubFeedback status={hub.status} error={hub.error} />
       </main>
     );
@@ -721,6 +727,12 @@ export function WaitingRoom({
 }) {
   const missing = profileMissing(app.profile);
   const enter = async () => {
+    if (!onEnter && !canStoreHubOnsiteIdentity()) {
+      hub.setError(
+        "이 브라우저가 입장에 필요한 기기 저장소를 차단했습니다. 신청·입금 기록은 보존됩니다. 저장소를 허용한 브라우저에서 신청을 복구한 뒤 입장해 주세요.",
+      );
+      return;
+    }
     const deviceSecret = crypto.randomUUID();
     const r = await hub.mutate({
       action: "application.enter",
@@ -735,15 +747,21 @@ export function WaitingRoom({
       }
       const p = r.profile as { id: string; pin_code: string };
       // Register the same binding with the existing recovery client; no new profile INSERT.
-      localStorage.setItem(`bolt_device_secret_${p.id}`, deviceSecret);
-      sessionStorage.setItem("session_bearer_v1", String(r.sessionToken));
-      sessionStorage.setItem("session_bearer_uid_v1", p.id);
-      sessionStorage.setItem("session_bearer_exp_v1", String(r.expiresAt));
-      localStorage.setItem(MATCHING_USER_KEY, p.id);
-      setDeviceRecoveryPin(p.pin_code);
-      getDeviceSecret(p.id);
-      setPushOptIn(p.id, app.profile.pushDecision === "enable");
-      hubNavigate("/");
+      try {
+        localStorage.setItem(`bolt_device_secret_${p.id}`, deviceSecret);
+        sessionStorage.setItem("session_bearer_v1", String(r.sessionToken));
+        sessionStorage.setItem("session_bearer_uid_v1", p.id);
+        sessionStorage.setItem("session_bearer_exp_v1", String(r.expiresAt));
+        localStorage.setItem(MATCHING_USER_KEY, p.id);
+        setDeviceRecoveryPin(p.pin_code);
+        getDeviceSecret(p.id);
+        setPushOptIn(p.id, app.profile.pushDecision === "enable");
+        hubNavigate("/");
+      } catch {
+        hub.setError(
+          "입장 승인 기록은 서버에 저장되었지만 이 기기의 연결을 완료하지 못했습니다. 재신청·재입금하지 말고 브라우저 저장소를 허용한 뒤 신청을 복구해 주세요.",
+        );
+      }
     }
   };
   return (
@@ -881,7 +899,7 @@ export function WaitingRoom({
             {[0, 1, 2].map((i) => (
               <div
                 key={i}
-                className={`aspect-[2/3] rounded-xl grid place-items-center p-2 text-center text-sm transition-transform duration-500 ${app.cards[i] ? "bg-teal-50 border border-teal-300" : "bg-slate-800 text-white"}`}
+                className={`aspect-[2/3] rounded-xl grid place-items-center p-2 text-center text-sm transition-transform duration-500 ${app.cards[i] ? "hub-card-revealed bg-teal-50 border border-teal-300" : "bg-slate-800 text-white"}`}
               >
                 {app.cards[i]
                   ? app.cards[i].prize === "다음 기회에"

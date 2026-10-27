@@ -1,15 +1,25 @@
+import {
+  readHubBrowserValue,
+  writeHubBrowserValue,
+} from "../lib/event-hub-browser-storage";
 import { useEffect, useState, useRef } from "react";
 import { useEventHub } from "../lib/event-hub-client";
 import { HubButton, HubCheck, HubFeedback, inputClass } from "./HubUi";
 export function AdminInquiry() {
   const [open, setOpen] = useState(false),
     [message, setMessage] = useState(
-      () => sessionStorage.getItem("binpc2_inquiry_draft_v6") ?? "",
+      () => readHubBrowserValue("session", "binpc2_inquiry_draft_v6") ?? "",
     ),
-    [consent, setConsent] = useState(false);
+    [consent, setConsent] = useState(false),
+    [draftStorageAvailable, setDraftStorageAvailable] = useState(true);
   useEffect(() => {
-    if (message) sessionStorage.setItem("binpc2_inquiry_draft_v6", message);
-    else sessionStorage.removeItem("binpc2_inquiry_draft_v6");
+    setDraftStorageAvailable(
+      writeHubBrowserValue(
+        "session",
+        "binpc2_inquiry_draft_v6",
+        message || null,
+      ),
+    );
   }, [message]);
   const sheet = useRef<HTMLElement>(null);
   useEffect(() => {
@@ -46,17 +56,20 @@ export function AdminInquiry() {
     thread?.messages.some(
       (m) => m.sender === "admin" && m.at > thread.readUserAt,
     ) ?? false;
+  const canPoll = !!hub.state?.enabled || !!hub.state?.applications.length;
+  const refresh = hub.load;
+  const markRead = hub.mutate;
   useEffect(() => {
-    if (!hub.state?.enabled && !hub.state?.applications.length) return;
+    if (!canPoll) return;
     const t = setInterval(() => {
       if (document.visibilityState === "visible")
-        void hub.load().catch(() => {});
+        void refresh().catch(() => {});
     }, 15000);
     return () => clearInterval(t);
-  }, [hub.state?.enabled, hub.state?.applications.length, hub.load]);
+  }, [canPoll, refresh]);
   useEffect(() => {
-    if (open && unread) void hub.mutate({ action: "thread.read" });
-  }, [open, unread, hub.mutate]);
+    if (open && unread) void markRead({ action: "thread.read" });
+  }, [open, unread, markRead]);
   useEffect(() => {
     if (!open) return;
     const marker = crypto.randomUUID();
@@ -183,6 +196,13 @@ export function AdminInquiry() {
                 checked={consent}
                 onChange={setConsent}
               />
+              {!draftStorageAvailable && (
+                <p role="status" className="text-xs">
+                  브라우저가 임시 저장을 차단했습니다. 보내지 않은 문의는 현재
+                  화면에서만 유지됩니다. 전송 완료한 문의는 서버에서 복구할 수
+                  있습니다.
+                </p>
+              )}
               <HubFeedback status={hub.status} error={hub.error} />
               <HubButton
                 type="submit"

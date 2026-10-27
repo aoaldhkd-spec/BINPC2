@@ -40,3 +40,13 @@ body:has(.event-profile-draft) .event-hub-dock {
   padding: 0;
   border: 0;
 }
+
+/* Reveal durable server results only; motion never changes the draw outcome. */
+@keyframes hub-card-reveal {
+  from { transform: perspective(600px) rotateY(-90deg); opacity: .3; }
+  to { transform: perspective(600px) rotateY(0); opacity: 1; }
+}
+.hub-card-revealed { animation: hub-card-reveal 400ms ease-out; }
+@media (prefers-reduced-motion: reduce) {
+  .hub-card-revealed { animation: none; }
+}

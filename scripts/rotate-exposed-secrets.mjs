@@ -11,6 +11,7 @@
  *   $env:SUPABASE_ACCESS_TOKEN="sbp_..."   # OR $env:NEW_DATABASE_PASSWORD="..."
  *   node scripts/rotate-exposed-secrets.mjs
  */
+import { parseArgs, requireProductionWrite, redactText } from './lib/ops-client.mjs';
 import { randomBytes } from 'node:crypto';
 import { readFileSync, writeFileSync, existsSync, appendFileSync } from 'node:fs';
 import { resolve, dirname } from 'node:path';
@@ -73,7 +74,7 @@ async function renderFetch(path, init = {}) {
     },
   });
   const body = await res.text();
-  if (!res.ok) throw new Error(`Render API ${path} → ${res.status}: ${body}`);
+  if (!res.ok) throw new Error(`Render API ${path} → ${res.status} (response body withheld)`);
   return body ? JSON.parse(body) : null;
 }
 
@@ -87,7 +88,7 @@ async function netlifyFetch(path, init = {}) {
     },
   });
   const body = await res.text();
-  if (!res.ok) throw new Error(`Netlify API ${path} → ${res.status}: ${body}`);
+  if (!res.ok) throw new Error(`Netlify API ${path} → ${res.status} (response body withheld)`);
   return body ? JSON.parse(body) : null;
 }
 
@@ -101,7 +102,7 @@ async function supabaseResetPassword(password) {
     body: JSON.stringify({ password }),
   });
   const body = await res.text();
-  if (!res.ok) throw new Error(`Supabase password reset → ${res.status}: ${body}`);
+  if (!res.ok) throw new Error(`Supabase password reset → ${res.status} (response body withheld)`);
   return body ? JSON.parse(body) : {};
 }
 
@@ -189,6 +190,8 @@ async function restoreAdminSettingsAfterDeploy() {
 }
 
 async function main() {
+  const permission = requireProductionWrite({args:parseArgs(),identities:[SUPABASE_PROJECT_REF,RENDER_SERVICE_NAME,NETLIFY_SITE_NAME],operation:'Secret rotation and redeployment'});
+  if(permission.dryRun){console.log('DRY RUN: no credentials read, files changed, or provider requests sent.');return;}
   if (!RENDER_API_KEY) throw new Error('Set RENDER_API_KEY (use the NEW key after dashboard rotation)');
 
   let dbPassword = NEW_DATABASE_PASSWORD || genDbPassword();
@@ -254,6 +257,6 @@ async function main() {
 }
 
 main().catch((err) => {
-  console.error('\nRotation failed:', err.message);
+  console.error('\nRotation failed:', redactText(err.message));
   process.exit(1);
 });
