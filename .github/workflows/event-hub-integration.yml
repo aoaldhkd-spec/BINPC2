@@ -35,7 +35,7 @@ jobs:
     env:
       NODE_ENV: development
       DATABASE_URL: postgres://postgres:isolated-ci-password@127.0.0.1:5432/binpc2_hub_dev?sslmode=disable
-      HUB_TEST_DATABASE_URL: postgres://postgres:isolated-ci-password@127.0.0.1:5432/binpc2_hub_test?sslmode=disable
+      HUB_TEST_DATABASE_URL: postgres://postgres:isolated-ci-password@127.0.0.1:5432/binpc2_hub_test_resume?sslmode=disable
       TEST_DATABASE_URL: postgres://postgres:isolated-ci-password@127.0.0.1:5432/binpc2_reset_test?sslmode=disable
       SESSION_SECRET: isolated-ci-fixture-session-key-not-for-deployment
       BOOTSTRAP_ADMIN_PASSWORD: isolated-ci-admin-password
