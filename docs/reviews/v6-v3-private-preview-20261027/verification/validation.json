@@ -1,0 +1,97 @@
+{
+  "sourceSha": "620fda2d1cd84dca8326bab6b83d255fed5065a5",
+  "unit": {
+    "api": 527,
+    "react": 843,
+    "total": 1370,
+    "pass": true
+  },
+  "isolatedPostgreSQL": {
+    "passed": 74
+  },
+  "typecheck": "PASS",
+  "recurrenceGuards": {
+    "passed": 598,
+    "total": 598
+  },
+  "opsAndEntry": {
+    "passed": 13,
+    "total": 13
+  },
+  "localBrowser": {
+    "passed": 10,
+    "total": 11,
+    "failure": "100 concurrent cookie-session creations: HTTP503 on cumulative long-running local fixture",
+    "p0RecoveryFocused": "PASS",
+    "v3PhoneLateLogoFocused": "PASS",
+    "privacyReviewOriginal5SecondAssertion": "PASS after bounded member rendering"
+  },
+  "frozenPrivateNativeBuild": "PASS",
+  "localPrivateHttpGate": {
+    "passed": 10
+  },
+  "localFrozenHttpsNormalAdminLogin": "PASS; self-signed loopback only",
+  "physicalGalaxy": "UNKNOWN",
+  "physicalIPhone": "UNKNOWN",
+  "externalParticipantUrl": null,
+  "externalAdminUrl": null,
+  "operationalDbChanged": false,
+  "sourceCiRun": "https://github.com/aoaldhkd-spec/BINPC2/actions/runs/40532639584",
+  "sourceCiStatus": "SUCCESS",
+  "measurements": {
+    "environment": "150 synthetic in-process users; mock PG; NOT real PostgreSQL load, mobile, or external HTTPS",
+    "registerP50Ms": 762,
+    "registerP95Ms": 776,
+    "readyP50Ms": 190,
+    "readyP95Ms": 384,
+    "messageP50Ms": 93,
+    "messageP95Ms": 95,
+    "rssGrowthMiB": 76.4,
+    "privacyReviewResponseStartMsBefore": 33,
+    "privacyAdminReadResponseStartMsBefore": 231,
+    "privacyReviewResponseStartMsAfter": 22,
+    "privacyAdminReadResponseStartMsAfter": 209,
+    "uiStateAssertionAfter": "under original 5-second assertion; exact paint latency not measured"
+  },
+  "ciSha": "5e41ada43b5e44cfe9e368fd43ee4af639d3b5e1",
+  "freshRemoteBrowser": {
+    "passed": 11,
+    "total": 11,
+    "midnightGuide": "normal visible acknowledgement button, no force-click/auth bypass"
+  },
+  "previousCi": [
+    {
+      "run": 40528678162,
+      "conclusion": "failure",
+      "detailDownload": "403"
+    },
+    {
+      "run": 40529872317,
+      "conclusion": "failure",
+      "cause": "midnight rainbow guide covered coach click"
+    },
+    {
+      "run": 40530360225,
+      "conclusion": "failure",
+      "cause": "same browser test sequence"
+    },
+    {
+      "run": 40531298816,
+      "conclusion": "cancelled",
+      "cause": "Chromium install stalled; replaced by supported Ubuntu24.04 run"
+    }
+  ],
+  "audit": {
+    "error": 0,
+    "warn": 90,
+    "original79Preserved": true
+  },
+  "latestRealSessionLoad": {
+    "concurrent": 100,
+    "passed": 100,
+    "p50Ms": 586,
+    "p95Ms": 594,
+    "maxMs": 595,
+    "scope": "dedicated local PG/native frozen app; not 150 mixed cumulative/phones"
+  }
+}

@@ -1,0 +1,7 @@
+Preserved failure; not suppressed or changed to PASS.
+Scope: cumulative long-running isolated local Express/PostgreSQL server, actual HTTP API.
+Full browser execution:10/11 PASS.
+Test:100 distinct cookie sessions submit concurrently through actual HTTP API without duplicate applications or ranks.
+Assertion:event-hub-v6.spec.ts:727, session-create response expected200, received503.
+No production endpoint, no operational data deletion, no protection limit raised.
+Fresh checkout GitHub CI results are separate; passing fresh CI does not erase this cumulative-load failure.

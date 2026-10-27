@@ -1,0 +1,11 @@
+{
+  "sourceSha": "620fda2d1cd84dca8326bab6b83d255fed5065a5",
+  "scope": "frozen production React+Express+dedicated local PG over loopback self-signed HTTPS only; NOT external user URL",
+  "normalAdminUiLogin": true,
+  "secureHttpOnlySessionCookie": true,
+  "participantRoute": true,
+  "externalOriginsRequested": [
+    "https://fonts.googleapis.com"
+  ],
+  "operationalDatabaseUsed": false
+}

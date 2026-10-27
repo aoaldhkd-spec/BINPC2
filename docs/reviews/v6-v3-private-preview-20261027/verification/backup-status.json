@@ -1,0 +1,10 @@
+{
+  "frozenSourceSha": "620fda2d1cd84dca8326bab6b83d255fed5065a5",
+  "incrementalBundle": "included in downloadable ZIP; baseline5428ad62859185113b6fbad69583859b2ef74dba required",
+  "fullBundle": "preserved locally; not pushed as a >100MB GitHub file",
+  "fullBundleBytes": 504680684,
+  "fullBundleChecksum": "902cb50862165363fe79f52ffbffe2ae66f994adf42e5721c96209ef05d4c44c",
+  "privateEnvOrRuntimeKeysIncluded": false,
+  "incrementalBundleHead": "5e41ada43b5e44cfe9e368fd43ee4af639d3b5e1",
+  "fullBundleSourceCheckpoint": "620fda2d1cd84dca8326bab6b83d255fed5065a5"
+}

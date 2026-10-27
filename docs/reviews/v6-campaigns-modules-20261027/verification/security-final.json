@@ -1,0 +1,6 @@
+{
+  "scope": "All changed source/docs and added synthetic media since baseline 5428ad62; known local credentials and private-key/token patterns; no DB dumps or session-state files",
+  "files": 88,
+  "findings": [],
+  "limitations": "Existing historical binaries not exhaustively OCR-reviewed; not an independent security certification."
+}

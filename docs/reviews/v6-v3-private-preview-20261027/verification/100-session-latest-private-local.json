@@ -1,0 +1,11 @@
+{
+  "sourceSha": "932b84010b0f77fc691e4665f1d0749352a11bf4",
+  "scope": "100 concurrent normal recovery-session HTTP requests; latest frozen Express + dedicated local PG; self-signed loopback HTTPS; not cumulative 150-user mixed workload or phones",
+  "statusCounts": {
+    "200": 100
+  },
+  "p50Ms": 586,
+  "p95Ms": 594,
+  "maxMs": 595,
+  "pass": true
+}

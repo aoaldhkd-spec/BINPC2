@@ -1,0 +1,6 @@
+{
+  "scope": "current tracked changes and all newly added public files; known private env values and credential/file patterns; synthetic UI evidence manually selected",
+  "files": 148,
+  "findings": [],
+  "limitations": "not exhaustive historic binary OCR or independent certification; local runtime data/env excluded"
+}

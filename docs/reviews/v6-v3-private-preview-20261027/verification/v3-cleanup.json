@@ -1,0 +1,30 @@
+{
+  "scope": "Only uncommitted duplicate copies created in this task. Original 8 files and received ZIP remain preserved. No runtime/user/DB/history/test evidence removed.",
+  "removed": [
+    {
+      "path": "docs/assets/tour-logos-v3/스피드_SPEED_제공디자인_원본.jpg",
+      "bytes": 89657,
+      "preserved": "docs/assets/tour-logos-v3/03_원본보존/스피드_SPEED_제공디자인_원본.jpg",
+      "sha256": "3d997baef5855ca627f6e1a700f3220b397330c92786bf62680d0b84584d96c3"
+    },
+    {
+      "path": "docs/assets/tour-logos-v3/고래_GORAE_제공화면_원본.jpg",
+      "bytes": 76548,
+      "preserved": "docs/assets/tour-logos-v3/03_원본보존/고래_GORAE_제공화면_원본.jpg",
+      "sha256": "bbe02281926fff7a032a53c636dd8dffb7a9d0cf3abfe68c8eafc4b4796ceb70"
+    },
+    {
+      "path": "docs/assets/tour-logos-v3/레드홀_RED_HOLE_제공화면_원본.jpg",
+      "bytes": 161795,
+      "preserved": "docs/assets/tour-logos-v3/03_원본보존/레드홀_RED_HOLE_제공화면_원본.jpg",
+      "sha256": "97c260115fa80545a4e5db5fb9852952b2410b8b43eac6f3dd0ca70601058c22"
+    },
+    {
+      "path": "docs/assets/tour-logos-v3/체크인_CHECK_IN_제공화면_원본.jpg",
+      "bytes": 182953,
+      "preserved": "docs/assets/tour-logos-v3/03_원본보존/체크인_CHECK_IN_제공화면_원본.jpg",
+      "sha256": "e1252da4f434fa36ca6e615b512c8f073dbbacb9cf71b93dfda4718b2ae4a695"
+    }
+  ],
+  "bytes_removed": 510953
+}

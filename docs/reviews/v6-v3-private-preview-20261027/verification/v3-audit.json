@@ -1,0 +1,3833 @@
+{
+  "files": 571,
+  "totalLines": 106291,
+  "counts": {
+    "error": 0,
+    "warn": 87,
+    "info": 550
+  },
+  "findings": [
+    {
+      "rel": ".local/preview/build/assets/index-nqdCCGJO.js",
+      "line": 3,
+      "id": "empty_catch",
+      "sev": "warn"
+    },
+    {
+      "rel": "artifacts/api-server/scripts/chat-test-150.mjs",
+      "line": 61,
+      "id": "console_log",
+      "sev": "info"
+    },
+    {
+      "rel": "artifacts/api-server/scripts/chat-test-150.mjs",
+      "line": 68,
+      "id": "console_log",
+      "sev": "info"
+    },
+    {
+      "rel": "artifacts/api-server/scripts/chat-test-150.mjs",
+      "line": 71,
+      "id": "console_log",
+      "sev": "info"
+    },
+    {
+      "rel": "artifacts/api-server/scripts/chat-test-150.mjs",
+      "line": 99,
+      "id": "console_log",
+      "sev": "info"
+    },
+    {
+      "rel": "artifacts/api-server/scripts/chat-test-150.mjs",
+      "line": 103,
+      "id": "console_log",
+      "sev": "info"
+    },
+    {
+      "rel": "artifacts/api-server/scripts/chat-test-150.mjs",
+      "line": 123,
+      "id": "console_log",
+      "sev": "info"
+    },
+    {
+      "rel": "artifacts/api-server/scripts/chat-test-150.mjs",
+      "line": 142,
+      "id": "console_log",
+      "sev": "info"
+    },
+    {
+      "rel": "artifacts/api-server/scripts/chat-test-150.mjs",
+      "line": 146,
+      "id": "console_log",
+      "sev": "info"
+    },
+    {
+      "rel": "artifacts/api-server/scripts/chat-test-150.mjs",
+      "line": 166,
+      "id": "console_log",
+      "sev": "info"
+    },
+    {
+      "rel": "artifacts/api-server/scripts/chat-test-150.mjs",
+      "line": 171,
+      "id": "console_log",
+      "sev": "info"
+    },
+    {
+      "rel": "artifacts/api-server/scripts/chat-test-150.mjs",
+      "line": 192,
+      "id": "console_log",
+      "sev": "info"
+    },
+    {
+      "rel": "artifacts/api-server/scripts/chat-test-150.mjs",
+      "line": 196,
+      "id": "console_log",
+      "sev": "info"
+    },
+    {
+      "rel": "artifacts/api-server/scripts/chat-test-150.mjs",
+      "line": 236,
+      "id": "console_log",
+      "sev": "info"
+    },
+    {
+      "rel": "artifacts/api-server/scripts/chat-test-150.mjs",
+      "line": 240,
+      "id": "console_log",
+      "sev": "info"
+    },
+    {
+      "rel": "artifacts/api-server/scripts/chat-test-150.mjs",
+      "line": 270,
+      "id": "console_log",
+      "sev": "info"
+    },
+    {
+      "rel": "artifacts/api-server/scripts/chat-test-150.mjs",
+      "line": 285,
+      "id": "console_log",
+      "sev": "info"
+    },
+    {
+      "rel": "artifacts/api-server/scripts/chat-test-150.mjs",
+      "line": 290,
+      "id": "console_log",
+      "sev": "info"
+    },
+    {
+      "rel": "artifacts/api-server/scripts/chat-test-150.mjs",
+      "line": 305,
+      "id": "console_log",
+      "sev": "info"
+    },
+    {
+      "rel": "artifacts/api-server/scripts/chat-test-150.mjs",
+      "line": 307,
+      "id": "console_log",
+      "sev": "info"
+    },
+    {
+      "rel": "artifacts/api-server/scripts/chat-test-150.mjs",
+      "line": 308,
+      "id": "console_log",
+      "sev": "info"
+    },
+    {
+      "rel": "artifacts/api-server/scripts/chat-test-150.mjs",
+      "line": 312,
+      "id": "console_log",
+      "sev": "info"
+    },
+    {
+      "rel": "artifacts/api-server/scripts/chat-test-150.mjs",
+      "line": 314,
+      "id": "console_log",
+      "sev": "info"
+    },
+    {
+      "rel": "artifacts/api-server/scripts/chat-test-150.mjs",
+      "line": 315,
+      "id": "console_log",
+      "sev": "info"
+    },
+    {
+      "rel": "artifacts/api-server/scripts/chat-test-150.mjs",
+      "line": 316,
+      "id": "console_log",
+      "sev": "info"
+    },
+    {
+      "rel": "artifacts/api-server/scripts/chat-test-150.mjs",
+      "line": 317,
+      "id": "console_log",
+      "sev": "info"
+    },
+    {
+      "rel": "artifacts/api-server/scripts/chat-test-150.mjs",
+      "line": 324,
+      "id": "console_log",
+      "sev": "info"
+    },
+    {
+      "rel": "artifacts/api-server/scripts/chat-test-150.mjs",
+      "line": 346,
+      "id": "console_log",
+      "sev": "info"
+    },
+    {
+      "rel": "artifacts/api-server/scripts/load-test-sse-150.mjs",
+      "line": 39,
+      "id": "console_log",
+      "sev": "info"
+    },
+    {
+      "rel": "artifacts/api-server/scripts/load-test-sse-150.mjs",
+      "line": 188,
+      "id": "console_log",
+      "sev": "info"
+    },
+    {
+      "rel": "artifacts/api-server/scripts/load-test-sse-150.mjs",
+      "line": 189,
+      "id": "console_log",
+      "sev": "info"
+    },
+    {
+      "rel": "artifacts/api-server/scripts/load-test-sse-150.mjs",
+      "line": 192,
+      "id": "console_log",
+      "sev": "info"
+    },
+    {
+      "rel": "artifacts/api-server/scripts/load-test-sse-150.mjs",
+      "line": 214,
+      "id": "console_log",
+      "sev": "info"
+    },
+    {
+      "rel": "artifacts/api-server/scripts/load-test-sse-150.mjs",
+      "line": 219,
+      "id": "console_log",
+      "sev": "info"
+    },
+    {
+      "rel": "artifacts/api-server/scripts/load-test-sse-150.mjs",
+      "line": 235,
+      "id": "console_log",
+      "sev": "info"
+    },
+    {
+      "rel": "artifacts/api-server/scripts/load-test-sse-150.mjs",
+      "line": 240,
+      "id": "console_log",
+      "sev": "info"
+    },
+    {
+      "rel": "artifacts/api-server/scripts/load-test-sse-150.mjs",
+      "line": 256,
+      "id": "console_log",
+      "sev": "info"
+    },
+    {
+      "rel": "artifacts/api-server/scripts/load-test-sse-150.mjs",
+      "line": 261,
+      "id": "console_log",
+      "sev": "info"
+    },
+    {
+      "rel": "artifacts/api-server/scripts/load-test-sse-150.mjs",
+      "line": 284,
+      "id": "console_log",
+      "sev": "info"
+    },
+    {
+      "rel": "artifacts/api-server/scripts/load-test-sse-150.mjs",
+      "line": 287,
+      "id": "console_log",
+      "sev": "info"
+    },
+    {
+      "rel": "artifacts/api-server/scripts/load-test-sse-150.mjs",
+      "line": 297,
+      "id": "console_log",
+      "sev": "info"
+    },
+    {
+      "rel": "artifacts/api-server/scripts/load-test-sse-150.mjs",
+      "line": 329,
+      "id": "console_log",
+      "sev": "info"
+    },
+    {
+      "rel": "artifacts/api-server/scripts/load-test-sse-150.mjs",
+      "line": 364,
+      "id": "console_log",
+      "sev": "info"
+    },
+    {
+      "rel": "artifacts/api-server/scripts/load-test-sse-150.mjs",
+      "line": 365,
+      "id": "console_log",
+      "sev": "info"
+    },
+    {
+      "rel": "artifacts/api-server/scripts/load-test-sse-150.mjs",
+      "line": 378,
+      "id": "console_log",
+      "sev": "info"
+    },
+    {
+      "rel": "artifacts/api-server/scripts/load-test-sse-150.mjs",
+      "line": 414,
+      "id": "console_log",
+      "sev": "info"
+    },
+    {
+      "rel": "artifacts/api-server/scripts/load-test-sse-150.mjs",
+      "line": 449,
+      "id": "console_log",
+      "sev": "info"
+    },
+    {
+      "rel": "artifacts/api-server/scripts/load-test-sse-150.mjs",
+      "line": 450,
+      "id": "console_log",
+      "sev": "info"
+    },
+    {
+      "rel": "artifacts/api-server/scripts/load-test-sse-150.mjs",
+      "line": 463,
+      "id": "console_log",
+      "sev": "info"
+    },
+    {
+      "rel": "artifacts/api-server/scripts/load-test-sse-150.mjs",
+      "line": 491,
+      "id": "console_log",
+      "sev": "info"
+    },
+    {
+      "rel": "artifacts/api-server/scripts/load-test-sse-150.mjs",
+      "line": 517,
+      "id": "console_log",
+      "sev": "info"
+    },
+    {
+      "rel": "artifacts/api-server/scripts/load-test-sse-150.mjs",
+      "line": 532,
+      "id": "console_log",
+      "sev": "info"
+    },
+    {
+      "rel": "artifacts/api-server/scripts/load-test-sse-150.mjs",
+      "line": 539,
+      "id": "console_log",
+      "sev": "info"
+    },
+    {
+      "rel": "artifacts/api-server/scripts/load-test-sse-150.mjs",
+      "line": 546,
+      "id": "console_log",
+      "sev": "info"
+    },
+    {
+      "rel": "artifacts/api-server/scripts/load-test-sse-150.mjs",
+      "line": 547,
+      "id": "console_log",
+      "sev": "info"
+    },
+    {
+      "rel": "artifacts/api-server/scripts/load-test-sse-150.mjs",
+      "line": 548,
+      "id": "console_log",
+      "sev": "info"
+    },
+    {
+      "rel": "artifacts/api-server/scripts/load-test-sse-150.mjs",
+      "line": 549,
+      "id": "console_log",
+      "sev": "info"
+    },
+    {
+      "rel": "artifacts/api-server/scripts/load-test-sse-150.mjs",
+      "line": 562,
+      "id": "console_log",
+      "sev": "info"
+    },
+    {
+      "rel": "artifacts/api-server/scripts/load-test-sse-150.mjs",
+      "line": 563,
+      "id": "console_log",
+      "sev": "info"
+    },
+    {
+      "rel": "artifacts/api-server/scripts/load-test-sse-150.mjs",
+      "line": 564,
+      "id": "console_log",
+      "sev": "info"
+    },
+    {
+      "rel": "artifacts/api-server/scripts/load-test-sse-150.mjs",
+      "line": 572,
+      "id": "console_log",
+      "sev": "info"
+    },
+    {
+      "rel": "artifacts/api-server/scripts/load-test-sse-150.mjs",
+      "line": 580,
+      "id": "console_log",
+      "sev": "info"
+    },
+    {
+      "rel": "artifacts/api-server/scripts/load-test-sse-150.mjs",
+      "line": 605,
+      "id": "console_log",
+      "sev": "info"
+    },
+    {
+      "rel": "artifacts/api-server/scripts/load-test-sse-150.mjs",
+      "line": 606,
+      "id": "console_log",
+      "sev": "info"
+    },
+    {
+      "rel": "artifacts/api-server/scripts/load-test-sse-150.mjs",
+      "line": 607,
+      "id": "console_log",
+      "sev": "info"
+    },
+    {
+      "rel": "artifacts/api-server/scripts/load-test-sse-150.mjs",
+      "line": 609,
+      "id": "console_log",
+      "sev": "info"
+    },
+    {
+      "rel": "artifacts/api-server/scripts/load-test-sse-150.mjs",
+      "line": 610,
+      "id": "console_log",
+      "sev": "info"
+    },
+    {
+      "rel": "artifacts/api-server/scripts/load-test-sse-150.mjs",
+      "line": 611,
+      "id": "console_log",
+      "sev": "info"
+    },
+    {
+      "rel": "artifacts/api-server/scripts/load-test-sse-150.mjs",
+      "line": 612,
+      "id": "console_log",
+      "sev": "info"
+    },
+    {
+      "rel": "artifacts/api-server/scripts/load-test-sse-150.mjs",
+      "line": 613,
+      "id": "console_log",
+      "sev": "info"
+    },
+    {
+      "rel": "artifacts/api-server/scripts/load-test-sse-150.mjs",
+      "line": 614,
+      "id": "console_log",
+      "sev": "info"
+    },
+    {
+      "rel": "artifacts/api-server/scripts/load-test-sse-150.mjs",
+      "line": 616,
+      "id": "console_log",
+      "sev": "info"
+    },
+    {
+      "rel": "artifacts/api-server/scripts/load-test-sse-150.mjs",
+      "line": 617,
+      "id": "console_log",
+      "sev": "info"
+    },
+    {
+      "rel": "artifacts/api-server/scripts/load-test-sse-150.mjs",
+      "line": 618,
+      "id": "console_log",
+      "sev": "info"
+    },
+    {
+      "rel": "artifacts/api-server/scripts/load-test-sse-150.mjs",
+      "line": 619,
+      "id": "console_log",
+      "sev": "info"
+    },
+    {
+      "rel": "artifacts/api-server/scripts/load-test-sse-150.mjs",
+      "line": 622,
+      "id": "console_log",
+      "sev": "info"
+    },
+    {
+      "rel": "artifacts/api-server/scripts/load-test-sse-150.mjs",
+      "line": 627,
+      "id": "console_log",
+      "sev": "info"
+    },
+    {
+      "rel": "artifacts/api-server/scripts/load-test-sse-150.mjs",
+      "line": 628,
+      "id": "console_log",
+      "sev": "info"
+    },
+    {
+      "rel": "artifacts/api-server/scripts/load-test-sse-150.mjs",
+      "line": 633,
+      "id": "console_log",
+      "sev": "info"
+    },
+    {
+      "rel": "artifacts/api-server/scripts/realchat-55rooms.mjs",
+      "line": 53,
+      "id": "console_log",
+      "sev": "info"
+    },
+    {
+      "rel": "artifacts/api-server/scripts/realchat-55rooms.mjs",
+      "line": 54,
+      "id": "console_log",
+      "sev": "info"
+    },
+    {
+      "rel": "artifacts/api-server/scripts/realchat-55rooms.mjs",
+      "line": 57,
+      "id": "console_log",
+      "sev": "info"
+    },
+    {
+      "rel": "artifacts/api-server/scripts/realchat-55rooms.mjs",
+      "line": 74,
+      "id": "console_log",
+      "sev": "info"
+    },
+    {
+      "rel": "artifacts/api-server/scripts/realchat-55rooms.mjs",
+      "line": 77,
+      "id": "console_log",
+      "sev": "info"
+    },
+    {
+      "rel": "artifacts/api-server/scripts/realchat-55rooms.mjs",
+      "line": 87,
+      "id": "console_log",
+      "sev": "info"
+    },
+    {
+      "rel": "artifacts/api-server/scripts/realchat-55rooms.mjs",
+      "line": 90,
+      "id": "console_log",
+      "sev": "info"
+    },
+    {
+      "rel": "artifacts/api-server/scripts/realchat-55rooms.mjs",
+      "line": 113,
+      "id": "console_log",
+      "sev": "info"
+    },
+    {
+      "rel": "artifacts/api-server/scripts/realchat-55rooms.mjs",
+      "line": 114,
+      "id": "console_log",
+      "sev": "info"
+    },
+    {
+      "rel": "artifacts/api-server/scripts/realchat-55rooms.mjs",
+      "line": 117,
+      "id": "console_log",
+      "sev": "info"
+    },
+    {
+      "rel": "artifacts/api-server/scripts/realchat-55rooms.mjs",
+      "line": 144,
+      "id": "console_log",
+      "sev": "info"
+    },
+    {
+      "rel": "artifacts/api-server/scripts/realchat-55rooms.mjs",
+      "line": 145,
+      "id": "console_log",
+      "sev": "info"
+    },
+    {
+      "rel": "artifacts/api-server/scripts/realchat-55rooms.mjs",
+      "line": 148,
+      "id": "console_log",
+      "sev": "info"
+    },
+    {
+      "rel": "artifacts/api-server/scripts/realchat-55rooms.mjs",
+      "line": 162,
+      "id": "console_log",
+      "sev": "info"
+    },
+    {
+      "rel": "artifacts/api-server/scripts/realchat-55rooms.mjs",
+      "line": 166,
+      "id": "console_log",
+      "sev": "info"
+    },
+    {
+      "rel": "artifacts/api-server/scripts/realchat-55rooms.mjs",
+      "line": 169,
+      "id": "console_log",
+      "sev": "info"
+    },
+    {
+      "rel": "artifacts/api-server/scripts/realchat-55rooms.mjs",
+      "line": 174,
+      "id": "console_log",
+      "sev": "info"
+    },
+    {
+      "rel": "artifacts/api-server/scripts/realchat-55rooms.mjs",
+      "line": 180,
+      "id": "console_log",
+      "sev": "info"
+    },
+    {
+      "rel": "artifacts/api-server/scripts/realchat-55rooms.mjs",
+      "line": 183,
+      "id": "console_log",
+      "sev": "info"
+    },
+    {
+      "rel": "artifacts/api-server/scripts/realchat-55rooms.mjs",
+      "line": 185,
+      "id": "console_log",
+      "sev": "info"
+    },
+    {
+      "rel": "artifacts/api-server/scripts/realchat-55rooms.mjs",
+      "line": 186,
+      "id": "console_log",
+      "sev": "info"
+    },
+    {
+      "rel": "artifacts/api-server/scripts/realchat-55rooms.mjs",
+      "line": 187,
+      "id": "console_log",
+      "sev": "info"
+    },
+    {
+      "rel": "artifacts/api-server/scripts/realchat-55rooms.mjs",
+      "line": 188,
+      "id": "console_log",
+      "sev": "info"
+    },
+    {
+      "rel": "artifacts/api-server/scripts/realchat-55rooms.mjs",
+      "line": 189,
+      "id": "console_log",
+      "sev": "info"
+    },
+    {
+      "rel": "artifacts/api-server/scripts/realchat-55rooms.mjs",
+      "line": 192,
+      "id": "console_log",
+      "sev": "info"
+    },
+    {
+      "rel": "artifacts/api-server/scripts/realchat-55rooms.mjs",
+      "line": 193,
+      "id": "console_log",
+      "sev": "info"
+    },
+    {
+      "rel": "artifacts/api-server/scripts/realchat-55rooms.mjs",
+      "line": 194,
+      "id": "console_log",
+      "sev": "info"
+    },
+    {
+      "rel": "artifacts/api-server/scripts/realchat-55rooms.mjs",
+      "line": 195,
+      "id": "console_log",
+      "sev": "info"
+    },
+    {
+      "rel": "artifacts/api-server/scripts/realchat-55rooms.mjs",
+      "line": 196,
+      "id": "console_log",
+      "sev": "info"
+    },
+    {
+      "rel": "artifacts/api-server/scripts/realchat-55rooms.mjs",
+      "line": 197,
+      "id": "console_log",
+      "sev": "info"
+    },
+    {
+      "rel": "artifacts/api-server/scripts/realchat-55rooms.mjs",
+      "line": 198,
+      "id": "console_log",
+      "sev": "info"
+    },
+    {
+      "rel": "artifacts/api-server/scripts/realchat-55rooms.mjs",
+      "line": 202,
+      "id": "console_log",
+      "sev": "info"
+    },
+    {
+      "rel": "artifacts/api-server/scripts/realchat-55rooms.mjs",
+      "line": 204,
+      "id": "console_log",
+      "sev": "info"
+    },
+    {
+      "rel": "artifacts/api-server/scripts/realchat-55rooms.mjs",
+      "line": 205,
+      "id": "console_log",
+      "sev": "info"
+    },
+    {
+      "rel": "artifacts/api-server/scripts/realchat-55rooms.mjs",
+      "line": 206,
+      "id": "console_log",
+      "sev": "info"
+    },
+    {
+      "rel": "artifacts/api-server/scripts/realchat-55rooms.mjs",
+      "line": 207,
+      "id": "console_log",
+      "sev": "info"
+    },
+    {
+      "rel": "artifacts/api-server/scripts/realchat-55rooms.mjs",
+      "line": 209,
+      "id": "console_log",
+      "sev": "info"
+    },
+    {
+      "rel": "artifacts/api-server/scripts/realchat-55rooms.mjs",
+      "line": 210,
+      "id": "console_log",
+      "sev": "info"
+    },
+    {
+      "rel": "artifacts/api-server/scripts/realchat-55rooms.mjs",
+      "line": 211,
+      "id": "console_log",
+      "sev": "info"
+    },
+    {
+      "rel": "artifacts/api-server/scripts/realchat-55rooms.mjs",
+      "line": 212,
+      "id": "console_log",
+      "sev": "info"
+    },
+    {
+      "rel": "artifacts/api-server/scripts/realchat-55rooms.mjs",
+      "line": 214,
+      "id": "console_log",
+      "sev": "info"
+    },
+    {
+      "rel": "artifacts/api-server/scripts/realchat-55rooms.mjs",
+      "line": 215,
+      "id": "console_log",
+      "sev": "info"
+    },
+    {
+      "rel": "artifacts/api-server/scripts/rotate-db-password.mjs",
+      "line": 30,
+      "id": "console_log",
+      "sev": "info"
+    },
+    {
+      "rel": "artifacts/api-server/scripts/rotate-db-password.mjs",
+      "line": 34,
+      "id": "console_log",
+      "sev": "info"
+    },
+    {
+      "rel": "artifacts/api-server/scripts/rotate-db-password.mjs",
+      "line": 48,
+      "id": "console_log",
+      "sev": "info"
+    },
+    {
+      "rel": "artifacts/api-server/scripts/rotate-db-password.mjs",
+      "line": 53,
+      "id": "console_log",
+      "sev": "info"
+    },
+    {
+      "rel": "artifacts/api-server/scripts/rotate-db-password.mjs",
+      "line": 60,
+      "id": "console_log",
+      "sev": "info"
+    },
+    {
+      "rel": "artifacts/api-server/scripts/setup-env.mjs",
+      "line": 28,
+      "id": "console_log",
+      "sev": "info"
+    },
+    {
+      "rel": "artifacts/api-server/scripts/stress-test.mjs",
+      "line": 51,
+      "id": "console_log",
+      "sev": "info"
+    },
+    {
+      "rel": "artifacts/api-server/scripts/stress-test.mjs",
+      "line": 52,
+      "id": "console_log",
+      "sev": "info"
+    },
+    {
+      "rel": "artifacts/api-server/scripts/stress-test.mjs",
+      "line": 55,
+      "id": "console_log",
+      "sev": "info"
+    },
+    {
+      "rel": "artifacts/api-server/scripts/stress-test.mjs",
+      "line": 83,
+      "id": "console_log",
+      "sev": "info"
+    },
+    {
+      "rel": "artifacts/api-server/scripts/stress-test.mjs",
+      "line": 86,
+      "id": "console_log",
+      "sev": "info"
+    },
+    {
+      "rel": "artifacts/api-server/scripts/stress-test.mjs",
+      "line": 116,
+      "id": "console_log",
+      "sev": "info"
+    },
+    {
+      "rel": "artifacts/api-server/scripts/stress-test.mjs",
+      "line": 117,
+      "id": "console_log",
+      "sev": "info"
+    },
+    {
+      "rel": "artifacts/api-server/scripts/stress-test.mjs",
+      "line": 118,
+      "id": "console_log",
+      "sev": "info"
+    },
+    {
+      "rel": "artifacts/api-server/scripts/stress-test.mjs",
+      "line": 122,
+      "id": "console_log",
+      "sev": "info"
+    },
+    {
+      "rel": "artifacts/api-server/scripts/stress-test.mjs",
+      "line": 127,
+      "id": "console_log",
+      "sev": "info"
+    },
+    {
+      "rel": "artifacts/api-server/scripts/stress-test.mjs",
+      "line": 168,
+      "id": "console_log",
+      "sev": "info"
+    },
+    {
+      "rel": "artifacts/api-server/scripts/stress-test.mjs",
+      "line": 169,
+      "id": "console_log",
+      "sev": "info"
+    },
+    {
+      "rel": "artifacts/api-server/scripts/stress-test.mjs",
+      "line": 170,
+      "id": "console_log",
+      "sev": "info"
+    },
+    {
+      "rel": "artifacts/api-server/scripts/stress-test.mjs",
+      "line": 173,
+      "id": "console_log",
+      "sev": "info"
+    },
+    {
+      "rel": "artifacts/api-server/scripts/stress-test.mjs",
+      "line": 191,
+      "id": "console_log",
+      "sev": "info"
+    },
+    {
+      "rel": "artifacts/api-server/scripts/stress-test.mjs",
+      "line": 192,
+      "id": "console_log",
+      "sev": "info"
+    },
+    {
+      "rel": "artifacts/api-server/scripts/stress-test.mjs",
+      "line": 195,
+      "id": "console_log",
+      "sev": "info"
+    },
+    {
+      "rel": "artifacts/api-server/scripts/stress-test.mjs",
+      "line": 197,
+      "id": "console_log",
+      "sev": "info"
+    },
+    {
+      "rel": "artifacts/api-server/scripts/stress-test.mjs",
+      "line": 198,
+      "id": "console_log",
+      "sev": "info"
+    },
+    {
+      "rel": "artifacts/api-server/scripts/stress-test.mjs",
+      "line": 199,
+      "id": "console_log",
+      "sev": "info"
+    },
+    {
+      "rel": "artifacts/api-server/scripts/stress-test.mjs",
+      "line": 220,
+      "id": "console_log",
+      "sev": "info"
+    },
+    {
+      "rel": "artifacts/api-server/scripts/stress-test.mjs",
+      "line": 221,
+      "id": "console_log",
+      "sev": "info"
+    },
+    {
+      "rel": "artifacts/api-server/scripts/stress-test.mjs",
+      "line": 222,
+      "id": "console_log",
+      "sev": "info"
+    },
+    {
+      "rel": "artifacts/api-server/scripts/stress-test.mjs",
+      "line": 226,
+      "id": "console_log",
+      "sev": "info"
+    },
+    {
+      "rel": "artifacts/api-server/scripts/stress-test.mjs",
+      "line": 231,
+      "id": "console_log",
+      "sev": "info"
+    },
+    {
+      "rel": "artifacts/api-server/scripts/stress-test.mjs",
+      "line": 238,
+      "id": "console_log",
+      "sev": "info"
+    },
+    {
+      "rel": "artifacts/api-server/src/__tests__/admin-event-end-reset.test.ts",
+      "line": 9,
+      "id": "hardcoded_secret",
+      "sev": "warn"
+    },
+    {
+      "rel": "artifacts/api-server/src/__tests__/broadcast-targets.test.ts",
+      "line": 7,
+      "id": "hardcoded_secret",
+      "sev": "warn"
+    },
+    {
+      "rel": "artifacts/api-server/src/__tests__/db-security.test.ts",
+      "line": 30,
+      "id": "hardcoded_secret",
+      "sev": "warn"
+    },
+    {
+      "rel": "artifacts/api-server/src/__tests__/db-security.test.ts",
+      "line": 299,
+      "id": "hardcoded_secret",
+      "sev": "warn"
+    },
+    {
+      "rel": "artifacts/api-server/src/__tests__/db-security.test.ts",
+      "line": 1013,
+      "id": "hardcoded_secret",
+      "sev": "warn"
+    },
+    {
+      "rel": "artifacts/api-server/src/__tests__/db-security.test.ts",
+      "line": 1076,
+      "id": "hardcoded_secret",
+      "sev": "warn"
+    },
+    {
+      "rel": "artifacts/api-server/src/__tests__/db-security.test.ts",
+      "line": 1077,
+      "id": "hardcoded_secret",
+      "sev": "warn"
+    },
+    {
+      "rel": "artifacts/api-server/src/__tests__/db-security.test.ts",
+      "line": 1078,
+      "id": "hardcoded_secret",
+      "sev": "warn"
+    },
+    {
+      "rel": "artifacts/api-server/src/__tests__/db-security.test.ts",
+      "line": 1102,
+      "id": "hardcoded_secret",
+      "sev": "warn"
+    },
+    {
+      "rel": "artifacts/api-server/src/__tests__/db-security.test.ts",
+      "line": 1107,
+      "id": "hardcoded_secret",
+      "sev": "warn"
+    },
+    {
+      "rel": "artifacts/api-server/src/__tests__/db-security.test.ts",
+      "line": 1112,
+      "id": "hardcoded_secret",
+      "sev": "warn"
+    },
+    {
+      "rel": "artifacts/api-server/src/__tests__/db-security.test.ts",
+      "line": 1174,
+      "id": "hardcoded_secret",
+      "sev": "warn"
+    },
+    {
+      "rel": "artifacts/api-server/src/__tests__/db-security.test.ts",
+      "line": 1175,
+      "id": "hardcoded_secret",
+      "sev": "warn"
+    },
+    {
+      "rel": "artifacts/api-server/src/__tests__/db-security.test.ts",
+      "line": 1179,
+      "id": "hardcoded_secret",
+      "sev": "warn"
+    },
+    {
+      "rel": "artifacts/api-server/src/__tests__/db-security.test.ts",
+      "line": 1185,
+      "id": "hardcoded_secret",
+      "sev": "warn"
+    },
+    {
+      "rel": "artifacts/api-server/src/__tests__/db-security.test.ts",
+      "line": 1243,
+      "id": "hardcoded_secret",
+      "sev": "warn"
+    },
+    {
+      "rel": "artifacts/api-server/src/__tests__/db-security.test.ts",
+      "line": 1251,
+      "id": "hardcoded_secret",
+      "sev": "warn"
+    },
+    {
+      "rel": "artifacts/api-server/src/__tests__/db-security.test.ts",
+      "line": 1268,
+      "id": "hardcoded_secret",
+      "sev": "warn"
+    },
+    {
+      "rel": "artifacts/api-server/src/__tests__/db-security.test.ts",
+      "line": 1273,
+      "id": "hardcoded_secret",
+      "sev": "warn"
+    },
+    {
+      "rel": "artifacts/api-server/src/__tests__/db-security.test.ts",
+      "line": 1290,
+      "id": "hardcoded_secret",
+      "sev": "warn"
+    },
+    {
+      "rel": "artifacts/api-server/src/__tests__/db-security.test.ts",
+      "line": 1295,
+      "id": "hardcoded_secret",
+      "sev": "warn"
+    },
+    {
+      "rel": "artifacts/api-server/src/__tests__/db-security.test.ts",
+      "line": 1302,
+      "id": "hardcoded_secret",
+      "sev": "warn"
+    },
+    {
+      "rel": "artifacts/api-server/src/__tests__/db-security.test.ts",
+      "line": 1332,
+      "id": "hardcoded_secret",
+      "sev": "warn"
+    },
+    {
+      "rel": "artifacts/api-server/src/__tests__/db-security.test.ts",
+      "line": 1343,
+      "id": "hardcoded_secret",
+      "sev": "warn"
+    },
+    {
+      "rel": "artifacts/api-server/src/__tests__/hearts-chat-group-invariants.test.ts",
+      "line": 10,
+      "id": "hardcoded_secret",
+      "sev": "warn"
+    },
+    {
+      "rel": "artifacts/api-server/src/__tests__/load-venue-150.test.ts",
+      "line": 9,
+      "id": "hardcoded_secret",
+      "sev": "warn"
+    },
+    {
+      "rel": "artifacts/api-server/src/__tests__/load-venue-150.test.ts",
+      "line": 148,
+      "id": "console_log",
+      "sev": "info"
+    },
+    {
+      "rel": "artifacts/api-server/src/__tests__/load-venue-150.test.ts",
+      "line": 229,
+      "id": "console_log",
+      "sev": "info"
+    },
+    {
+      "rel": "artifacts/api-server/src/__tests__/push-self-test.test.ts",
+      "line": 6,
+      "id": "hardcoded_secret",
+      "sev": "warn"
+    },
+    {
+      "rel": "artifacts/api-server/src/__tests__/sulbun-event-reset.test.ts",
+      "line": 9,
+      "id": "hardcoded_secret",
+      "sev": "warn"
+    },
+    {
+      "rel": "artifacts/api-server/src/lib/db-app-settings-boot.test.ts",
+      "line": 14,
+      "id": "hardcoded_secret",
+      "sev": "warn"
+    },
+    {
+      "rel": "artifacts/api-server/src/lib/db-app-settings-boot.test.ts",
+      "line": 22,
+      "id": "hardcoded_secret",
+      "sev": "warn"
+    },
+    {
+      "rel": "artifacts/api-server/src/lib/db-app-settings-boot.test.ts",
+      "line": 23,
+      "id": "hardcoded_secret",
+      "sev": "warn"
+    },
+    {
+      "rel": "artifacts/api-server/src/lib/db-app-settings-boot.test.ts",
+      "line": 25,
+      "id": "hardcoded_secret",
+      "sev": "warn"
+    },
+    {
+      "rel": "artifacts/api-server/src/lib/db-app-settings-boot.test.ts",
+      "line": 42,
+      "id": "hardcoded_secret",
+      "sev": "warn"
+    },
+    {
+      "rel": "artifacts/api-server/src/lib/db-app-settings-boot.test.ts",
+      "line": 48,
+      "id": "hardcoded_secret",
+      "sev": "warn"
+    },
+    {
+      "rel": "artifacts/api-server/src/lib/db-app-settings-boot.test.ts",
+      "line": 55,
+      "id": "hardcoded_secret",
+      "sev": "warn"
+    },
+    {
+      "rel": "artifacts/api-server/src/lib/db-app-settings-boot.test.ts",
+      "line": 62,
+      "id": "hardcoded_secret",
+      "sev": "warn"
+    },
+    {
+      "rel": "artifacts/api-server/src/lib/db-app-settings-boot.test.ts",
+      "line": 63,
+      "id": "hardcoded_secret",
+      "sev": "warn"
+    },
+    {
+      "rel": "artifacts/api-server/src/lib/db-app-settings-boot.test.ts",
+      "line": 64,
+      "id": "hardcoded_secret",
+      "sev": "warn"
+    },
+    {
+      "rel": "artifacts/api-server/src/lib/db-app-settings-view.test.ts",
+      "line": 40,
+      "id": "hardcoded_secret",
+      "sev": "warn"
+    },
+    {
+      "rel": "artifacts/api-server/src/lib/db-app-settings-view.test.ts",
+      "line": 41,
+      "id": "hardcoded_secret",
+      "sev": "warn"
+    },
+    {
+      "rel": "artifacts/api-server/src/lib/db-app-settings-view.test.ts",
+      "line": 42,
+      "id": "hardcoded_secret",
+      "sev": "warn"
+    },
+    {
+      "rel": "artifacts/api-server/src/lib/db-app-settings-view.test.ts",
+      "line": 43,
+      "id": "hardcoded_secret",
+      "sev": "warn"
+    },
+    {
+      "rel": "artifacts/api-server/src/lib/db-app-settings-view.test.ts",
+      "line": 115,
+      "id": "hardcoded_secret",
+      "sev": "warn"
+    },
+    {
+      "rel": "artifacts/api-server/src/lib/db-app-settings-view.test.ts",
+      "line": 158,
+      "id": "any_cast",
+      "sev": "info"
+    },
+    {
+      "rel": "artifacts/api-server/src/lib/db-app-settings-view.test.ts",
+      "line": 159,
+      "id": "any_cast",
+      "sev": "info"
+    },
+    {
+      "rel": "artifacts/api-server/src/lib/db-app-settings-view.test.ts",
+      "line": 160,
+      "id": "any_cast",
+      "sev": "info"
+    },
+    {
+      "rel": "artifacts/api-server/src/lib/db-app-settings-view.test.ts",
+      "line": 161,
+      "id": "any_cast",
+      "sev": "info"
+    },
+    {
+      "rel": "artifacts/api-server/src/lib/db-app-settings-view.test.ts",
+      "line": 162,
+      "id": "any_cast",
+      "sev": "info"
+    },
+    {
+      "rel": "artifacts/api-server/src/lib/db-app-settings-view.test.ts",
+      "line": 163,
+      "id": "any_cast",
+      "sev": "info"
+    },
+    {
+      "rel": "artifacts/api-server/src/lib/db-app-settings-view.test.ts",
+      "line": 164,
+      "id": "any_cast",
+      "sev": "info"
+    },
+    {
+      "rel": "artifacts/api-server/src/lib/db-app-settings-view.test.ts",
+      "line": 165,
+      "id": "any_cast",
+      "sev": "info"
+    },
+    {
+      "rel": "artifacts/api-server/src/lib/db-app-settings-view.test.ts",
+      "line": 200,
+      "id": "any_cast",
+      "sev": "info"
+    },
+    {
+      "rel": "artifacts/api-server/src/lib/db-session-tokens.test.ts",
+      "line": 21,
+      "id": "hardcoded_secret",
+      "sev": "warn"
+    },
+    {
+      "rel": "artifacts/api-server/src/lib/event-hub.pg.test.ts",
+      "line": 574,
+      "id": "hardcoded_secret",
+      "sev": "warn"
+    },
+    {
+      "rel": "artifacts/api-server/src/lib/event-hub.pg.test.ts",
+      "line": 591,
+      "id": "hardcoded_secret",
+      "sev": "warn"
+    },
+    {
+      "rel": "artifacts/api-server/src/lib/event-hub.pg.test.ts",
+      "line": 601,
+      "id": "hardcoded_secret",
+      "sev": "warn"
+    },
+    {
+      "rel": "artifacts/api-server/src/lib/event-hub.pg.test.ts",
+      "line": 610,
+      "id": "hardcoded_secret",
+      "sev": "warn"
+    },
+    {
+      "rel": "artifacts/api-server/src/lib/event-hub.pg.test.ts",
+      "line": 649,
+      "id": "hardcoded_secret",
+      "sev": "warn"
+    },
+    {
+      "rel": "artifacts/api-server/src/lib/event-hub.pg.test.ts",
+      "line": 662,
+      "id": "hardcoded_secret",
+      "sev": "warn"
+    },
+    {
+      "rel": "artifacts/api-server/src/lib/event-hub.pg.test.ts",
+      "line": 685,
+      "id": "hardcoded_secret",
+      "sev": "warn"
+    },
+    {
+      "rel": "artifacts/api-server/src/lib/event-hub.pg.test.ts",
+      "line": 861,
+      "id": "hardcoded_secret",
+      "sev": "warn"
+    },
+    {
+      "rel": "artifacts/api-server/src/lib/event-hub.pg.test.ts",
+      "line": 877,
+      "id": "hardcoded_secret",
+      "sev": "warn"
+    },
+    {
+      "rel": "artifacts/api-server/src/lib/event-hub.pg.test.ts",
+      "line": 888,
+      "id": "hardcoded_secret",
+      "sev": "warn"
+    },
+    {
+      "rel": "artifacts/api-server/src/lib/event-hub.pg.test.ts",
+      "line": 897,
+      "id": "hardcoded_secret",
+      "sev": "warn"
+    },
+    {
+      "rel": "artifacts/api-server/src/lib/event-hub.pg.test.ts",
+      "line": 939,
+      "id": "hardcoded_secret",
+      "sev": "warn"
+    },
+    {
+      "rel": "artifacts/api-server/src/lib/event-hub.pg.test.ts",
+      "line": 958,
+      "id": "hardcoded_secret",
+      "sev": "warn"
+    },
+    {
+      "rel": "artifacts/api-server/src/lib/event-hub.pg.test.ts",
+      "line": 997,
+      "id": "hardcoded_secret",
+      "sev": "warn"
+    },
+    {
+      "rel": "artifacts/api-server/src/lib/event-hub.pg.test.ts",
+      "line": 1093,
+      "id": "hardcoded_secret",
+      "sev": "warn"
+    },
+    {
+      "rel": "artifacts/api-server/src/lib/event-hub.pg.test.ts",
+      "line": 1197,
+      "id": "hardcoded_secret",
+      "sev": "warn"
+    },
+    {
+      "rel": "artifacts/api-server/src/lib/event-hub.pg.test.ts",
+      "line": 1234,
+      "id": "hardcoded_secret",
+      "sev": "warn"
+    },
+    {
+      "rel": "artifacts/api-server/src/lib/event-hub.pg.test.ts",
+      "line": 1345,
+      "id": "hardcoded_secret",
+      "sev": "warn"
+    },
+    {
+      "rel": "artifacts/api-server/src/lib/event-hub.pg.test.ts",
+      "line": 1469,
+      "id": "hardcoded_secret",
+      "sev": "warn"
+    },
+    {
+      "rel": "artifacts/api-server/src/lib/event-hub.pg.test.ts",
+      "line": 1771,
+      "id": "hardcoded_secret",
+      "sev": "warn"
+    },
+    {
+      "rel": "artifacts/api-server/src/lib/event-hub.pg.test.ts",
+      "line": 1931,
+      "id": "hardcoded_secret",
+      "sev": "warn"
+    },
+    {
+      "rel": "artifacts/api-server/src/lib/event-hub.pg.test.ts",
+      "line": 1944,
+      "id": "hardcoded_secret",
+      "sev": "warn"
+    },
+    {
+      "rel": "artifacts/api-server/src/lib/event-hub.pg.test.ts",
+      "line": 2323,
+      "id": "hardcoded_secret",
+      "sev": "warn"
+    },
+    {
+      "rel": "artifacts/api-server/src/lib/event-hub.pg.test.ts",
+      "line": 2370,
+      "id": "hardcoded_secret",
+      "sev": "warn"
+    },
+    {
+      "rel": "artifacts/api-server/src/lib/event-hub.pg.test.ts",
+      "line": 2411,
+      "id": "hardcoded_secret",
+      "sev": "warn"
+    },
+    {
+      "rel": "artifacts/api-server/src/lib/event-hub.pg.test.ts",
+      "line": 2413,
+      "id": "hardcoded_secret",
+      "sev": "warn"
+    },
+    {
+      "rel": "artifacts/api-server/src/lib/private-preview.test.ts",
+      "line": 5,
+      "id": "hardcoded_secret",
+      "sev": "warn"
+    },
+    {
+      "rel": "artifacts/api-server/src/lib/private-preview.test.ts",
+      "line": 6,
+      "id": "hardcoded_secret",
+      "sev": "warn"
+    },
+    {
+      "rel": "artifacts/api-server/vitest.config.ts",
+      "line": 14,
+      "id": "hardcoded_secret",
+      "sev": "warn"
+    },
+    {
+      "rel": "artifacts/boltnew-app/scripts/check-responsive-preview.mjs",
+      "line": 55,
+      "id": "hardcoded_secret",
+      "sev": "warn"
+    },
+    {
+      "rel": "artifacts/boltnew-app/scripts/check-responsive-preview.mjs",
+      "line": 110,
+      "id": "console_log",
+      "sev": "info"
+    },
+    {
+      "rel": "artifacts/boltnew-app/scripts/smoke-browser.mjs",
+      "line": 85,
+      "id": "console_log",
+      "sev": "info"
+    },
+    {
+      "rel": "artifacts/boltnew-app/src/admin/LoginScreen.test.tsx",
+      "line": 60,
+      "id": "hardcoded_secret",
+      "sev": "warn"
+    },
+    {
+      "rel": "artifacts/boltnew-app/src/event-hub/event-laboratory-store.test.ts",
+      "line": 176,
+      "id": "hardcoded_secret",
+      "sev": "warn"
+    },
+    {
+      "rel": "artifacts/boltnew-app/src/lib/signal-match.test.ts",
+      "line": 152,
+      "id": "hardcoded_secret",
+      "sev": "warn"
+    },
+    {
+      "rel": "artifacts/boltnew-app/src/lib/signal-match.test.ts",
+      "line": 247,
+      "id": "hardcoded_secret",
+      "sev": "warn"
+    },
+    {
+      "rel": "artifacts/boltnew-app/tests/contrast-ratio.spec.ts",
+      "line": 518,
+      "id": "console_log",
+      "sev": "info"
+    },
+    {
+      "rel": "artifacts/boltnew-app/tests/contrast-ratio.spec.ts",
+      "line": 519,
+      "id": "console_log",
+      "sev": "info"
+    },
+    {
+      "rel": "artifacts/boltnew-app/tests/contrast-ratio.spec.ts",
+      "line": 523,
+      "id": "console_log",
+      "sev": "info"
+    },
+    {
+      "rel": "artifacts/boltnew-app/tests/contrast-ratio.spec.ts",
+      "line": 524,
+      "id": "console_log",
+      "sev": "info"
+    },
+    {
+      "rel": "artifacts/boltnew-app/tests/event-hub-v6.spec.ts",
+      "line": 256,
+      "id": "hardcoded_secret",
+      "sev": "warn"
+    },
+    {
+      "rel": "artifacts/boltnew-app/tests/event-hub-v6.spec.ts",
+      "line": 370,
+      "id": "hardcoded_secret",
+      "sev": "warn"
+    },
+    {
+      "rel": "artifacts/boltnew-app/tests/event-hub-v6.spec.ts",
+      "line": 937,
+      "id": "console_log",
+      "sev": "info"
+    },
+    {
+      "rel": "loadtest/deep_audit.mjs",
+      "line": 38,
+      "id": "console_log",
+      "sev": "info"
+    },
+    {
+      "rel": "loadtest/deep_audit.mjs",
+      "line": 86,
+      "id": "console_log",
+      "sev": "info"
+    },
+    {
+      "rel": "loadtest/deep_audit.mjs",
+      "line": 94,
+      "id": "console_log",
+      "sev": "info"
+    },
+    {
+      "rel": "loadtest/deep_audit.mjs",
+      "line": 95,
+      "id": "console_log",
+      "sev": "info"
+    },
+    {
+      "rel": "loadtest/deep_audit.mjs",
+      "line": 96,
+      "id": "console_log",
+      "sev": "info"
+    },
+    {
+      "rel": "loadtest/deep_audit.mjs",
+      "line": 97,
+      "id": "console_log",
+      "sev": "info"
+    },
+    {
+      "rel": "loadtest/deep_audit.mjs",
+      "line": 100,
+      "id": "console_log",
+      "sev": "info"
+    },
+    {
+      "rel": "loadtest/deep_audit.mjs",
+      "line": 110,
+      "id": "console_log",
+      "sev": "info"
+    },
+    {
+      "rel": "loadtest/deep_audit.mjs",
+      "line": 113,
+      "id": "console_log",
+      "sev": "info"
+    },
+    {
+      "rel": "loadtest/deep_audit.mjs",
+      "line": 152,
+      "id": "console_log",
+      "sev": "info"
+    },
+    {
+      "rel": "loadtest/deep_audit.mjs",
+      "line": 160,
+      "id": "console_log",
+      "sev": "info"
+    },
+    {
+      "rel": "loadtest/deep_audit.mjs",
+      "line": 162,
+      "id": "console_log",
+      "sev": "info"
+    },
+    {
+      "rel": "loadtest/deep_audit.mjs",
+      "line": 164,
+      "id": "console_log",
+      "sev": "info"
+    },
+    {
+      "rel": "loadtest/deep_audit.mjs",
+      "line": 168,
+      "id": "console_log",
+      "sev": "info"
+    },
+    {
+      "rel": "loadtest/deep_audit.mjs",
+      "line": 185,
+      "id": "console_log",
+      "sev": "info"
+    },
+    {
+      "rel": "loadtest/deep_audit.mjs",
+      "line": 187,
+      "id": "console_log",
+      "sev": "info"
+    },
+    {
+      "rel": "loadtest/deep_audit.mjs",
+      "line": 191,
+      "id": "console_log",
+      "sev": "info"
+    },
+    {
+      "rel": "loadtest/deep_audit.mjs",
+      "line": 196,
+      "id": "console_log",
+      "sev": "info"
+    },
+    {
+      "rel": "loadtest/deep_audit.mjs",
+      "line": 202,
+      "id": "console_log",
+      "sev": "info"
+    },
+    {
+      "rel": "loadtest/deep_audit.mjs",
+      "line": 205,
+      "id": "console_log",
+      "sev": "info"
+    },
+    {
+      "rel": "loadtest/deep_audit.mjs",
+      "line": 218,
+      "id": "console_log",
+      "sev": "info"
+    },
+    {
+      "rel": "loadtest/deep_audit.mjs",
+      "line": 221,
+      "id": "console_log",
+      "sev": "info"
+    },
+    {
+      "rel": "loadtest/deep_audit.mjs",
+      "line": 231,
+      "id": "console_log",
+      "sev": "info"
+    },
+    {
+      "rel": "loadtest/deep_audit.mjs",
+      "line": 234,
+      "id": "console_log",
+      "sev": "info"
+    },
+    {
+      "rel": "loadtest/deep_audit.mjs",
+      "line": 237,
+      "id": "console_log",
+      "sev": "info"
+    },
+    {
+      "rel": "loadtest/deep_audit.mjs",
+      "line": 250,
+      "id": "console_log",
+      "sev": "info"
+    },
+    {
+      "rel": "loadtest/deep_audit.mjs",
+      "line": 251,
+      "id": "console_log",
+      "sev": "info"
+    },
+    {
+      "rel": "loadtest/deep_audit.mjs",
+      "line": 254,
+      "id": "console_log",
+      "sev": "info"
+    },
+    {
+      "rel": "loadtest/deep_audit.mjs",
+      "line": 274,
+      "id": "console_log",
+      "sev": "info"
+    },
+    {
+      "rel": "loadtest/deep_audit.mjs",
+      "line": 275,
+      "id": "console_log",
+      "sev": "info"
+    },
+    {
+      "rel": "loadtest/deep_audit.mjs",
+      "line": 285,
+      "id": "console_log",
+      "sev": "info"
+    },
+    {
+      "rel": "loadtest/deep_audit.mjs",
+      "line": 286,
+      "id": "console_log",
+      "sev": "info"
+    },
+    {
+      "rel": "loadtest/deep_audit.mjs",
+      "line": 287,
+      "id": "console_log",
+      "sev": "info"
+    },
+    {
+      "rel": "loadtest/deep_audit.mjs",
+      "line": 288,
+      "id": "console_log",
+      "sev": "info"
+    },
+    {
+      "rel": "loadtest/deep_audit.mjs",
+      "line": 291,
+      "id": "console_log",
+      "sev": "info"
+    },
+    {
+      "rel": "loadtest/deep_audit.mjs",
+      "line": 311,
+      "id": "console_log",
+      "sev": "info"
+    },
+    {
+      "rel": "loadtest/deep_audit.mjs",
+      "line": 315,
+      "id": "console_log",
+      "sev": "info"
+    },
+    {
+      "rel": "loadtest/deep_audit.mjs",
+      "line": 316,
+      "id": "console_log",
+      "sev": "info"
+    },
+    {
+      "rel": "loadtest/deep_audit.mjs",
+      "line": 318,
+      "id": "console_log",
+      "sev": "info"
+    },
+    {
+      "rel": "loadtest/deep_audit.mjs",
+      "line": 349,
+      "id": "console_log",
+      "sev": "info"
+    },
+    {
+      "rel": "loadtest/deep_audit.mjs",
+      "line": 363,
+      "id": "console_log",
+      "sev": "info"
+    },
+    {
+      "rel": "loadtest/deep_audit.mjs",
+      "line": 384,
+      "id": "console_log",
+      "sev": "info"
+    },
+    {
+      "rel": "loadtest/deep_audit.mjs",
+      "line": 392,
+      "id": "console_log",
+      "sev": "info"
+    },
+    {
+      "rel": "loadtest/deep_audit.mjs",
+      "line": 393,
+      "id": "console_log",
+      "sev": "info"
+    },
+    {
+      "rel": "loadtest/deep_audit.mjs",
+      "line": 394,
+      "id": "console_log",
+      "sev": "info"
+    },
+    {
+      "rel": "loadtest/deep_audit.mjs",
+      "line": 395,
+      "id": "console_log",
+      "sev": "info"
+    },
+    {
+      "rel": "loadtest/deep_audit.mjs",
+      "line": 396,
+      "id": "console_log",
+      "sev": "info"
+    },
+    {
+      "rel": "loadtest/deep_audit.mjs",
+      "line": 397,
+      "id": "console_log",
+      "sev": "info"
+    },
+    {
+      "rel": "loadtest/deep_audit.mjs",
+      "line": 398,
+      "id": "console_log",
+      "sev": "info"
+    },
+    {
+      "rel": "loadtest/deep_audit.mjs",
+      "line": 399,
+      "id": "console_log",
+      "sev": "info"
+    },
+    {
+      "rel": "loadtest/deep_audit.mjs",
+      "line": 400,
+      "id": "console_log",
+      "sev": "info"
+    },
+    {
+      "rel": "loadtest/deep_audit.mjs",
+      "line": 401,
+      "id": "console_log",
+      "sev": "info"
+    },
+    {
+      "rel": "loadtest/deep_audit.mjs",
+      "line": 402,
+      "id": "console_log",
+      "sev": "info"
+    },
+    {
+      "rel": "loadtest/deep_audit.mjs",
+      "line": 419,
+      "id": "console_log",
+      "sev": "info"
+    },
+    {
+      "rel": "loadtest/deep_audit.mjs",
+      "line": 430,
+      "id": "console_log",
+      "sev": "info"
+    },
+    {
+      "rel": "loadtest/deep_audit.mjs",
+      "line": 432,
+      "id": "console_log",
+      "sev": "info"
+    },
+    {
+      "rel": "loadtest/deep_audit.mjs",
+      "line": 433,
+      "id": "console_log",
+      "sev": "info"
+    },
+    {
+      "rel": "loadtest/deep_audit.mjs",
+      "line": 434,
+      "id": "console_log",
+      "sev": "info"
+    },
+    {
+      "rel": "loadtest/deep_audit.mjs",
+      "line": 435,
+      "id": "console_log",
+      "sev": "info"
+    },
+    {
+      "rel": "loadtest/deep_audit.mjs",
+      "line": 436,
+      "id": "console_log",
+      "sev": "info"
+    },
+    {
+      "rel": "loadtest/deep_audit.mjs",
+      "line": 443,
+      "id": "console_log",
+      "sev": "info"
+    },
+    {
+      "rel": "loadtest/deep_audit.mjs",
+      "line": 444,
+      "id": "console_log",
+      "sev": "info"
+    },
+    {
+      "rel": "loadtest/deep_audit.mjs",
+      "line": 445,
+      "id": "console_log",
+      "sev": "info"
+    },
+    {
+      "rel": "loadtest/deep_audit.mjs",
+      "line": 446,
+      "id": "console_log",
+      "sev": "info"
+    },
+    {
+      "rel": "loadtest/deep_audit.mjs",
+      "line": 449,
+      "id": "console_log",
+      "sev": "info"
+    },
+    {
+      "rel": "loadtest/deep_audit.mjs",
+      "line": 453,
+      "id": "console_log",
+      "sev": "info"
+    },
+    {
+      "rel": "loadtest/deep_audit.mjs",
+      "line": 459,
+      "id": "console_log",
+      "sev": "info"
+    },
+    {
+      "rel": "loadtest/deep_audit.mjs",
+      "line": 463,
+      "id": "console_log",
+      "sev": "info"
+    },
+    {
+      "rel": "loadtest/deep_audit.mjs",
+      "line": 473,
+      "id": "console_log",
+      "sev": "info"
+    },
+    {
+      "rel": "loadtest/deep_audit.mjs",
+      "line": 476,
+      "id": "console_log",
+      "sev": "info"
+    },
+    {
+      "rel": "loadtest/deep_audit.mjs",
+      "line": 481,
+      "id": "console_log",
+      "sev": "info"
+    },
+    {
+      "rel": "loadtest/deep_audit.mjs",
+      "line": 495,
+      "id": "console_log",
+      "sev": "info"
+    },
+    {
+      "rel": "loadtest/deep_audit.mjs",
+      "line": 498,
+      "id": "console_log",
+      "sev": "info"
+    },
+    {
+      "rel": "loadtest/deep_audit.mjs",
+      "line": 503,
+      "id": "console_log",
+      "sev": "info"
+    },
+    {
+      "rel": "loadtest/deep_audit.mjs",
+      "line": 525,
+      "id": "console_log",
+      "sev": "info"
+    },
+    {
+      "rel": "loadtest/deep_audit.mjs",
+      "line": 526,
+      "id": "console_log",
+      "sev": "info"
+    },
+    {
+      "rel": "loadtest/deep_audit.mjs",
+      "line": 529,
+      "id": "console_log",
+      "sev": "info"
+    },
+    {
+      "rel": "loadtest/deep_audit.mjs",
+      "line": 532,
+      "id": "console_log",
+      "sev": "info"
+    },
+    {
+      "rel": "loadtest/deep_audit.mjs",
+      "line": 544,
+      "id": "console_log",
+      "sev": "info"
+    },
+    {
+      "rel": "loadtest/deep_audit.mjs",
+      "line": 547,
+      "id": "console_log",
+      "sev": "info"
+    },
+    {
+      "rel": "loadtest/deep_audit.mjs",
+      "line": 548,
+      "id": "console_log",
+      "sev": "info"
+    },
+    {
+      "rel": "loadtest/deep_audit.mjs",
+      "line": 549,
+      "id": "console_log",
+      "sev": "info"
+    },
+    {
+      "rel": "loadtest/deep_audit.mjs",
+      "line": 550,
+      "id": "console_log",
+      "sev": "info"
+    },
+    {
+      "rel": "loadtest/deep_audit.mjs",
+      "line": 551,
+      "id": "console_log",
+      "sev": "info"
+    },
+    {
+      "rel": "loadtest/deep_audit.mjs",
+      "line": 552,
+      "id": "console_log",
+      "sev": "info"
+    },
+    {
+      "rel": "loadtest/deep_audit.mjs",
+      "line": 556,
+      "id": "console_log",
+      "sev": "info"
+    },
+    {
+      "rel": "loadtest/deep_audit.mjs",
+      "line": 557,
+      "id": "console_log",
+      "sev": "info"
+    },
+    {
+      "rel": "loadtest/deep_audit.mjs",
+      "line": 560,
+      "id": "console_log",
+      "sev": "info"
+    },
+    {
+      "rel": "loadtest/deep_audit.mjs",
+      "line": 562,
+      "id": "console_log",
+      "sev": "info"
+    },
+    {
+      "rel": "loadtest/deep_audit.mjs",
+      "line": 566,
+      "id": "console_log",
+      "sev": "info"
+    },
+    {
+      "rel": "loadtest/deep_audit.mjs",
+      "line": 568,
+      "id": "console_log",
+      "sev": "info"
+    },
+    {
+      "rel": "loadtest/deep_audit.mjs",
+      "line": 569,
+      "id": "console_log",
+      "sev": "info"
+    },
+    {
+      "rel": "loadtest/deep_audit.mjs",
+      "line": 570,
+      "id": "console_log",
+      "sev": "info"
+    },
+    {
+      "rel": "loadtest/deep_audit.mjs",
+      "line": 571,
+      "id": "console_log",
+      "sev": "info"
+    },
+    {
+      "rel": "loadtest/deep_audit.mjs",
+      "line": 579,
+      "id": "console_log",
+      "sev": "info"
+    },
+    {
+      "rel": "loadtest/deep_audit.mjs",
+      "line": 580,
+      "id": "console_log",
+      "sev": "info"
+    },
+    {
+      "rel": "loadtest/deep_audit.mjs",
+      "line": 581,
+      "id": "console_log",
+      "sev": "info"
+    },
+    {
+      "rel": "loadtest/deep_audit.mjs",
+      "line": 582,
+      "id": "console_log",
+      "sev": "info"
+    },
+    {
+      "rel": "loadtest/deep_audit.mjs",
+      "line": 587,
+      "id": "console_log",
+      "sev": "info"
+    },
+    {
+      "rel": "loadtest/deep_audit.mjs",
+      "line": 590,
+      "id": "console_log",
+      "sev": "info"
+    },
+    {
+      "rel": "loadtest/deep_audit.mjs",
+      "line": 595,
+      "id": "console_log",
+      "sev": "info"
+    },
+    {
+      "rel": "loadtest/deep_audit.mjs",
+      "line": 601,
+      "id": "console_log",
+      "sev": "info"
+    },
+    {
+      "rel": "loadtest/deep_audit.mjs",
+      "line": 607,
+      "id": "console_log",
+      "sev": "info"
+    },
+    {
+      "rel": "loadtest/deep_audit.mjs",
+      "line": 608,
+      "id": "console_log",
+      "sev": "info"
+    },
+    {
+      "rel": "loadtest/deep_audit.mjs",
+      "line": 609,
+      "id": "console_log",
+      "sev": "info"
+    },
+    {
+      "rel": "loadtest/deep_audit.mjs",
+      "line": 610,
+      "id": "console_log",
+      "sev": "info"
+    },
+    {
+      "rel": "loadtest/lib/client.mjs",
+      "line": 91,
+      "id": "console_log",
+      "sev": "info"
+    },
+    {
+      "rel": "loadtest/lib/client.mjs",
+      "line": 95,
+      "id": "console_log",
+      "sev": "info"
+    },
+    {
+      "rel": "loadtest/stress.mjs",
+      "line": 11,
+      "id": "console_log",
+      "sev": "info"
+    },
+    {
+      "rel": "loadtest/stress.mjs",
+      "line": 13,
+      "id": "console_log",
+      "sev": "info"
+    },
+    {
+      "rel": "loadtest/stress.mjs",
+      "line": 21,
+      "id": "console_log",
+      "sev": "info"
+    },
+    {
+      "rel": "loadtest/stress.mjs",
+      "line": 23,
+      "id": "console_log",
+      "sev": "info"
+    },
+    {
+      "rel": "loadtest/stress.mjs",
+      "line": 28,
+      "id": "console_log",
+      "sev": "info"
+    },
+    {
+      "rel": "loadtest/stress.mjs",
+      "line": 35,
+      "id": "console_log",
+      "sev": "info"
+    },
+    {
+      "rel": "loadtest/stress.mjs",
+      "line": 41,
+      "id": "console_log",
+      "sev": "info"
+    },
+    {
+      "rel": "loadtest/stress.mjs",
+      "line": 89,
+      "id": "console_log",
+      "sev": "info"
+    },
+    {
+      "rel": "loadtest/stress.mjs",
+      "line": 93,
+      "id": "console_log",
+      "sev": "info"
+    },
+    {
+      "rel": "loadtest/stress.mjs",
+      "line": 97,
+      "id": "console_log",
+      "sev": "info"
+    },
+    {
+      "rel": "loadtest/stress.mjs",
+      "line": 104,
+      "id": "console_log",
+      "sev": "info"
+    },
+    {
+      "rel": "loadtest/stress.mjs",
+      "line": 107,
+      "id": "console_log",
+      "sev": "info"
+    },
+    {
+      "rel": "loadtest/stress.mjs",
+      "line": 108,
+      "id": "console_log",
+      "sev": "info"
+    },
+    {
+      "rel": "loadtest/stress.mjs",
+      "line": 115,
+      "id": "console_log",
+      "sev": "info"
+    },
+    {
+      "rel": "loadtest/stress.mjs",
+      "line": 116,
+      "id": "console_log",
+      "sev": "info"
+    },
+    {
+      "rel": "scripts/backup-checkpoint.mjs",
+      "line": 76,
+      "id": "console_log",
+      "sev": "info"
+    },
+    {
+      "rel": "scripts/backup-checkpoint.mjs",
+      "line": 79,
+      "id": "console_log",
+      "sev": "info"
+    },
+    {
+      "rel": "scripts/backup-checkpoint.mjs",
+      "line": 80,
+      "id": "console_log",
+      "sev": "info"
+    },
+    {
+      "rel": "scripts/backup-checkpoint.mjs",
+      "line": 81,
+      "id": "console_log",
+      "sev": "info"
+    },
+    {
+      "rel": "scripts/backup-checkpoint.mjs",
+      "line": 82,
+      "id": "console_log",
+      "sev": "info"
+    },
+    {
+      "rel": "scripts/backup-checkpoint.mjs",
+      "line": 90,
+      "id": "console_log",
+      "sev": "info"
+    },
+    {
+      "rel": "scripts/backup-checkpoint.mjs",
+      "line": 93,
+      "id": "console_log",
+      "sev": "info"
+    },
+    {
+      "rel": "scripts/backup-checkpoint.mjs",
+      "line": 94,
+      "id": "console_log",
+      "sev": "info"
+    },
+    {
+      "rel": "scripts/bootstrap-production.mjs",
+      "line": 56,
+      "id": "console_log",
+      "sev": "info"
+    },
+    {
+      "rel": "scripts/bootstrap-production.mjs",
+      "line": 65,
+      "id": "console_log",
+      "sev": "info"
+    },
+    {
+      "rel": "scripts/bootstrap-production.mjs",
+      "line": 71,
+      "id": "console_log",
+      "sev": "info"
+    },
+    {
+      "rel": "scripts/bootstrap-production.mjs",
+      "line": 80,
+      "id": "console_log",
+      "sev": "info"
+    },
+    {
+      "rel": "scripts/bootstrap-production.mjs",
+      "line": 83,
+      "id": "console_log",
+      "sev": "info"
+    },
+    {
+      "rel": "scripts/bootstrap-production.mjs",
+      "line": 87,
+      "id": "console_log",
+      "sev": "info"
+    },
+    {
+      "rel": "scripts/bootstrap-production.mjs",
+      "line": 92,
+      "id": "console_log",
+      "sev": "info"
+    },
+    {
+      "rel": "scripts/bootstrap-production.mjs",
+      "line": 93,
+      "id": "console_log",
+      "sev": "info"
+    },
+    {
+      "rel": "scripts/bootstrap-production.mjs",
+      "line": 96,
+      "id": "console_log",
+      "sev": "info"
+    },
+    {
+      "rel": "scripts/e2e-heart-sse-consistency.mjs",
+      "line": 30,
+      "id": "console_log",
+      "sev": "info"
+    },
+    {
+      "rel": "scripts/e2e-heart-sse-consistency.mjs",
+      "line": 35,
+      "id": "console_log",
+      "sev": "info"
+    },
+    {
+      "rel": "scripts/e2e-heart-sse-consistency.mjs",
+      "line": 54,
+      "id": "console_log",
+      "sev": "info"
+    },
+    {
+      "rel": "scripts/e2e-heart-sse-consistency.mjs",
+      "line": 60,
+      "id": "console_log",
+      "sev": "info"
+    },
+    {
+      "rel": "scripts/e2e-heart-sse-consistency.mjs",
+      "line": 65,
+      "id": "console_log",
+      "sev": "info"
+    },
+    {
+      "rel": "scripts/e2e-heart-sse-consistency.mjs",
+      "line": 81,
+      "id": "console_log",
+      "sev": "info"
+    },
+    {
+      "rel": "scripts/e2e-heart-sse-consistency.mjs",
+      "line": 85,
+      "id": "console_log",
+      "sev": "info"
+    },
+    {
+      "rel": "scripts/e2e-heart-sse-consistency.mjs",
+      "line": 95,
+      "id": "console_log",
+      "sev": "info"
+    },
+    {
+      "rel": "scripts/e2e-heart-sse-consistency.mjs",
+      "line": 104,
+      "id": "console_log",
+      "sev": "info"
+    },
+    {
+      "rel": "scripts/endurance-5h.mjs",
+      "line": 62,
+      "id": "console_log",
+      "sev": "info"
+    },
+    {
+      "rel": "scripts/endurance-5h.mjs",
+      "line": 515,
+      "id": "console_log",
+      "sev": "info"
+    },
+    {
+      "rel": "scripts/endurance-5h.mjs",
+      "line": 516,
+      "id": "console_log",
+      "sev": "info"
+    },
+    {
+      "rel": "scripts/endurance-5h.mjs",
+      "line": 517,
+      "id": "console_log",
+      "sev": "info"
+    },
+    {
+      "rel": "scripts/endurance-5h.mjs",
+      "line": 518,
+      "id": "console_log",
+      "sev": "info"
+    },
+    {
+      "rel": "scripts/endurance-5h.mjs",
+      "line": 519,
+      "id": "console_log",
+      "sev": "info"
+    },
+    {
+      "rel": "scripts/endurance-watchdog.mjs",
+      "line": 47,
+      "id": "console_log",
+      "sev": "info"
+    },
+    {
+      "rel": "scripts/event-hub-local.mjs",
+      "line": 129,
+      "id": "console_log",
+      "sev": "info"
+    },
+    {
+      "rel": "scripts/event-hub-local.mjs",
+      "line": 161,
+      "id": "console_log",
+      "sev": "info"
+    },
+    {
+      "rel": "scripts/full-code-audit.mjs",
+      "line": 55,
+      "id": "ts_ignore",
+      "sev": "warn"
+    },
+    {
+      "rel": "scripts/full-code-audit.mjs",
+      "line": 152,
+      "id": "console_log",
+      "sev": "info"
+    },
+    {
+      "rel": "scripts/full-code-audit.mjs",
+      "line": 153,
+      "id": "console_log",
+      "sev": "info"
+    },
+    {
+      "rel": "scripts/full-code-audit.mjs",
+      "line": 154,
+      "id": "console_log",
+      "sev": "info"
+    },
+    {
+      "rel": "scripts/full-code-audit.mjs",
+      "line": 165,
+      "id": "console_log",
+      "sev": "info"
+    },
+    {
+      "rel": "scripts/full-code-audit.mjs",
+      "line": 166,
+      "id": "console_log",
+      "sev": "info"
+    },
+    {
+      "rel": "scripts/full-code-audit.mjs",
+      "line": 172,
+      "id": "console_log",
+      "sev": "info"
+    },
+    {
+      "rel": "scripts/full-code-audit.mjs",
+      "line": 173,
+      "id": "console_log",
+      "sev": "info"
+    },
+    {
+      "rel": "scripts/full-code-audit.mjs",
+      "line": 176,
+      "id": "console_log",
+      "sev": "info"
+    },
+    {
+      "rel": "scripts/full-code-audit.mjs",
+      "line": 177,
+      "id": "console_log",
+      "sev": "info"
+    },
+    {
+      "rel": "scripts/full-code-audit.mjs",
+      "line": 178,
+      "id": "console_log",
+      "sev": "info"
+    },
+    {
+      "rel": "scripts/full-code-audit.mjs",
+      "line": 181,
+      "id": "console_log",
+      "sev": "info"
+    },
+    {
+      "rel": "scripts/full-code-audit.mjs",
+      "line": 188,
+      "id": "console_log",
+      "sev": "info"
+    },
+    {
+      "rel": "scripts/full-code-audit.mjs",
+      "line": 213,
+      "id": "console_log",
+      "sev": "info"
+    },
+    {
+      "rel": "scripts/full-code-audit.mjs",
+      "line": 232,
+      "id": "console_log",
+      "sev": "info"
+    },
+    {
+      "rel": "scripts/full-code-audit.mjs",
+      "line": 245,
+      "id": "console_log",
+      "sev": "info"
+    },
+    {
+      "rel": "scripts/full-code-audit.mjs",
+      "line": 263,
+      "id": "console_log",
+      "sev": "info"
+    },
+    {
+      "rel": "scripts/full-code-audit.mjs",
+      "line": 287,
+      "id": "console_log",
+      "sev": "info"
+    },
+    {
+      "rel": "scripts/full-code-audit.mjs",
+      "line": 309,
+      "id": "console_log",
+      "sev": "info"
+    },
+    {
+      "rel": "scripts/full-code-audit.mjs",
+      "line": 324,
+      "id": "console_log",
+      "sev": "info"
+    },
+    {
+      "rel": "scripts/full-code-audit.mjs",
+      "line": 344,
+      "id": "console_log",
+      "sev": "info"
+    },
+    {
+      "rel": "scripts/full-code-audit.mjs",
+      "line": 358,
+      "id": "console_log",
+      "sev": "info"
+    },
+    {
+      "rel": "scripts/full-code-audit.mjs",
+      "line": 372,
+      "id": "console_log",
+      "sev": "info"
+    },
+    {
+      "rel": "scripts/full-code-audit.mjs",
+      "line": 385,
+      "id": "console_log",
+      "sev": "info"
+    },
+    {
+      "rel": "scripts/full-code-audit.mjs",
+      "line": 400,
+      "id": "console_log",
+      "sev": "info"
+    },
+    {
+      "rel": "scripts/lib/entry-burst.mjs",
+      "line": 152,
+      "id": "console_log",
+      "sev": "info"
+    },
+    {
+      "rel": "scripts/lib/entry-burst.mjs",
+      "line": 153,
+      "id": "console_log",
+      "sev": "info"
+    },
+    {
+      "rel": "scripts/lib/entry-burst.mjs",
+      "line": 154,
+      "id": "console_log",
+      "sev": "info"
+    },
+    {
+      "rel": "scripts/lib/entry-burst.mjs",
+      "line": 155,
+      "id": "console_log",
+      "sev": "info"
+    },
+    {
+      "rel": "scripts/lib/entry-burst.mjs",
+      "line": 156,
+      "id": "console_log",
+      "sev": "info"
+    },
+    {
+      "rel": "scripts/lib/entry-burst.mjs",
+      "line": 176,
+      "id": "console_log",
+      "sev": "info"
+    },
+    {
+      "rel": "scripts/lib/entry-burst.mjs",
+      "line": 179,
+      "id": "console_log",
+      "sev": "info"
+    },
+    {
+      "rel": "scripts/lib/entry-burst.mjs",
+      "line": 183,
+      "id": "console_log",
+      "sev": "info"
+    },
+    {
+      "rel": "scripts/lib/entry-burst.mjs",
+      "line": 184,
+      "id": "console_log",
+      "sev": "info"
+    },
+    {
+      "rel": "scripts/lib/entry-burst.mjs",
+      "line": 185,
+      "id": "console_log",
+      "sev": "info"
+    },
+    {
+      "rel": "scripts/lib/entry-burst.mjs",
+      "line": 186,
+      "id": "console_log",
+      "sev": "info"
+    },
+    {
+      "rel": "scripts/lib/entry-burst.mjs",
+      "line": 187,
+      "id": "console_log",
+      "sev": "info"
+    },
+    {
+      "rel": "scripts/lib/entry-burst.mjs",
+      "line": 192,
+      "id": "console_log",
+      "sev": "info"
+    },
+    {
+      "rel": "scripts/lib/ops-client.mjs",
+      "line": 103,
+      "id": "hardcoded_secret",
+      "sev": "warn"
+    },
+    {
+      "rel": "scripts/lib/ops-client.mjs",
+      "line": 204,
+      "id": "console_log",
+      "sev": "info"
+    },
+    {
+      "rel": "scripts/prepare-event-hub-e2e.mjs",
+      "line": 72,
+      "id": "console_log",
+      "sev": "info"
+    },
+    {
+      "rel": "scripts/prepare-event-hub-e2e.mjs",
+      "line": 116,
+      "id": "console_log",
+      "sev": "info"
+    },
+    {
+      "rel": "scripts/restore-login-now.mjs",
+      "line": 45,
+      "id": "console_log",
+      "sev": "info"
+    },
+    {
+      "rel": "scripts/restore-login-now.mjs",
+      "line": 53,
+      "id": "console_log",
+      "sev": "info"
+    },
+    {
+      "rel": "scripts/restore-login-now.mjs",
+      "line": 67,
+      "id": "console_log",
+      "sev": "info"
+    },
+    {
+      "rel": "scripts/restore-login-now.mjs",
+      "line": 83,
+      "id": "console_log",
+      "sev": "info"
+    },
+    {
+      "rel": "scripts/restore-login-now.mjs",
+      "line": 84,
+      "id": "console_log",
+      "sev": "info"
+    },
+    {
+      "rel": "scripts/revoke-exposed-tokens.mjs",
+      "line": 65,
+      "id": "console_log",
+      "sev": "info"
+    },
+    {
+      "rel": "scripts/revoke-exposed-tokens.mjs",
+      "line": 73,
+      "id": "console_log",
+      "sev": "info"
+    },
+    {
+      "rel": "scripts/revoke-exposed-tokens.mjs",
+      "line": 81,
+      "id": "console_log",
+      "sev": "info"
+    },
+    {
+      "rel": "scripts/revoke-exposed-tokens.mjs",
+      "line": 85,
+      "id": "console_log",
+      "sev": "info"
+    },
+    {
+      "rel": "scripts/revoke-exposed-tokens.mjs",
+      "line": 94,
+      "id": "console_log",
+      "sev": "info"
+    },
+    {
+      "rel": "scripts/revoke-exposed-tokens.mjs",
+      "line": 105,
+      "id": "console_log",
+      "sev": "info"
+    },
+    {
+      "rel": "scripts/revoke-exposed-tokens.mjs",
+      "line": 136,
+      "id": "console_log",
+      "sev": "info"
+    },
+    {
+      "rel": "scripts/revoke-exposed-tokens.mjs",
+      "line": 151,
+      "id": "console_log",
+      "sev": "info"
+    },
+    {
+      "rel": "scripts/revoke-exposed-tokens.mjs",
+      "line": 155,
+      "id": "console_log",
+      "sev": "info"
+    },
+    {
+      "rel": "scripts/revoke-exposed-tokens.mjs",
+      "line": 158,
+      "id": "console_log",
+      "sev": "info"
+    },
+    {
+      "rel": "scripts/revoke-exposed-tokens.mjs",
+      "line": 162,
+      "id": "console_log",
+      "sev": "info"
+    },
+    {
+      "rel": "scripts/revoke-exposed-tokens.mjs",
+      "line": 163,
+      "id": "console_log",
+      "sev": "info"
+    },
+    {
+      "rel": "scripts/revoke-exposed-tokens.mjs",
+      "line": 164,
+      "id": "console_log",
+      "sev": "info"
+    },
+    {
+      "rel": "scripts/rotate-exposed-secrets.mjs",
+      "line": 9,
+      "id": "hardcoded_secret",
+      "sev": "warn"
+    },
+    {
+      "rel": "scripts/rotate-exposed-secrets.mjs",
+      "line": 10,
+      "id": "hardcoded_secret",
+      "sev": "warn"
+    },
+    {
+      "rel": "scripts/rotate-exposed-secrets.mjs",
+      "line": 126,
+      "id": "console_log",
+      "sev": "info"
+    },
+    {
+      "rel": "scripts/rotate-exposed-secrets.mjs",
+      "line": 150,
+      "id": "console_log",
+      "sev": "info"
+    },
+    {
+      "rel": "scripts/rotate-exposed-secrets.mjs",
+      "line": 153,
+      "id": "console_log",
+      "sev": "info"
+    },
+    {
+      "rel": "scripts/rotate-exposed-secrets.mjs",
+      "line": 163,
+      "id": "console_log",
+      "sev": "info"
+    },
+    {
+      "rel": "scripts/rotate-exposed-secrets.mjs",
+      "line": 166,
+      "id": "console_log",
+      "sev": "info"
+    },
+    {
+      "rel": "scripts/rotate-exposed-secrets.mjs",
+      "line": 185,
+      "id": "console_log",
+      "sev": "info"
+    },
+    {
+      "rel": "scripts/rotate-exposed-secrets.mjs",
+      "line": 194,
+      "id": "console_log",
+      "sev": "info"
+    },
+    {
+      "rel": "scripts/rotate-exposed-secrets.mjs",
+      "line": 199,
+      "id": "console_log",
+      "sev": "info"
+    },
+    {
+      "rel": "scripts/rotate-exposed-secrets.mjs",
+      "line": 201,
+      "id": "console_log",
+      "sev": "info"
+    },
+    {
+      "rel": "scripts/rotate-exposed-secrets.mjs",
+      "line": 205,
+      "id": "console_log",
+      "sev": "info"
+    },
+    {
+      "rel": "scripts/rotate-exposed-secrets.mjs",
+      "line": 212,
+      "id": "console_log",
+      "sev": "info"
+    },
+    {
+      "rel": "scripts/rotate-exposed-secrets.mjs",
+      "line": 214,
+      "id": "console_log",
+      "sev": "info"
+    },
+    {
+      "rel": "scripts/rotate-exposed-secrets.mjs",
+      "line": 233,
+      "id": "console_log",
+      "sev": "info"
+    },
+    {
+      "rel": "scripts/rotate-exposed-secrets.mjs",
+      "line": 238,
+      "id": "console_log",
+      "sev": "info"
+    },
+    {
+      "rel": "scripts/rotate-exposed-secrets.mjs",
+      "line": 241,
+      "id": "console_log",
+      "sev": "info"
+    },
+    {
+      "rel": "scripts/rotate-exposed-secrets.mjs",
+      "line": 255,
+      "id": "console_log",
+      "sev": "info"
+    },
+    {
+      "rel": "scripts/rotate-exposed-secrets.mjs",
+      "line": 256,
+      "id": "console_log",
+      "sev": "info"
+    },
+    {
+      "rel": "scripts/rotate-secrets.mjs",
+      "line": 57,
+      "id": "console_log",
+      "sev": "info"
+    },
+    {
+      "rel": "scripts/rotate-secrets.mjs",
+      "line": 58,
+      "id": "console_log",
+      "sev": "info"
+    },
+    {
+      "rel": "scripts/rotate-secrets.mjs",
+      "line": 59,
+      "id": "console_log",
+      "sev": "info"
+    },
+    {
+      "rel": "scripts/security-harden.mjs",
+      "line": 123,
+      "id": "console_log",
+      "sev": "info"
+    },
+    {
+      "rel": "scripts/security-harden.mjs",
+      "line": 124,
+      "id": "console_log",
+      "sev": "info"
+    },
+    {
+      "rel": "scripts/security-harden.mjs",
+      "line": 125,
+      "id": "console_log",
+      "sev": "info"
+    },
+    {
+      "rel": "scripts/security-harden.mjs",
+      "line": 127,
+      "id": "console_log",
+      "sev": "info"
+    },
+    {
+      "rel": "scripts/security-harden.mjs",
+      "line": 129,
+      "id": "console_log",
+      "sev": "info"
+    },
+    {
+      "rel": "scripts/setup-cloud.mjs",
+      "line": 89,
+      "id": "console_log",
+      "sev": "info"
+    },
+    {
+      "rel": "scripts/setup-cloud.mjs",
+      "line": 97,
+      "id": "console_log",
+      "sev": "info"
+    },
+    {
+      "rel": "scripts/setup-cloud.mjs",
+      "line": 130,
+      "id": "console_log",
+      "sev": "info"
+    },
+    {
+      "rel": "scripts/setup-cloud.mjs",
+      "line": 135,
+      "id": "console_log",
+      "sev": "info"
+    },
+    {
+      "rel": "scripts/setup-cloud.mjs",
+      "line": 146,
+      "id": "console_log",
+      "sev": "info"
+    },
+    {
+      "rel": "scripts/setup-cloud.mjs",
+      "line": 160,
+      "id": "console_log",
+      "sev": "info"
+    },
+    {
+      "rel": "scripts/setup-cloud.mjs",
+      "line": 184,
+      "id": "console_log",
+      "sev": "info"
+    },
+    {
+      "rel": "scripts/setup-cloud.mjs",
+      "line": 186,
+      "id": "console_log",
+      "sev": "info"
+    },
+    {
+      "rel": "scripts/setup-cloud.mjs",
+      "line": 195,
+      "id": "console_log",
+      "sev": "info"
+    },
+    {
+      "rel": "scripts/setup-cloud.mjs",
+      "line": 197,
+      "id": "console_log",
+      "sev": "info"
+    },
+    {
+      "rel": "scripts/setup-cloud.mjs",
+      "line": 201,
+      "id": "console_log",
+      "sev": "info"
+    },
+    {
+      "rel": "scripts/sim-concurrent-users.mjs",
+      "line": 309,
+      "id": "console_log",
+      "sev": "info"
+    },
+    {
+      "rel": "scripts/sim-concurrent-users.mjs",
+      "line": 312,
+      "id": "console_log",
+      "sev": "info"
+    },
+    {
+      "rel": "scripts/sim-concurrent-users.mjs",
+      "line": 318,
+      "id": "console_log",
+      "sev": "info"
+    },
+    {
+      "rel": "scripts/sim-concurrent-users.mjs",
+      "line": 321,
+      "id": "console_log",
+      "sev": "info"
+    },
+    {
+      "rel": "scripts/sim-concurrent-users.mjs",
+      "line": 324,
+      "id": "console_log",
+      "sev": "info"
+    },
+    {
+      "rel": "scripts/sim-concurrent-users.mjs",
+      "line": 327,
+      "id": "console_log",
+      "sev": "info"
+    },
+    {
+      "rel": "scripts/sim-concurrent-users.mjs",
+      "line": 334,
+      "id": "console_log",
+      "sev": "info"
+    },
+    {
+      "rel": "scripts/sim-concurrent-users.mjs",
+      "line": 343,
+      "id": "console_log",
+      "sev": "info"
+    },
+    {
+      "rel": "scripts/sim-concurrent-users.mjs",
+      "line": 419,
+      "id": "console_log",
+      "sev": "info"
+    },
+    {
+      "rel": "scripts/sim-concurrent-users.mjs",
+      "line": 468,
+      "id": "console_log",
+      "sev": "info"
+    },
+    {
+      "rel": "scripts/sim-concurrent-users.mjs",
+      "line": 500,
+      "id": "console_log",
+      "sev": "info"
+    },
+    {
+      "rel": "scripts/sim-concurrent-users.mjs",
+      "line": 548,
+      "id": "console_log",
+      "sev": "info"
+    },
+    {
+      "rel": "scripts/sim-concurrent-users.mjs",
+      "line": 566,
+      "id": "console_log",
+      "sev": "info"
+    },
+    {
+      "rel": "scripts/sim-concurrent-users.mjs",
+      "line": 577,
+      "id": "console_log",
+      "sev": "info"
+    },
+    {
+      "rel": "scripts/sim-concurrent-users.mjs",
+      "line": 580,
+      "id": "console_log",
+      "sev": "info"
+    },
+    {
+      "rel": "scripts/sim-concurrent-users.mjs",
+      "line": 675,
+      "id": "console_log",
+      "sev": "info"
+    },
+    {
+      "rel": "scripts/sim-concurrent-users.mjs",
+      "line": 682,
+      "id": "console_log",
+      "sev": "info"
+    },
+    {
+      "rel": "scripts/sim-concurrent-users.mjs",
+      "line": 696,
+      "id": "console_log",
+      "sev": "info"
+    },
+    {
+      "rel": "scripts/sim-concurrent-users.mjs",
+      "line": 697,
+      "id": "console_log",
+      "sev": "info"
+    },
+    {
+      "rel": "scripts/sim-concurrent-users.mjs",
+      "line": 698,
+      "id": "console_log",
+      "sev": "info"
+    },
+    {
+      "rel": "scripts/sim-concurrent-users.mjs",
+      "line": 699,
+      "id": "console_log",
+      "sev": "info"
+    },
+    {
+      "rel": "scripts/sim-concurrent-users.mjs",
+      "line": 700,
+      "id": "console_log",
+      "sev": "info"
+    },
+    {
+      "rel": "scripts/sim-concurrent-users.mjs",
+      "line": 701,
+      "id": "console_log",
+      "sev": "info"
+    },
+    {
+      "rel": "scripts/sim-concurrent-users.mjs",
+      "line": 702,
+      "id": "console_log",
+      "sev": "info"
+    },
+    {
+      "rel": "scripts/sim-concurrent-users.mjs",
+      "line": 703,
+      "id": "console_log",
+      "sev": "info"
+    },
+    {
+      "rel": "scripts/sim-concurrent-users.mjs",
+      "line": 704,
+      "id": "console_log",
+      "sev": "info"
+    },
+    {
+      "rel": "scripts/sim-concurrent-users.mjs",
+      "line": 705,
+      "id": "console_log",
+      "sev": "info"
+    },
+    {
+      "rel": "scripts/sim-concurrent-users.mjs",
+      "line": 706,
+      "id": "console_log",
+      "sev": "info"
+    },
+    {
+      "rel": "scripts/sim-concurrent-users.mjs",
+      "line": 707,
+      "id": "console_log",
+      "sev": "info"
+    },
+    {
+      "rel": "scripts/sim-concurrent-users.mjs",
+      "line": 708,
+      "id": "console_log",
+      "sev": "info"
+    },
+    {
+      "rel": "scripts/sim-concurrent-users.mjs",
+      "line": 709,
+      "id": "console_log",
+      "sev": "info"
+    },
+    {
+      "rel": "scripts/sim-concurrent-users.mjs",
+      "line": 711,
+      "id": "console_log",
+      "sev": "info"
+    },
+    {
+      "rel": "scripts/sim-concurrent-users.mjs",
+      "line": 712,
+      "id": "console_log",
+      "sev": "info"
+    },
+    {
+      "rel": "scripts/sim-concurrent-users.mjs",
+      "line": 735,
+      "id": "console_log",
+      "sev": "info"
+    },
+    {
+      "rel": "scripts/sim-concurrent-users.mjs",
+      "line": 736,
+      "id": "console_log",
+      "sev": "info"
+    },
+    {
+      "rel": "scripts/sim-concurrent-users.mjs",
+      "line": 747,
+      "id": "console_log",
+      "sev": "info"
+    },
+    {
+      "rel": "scripts/sim-concurrent-users.mjs",
+      "line": 748,
+      "id": "console_log",
+      "sev": "info"
+    },
+    {
+      "rel": "scripts/sim-concurrent-users.mjs",
+      "line": 749,
+      "id": "console_log",
+      "sev": "info"
+    },
+    {
+      "rel": "scripts/sim-concurrent-users.mjs",
+      "line": 750,
+      "id": "console_log",
+      "sev": "info"
+    },
+    {
+      "rel": "scripts/sim-concurrent-users.mjs",
+      "line": 751,
+      "id": "console_log",
+      "sev": "info"
+    },
+    {
+      "rel": "scripts/sim-concurrent-users.mjs",
+      "line": 756,
+      "id": "console_log",
+      "sev": "info"
+    },
+    {
+      "rel": "scripts/sim-concurrent-users.mjs",
+      "line": 768,
+      "id": "console_log",
+      "sev": "info"
+    },
+    {
+      "rel": "scripts/sim-concurrent-users.mjs",
+      "line": 771,
+      "id": "console_log",
+      "sev": "info"
+    },
+    {
+      "rel": "scripts/sim-concurrent-users.mjs",
+      "line": 778,
+      "id": "console_log",
+      "sev": "info"
+    },
+    {
+      "rel": "scripts/sim-concurrent-users.mjs",
+      "line": 780,
+      "id": "console_log",
+      "sev": "info"
+    },
+    {
+      "rel": "scripts/sim-concurrent-users.mjs",
+      "line": 788,
+      "id": "console_log",
+      "sev": "info"
+    },
+    {
+      "rel": "scripts/sim-concurrent-users.mjs",
+      "line": 791,
+      "id": "console_log",
+      "sev": "info"
+    },
+    {
+      "rel": "scripts/soak-harness.mjs",
+      "line": 97,
+      "id": "console_log",
+      "sev": "info"
+    },
+    {
+      "rel": "scripts/soak-harness.mjs",
+      "line": 98,
+      "id": "console_log",
+      "sev": "info"
+    },
+    {
+      "rel": "scripts/start-endurance-8h.mjs",
+      "line": 92,
+      "id": "console_log",
+      "sev": "info"
+    },
+    {
+      "rel": "scripts/start-endurance-8h.mjs",
+      "line": 93,
+      "id": "console_log",
+      "sev": "info"
+    },
+    {
+      "rel": "scripts/start-endurance-8h.mjs",
+      "line": 94,
+      "id": "console_log",
+      "sev": "info"
+    },
+    {
+      "rel": "scripts/start-endurance-8h.mjs",
+      "line": 95,
+      "id": "console_log",
+      "sev": "info"
+    },
+    {
+      "rel": "scripts/start-endurance-8h.mjs",
+      "line": 96,
+      "id": "console_log",
+      "sev": "info"
+    },
+    {
+      "rel": "scripts/start-endurance-8h.mjs",
+      "line": 97,
+      "id": "console_log",
+      "sev": "info"
+    },
+    {
+      "rel": "scripts/test-chat-disconnect-recovery.mjs",
+      "line": 21,
+      "id": "console_log",
+      "sev": "info"
+    },
+    {
+      "rel": "scripts/test-chat-disconnect-recovery.mjs",
+      "line": 26,
+      "id": "console_log",
+      "sev": "info"
+    },
+    {
+      "rel": "scripts/test-chat-disconnect-recovery.mjs",
+      "line": 43,
+      "id": "console_log",
+      "sev": "info"
+    },
+    {
+      "rel": "scripts/test-chat-disconnect-recovery.mjs",
+      "line": 59,
+      "id": "console_log",
+      "sev": "info"
+    },
+    {
+      "rel": "scripts/test-chat-disconnect-recovery.mjs",
+      "line": 72,
+      "id": "console_log",
+      "sev": "info"
+    },
+    {
+      "rel": "scripts/test-chat-disconnect-recovery.mjs",
+      "line": 81,
+      "id": "console_log",
+      "sev": "info"
+    },
+    {
+      "rel": "scripts/test-chat-disconnect-recovery.mjs",
+      "line": 88,
+      "id": "console_log",
+      "sev": "info"
+    },
+    {
+      "rel": "scripts/test-chat-disconnect-recovery.mjs",
+      "line": 101,
+      "id": "console_log",
+      "sev": "info"
+    },
+    {
+      "rel": "scripts/test-chat-hearts-e2e.mjs",
+      "line": 52,
+      "id": "console_log",
+      "sev": "info"
+    },
+    {
+      "rel": "scripts/test-chat-hearts-e2e.mjs",
+      "line": 63,
+      "id": "console_log",
+      "sev": "info"
+    },
+    {
+      "rel": "scripts/test-chat-hearts-e2e.mjs",
+      "line": 64,
+      "id": "console_log",
+      "sev": "info"
+    },
+    {
+      "rel": "scripts/test-chat-hearts-e2e.mjs",
+      "line": 75,
+      "id": "console_log",
+      "sev": "info"
+    },
+    {
+      "rel": "scripts/test-chat-hearts-e2e.mjs",
+      "line": 85,
+      "id": "console_log",
+      "sev": "info"
+    },
+    {
+      "rel": "scripts/test-chat-hearts-e2e.mjs",
+      "line": 89,
+      "id": "console_log",
+      "sev": "info"
+    },
+    {
+      "rel": "scripts/test-chat-hearts-e2e.mjs",
+      "line": 97,
+      "id": "console_log",
+      "sev": "info"
+    },
+    {
+      "rel": "scripts/test-chat-hearts-e2e.mjs",
+      "line": 104,
+      "id": "console_log",
+      "sev": "info"
+    },
+    {
+      "rel": "scripts/test-chat-hearts-e2e.mjs",
+      "line": 117,
+      "id": "console_log",
+      "sev": "info"
+    },
+    {
+      "rel": "scripts/test-chat-hearts-e2e.mjs",
+      "line": 124,
+      "id": "console_log",
+      "sev": "info"
+    },
+    {
+      "rel": "scripts/test-chat-hearts-e2e.mjs",
+      "line": 130,
+      "id": "console_log",
+      "sev": "info"
+    },
+    {
+      "rel": "scripts/test-chat-message-types.mjs",
+      "line": 96,
+      "id": "console_log",
+      "sev": "info"
+    },
+    {
+      "rel": "scripts/test-chat-message-types.mjs",
+      "line": 100,
+      "id": "console_log",
+      "sev": "info"
+    },
+    {
+      "rel": "scripts/test-chat-message-types.mjs",
+      "line": 101,
+      "id": "console_log",
+      "sev": "info"
+    },
+    {
+      "rel": "scripts/test-chat-message-types.mjs",
+      "line": 105,
+      "id": "console_log",
+      "sev": "info"
+    },
+    {
+      "rel": "scripts/test-chat-message-types.mjs",
+      "line": 120,
+      "id": "console_log",
+      "sev": "info"
+    },
+    {
+      "rel": "scripts/test-chat-message-types.mjs",
+      "line": 140,
+      "id": "console_log",
+      "sev": "info"
+    },
+    {
+      "rel": "scripts/test-chat-message-types.mjs",
+      "line": 161,
+      "id": "console_log",
+      "sev": "info"
+    },
+    {
+      "rel": "scripts/test-chat-message-types.mjs",
+      "line": 183,
+      "id": "console_log",
+      "sev": "info"
+    },
+    {
+      "rel": "scripts/test-chat-message-types.mjs",
+      "line": 191,
+      "id": "console_log",
+      "sev": "info"
+    },
+    {
+      "rel": "scripts/test-chat-message-types.mjs",
+      "line": 192,
+      "id": "console_log",
+      "sev": "info"
+    },
+    {
+      "rel": "scripts/test-chat-message-types.mjs",
+      "line": 206,
+      "id": "console_log",
+      "sev": "info"
+    },
+    {
+      "rel": "scripts/test-chat-message-types.mjs",
+      "line": 215,
+      "id": "console_log",
+      "sev": "info"
+    },
+    {
+      "rel": "scripts/test-chat-message-types.mjs",
+      "line": 224,
+      "id": "console_log",
+      "sev": "info"
+    },
+    {
+      "rel": "scripts/test-mutual-chat-hearts.mjs",
+      "line": 91,
+      "id": "console_log",
+      "sev": "info"
+    },
+    {
+      "rel": "scripts/test-mutual-chat-hearts.mjs",
+      "line": 95,
+      "id": "console_log",
+      "sev": "info"
+    },
+    {
+      "rel": "scripts/test-mutual-chat-hearts.mjs",
+      "line": 96,
+      "id": "console_log",
+      "sev": "info"
+    },
+    {
+      "rel": "scripts/test-mutual-chat-hearts.mjs",
+      "line": 100,
+      "id": "console_log",
+      "sev": "info"
+    },
+    {
+      "rel": "scripts/test-mutual-chat-hearts.mjs",
+      "line": 123,
+      "id": "console_log",
+      "sev": "info"
+    },
+    {
+      "rel": "scripts/test-mutual-chat-hearts.mjs",
+      "line": 133,
+      "id": "console_log",
+      "sev": "info"
+    },
+    {
+      "rel": "scripts/test-mutual-chat-hearts.mjs",
+      "line": 134,
+      "id": "console_log",
+      "sev": "info"
+    },
+    {
+      "rel": "scripts/test-mutual-chat-hearts.mjs",
+      "line": 156,
+      "id": "console_log",
+      "sev": "info"
+    },
+    {
+      "rel": "scripts/test-mutual-chat-hearts.mjs",
+      "line": 178,
+      "id": "console_log",
+      "sev": "info"
+    },
+    {
+      "rel": "scripts/test-mutual-chat-hearts.mjs",
+      "line": 188,
+      "id": "console_log",
+      "sev": "info"
+    },
+    {
+      "rel": "scripts/test-mutual-chat-hearts.mjs",
+      "line": 189,
+      "id": "console_log",
+      "sev": "info"
+    },
+    {
+      "rel": "scripts/test-mutual-chat-hearts.mjs",
+      "line": 200,
+      "id": "console_log",
+      "sev": "info"
+    },
+    {
+      "rel": "scripts/test-mutual-chat-hearts.mjs",
+      "line": 212,
+      "id": "console_log",
+      "sev": "info"
+    },
+    {
+      "rel": "scripts/test-profile-photo-upload.mjs",
+      "line": 30,
+      "id": "console_log",
+      "sev": "info"
+    },
+    {
+      "rel": "scripts/test-profile-photo-upload.mjs",
+      "line": 31,
+      "id": "console_log",
+      "sev": "info"
+    },
+    {
+      "rel": "scripts/test-profile-photo-upload.mjs",
+      "line": 32,
+      "id": "console_log",
+      "sev": "info"
+    },
+    {
+      "rel": "scripts/test-profile-photo-upload.mjs",
+      "line": 62,
+      "id": "console_log",
+      "sev": "info"
+    },
+    {
+      "rel": "scripts/test-profile-photo-upload.mjs",
+      "line": 75,
+      "id": "console_log",
+      "sev": "info"
+    },
+    {
+      "rel": "scripts/test-profile-photo-upload.mjs",
+      "line": 80,
+      "id": "console_log",
+      "sev": "info"
+    },
+    {
+      "rel": "scripts/test-profile-photo-upload.mjs",
+      "line": 87,
+      "id": "console_log",
+      "sev": "info"
+    },
+    {
+      "rel": "scripts/test-profile-photo-upload.mjs",
+      "line": 95,
+      "id": "console_log",
+      "sev": "info"
+    },
+    {
+      "rel": "scripts/test-realtime-two-user.mjs",
+      "line": 117,
+      "id": "console_log",
+      "sev": "info"
+    },
+    {
+      "rel": "scripts/test-realtime-two-user.mjs",
+      "line": 129,
+      "id": "console_log",
+      "sev": "info"
+    },
+    {
+      "rel": "scripts/test-realtime-two-user.mjs",
+      "line": 130,
+      "id": "console_log",
+      "sev": "info"
+    },
+    {
+      "rel": "scripts/test-realtime-two-user.mjs",
+      "line": 167,
+      "id": "console_log",
+      "sev": "info"
+    },
+    {
+      "rel": "scripts/test-realtime-two-user.mjs",
+      "line": 174,
+      "id": "console_log",
+      "sev": "info"
+    },
+    {
+      "rel": "scripts/test-realtime-two-user.mjs",
+      "line": 184,
+      "id": "console_log",
+      "sev": "info"
+    },
+    {
+      "rel": "scripts/test-realtime-two-user.mjs",
+      "line": 192,
+      "id": "console_log",
+      "sev": "info"
+    },
+    {
+      "rel": "scripts/test-realtime-two-user.mjs",
+      "line": 201,
+      "id": "console_log",
+      "sev": "info"
+    },
+    {
+      "rel": "scripts/test-realtime-two-user.mjs",
+      "line": 208,
+      "id": "console_log",
+      "sev": "info"
+    },
+    {
+      "rel": "scripts/test-realtime-two-user.mjs",
+      "line": 218,
+      "id": "console_log",
+      "sev": "info"
+    },
+    {
+      "rel": "scripts/test-realtime-two-user.mjs",
+      "line": 229,
+      "id": "console_log",
+      "sev": "info"
+    },
+    {
+      "rel": "scripts/test-session-toggle.mjs",
+      "line": 33,
+      "id": "console_log",
+      "sev": "info"
+    },
+    {
+      "rel": "scripts/test-session-toggle.mjs",
+      "line": 42,
+      "id": "console_log",
+      "sev": "info"
+    },
+    {
+      "rel": "scripts/test/ops-client.test.mjs",
+      "line": 127,
+      "id": "hardcoded_secret",
+      "sev": "warn"
+    },
+    {
+      "rel": "scripts/test/ops-client.test.mjs",
+      "line": 128,
+      "id": "hardcoded_secret",
+      "sev": "warn"
+    },
+    {
+      "rel": "scripts/trigger-netlify-build.mjs",
+      "line": 31,
+      "id": "console_log",
+      "sev": "info"
+    },
+    {
+      "rel": "scripts/verify-all-features.mjs",
+      "line": 169,
+      "id": "console_log",
+      "sev": "info"
+    },
+    {
+      "rel": "scripts/verify-docs-current.mjs",
+      "line": 54,
+      "id": "console_log",
+      "sev": "info"
+    },
+    {
+      "rel": "scripts/verify-recurrence-guards.mjs",
+      "line": 2671,
+      "id": "console_log",
+      "sev": "info"
+    },
+    {
+      "rel": "scripts/verify-recurrence-guards.mjs",
+      "line": 2696,
+      "id": "console_log",
+      "sev": "info"
+    },
+    {
+      "rel": "scripts/verify-recurrence-guards.mjs",
+      "line": 2699,
+      "id": "console_log",
+      "sev": "info"
+    },
+    {
+      "rel": "scripts/verify-recurrence-guards.mjs",
+      "line": 2704,
+      "id": "console_log",
+      "sev": "info"
+    }
+  ]
+}

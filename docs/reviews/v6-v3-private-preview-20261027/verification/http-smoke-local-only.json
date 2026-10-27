@@ -1,0 +1,65 @@
+{
+  "scope": "production-mode real React static build + Express + dedicated local PG; loopback HTTP exception only; no external HTTPS created",
+  "checks": [
+    {
+      "path": "/",
+      "access_login": false,
+      "status": 401,
+      "pass": true
+    },
+    {
+      "path": "/events",
+      "access_login": false,
+      "status": 401,
+      "pass": true
+    },
+    {
+      "path": "/admin",
+      "access_login": false,
+      "status": 401,
+      "pass": true
+    },
+    {
+      "path": "/api/event-hub/admin",
+      "access_login": false,
+      "status": 401,
+      "pass": true
+    },
+    {
+      "path": "/api/healthz",
+      "access_login": false,
+      "status": 200,
+      "pass": true
+    },
+    {
+      "path": "/events",
+      "access_login": true,
+      "status": 200,
+      "pass": true
+    },
+    {
+      "path": "/admin",
+      "access_login": true,
+      "status": 200,
+      "pass": true
+    },
+    {
+      "path": "/api/event-hub/admin",
+      "access_login": true,
+      "status": 403,
+      "pass": true
+    },
+    {
+      "path": "/api/event-hub/state",
+      "access_login": true,
+      "status": 200,
+      "pass": true
+    },
+    {
+      "path": "/api/db/push/subscribe",
+      "access_login": true,
+      "status": 403,
+      "pass": true
+    }
+  ]
+}
