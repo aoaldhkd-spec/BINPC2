@@ -1,3 +1,4 @@
+import { paymentSatisfied } from "./event-campaign";
 import {
   HUB_CONSENT_VERSION,
   profileMissing,
@@ -11,13 +12,18 @@ export function applicationAdmissionIssue(
 ): { code: string; message: string } | null {
   if (
     !a.confirmedAt ||
-    a.payment !== "approved" ||
+    !paymentSatisfied(a) ||
     a.attendance !== "confirmed" ||
     !a.checkin
   )
     return {
       code: "ATTENDANCE",
       message: "입금·참가 확정·현장 확인이 필요합니다.",
+    };
+  if (a.eligibility && a.eligibility.status !== "approved")
+    return {
+      code: "ELIGIBILITY",
+      message: "관리자 사전 참가 검토가 필요합니다.",
     };
   const missing = profileMissing(a.profile);
   if (missing.length)
@@ -33,7 +39,16 @@ export function applicationAdmissionIssue(
   return null;
 }
 export function participantApplication(a: HubApplication, e: HubEvent) {
-  const { rank, owner, quote, history, ...safe } = a;
+  const {
+    rank,
+    owner,
+    quote,
+    history,
+    benefitRank,
+    benefitExcluded,
+    benefitContact,
+    ...safe
+  } = a;
   // Internal notes/restrictions are not participant notices. Preserve transparent fee changes.
   const visibleHistory = history
     .filter(
@@ -57,6 +72,7 @@ export function participantApplication(a: HubApplication, e: HubEvent) {
     }));
   return {
     ...safe,
+    ...(a.stage >= 3 ? { benefitRank, benefitExcluded } : {}),
     history: visibleHistory,
     profileMissing: profileMissing(a.profile),
     ...(a.stage >= 3 && quote
@@ -67,11 +83,14 @@ export function participantApplication(a: HubApplication, e: HubEvent) {
             account: e.account,
             deadline: e.deadline,
             included: e.included,
-            deposit: Math.min(e.deposit, a.quote?.fee ?? 0),
+            deposit:
+              e.campaign?.kind === "tour"
+                ? (a.quote?.fee ?? 0)
+                : Math.min(e.deposit, a.quote?.fee ?? 0),
           },
         }
       : {}),
-    ...(a.payment === "approved"
+    ...(paymentSatisfied(a)
       ? { venue: { address: e.address, mapUrl: e.mapUrl } }
       : {}),
   };

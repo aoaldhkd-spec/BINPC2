@@ -407,30 +407,50 @@ test("actual browser + API + PostgreSQL: saved stages, payment recovery, private
     path: testInfo.outputPath("04-actual-three-cards-restored.png"),
     fullPage: true,
   });
-  const rewardContext = await browser.newContext({baseURL:process.env.HUB_E2E_BASE_URL,recordVideo:{dir:testInfo.outputPath("reward-video")}});
+  const rewardContext = await browser.newContext({
+    baseURL: process.env.HUB_E2E_BASE_URL,
+    recordVideo: { dir: testInfo.outputPath("reward-video") },
+  });
   await restrictToLocal(rewardContext);
-  await rewardContext.addInitScript(value => {
-    localStorage.setItem("admin_token_v1",value);
-    localStorage.setItem("admin_session_v1",JSON.stringify({phone:"01000000000",authedAt:Date.now()}));
-  },token!);
+  await rewardContext.addInitScript((value) => {
+    localStorage.setItem("admin_token_v1", value);
+    localStorage.setItem(
+      "admin_session_v1",
+      JSON.stringify({ phone: "01000000000", authedAt: Date.now() }),
+    );
+  }, token!);
   try {
     const admin = await rewardContext.newPage();
     await admin.goto("/admin");
-    await admin.getByRole("button",{name:"🎉 술번개",exact:true}).click();
+    await admin.getByRole("button", { name: "🎉 술번개", exact: true }).click();
     await admin.getByLabel("관리할 행사").selectOption(eventId);
-    await admin.getByRole("button",{name:"현장·상품",exact:true}).click();
-    const card = admin.locator("section").filter({has:admin.getByText(`신청번호 ${id}`,{exact:true})});
-    await card.getByRole("button",{name:"하리보 A 지급",exact:true}).click();
-    await expect(card.getByRole("button",{name:"하리보 B 지급",exact:true})).toBeDisabled();
-    const winning = cards.find((c:{prize:string}) => c.prize !== "다음 기회에");
+    await admin.getByRole("button", { name: "현장·상품", exact: true }).click();
+    const card = admin
+      .locator("section")
+      .filter({ has: admin.getByText(`신청번호 ${id}`, { exact: true }) });
+    await card
+      .getByRole("button", { name: "하리보 A 지급", exact: true })
+      .click();
+    await expect(
+      card.getByRole("button", { name: "하리보 B 지급", exact: true }),
+    ).toBeDisabled();
+    const winning = cards.find(
+      (c: { prize: string }) => c.prize !== "다음 기회에",
+    );
     if (winning) {
-      await card.getByRole("button",{name:"상품 지급 확인",exact:true}).first().click();
-      await expect(card.getByText("지급 완료",{exact:false})).toBeVisible();
-      expect((await application(request,id)).prizesGiven).toHaveLength(1);
+      await card
+        .getByRole("button", { name: "상품 지급 확인", exact: true })
+        .first()
+        .click();
+      await expect(card.getByText("지급 완료", { exact: false })).toBeVisible();
+      expect((await application(request, id)).prizesGiven).toHaveLength(1);
     }
-    await card.screenshot({path:testInfo.outputPath("04-actual-admin-rewards.png")});
-  } finally { await rewardContext.close(); }
-
+    await card.screenshot({
+      path: testInfo.outputPath("04-actual-admin-rewards.png"),
+    });
+  } finally {
+    await rewardContext.close();
+  }
 });
 
 test("mobile/tablet/desktop layouts and administrator sandbox remain isolated", async ({
@@ -1006,4 +1026,490 @@ test("actual administrator Saturday toggle survives reload and returns to the or
       current.settings.revision,
     );
   }
+});
+
+test("latest campaign actual API: first-rank free approval stays separate from bank payment and private venue", async ({
+  page,
+  request,
+  browser,
+}, testInfo) => {
+  const prepared = await command(
+    request,
+    "campaign.prepare",
+    "halloween-2026-10-30",
+  );
+  const id = String(prepared.id);
+  let state = await (
+    await request.get("/api/event-hub/admin", { headers: adminHeaders })
+  ).json();
+  let e = state.events.find((v: { id: string }) => v.id === id);
+  // The isolated fixture may be reused; this scenario uses its next unclaimed rank.
+  await command(
+    request,
+    "event.save",
+    id,
+    { ...e, account: "격리 시험 계좌", deadline: "관리자 개별 안내" },
+    e.revision,
+  );
+  state = await (
+    await request.get("/api/event-hub/admin", { headers: adminHeaders })
+  ).json();
+  e = state.events.find((v: { id: string }) => v.id === id);
+  await command(
+    request,
+    "event.recruitment",
+    id,
+    { enabled: true },
+    e.revision,
+  );
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto(`/events/e/${id}`);
+  await expect(page.getByRole("dialog")).toBeVisible();
+  await page.screenshot({
+    path: testInfo.outputPath("campaign-application-guide-390.png"),
+  });
+  await page.getByRole("button", { name: "알겠어요", exact: true }).click();
+  await page
+    .getByLabel("닉네임", { exact: true })
+    .fill(`행사${suffix.slice(-4)}`);
+  await page.getByLabel("태어난 년도").fill("1995");
+  await page.getByLabel("사는 지역").fill("부산");
+  await page.getByLabel("연락용 전화번호").fill("01000000000");
+  await page.getByLabel("실제 은행 입금 시 보내는 분 이름").fill("가상행사");
+  await expect(page.getByText("범일 비턴점", { exact: false })).toHaveCount(0);
+  await expect(page.getByText("격리 시험 계좌", { exact: true })).toHaveCount(
+    0,
+  );
+  await page.getByLabel("[필수] 위 개인정보").check();
+  await page.getByRole("button", { name: "다음", exact: true }).click();
+  for (const label of [
+    "[필수] 행사 공지를 확인했습니다",
+    "[필수] 행사 운영을 위한 개인정보 수집",
+    "[필수] 입장 후 같은 행사 참가자",
+  ])
+    await page.getByLabel(label).check();
+  await page.getByRole("button", { name: "동의하고 다음" }).click();
+  const appId = page.url().split("/").pop()!;
+  let a = await application(request, appId);
+  const expected =
+    [0, 12000, 14000, 16000, 16000, 18000, 18000, 18000, 18000, 18000][
+      a.rank - 1
+    ] ?? 20000;
+  await expect(
+    page.getByText(`최종 납부 금액 ${expected.toLocaleString()}원`, {
+      exact: true,
+    }),
+  ).toBeVisible();
+  await page.screenshot({
+    path: testInfo.outputPath("campaign-halloween-personal-fee.png"),
+    fullPage: true,
+  });
+  await page.getByRole("button", { name: "금액 확인 후 신청 확정" }).click();
+  const adminContext = await browser.newContext({
+    baseURL: process.env.HUB_E2E_BASE_URL,
+  });
+  await restrictToLocal(adminContext);
+  await adminContext.addInitScript((value) => {
+    localStorage.setItem("admin_token_v1", value);
+    localStorage.setItem(
+      "admin_session_v1",
+      JSON.stringify({ phone: "01000000000", authedAt: Date.now() }),
+    );
+  }, token!);
+  try {
+    const admin = await adminContext.newPage();
+    await admin.goto("/admin");
+    await admin.getByRole("button", { name: "🎉 술번개", exact: true }).click();
+    await admin.getByLabel("관리할 행사").selectOption(id);
+    await admin.getByRole("button", { name: "신청·입금", exact: true }).click();
+    const card = admin
+      .locator("section")
+      .filter({ has: admin.getByText(`신청번호 ${appId}`, { exact: true }) });
+    if (expected === 0) {
+      admin.once("dialog", (d) => d.accept());
+      await card
+        .getByRole("button", { name: "무료 참가 승인", exact: true })
+        .click();
+      await expect(
+        card.getByText("무료 참가 승인 완료 · 은행 입금으로 기록하지 않음"),
+      ).toBeVisible();
+      a = await application(request, appId);
+      expect(a.payment).toBe("none");
+      expect(a.waivedAt).toBeTruthy();
+    }
+    await admin.screenshot({
+      path: testInfo.outputPath("campaign-admin-free-priority.png"),
+      fullPage: true,
+    });
+  } finally {
+    await adminContext.close();
+  }
+  await page.reload();
+  await page.screenshot({
+    path: testInfo.outputPath("campaign-halloween-waiting.png"),
+    fullPage: true,
+  });
+});
+
+test("tour actual API advance and shared-component lab enforce rank ten/eleven without changing live inventory", async ({
+  page,
+  request,
+}, testInfo) => {
+  const prepared = await command(
+    request,
+    "campaign.prepare",
+    "tour-2026-11-06",
+  );
+  const id = String(prepared.id);
+  let state = await (
+    await request.get("/api/event-hub/admin", { headers: adminHeaders })
+  ).json();
+  let e = state.events.find((v: { id: string }) => v.id === id);
+  await command(
+    request,
+    "event.save",
+    id,
+    {
+      ...e,
+      account: "격리 시험 계좌",
+      deadline: "관리자 안내",
+      campaign: { ...e.campaign, advance: 17000 },
+    },
+    e.revision,
+  );
+  state = await (
+    await request.get("/api/event-hub/admin", { headers: adminHeaders })
+  ).json();
+  e = state.events.find((v: { id: string }) => v.id === id);
+  await command(
+    request,
+    "event.recruitment",
+    id,
+    { enabled: true },
+    e.revision,
+  );
+  await page.goto(`/events/e/${id}`);
+  await page.getByRole("button", { name: "알겠어요", exact: true }).click();
+  await page
+    .getByLabel("닉네임", { exact: true })
+    .fill(`투어${suffix.slice(-4)}`);
+  await page.getByLabel("태어난 년도").fill("1995");
+  await page.getByLabel("사는 지역").fill("인천");
+  await page.getByLabel("연락용 전화번호").fill("01000000000");
+  await page.getByLabel("실제 은행 입금 시 보내는 분 이름").fill("가상투어");
+  await page.getByLabel("[필수] 위 개인정보").check();
+  await page.getByRole("button", { name: "다음", exact: true }).click();
+  for (const label of [
+    "[필수] 행사 공지를 확인했습니다",
+    "[필수] 행사 운영을 위한 개인정보 수집",
+    "[필수] 입장 후 같은 행사 참가자",
+  ])
+    await page.getByLabel(label).check();
+  await page.getByRole("button", { name: "동의하고 다음" }).click();
+  await expect(
+    page.getByText("선입금액 (최종 회비 아님) 17,000원", { exact: true }),
+  ).toBeVisible();
+  await expect(page.getByText(/최종 납부 금액/)).toHaveCount(0);
+  await page.screenshot({
+    path: testInfo.outputPath("campaign-tour-advance-not-final.png"),
+    fullPage: true,
+  });
+  await page.addInitScript((value) => {
+    localStorage.setItem("admin_token_v1", value);
+    localStorage.setItem(
+      "admin_session_v1",
+      JSON.stringify({ phone: "01000000000", authedAt: Date.now() }),
+    );
+  }, token!);
+  await page.goto("/admin");
+  await page.getByRole("button", { name: "🎉 술번개", exact: true }).click();
+  await page.getByLabel("관리할 행사").selectOption(id);
+  await page
+    .getByRole("button", { name: "🧪 선착순 시험실", exact: true })
+    .click();
+  const before = await (
+    await request.get("/api/event-hub/admin", { headers: adminHeaders })
+  ).json();
+  await page.getByRole("button", { name: "10등", exact: true }).click();
+  await page.getByLabel("가상 진행 상태").selectOption("현장 입장");
+  await page
+    .getByRole("button", { name: "추억의 뽑기 두 장 열기", exact: true })
+    .click();
+  await expect(
+    page.getByRole("heading", { name: "추억의 뽑기 · 2/2" }),
+  ).toBeVisible();
+  await page.screenshot({
+    path: testInfo.outputPath("campaign-tour-rank10-two-cards.png"),
+    fullPage: true,
+  });
+  await page.getByRole("button", { name: "11등", exact: true }).click();
+  await page
+    .getByRole("button", { name: "추억의 뽑기 두 장 열기", exact: true })
+    .click();
+  await expect(page.getByRole("alert")).toContainText("10명");
+  await page.screenshot({
+    path: testInfo.outputPath("campaign-tour-rank11-blocked.png"),
+    fullPage: true,
+  });
+  const after = await (
+    await request.get("/api/event-hub/admin", { headers: adminHeaders })
+  ).json();
+  expect(after.stocks).toEqual(before.stocks);
+  expect(after.applications).toEqual(before.applications);
+});
+
+test("private screening photo UI requires explicit consent, administrator review and verified source deletion", async ({
+  page,
+  request,
+  browser,
+}, testInfo) => {
+  const prepared = await command(
+    request,
+    "campaign.prepare",
+    "halloween-2026-10-31",
+  );
+  const id = String(prepared.id);
+  let state = await (
+    await request.get("/api/event-hub/admin", { headers: adminHeaders })
+  ).json();
+  let e = state.events.find((v: { id: string }) => v.id === id);
+  await command(
+    request,
+    "event.save",
+    id,
+    { ...e, account: "격리 시험 계좌", deadline: "개별 사전 안내" },
+    e.revision,
+  );
+  state = await (
+    await request.get("/api/event-hub/admin", { headers: adminHeaders })
+  ).json();
+  e = state.events.find((v: { id: string }) => v.id === id);
+  await command(
+    request,
+    "event.recruitment",
+    id,
+    { enabled: true },
+    e.revision,
+  );
+  await page.goto(`/events/e/${id}`);
+  await page.getByRole("button", { name: "알겠어요", exact: true }).click();
+  await page
+    .getByLabel("닉네임", { exact: true })
+    .fill(`사진${suffix.slice(-4)}`);
+  await page.getByLabel("태어난 년도").fill("1990");
+  await page.getByLabel("사는 지역").fill("부산");
+  await page.getByLabel("연락용 전화번호").fill("01000000000");
+  await page.getByLabel("실제 은행 입금 시 보내는 분 이름").fill("가상사진");
+  await page.getByLabel("[필수] 위 개인정보").check();
+  await page.getByRole("button", { name: "다음", exact: true }).click();
+  for (const label of [
+    "[필수] 행사 공지를 확인했습니다",
+    "[필수] 행사 운영을 위한 개인정보 수집",
+    "[필수] 입장 후 같은 행사 참가자",
+  ])
+    await page.getByLabel(label).check();
+  await page.getByRole("button", { name: "동의하고 다음" }).click();
+  await page.getByRole("button", { name: "금액 확인 후 신청 확정" }).click();
+  const appId = page.url().split("/").pop()!;
+  const png = Buffer.from(
+    "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+jZAAAAABJRU5ErkJggg==",
+    "base64",
+  );
+  await page.getByLabel("사전 검토 사진 선택").setInputFiles({
+    name: "synthetic-review.png",
+    mimeType: "image/png",
+    buffer: png,
+  });
+  await expect(page.getByAltText("전송 전 사진 미리보기")).toBeVisible();
+  await expect(
+    page.getByRole("button", { name: "비공개 사진 전송" }),
+  ).toBeDisabled();
+  await page.getByLabel("사전 검토용 사진 별도 수집").check();
+  await page.getByRole("button", { name: "비공개 사진 전송" }).click();
+  await expect(
+    page.getByRole("button", { name: "비공개 사진 열람" }),
+  ).toBeVisible();
+  const a = await application(request, appId);
+  const photoURL = `/api/event-hub/screening-photo/${a.screeningPhoto.id}`;
+  expect((await request.get(photoURL)).status()).toBe(404);
+  expect((await page.request.get(photoURL)).status()).toBe(200);
+  await page.screenshot({
+    path: testInfo.outputPath("campaign-photo-private-consent.png"),
+    fullPage: true,
+  });
+  const adminContext = await browser.newContext({
+    baseURL: process.env.HUB_E2E_BASE_URL,
+  });
+  await restrictToLocal(adminContext);
+  await adminContext.addInitScript((value) => {
+    localStorage.setItem("admin_token_v1", value);
+    localStorage.setItem(
+      "admin_session_v1",
+      JSON.stringify({ phone: "01000000000", authedAt: Date.now() }),
+    );
+  }, token!);
+  try {
+    const admin = await adminContext.newPage();
+    await admin.goto("/admin");
+    await admin.getByRole("button", { name: "🎉 술번개", exact: true }).click();
+    await admin.getByLabel("관리할 행사").selectOption(id);
+    await admin.getByRole("button", { name: "신청·입금", exact: true }).click();
+    const card = admin
+      .locator("section")
+      .filter({ has: admin.getByText(`신청번호 ${appId}`, { exact: true }) });
+    await card.getByRole("button", { name: "비공개 사진 열람" }).click();
+    await expect(card.getByAltText("사전 검토 비공개 사진")).toBeVisible();
+    await card
+      .getByLabel("사전 검토 사유 (관리자 기록)")
+      .fill("격리 가상 사진 수동 검토");
+    await card
+      .getByRole("button", { name: "사전 검토 승인", exact: true })
+      .click();
+    await card
+      .getByRole("button", { name: "사진 원본 삭제·결과 확인" })
+      .click();
+    await expect(card.getByText(/서버 원본 삭제 완료/)).toBeVisible();
+    await admin.screenshot({
+      path: testInfo.outputPath("campaign-photo-source-deleted.png"),
+      fullPage: true,
+    });
+    expect((await page.request.get(photoURL)).status()).toBe(404);
+  } finally {
+    await adminContext.close();
+  }
+});
+
+test("independent draw module switches persist and the Halloween theme expires in the actual React page without a reset", async ({
+  page,
+  request,
+}, testInfo) => {
+  const initial = await (
+    await request.get("/api/event-hub/admin", { headers: adminHeaders })
+  ).json();
+  await page.addInitScript((value) => {
+    localStorage.setItem("admin_token_v1", value);
+    localStorage.setItem(
+      "admin_session_v1",
+      JSON.stringify({ phone: "01000000000", authedAt: Date.now() }),
+    );
+    sessionStorage.setItem("binpc2_application_guide_v6:halloween-friday", "1");
+  }, token!);
+  try {
+    await page.goto("/admin");
+    await page.getByRole("button", { name: "🎉 술번개", exact: true }).click();
+    await page
+      .getByLabel("할로윈 경품 모듈 ON (모든 할로윈 행사)", { exact: true })
+      .uncheck();
+    await page
+      .getByRole("button", { name: "자동방 설정 저장", exact: true })
+      .click();
+    await expect(
+      page.getByText("저장되었습니다 ✓", { exact: true }),
+    ).toBeVisible();
+    const settings = (
+      await (
+        await request.get("/api/event-hub/admin", { headers: adminHeaders })
+      ).json()
+    ).settings;
+    expect(settings.campaignModules.halloweenDraw).toBe(false);
+    expect(settings.campaignModules.tourDraw).toBe(
+      initial.settings.campaignModules?.tourDraw ?? true,
+    );
+    await page.screenshot({
+      path: testInfo.outputPath("modules-independent-off.png"),
+      fullPage: true,
+    });
+  } finally {
+    const current = await (
+      await request.get("/api/event-hub/admin", { headers: adminHeaders })
+    ).json();
+    await command(
+      request,
+      "settings.save",
+      "",
+      {
+        ...initial.settings,
+        campaignModules: initial.settings.campaignModules ?? {
+          halloweenDraw: true,
+          tourDraw: true,
+        },
+      },
+      current.settings.revision,
+    );
+  }
+  const prepared = await command(
+    request,
+    "campaign.prepare",
+    "halloween-2026-10-30",
+  );
+  const event = String(prepared.id);
+  const code = (randomUUID() + randomUUID()).replaceAll("-", "");
+  expect(
+    (
+      await page.request.post("/api/event-hub/session", {
+        data: { recoveryCode: code, create: true },
+      })
+    ).status(),
+  ).toBe(200);
+  const user = async (
+    action: string,
+    target = "",
+    data: Record<string, unknown> = {},
+    revision?: number,
+  ) => {
+    const r = await page.request.post("/api/event-hub/mutate", {
+      data: { action, target, data, revision, requestId: randomUUID() },
+    });
+    expect(r.status()).toBe(200);
+    return r.json();
+  };
+  const a = await user("application.basic", "", {
+    eventId: event,
+    basic: {
+      nickname: `테마${suffix.slice(-4)}`,
+      birthYear: 1995,
+      location: "부산",
+      phone: "01000000000",
+      depositor: "가상테마",
+      collection: true,
+      version: "2026-10-27-event-v6",
+    },
+  });
+  const id = String(a.id);
+  await user(
+    "application.consent",
+    id,
+    {
+      consent: {
+        collection: true,
+        sharing: true,
+        notice: true,
+        version: "2026-10-27-event-v6",
+      },
+    },
+    1,
+  );
+  await user("application.confirm", id, {}, 2);
+  const before = await application(request, id);
+  await page.clock.install({ time: new Date("2026-10-31T00:00:00+09:00") });
+  await page.goto(`/events/a/${id}`);
+  await expect(page.locator('[data-campaign-theme="halloween"]')).toBeVisible();
+  await page.clock.pauseAt(new Date("2026-10-31T00:59:59+09:00"));
+  await page.screenshot({
+    path: testInfo.outputPath("halloween-before-0100.png"),
+    fullPage: true,
+  });
+  await page.clock.runFor(1000);
+  await expect(page.locator('[data-campaign-theme="halloween"]')).toHaveCount(
+    0,
+  );
+  await expect(page.locator('[data-campaign-theme="default"]')).toBeVisible();
+  await page.screenshot({
+    path: testInfo.outputPath("halloween-at-0100-restored.png"),
+    fullPage: true,
+  });
+  const after = await application(request, id);
+  expect(after.payment).toBe(before.payment);
+  expect(after.quote).toEqual(before.quote);
+  expect(after.cards).toEqual(before.cards);
 });

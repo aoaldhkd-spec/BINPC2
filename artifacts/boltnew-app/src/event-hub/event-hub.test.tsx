@@ -1,3 +1,6 @@
+import { AdminInquiry } from "./AdminInquiry";
+import { StrictMode } from "react";
+import { ApplicationGuide } from "./CampaignParticipant";
 // @vitest-environment happy-dom
 import { afterEach, describe, expect, it, vi } from "vitest";
 import {
@@ -15,6 +18,7 @@ import { AdminThreads, ApplicationAdmin } from "./EventHubAdmin";
 import { NoticeHistory } from "./NoticeHistory";
 import { WaitingRoom } from "./EventHubPage";
 import { EventLaboratoryStore } from "./event-laboratory-store";
+import { rememberRecoveryCode } from "../lib/event-hub-client";
 import { useEventHub } from "../lib/event-hub-client";
 import {
   profileMissing,
@@ -449,4 +453,157 @@ it("notice history renders only public notices and dates, without old venue or b
   expect(screen.getByText("이전 필독 공지")).toBeTruthy();
   expect(screen.queryByText(/private-old/)).toBeNull();
   expect(screen.queryByText(/99999/)).toBeNull();
+});
+
+it("keeps the first application tutorial open through StrictMode mount probes and allows reopening", async () => {
+  vi.spyOn(window.history, "back").mockImplementation(() => {});
+  const e = new EventLaboratoryStore().value.event;
+  e.campaign = { kind: "tour", round: 1, advance: 17000, secondRoundLink: "" };
+  render(
+    <StrictMode>
+      <ApplicationGuide event={e} />
+    </StrictMode>,
+  );
+  await waitFor(() => expect(screen.getByRole("dialog")).toBeTruthy());
+  fireEvent.click(screen.getByRole("button", { name: "알겠어요" }));
+  expect(screen.queryByRole("dialog")).toBeNull();
+  fireEvent.click(screen.getByRole("button", { name: "? 신청 방법" }));
+  expect(screen.getByRole("dialog")).toBeTruthy();
+});
+
+import { useEventTheme } from "./HubUi";
+it("automatically restores the route-local theme without a page refresh or a 17:00 timer", () => {
+  vi.useFakeTimers();
+  try {
+    vi.setSystemTime(new Date("2026-10-30T15:59:59.999Z"));
+    const e = new EventLaboratoryStore().value.event;
+    e.date = "2026-10-30";
+    e.start = "22:30";
+    e.end = "01:00";
+    e.type = "halloween";
+    e.theme = "halloween";
+    e.themeEnabled = true;
+    const { result, unmount } = renderHook(() => useEventTheme(e));
+    expect(result.current).toBe("halloween");
+    act(() => vi.advanceTimersByTime(1));
+    expect(result.current).toBe("default");
+    unmount();
+  } finally {
+    vi.useRealTimers();
+  }
+});
+it("keeps existing card results readable when new drawing is OFF", () => {
+  const store = new EventLaboratoryStore();
+  store.jump("현장 입장");
+  const state = store.state();
+  const app = {
+    ...state.applications[0],
+    cards: [
+      {
+        id: "saved-result",
+        prize: "saved-stock",
+        prizeLabel: "보존 상품",
+        at: new Date().toISOString(),
+      },
+    ],
+  };
+  const event = { ...state.events[0], cardsEnabled: false };
+  render(
+    <WaitingRoom
+      app={app}
+      event={event}
+      hub={{
+        state,
+        error: "",
+        status: "",
+        mutate: vi.fn(),
+        load: vi.fn(),
+        setError: vi.fn(),
+      }}
+      edit={() => {}}
+    />,
+  );
+  expect(screen.getByText("🎁 보존 상품")).toBeTruthy();
+  expect(
+    (
+      screen.getByRole("button", {
+        name: "카드 한 장 뽑기",
+      }) as HTMLButtonElement
+    ).disabled,
+  ).toBe(true);
+});
+
+it("keeps an existing pre-application inquiry reachable while the whole event module is OFF", async () => {
+  const state = {
+    hasSession: true,
+    enabled: false,
+    applications: [],
+    events: [],
+    stocks: [],
+    threads: [
+      {
+        id: "existing-inquiry",
+        messages: [
+          {
+            id: "saved-message",
+            sender: "user",
+            text: "보존한 문의",
+            at: "2026-10-27T00:00:00Z",
+          },
+        ],
+        readUserAt: "",
+        readAdminAt: "",
+        tags: [],
+        history: [],
+      },
+    ],
+  };
+  vi.spyOn(globalThis, "fetch").mockImplementation(
+    async () => new Response(JSON.stringify(state)),
+  );
+  render(<AdminInquiry />);
+  await waitFor(() =>
+    expect(screen.getByRole("button", { name: /관리자 문의/ })).toBeTruthy(),
+  );
+  fireEvent.click(screen.getByRole("button", { name: /관리자 문의/ }));
+  expect(screen.getByRole("dialog").textContent).toContain("보존한 문의");
+});
+
+it("recovers an approved owner from its saved code while event_hub is OFF without creating a new owner", async () => {
+  rememberRecoveryCode(
+    "existing-isolated-recovery-fixture-code-for-disabled-module",
+  );
+  let restored = false;
+  const fetch = vi
+    .spyOn(globalThis, "fetch")
+    .mockImplementation(async (url, options) => {
+      if (String(url).endsWith("/session")) {
+        expect(JSON.parse(String(options?.body))).toMatchObject({
+          create: false,
+          recoveryCode:
+            "existing-isolated-recovery-fixture-code-for-disabled-module",
+        });
+        restored = true;
+        return new Response(JSON.stringify({ ok: true }));
+      }
+      return new Response(
+        JSON.stringify({
+          hasSession: restored,
+          enabled: false,
+          events: [],
+          applications: restored
+            ? [{ id: "existing-paid", payment: "approved" }]
+            : [],
+          threads: [],
+          stocks: [],
+        }),
+      );
+    });
+  const { result } = renderHook(() => useEventHub());
+  await waitFor(() =>
+    expect(result.current.state?.applications[0]?.payment).toBe("approved"),
+  );
+  expect(
+    fetch.mock.calls.some(([url]) => String(url).endsWith("/mutate")),
+  ).toBe(false);
 });

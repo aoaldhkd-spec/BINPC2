@@ -1,4 +1,7 @@
+import { eventEnded } from "./event-hub-modules";
+import { normalQuote } from "./event-policy-normal";
 import { z } from "zod";
+import { CampaignInput, campaignQuote } from "./event-campaign";
 
 export const HUB_CONSENT_VERSION = "2026-10-27-event-v6";
 export const PROFILE_CONSENT_VERSION = "2026-10-13-v1";
@@ -52,6 +55,11 @@ export const Benefit = z.object({
   label: z.string().max(100),
 });
 export const HubEventInput = z.object({
+  campaign: CampaignInput.optional(),
+  theme: z.enum(["default", "halloween", "christmas", "yearend"]).optional(),
+  themeEnabled: z.boolean().optional(),
+  replyNotice: z.string().max(4000).optional(),
+  venueCandidates: z.array(z.string().max(100)).max(10).optional(),
   opensAt: z.string().datetime().optional(),
   title: z.string().trim().min(1).max(100),
   type: z.enum(["normal", "halloween", "tour", "custom"]).default("normal"),
@@ -127,17 +135,40 @@ export type HubApplication = {
     acceptedAt: string;
     noticeVersion: number;
   };
-  quote?: { fee: number; original: number; benefit: string; version: number };
+  quote?: {
+    fee: number;
+    original: number;
+    benefit: string;
+    version: number;
+    kind?: "fixed" | "advance";
+  };
   confirmedAt?: string;
   payment: "none" | "reported" | "approved" | "mismatch" | "held";
   reportedAt?: string;
   approvedAt?: string;
+  waivedAt?: string;
+  benefitRank?: number;
+  benefitExcluded?: boolean;
+  benefitContact?: string;
+  differenceReview?: { previous: number; proposed: number; at: string };
+  eligibility?: {
+    status: "review" | "approved" | "declined";
+    message?: string;
+  };
+  screeningPhoto?: { id: string; deletedAt?: string };
+
   attendance: "pending" | "paid_waitlist" | "confirmed";
   checkin: boolean;
   profile: HubProfileData;
   profileId?: string;
   cycleId?: string;
-  cards: { id: string; prize: string; prizeLabel?: string; at: string }[];
+  cards: {
+    id: string;
+    prize: string;
+    prizeLabel?: string;
+    couponAmount?: number;
+    at: string;
+  }[];
   candy?: string;
   prizesGiven: string[];
   history: HubAudit[];
@@ -151,6 +182,7 @@ export type HubSettings = {
   skipDates: string[];
   leadDays: number;
   retentionDays: number;
+  campaignModules?: { halloweenDraw: boolean; tourDraw: boolean };
   budget?: { totalCandidate: number; cashEnabled: false };
   templates?: {
     name: string;
@@ -187,26 +219,13 @@ export function profileMissing(p: Partial<HubProfileData>): string[] {
   return missing;
 }
 export function quoteFor(
-  e: Pick<HubEvent, "fee" | "benefitsEnabled" | "benefits" | "revision">,
+  e: Pick<HubEvent, "fee" | "benefitsEnabled" | "benefits" | "revision"> &
+    Partial<Pick<HubEvent, "campaign" | "date">>,
   rank: number,
+  at: Date = new Date(),
 ) {
-  const b = e.benefitsEnabled
-    ? e.benefits.find((b) => rank >= b.from && rank <= b.to)
-    : undefined;
-  const fee =
-    !b || b.type === "gift"
-      ? e.fee
-      : b.type === "free"
-        ? 0
-        : b.type === "final"
-          ? b.value
-          : Math.max(0, e.fee - b.value);
-  return {
-    fee,
-    original: e.fee,
-    benefit: b?.label ?? "일반 회비",
-    version: e.revision,
-  };
+  if (e.campaign) return campaignQuote(e as HubEvent, rank, at);
+  return normalQuote(e, rank);
 }
 /** Pure preview also used by the removable administrator laboratory. */
 export function nextSaturday(now: Date, skipDates: string[] = []): string {
@@ -227,11 +246,14 @@ export function nextSaturday(now: Date, skipDates: string[] = []): string {
 }
 
 export function recruitmentIsOpen(
-  e: Pick<HubEvent, "recruitment" | "opensAt">,
+  e: Pick<HubEvent, "recruitment" | "opensAt"> &
+    Partial<Pick<HubEvent, "date" | "start" | "end">>,
   now: Date = new Date(),
 ): boolean {
   return (
-    e.recruitment && (!e.opensAt || Date.parse(e.opensAt) <= now.getTime())
+    e.recruitment &&
+    (!(e.date && e.start && e.end) || !eventEnded(e as HubEvent, now)) &&
+    (!e.opensAt || Date.parse(e.opensAt) <= now.getTime())
   );
 }
 

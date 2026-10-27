@@ -5,3 +5,7 @@ export { z } from "zod";
 export * from "./nickname-policy";
 export * from "./event-hub-policy";
 export * from "./event-hub-privacy";
+
+export * from "./event-campaign";
+
+export * from "./event-hub-modules";

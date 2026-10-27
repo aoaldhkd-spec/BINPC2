@@ -1,3 +1,10 @@
+import { eventEnded } from "../../../../lib/api-zod/src/event-hub-modules";
+import { ApplicationGuide, ScreeningPhoto } from "./CampaignParticipant";
+import {
+  paymentSatisfied,
+  campaignCardLimit,
+  tourSessionHours,
+} from "../../../../lib/api-zod/src/event-campaign";
 import {
   readHubBrowserValue,
   canStoreHubOnsiteIdentity,
@@ -21,6 +28,7 @@ import {
 } from "../lib/event-hub-client";
 import { NicknameSetupScreen } from "../components/NicknameSetupScreen";
 import {
+  useEventTheme,
   HubLoading,
   HubButton,
   HubField,
@@ -131,6 +139,7 @@ export default function EventHubPage({ path }: { path: string }) {
         </header>
         <div className="max-w-2xl mx-auto p-4 space-y-4">
           <HubFeedback status={hub.status} error={hub.error} />
+          {event && <ApplicationGuide key={event.id} event={event} />}
           {(appId || eventId) && (
             <HubButton onClick={() => hubNavigate("/events")}>
               ← 내 신청 목록
@@ -573,7 +582,11 @@ export function ApplicationSteps({
         ← 이전
       </button>
       <h2 className="text-lg font-black">
-        {panelStage === 2 ? "공지 확인·동의" : "회비 확인 및 신청 확정"}
+        {panelStage === 2
+          ? "공지 확인·동의"
+          : event.campaign?.kind === "tour"
+            ? "선입금 확인 및 신청 확정"
+            : "회비 확인 및 신청 확정"}
       </h2>
       <p>
         {event.title} · {event.date} · {event.start}~{event.end}
@@ -682,15 +695,26 @@ export function ApplicationSteps({
         </>
       ) : (
         <>
-          <p>일반 회비 {app.billing?.quote.original.toLocaleString()}원</p>
+          {app.billing?.quote.kind !== "advance" && (
+            <p>일반 회비 {app.billing?.quote.original.toLocaleString()}원</p>
+          )}
           <p>본인 혜택: {app.billing?.quote.benefit}</p>
           <p className="text-xl font-black text-teal-700">
-            최종 납부 금액 {app.billing?.quote.fee.toLocaleString()}원
+            {app.billing?.quote.kind === "advance"
+              ? "선입금액 (최종 회비 아님)"
+              : "최종 납부 금액"}{" "}
+            {app.billing?.quote.fee.toLocaleString()}원
           </p>
           <p>
             선입금 {app.billing?.deposit.toLocaleString()}원 ·{" "}
             {app.billing?.included}
           </p>
+          {app.billing?.quote.kind === "advance" && (
+            <p>
+              최종 1/N·추가 납부·초과금·중도귀가 정산은 운영자가 직접
+              안내합니다. 자동 계산·돈 이동은 없습니다.
+            </p>
+          )}
           <p>입금 기한: {app.billing?.deadline}</p>
           <p className="break-words">계좌·예금주: {app.billing?.account}</p>
           <p className="text-sm">
@@ -727,6 +751,7 @@ export function WaitingRoom({
   edit: () => void;
   onEnter?: (result: Record<string, unknown>) => void;
 }) {
+  const currentTheme = useEventTheme(event);
   const missing = profileMissing(app.profile);
   const enter = async () => {
     if (!onEnter && !canStoreHubOnsiteIdentity()) {
@@ -799,17 +824,24 @@ export function WaitingRoom({
         )}
       </HubCard>
       <HubCard>
+        {app.eligibility && <ScreeningPhoto app={app} hub={hub} />}
         <h2 className="font-black">{event.title}</h2>
         <p>
           {event.date} {event.start}~{event.end}
         </p>
         <p className="text-xs break-all">신청번호 {app.id}</p>
-        <strong>{paymentLabel[app.payment]}</strong>
+        <strong>
+          {app.waivedAt
+            ? "무료 참가 승인 완료 · 재입금 불필요"
+            : event.campaign && app.quote?.fee === 0
+              ? "무료 참가 승인 대기"
+              : paymentLabel[app.payment]}
+        </strong>
         <p>
           {attendanceLabel[app.attendance]} · 현장 확인{" "}
           {app.checkin ? "완료" : "대기"}
         </p>
-        {app.payment !== "approved" && (
+        {!paymentSatisfied(app) && !app.waivedAt && (
           <p className="text-sm">
             관리자가 업무 중이거나 취침 중이면 입금 승인이 늦어질 수 있습니다.
             이미 송금했다면 다시 송금하지 마세요.
@@ -819,16 +851,21 @@ export function WaitingRoom({
           <details open={app.payment === "none"}>
             <summary>내 회비·계좌 안내</summary>
             <p>
-              확정 금액 {app.billing.quote.fee.toLocaleString()}원 ·{" "}
+              {app.billing.quote.kind === "advance"
+                ? "선입금액 (최종 회비 아님)"
+                : "확정 금액"}{" "}
+              {app.billing.quote.fee.toLocaleString()}원 ·{" "}
               {app.billing.quote.benefit}
             </p>
             <p className="break-words">{app.billing.account}</p>
             <p>기한 {app.billing.deadline}</p>
           </details>
         )}
-        {app.payment === "none" ||
-        app.payment === "held" ||
-        app.payment === "mismatch" ? (
+        {!app.waivedAt &&
+        app.quote?.fee !== 0 &&
+        (app.payment === "none" ||
+          app.payment === "held" ||
+          app.payment === "mismatch") ? (
           <HubButton
             disabled={hub.status === "saving"}
             onClick={() =>
@@ -843,9 +880,13 @@ export function WaitingRoom({
           </HubButton>
         ) : (
           <p className="text-sm">
-            {app.payment === "reported"
-              ? "입금 신고가 저장되었습니다. 승인 결과를 기다려 주세요."
-              : "입금 확인 기록이 보관되어 있습니다."}
+            {app.waivedAt
+              ? "무료 참가 승인 기록이 보관되어 있습니다. 재입금하지 마세요."
+              : event.campaign && app.quote?.fee === 0
+                ? "무료 참가 관리자 승인을 기다려 주세요. 송금할 필요가 없습니다."
+                : app.payment === "reported"
+                  ? "입금 신고가 저장되었습니다. 승인 결과를 기다려 주세요."
+                  : "입금 확인 기록이 보관되어 있습니다."}
           </p>
         )}
         <p>
@@ -861,6 +902,26 @@ export function WaitingRoom({
             rel="noreferrer"
           >
             지도·길찾기
+          </a>
+        )}
+        {event.replyNotice && (
+          <p className="text-sm whitespace-pre-wrap">{event.replyNotice}</p>
+        )}
+        {event.campaign?.kind === "tour" && (
+          <p className="text-sm">
+            1차 {tourSessionHours(event.date)?.first} · 2차{" "}
+            {tourSessionHours(event.date)?.second} · 3차{" "}
+            {tourSessionHours(event.date)?.third}. BINPC2는 1차만 신청합니다.
+          </p>
+        )}
+        {event.campaign?.secondRoundLink && (
+          <a
+            className="underline text-teal-700"
+            href={event.campaign.secondRoundLink}
+            target="_blank"
+            rel="noreferrer"
+          >
+            2차 오픈채팅 신청 (BINPC2 외부)
           </a>
         )}
         <EventMedia links={event.media} />
@@ -895,26 +956,44 @@ export function WaitingRoom({
           확인합니다.
         </p>
       </HubCard>
-      {event.cardsEnabled && (
+      {(event.cardsEnabled || app.cards.length > 0) && (
         <HubCard>
-          <h2 className="font-black">🎃 행사 카드 · {app.cards.length}/3</h2>
-          <div className="grid grid-cols-3 gap-2">
-            {[0, 1, 2].map((i) => (
-              <div
-                key={i}
-                className={`aspect-[2/3] rounded-xl grid place-items-center p-2 text-center text-sm transition-transform duration-500 ${app.cards[i] ? "hub-card-revealed bg-teal-50 border border-teal-300" : "bg-slate-800 text-white"}`}
-              >
-                {app.cards[i]
-                  ? app.cards[i].prize === "다음 기회에"
-                    ? "다음 기회에"
-                    : `🎁 ${app.cards[i].prizeLabel ?? "당첨 상품 · 관리자에게 확인해 주세요"}`
-                  : "✦"}
-              </div>
-            ))}
+          <h2 className="font-black">
+            {event.campaign?.kind === "tour"
+              ? "추억의 뽑기"
+              : event.campaign
+                ? "할로윈 경품 뽑기"
+                : "🎃 행사 카드"}{" "}
+            · {app.cards.length}/{campaignCardLimit(event)}
+          </h2>
+          <div
+            className={`grid ${campaignCardLimit(event) === 2 ? "grid-cols-2" : "grid-cols-3"} gap-2`}
+            data-campaign-theme={currentTheme}
+          >
+            {Array.from({ length: campaignCardLimit(event) }, (_, i) => i).map(
+              (i) => (
+                <div
+                  key={i}
+                  className={`aspect-[2/3] rounded-xl grid place-items-center p-2 text-center text-sm transition-transform duration-500 ${app.cards[i] ? "hub-card-revealed bg-teal-50 border border-teal-300" : "bg-slate-800 text-white"}`}
+                >
+                  {app.cards[i]
+                    ? app.cards[i].prize === "다음 기회에"
+                      ? event.campaign?.kind === "tour"
+                        ? "꽝"
+                        : "다음 기회에"
+                      : `🎁 ${app.cards[i].prizeLabel ?? "당첨 상품 · 관리자에게 확인해 주세요"}`
+                    : "✦"}
+                </div>
+              ),
+            )}
           </div>
           <HubButton
             disabled={
-              !app.profileId || app.cards.length >= 3 || hub.status === "saving"
+              !app.profileId ||
+              !event.cardsEnabled ||
+              eventEnded(event, new Date()) ||
+              app.cards.length >= campaignCardLimit(event) ||
+              hub.status === "saving"
             }
             onClick={() =>
               hub.mutate({
@@ -924,11 +1003,19 @@ export function WaitingRoom({
               })
             }
           >
-            카드 한 장 뽑기
+            {event.campaign?.kind === "tour"
+              ? "추억의 뽑기 두 장 열기"
+              : "카드 한 장 뽑기"}
           </HubButton>
           <p className="text-sm">
-            현장 입장 후 최대 3장 · 새로 열어도 결과가 유지됩니다. 하리보는 두
-            종류 중 한 개입니다.
+            {!event.cardsEnabled
+              ? "신규 뽑기 OFF · 기존 결과는 보존됩니다. "
+              : ""}
+            현장 입장 후 최대 {campaignCardLimit(event)}장 · 새로 열어도 결과가
+            유지됩니다.{" "}
+            {event.campaign?.kind === "tour"
+              ? "할인권의 실제 적용과 최종 1/N 정산은 운영자가 직접 안내합니다."
+              : "하리보는 두 종류 중 한 개입니다."}
           </p>
         </HubCard>
       )}

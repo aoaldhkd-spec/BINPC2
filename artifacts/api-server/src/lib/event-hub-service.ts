@@ -1,3 +1,18 @@
+import { halloweenTiming, tourFirstTiming } from "@workspace/api-zod";
+import {
+  eventEnded,
+  effectiveEventTheme,
+  drawModuleEnabled,
+  campaignEligibility,
+} from "@workspace/api-zod";
+const eTour = (id: string, events: import("@workspace/api-zod").HubEvent[]) =>
+  events.find((e) => e.id === id)?.campaign?.kind === "tour";
+import { campaignAction, drawCampaign } from "./event-campaign-service.js";
+import {
+  paymentSatisfied,
+  campaignCardLimit,
+  tourDates,
+} from "@workspace/api-zod";
 import {
   createHmac,
   randomUUID,
@@ -48,6 +63,29 @@ import {
 import { isAdultBirthYear } from "./korean-age.js";
 import { hashDeviceSecret } from "./db-session-tokens.js";
 
+type HubEventView = Partial<HubEvent> &
+  Pick<
+    HubEvent,
+    | "id"
+    | "title"
+    | "date"
+    | "start"
+    | "end"
+    | "area"
+    | "notice"
+    | "noticeVersion"
+    | "media"
+    | "recruitment"
+    | "cardsEnabled"
+  >;
+type HubApplicationView = Omit<HubApplication, "rank" | "owner"> &
+  Partial<Pick<HubApplication, "rank" | "owner">> &
+  Partial<
+    Pick<
+      ReturnType<typeof participantApplication>,
+      "venue" | "billing" | "profileMissing"
+    >
+  >;
 export type HubOwner = {
   id: string;
   recoveryHash: string;
@@ -93,6 +131,9 @@ export type HubStock = {
   history: HubAudit[];
 };
 const SettingsInput = z.object({
+  campaignModules: z
+    .object({ halloweenDraw: z.boolean(), tourDraw: z.boolean() })
+    .optional(),
   budget: z
     .object({
       totalCandidate: z.number().int().min(0).max(10000000),
@@ -152,6 +193,39 @@ function validateEvent(raw: unknown) {
     !/^([01]\d|2[0-3]):[0-5]\d$/.test(e.end)
   )
     fail("DATE", "날짜·시간을 확인해 주세요.");
+  if (e.type === "tour" && !e.campaign)
+    fail("TOUR_POLICY", "전국투어는 1차 전용 선입금 초안에서 생성하세요.");
+  if (e.theme === "halloween" && e.type !== "halloween")
+    fail(
+      "THEME_SCOPE",
+      "할로윈 테마는 할로윈 행사 안에서만 사용할 수 있습니다.",
+    );
+  if (e.campaign) {
+    const timing =
+      e.campaign.kind === "tour"
+        ? tourFirstTiming(e.date)
+        : halloweenTiming(e.campaign.kind);
+    if (e.start !== timing.start || e.end !== timing.end)
+      fail(
+        "CAMPAIGN_TIME",
+        "확정된 해당 행사 1차 시작·종료 시간을 유지해 주세요.",
+      );
+    if (
+      (e.campaign.kind === "halloween-friday" && e.date !== "2026-10-30") ||
+      (e.campaign.kind === "halloween-saturday" && e.date !== "2026-10-31")
+    )
+      fail("CAMPAIGN_DATE", "할로윈 날짜·유형을 확인해 주세요.");
+    if (
+      e.campaign.kind === "tour" &&
+      !tourDates().some((d) => d.date === e.date)
+    )
+      fail("CAMPAIGN_DATE", "확정된 11월 전국투어 날짜만 사용할 수 있습니다.");
+    if (e.campaign.secondRoundLink) {
+      const link = new URL(e.campaign.secondRoundLink);
+      if (link.protocol !== "https:" || link.username || link.password)
+        fail("LINK", "오픈채팅은 인증정보 없는 HTTPS 링크만 입력하세요.");
+    }
+  }
   for (const [i, b] of e.benefits.entries()) {
     if (
       b.to < b.from ||
@@ -167,7 +241,8 @@ function validateEvent(raw: unknown) {
     if (p.protocol !== "https:" || p.username || p.password)
       fail("MEDIA", "HTTPS 링크만 사용할 수 있습니다.");
   }
-  if (e.deposit > e.fee) fail("FEE", "선입금이 일반 회비를 초과합니다.");
+  if (e.campaign?.kind !== "tour" && e.deposit > e.fee)
+    fail("FEE", "선입금이 일반 회비를 초과합니다.");
   return e;
 }
 export class EventHubService {
@@ -239,8 +314,8 @@ export class EventHubService {
           unsubscribeToken: undefined,
           retentionDays: 180,
           enabled: false,
-          events: [],
-          applications: [],
+          events: [] as HubEventView[],
+          applications: [] as HubApplicationView[],
           threads: [],
           stocks: [],
           member: null,
@@ -251,11 +326,14 @@ export class EventHubService {
           nextSaturday: undefined,
           consentVersion: HUB_CONSENT_VERSION,
         };
+      const switches =
+        (await tx.get<HubSettings>("settings", "global")) ??
+        DEFAULT_HUB_SETTINGS;
       const events = await tx.all<HubEvent>("event");
       const apps = (await tx.all<HubApplication>("application")).filter(
         (a) => admin || a.owner === owner,
       );
-      const safeEvents = admin
+      const safeEvents: HubEventView[] = admin
         ? events
         : events
             .filter(
@@ -274,6 +352,16 @@ export class EventHubService {
               end: e.end,
               area: e.area,
               notice: e.notice,
+              campaign: e.campaign
+                ? {
+                    kind: e.campaign.kind,
+                    round: 1 as const,
+                    secondRoundLink: e.campaign.secondRoundLink,
+                  }
+                : undefined,
+              theme: e.theme,
+              themeEnabled: effectiveEventTheme(e, this.now()) !== "default",
+              replyNotice: e.replyNotice,
               noticeVersion: e.noticeVersion,
               media: e.media,
               noticeHistory: (e.versions ?? []).map((v) => ({
@@ -284,10 +372,23 @@ export class EventHubService {
                 enabled &&
                 process.env.NODE_ENV !== "production" &&
                 recruitmentIsOpen(e, this.now()),
-              cardsEnabled: e.cardsEnabled,
+              cardsEnabled:
+                enabled &&
+                drawModuleEnabled(e, switches) &&
+                !eventEnded(e, this.now()),
             }));
-      const safeApps = admin
-        ? apps
+      const safeApps: HubApplicationView[] = admin
+        ? apps.map((a) => ({
+            ...a,
+            cards: a.cards.map(({ couponAmount: _couponAmount, ...card }) =>
+              eTour(a.eventId, events)
+                ? {
+                    ...card,
+                    prizeLabel: card.prize === "다음 기회에" ? "꽝" : "당첨",
+                  }
+                : card,
+            ),
+          }))
         : apps.map((a) =>
             participantApplication(
               a,
@@ -358,6 +459,19 @@ export class EventHubService {
         enabled,
         events: safeEvents,
         applications: safeApps,
+        readiness: admin
+          ? events.map((e) => ({
+              eventId: e.id,
+              confirmed: apps.filter(
+                (a) => a.eventId === e.id && a.attendance === "confirmed",
+              ).length,
+              minimum: 5,
+              ready:
+                apps.filter(
+                  (a) => a.eventId === e.id && a.attendance === "confirmed",
+                ).length >= 5,
+            }))
+          : undefined,
         threads: admin ? threads : threads.map(participantThread),
         stocks,
         ...(settings
@@ -418,7 +532,9 @@ export class EventHubService {
         saved: true,
         requestId: m.requestId,
       };
-      if (m.action === "event.media.upload") {
+      if (m.action.startsWith("campaign.")) {
+        Object.assign(result, await campaignAction(tx, m, admin, now));
+      } else if (m.action === "event.media.upload") {
         requireAdmin();
         const e = await this.event(tx, m.target);
         revision(e.revision);
@@ -452,6 +568,18 @@ export class EventHubService {
           nextRank: old?.nextRank ?? 0,
           history: [...(old?.history ?? []), audit(actor, "event.save", now)],
         };
+        if (
+          old?.campaign &&
+          (old.date !== e.date ||
+            old.campaign.kind !== e.campaign?.kind ||
+            old.campaign.round !== e.campaign?.round)
+        )
+          fail(
+            "CAMPAIGN_LOCK",
+            "확정 정책의 날짜·차수·종류는 변경할 수 없습니다. 별도 초안을 선택하세요.",
+          );
+        if (!old && e.campaign)
+          fail("CAMPAIGN_PRESET", "전용 행사 초안 준비에서 생성해 주세요.");
         for (const url of e.media) {
           const match = HUB_MEDIA_PATH.exec(url);
           if (match) {
@@ -486,6 +614,8 @@ export class EventHubService {
         const e = await this.event(tx, m.target);
         revision(e.revision);
         const on = z.boolean().parse(m.data.enabled);
+        if (on && eventEnded(e, this.now()))
+          fail("EVENT_ENDED", "종료된 행사의 신규 접수는 열 수 없습니다.", 403);
         if (on && process.env.NODE_ENV === "production")
           fail(
             "PRIVACY_POLICY_UNCONFIRMED",
@@ -494,6 +624,26 @@ export class EventHubService {
           );
         if (on && (!e.account || !e.deadline || !e.area))
           fail("CONFIG", "계좌·입금기한·지역을 먼저 설정해 주세요.");
+        if (on && e.campaign?.kind === "tour" && !e.campaign.advance)
+          fail("ADVANCE", "전국투어 선입금액을 먼저 입력하세요.");
+        if (
+          on &&
+          (await tx.all<HubEvent>("event")).some(
+            (other) =>
+              other.id !== e.id &&
+              other.date === e.date &&
+              other.recruitment &&
+              (other.autoDate ||
+                e.autoDate ||
+                (other.campaign?.kind === "tour" &&
+                  e.campaign?.kind === "tour")),
+          )
+        )
+          fail(
+            "DUPLICATE_DATE",
+            "같은 날짜의 자동방·전국투어 모집을 중복 공개할 수 없습니다.",
+            409,
+          );
         e.recruitment = on;
         e.revision++;
         e.history.push(
@@ -510,6 +660,14 @@ export class EventHubService {
             409,
           );
         const saved = SettingsInput.parse(m.data);
+        if (
+          saved.autoTemplate?.campaign ||
+          saved.templates.some((t) => t.event.campaign)
+        )
+          fail(
+            "AUTO_TEMPLATE",
+            "특별 행사·전국투어는 날짜별 전용 초안으로 관리해 주세요.",
+          );
         for (const t of saved.templates)
           validateEvent({ ...t.event, date: "2099-01-03" });
         if (saved.autoTemplate)
@@ -526,6 +684,7 @@ export class EventHubService {
           );
         await tx.put("settings", "global", {
           ...saved,
+          campaignModules: saved.campaignModules ?? old?.campaignModules,
           revision: (old?.revision ?? 0) + 1,
         });
       } else if (m.action === "application.basic") {
@@ -547,6 +706,8 @@ export class EventHubService {
             "관리자 확인이 필요한 신청입니다. 문의해 주세요.",
             403,
           );
+        if (e.campaign && m.data.round !== undefined && m.data.round !== 1)
+          fail("ROUND", "BINPC2는 1차만 신청받습니다.");
         const basic = HubBasic.parse(m.data.basic);
         if (!isAdultBirthYear(basic.birthYear, this.now()))
           fail("ADULT", "성인 참가 조건을 확인해 주세요.");
@@ -640,7 +801,15 @@ export class EventHubService {
               attendance: "pending",
               checkin: false,
               profile: member ? { ...member.profile } : { lastStep: 1 },
-              quote: quoteFor(e, e.nextRank),
+              quote: quoteFor(e, e.nextRank, this.now()),
+              ...(e.campaign
+                ? {
+                    benefitRank: e.nextRank,
+                    eligibility: {
+                      status: campaignEligibility(e, basic.birthYear),
+                    },
+                  }
+                : {}),
               cards: [],
               prizesGiven: [],
               history: [audit(actor, "application.basic", now)],
@@ -731,6 +900,12 @@ export class EventHubService {
           a.consent.acceptedAt = now;
         } else if (m.action === "application.confirm") {
           requireEnabled();
+          if (!recruitmentIsOpen(e, this.now()))
+            fail(
+              "CLOSED",
+              "행사 접수 또는 신청 확정 기간이 종료되었습니다. 기존 기록은 보존됩니다.",
+              403,
+            );
           if (
             a.stage !== 3 ||
             !a.quote ||
@@ -742,6 +917,8 @@ export class EventHubService {
         } else if (m.action === "application.report") {
           if (!a.confirmedAt)
             fail("STAGE", "먼저 금액을 확인하고 신청을 확정해 주세요.");
+          if (a.waivedAt)
+            fail("FREE", "무료 참가 승인 상태입니다. 다시 송금하지 마세요.");
           if (a.payment !== "approved") {
             a.payment = "reported";
             a.reportedAt ??= now;
@@ -763,8 +940,81 @@ export class EventHubService {
               await tx.put("member", member.id, member);
             }
           }
+        } else if (m.action === "application.screening.photo") {
+          if (admin)
+            fail(
+              "OWNER",
+              "사진 수집 동의는 신청자 본인이 제출해야 합니다.",
+              403,
+            );
+          if (process.env.NODE_ENV === "production")
+            fail(
+              "PRIVACY_POLICY_UNCONFIRMED",
+              "사진 보관·백업 정책 승인 전 운영 업로드는 차단됩니다.",
+              403,
+            );
+          if (!a.eligibility || a.eligibility.status !== "review")
+            fail("REVIEW", "관리자 사전 검토 대상에서만 첨부할 수 있습니다.");
+          if (m.data.photoConsent !== true)
+            fail("CONSENT", "사전 검토 사진의 별도 수집 동의가 필요합니다.");
+          const image = validateHubMedia(m.data);
+          if (!image.mime.startsWith("image/"))
+            fail("MEDIA", "사진만 첨부할 수 있습니다.");
+          if (a.screeningPhoto && !a.screeningPhoto.deletedAt)
+            fail("PHOTO_EXISTS", "기존 사진을 삭제한 뒤 새로 첨부해 주세요.");
+          const id = randomUUID();
+          await tx.put("settings", `screening:${id}`, {
+            id,
+            applicationId: a.id,
+            mime: image.mime,
+            base64: image.base64,
+            consentVersion: "2026-10-27-screening-draft",
+            at: now,
+          });
+          a.screeningPhoto = { id };
+        } else if (
+          m.action === "application.screening.delete" ||
+          m.action === "admin.application.screening.delete"
+        ) {
+          if (admin && a.eligibility?.status === "review")
+            fail("REVIEW", "검토 결과를 기록한 뒤 사진 삭제를 확인하세요.");
+          if (a.screeningPhoto) {
+            await tx.db.query(
+              "DELETE FROM event_hub_records WHERE kind='settings' AND id=$1",
+              [`screening:${a.screeningPhoto.id}`],
+            );
+            a.screeningPhoto.deletedAt = now;
+          }
+        } else if (m.action === "admin.application.free") {
+          requireAdmin();
+          if (
+            !a.confirmedAt ||
+            !e.campaign ||
+            a.quote?.fee !== 0 ||
+            (a.benefitRank ?? a.rank) !== 1 ||
+            a.benefitExcluded ||
+            a.payment === "approved"
+          )
+            fail("FREE", "확정된 유효 1등 무료 참가만 승인할 수 있습니다.");
+          a.waivedAt ??= now;
+        } else if (m.action === "admin.application.eligibility") {
+          requireAdmin();
+          const reason = text(m.data.reason, 1000);
+          a.eligibility = {
+            status: z.enum(["approved", "declined"]).parse(m.data.status),
+            message: z
+              .string()
+              .max(500)
+              .parse(m.data.message ?? ""),
+          };
+          a.history.push(audit(actor, "admin.eligibility.review", now, reason));
         } else if (m.action === "admin.application.payment") {
           requireAdmin();
+          if (e.campaign && a.quote?.fee === 0)
+            fail(
+              "FREE",
+              "무료 참가 승인 버튼을 사용해 주세요. 입금 승인으로 기록하지 않습니다.",
+            );
           const status = z
             .enum(["approved", "mismatch", "held"])
             .parse(m.data.status);
@@ -772,7 +1022,7 @@ export class EventHubService {
             fail("STAGE", "아직 최종 신청을 확정하지 않았습니다.");
           if (status === "approved" && m.data.bankChecked !== true)
             fail("BANK", "은행 내역을 직접 대조한 뒤 확인해 주세요.");
-          if (a.payment === "approved" && status !== "approved")
+          if (paymentSatisfied(a) && status !== "approved")
             fail(
               "PAYMENT",
               "이미 승인한 입금은 이 동작으로 되돌릴 수 없습니다.",
@@ -781,17 +1031,19 @@ export class EventHubService {
           if (status === "approved") a.approvedAt ??= now;
         } else if (m.action === "admin.application.attendance") {
           requireAdmin();
-          if (a.payment !== "approved")
+          if (!paymentSatisfied(a))
             fail(
               "PAYMENT",
               "실제 입금을 승인한 사람만 대기자·참가 확정이 가능합니다.",
             );
+          if (a.eligibility && a.eligibility.status !== "approved")
+            fail("ELIGIBILITY", "사전 참가 검토 후 확정해 주세요.");
           a.attendance = z
             .enum(["paid_waitlist", "confirmed"])
             .parse(m.data.status);
         } else if (m.action === "admin.application.checkin") {
           requireAdmin();
-          if (a.payment !== "approved" || a.attendance !== "confirmed")
+          if (!paymentSatisfied(a) || a.attendance !== "confirmed")
             fail("ATTENDANCE", "참가 확정 후 현장 확인해 주세요.");
           a.checkin = z.boolean().parse(m.data.checked);
         } else if (m.action === "admin.application.note") {
@@ -814,6 +1066,12 @@ export class EventHubService {
           };
         } else if (m.action === "application.enter") {
           requireEnabled();
+          if (eventEnded(e, this.now()))
+            fail(
+              "EVENT_ENDED",
+              "행사 입장 기간이 종료되었습니다. 기존 신청·입금 기록은 보존됩니다.",
+              403,
+            );
           const own = await tx.get<HubOwner>("owner", a.owner);
           if (own?.restricted?.active)
             fail(
@@ -974,15 +1232,33 @@ export class EventHubService {
           }
         } else if (m.action === "application.draw") {
           requireEnabled();
+          if (eventEnded(e, this.now()))
+            fail(
+              "EVENT_ENDED",
+              "행사 뽑기 기간이 종료되었습니다. 기존 결과는 보존됩니다.",
+              403,
+            );
+          if (
+            !drawModuleEnabled(
+              e,
+              (await tx.get<HubSettings>("settings", "global")) ??
+                DEFAULT_HUB_SETTINGS,
+            )
+          )
+            fail(
+              "MODULE_DISABLED",
+              "해당 뽑기 모듈이 OFF입니다. 기존 당첨·지급 기록은 보존됩니다.",
+              403,
+            );
           if (
             !e.cardsEnabled ||
             !a.profileId ||
             !a.checkin ||
             a.attendance !== "confirmed" ||
-            a.payment !== "approved"
+            !paymentSatisfied(a)
           )
             fail("CARDS", "입장 및 카드 활성화가 필요합니다.", 403);
-          if (a.cards.length >= 3)
+          if (a.cards.length >= campaignCardLimit(e))
             fail("CARD_LIMIT", "행사별 카드는 3장까지 뽑을 수 있습니다.", 409);
           const currentSettings = (
             await tx.db.query(
@@ -1006,22 +1282,25 @@ export class EventHubService {
               "현재 현장 행사에서만 카드를 뽑을 수 있습니다.",
               403,
             );
-          const stocks = (await tx.all<HubStock>("stock")).filter(
-            (s) => s.eventId === e.id && s.remaining > 0,
-          );
-          const pick = this.pick(stocks.length + 1);
-          const stock = stocks[pick];
-          if (stock) {
-            stock.remaining--;
-            stock.history.push(audit(actor, "draw.reserve", now, a.id));
-            await tx.put("stock", stock.id, stock);
+          if (e.campaign) await drawCampaign(tx, e, a, now, this.pick);
+          else {
+            const stocks = (await tx.all<HubStock>("stock")).filter(
+              (s) => s.eventId === e.id && s.remaining > 0,
+            );
+            const pick = this.pick(stocks.length + 1);
+            const stock = stocks[pick];
+            if (stock) {
+              stock.remaining--;
+              stock.history.push(audit(actor, "draw.reserve", now, a.id));
+              await tx.put("stock", stock.id, stock);
+            }
+            a.cards.push({
+              id: randomUUID(),
+              prize: stock?.id ?? "다음 기회에",
+              prizeLabel: stock?.label ?? "다음 기회에",
+              at: now,
+            });
           }
-          a.cards.push({
-            id: randomUUID(),
-            prize: stock?.id ?? "다음 기회에",
-            prizeLabel: stock?.label ?? "다음 기회에",
-            at: now,
-          });
         } else if (m.action === "admin.application.candy") {
           requireAdmin();
           if (!a.checkin) fail("CHECKIN", "현장 확인이 필요합니다.");
@@ -1233,6 +1512,13 @@ export class EventHubService {
         }
       } else if (m.action === "stock.save") {
         requireAdmin();
+        const stockEvent = await this.event(tx, String(m.data.eventId ?? ""));
+        if (stockEvent.campaign)
+          fail(
+            "CAMPAIGN_STOCK",
+            "확정 행사 재고는 전용 초안에서 초기화합니다. 추가 중복 등록은 차단됩니다.",
+          );
+        requireAdmin();
         const eventId = text(m.data.eventId);
         await this.event(tx, eventId);
         const label = z
@@ -1269,6 +1555,19 @@ export class EventHubService {
           history: [],
         };
         if (m.action === "thread.send") {
+          if (
+            !admin &&
+            !enabled &&
+            !t.messages.length &&
+            !(await tx.all<HubApplication>("application")).some(
+              (a) => a.owner === owner,
+            )
+          )
+            fail(
+              "MODULE_DISABLED",
+              "신규 문의 접수는 OFF입니다. 기존 문의와 신청 후속 처리는 유지합니다.",
+              403,
+            );
           if (!admin && m.data.collection !== true)
             fail("CONSENT", "문의 내용 수집 안내에 동의해 주세요.");
           const message = text(m.data.text, 2000);
@@ -1391,6 +1690,24 @@ export class EventHubService {
       return { unsubscribed: true };
     });
   }
+  async screeningPhoto(id: string, owner: string, admin: boolean) {
+    return this.store.transaction(async (tx) => {
+      const photo = await tx.get<{
+        id: string;
+        applicationId: string;
+        mime: string;
+        base64: string;
+      }>("settings", `screening:${id}`);
+      if (!photo) fail("MEDIA", "사진이 없거나 삭제되었습니다.", 404);
+      const a = await tx.get<HubApplication>(
+        "application",
+        photo.applicationId,
+      );
+      if (!a || (!admin && a.owner !== owner) || a.screeningPhoto?.deletedAt)
+        fail("MEDIA", "사진에 접근할 수 없습니다.", 404);
+      return photo;
+    });
+  }
   async campaignPreview(eventId: string) {
     return this.store.transaction(async (tx) => {
       const e = await this.event(tx, eventId);
@@ -1463,7 +1780,7 @@ export class EventHubService {
             (a) =>
               a.owner === owner &&
               a.eventId === file.eventId &&
-              a.payment === "approved" &&
+              paymentSatisfied(a) &&
               !a.erasedAt,
           )
         )
@@ -1529,7 +1846,7 @@ export class EventHubService {
       const s =
         (await tx.get<HubSettings>("settings", "global")) ??
         DEFAULT_HUB_SETTINGS;
-      if (!s.autoSaturday || s.paused) return;
+      if (!s.autoSaturday || s.paused || s.autoTemplate?.campaign) return;
       const date = nextSaturday(this.now(), s.skipDates);
       if (
         Date.parse(`${date}T22:00:00+09:00`) - this.now().getTime() >
@@ -1538,6 +1855,12 @@ export class EventHubService {
         return;
       const id = `auto-${date}`;
       if (await tx.get("event", id)) return;
+      if (
+        (await tx.all<HubEvent>("event")).some(
+          (e) => e.date === date && e.campaign?.kind === "tour",
+        )
+      )
+        return;
       const e: HubEvent = {
         ...HubEventInput.parse({
           title: "술번개 신청",

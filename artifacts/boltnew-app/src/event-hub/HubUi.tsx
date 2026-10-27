@@ -1,4 +1,9 @@
 import {
+  effectiveEventTheme,
+  eventEndAt,
+} from "../../../../lib/api-zod/src/event-hub-modules";
+import type { HubEvent } from "../lib/event-hub-client";
+import {
   useEffect,
   useState,
   type ReactNode,
@@ -142,4 +147,30 @@ export function formatHubTime(value: string | undefined) {
   return Number.isNaN(date.getTime())
     ? "확인 필요"
     : date.toLocaleString("ko-KR", { timeZone: "Asia/Seoul", hour12: false });
+}
+
+/** A route-local deadline timer; never touches the global 17:00 reset or theme preference. */
+export function useEventTheme(event: HubEvent) {
+  const [now, setNow] = useState(() => Date.now());
+  const end = eventEndAt(event);
+  useEffect(() => {
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    let active = true;
+    const sync = () => {
+      if (!active) return;
+      if (timer) clearTimeout(timer);
+      const time = Date.now();
+      setNow(time);
+      if (Number.isFinite(end) && time < end)
+        timer = setTimeout(sync, Math.min(end - time, 2147483647));
+    };
+    sync();
+    document.addEventListener("visibilitychange", sync);
+    return () => {
+      active = false;
+      if (timer) clearTimeout(timer);
+      document.removeEventListener("visibilitychange", sync);
+    };
+  }, [end]);
+  return effectiveEventTheme(event, new Date(now));
 }

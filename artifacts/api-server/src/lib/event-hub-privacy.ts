@@ -175,6 +175,15 @@ export async function executePrivacyPlanForIsolatedTest(
       if (item.kind === "application") {
         const a = await tx.get<HubApplication>("application", item.id);
         if (!a) continue;
+        if (a.screeningPhoto) {
+          await tx.db.query(
+            "DELETE FROM event_hub_records WHERE kind='settings' AND id=$1",
+            [`screening:${a.screeningPhoto.id}`],
+          );
+          a.screeningPhoto = undefined;
+        }
+        a.eligibility = undefined;
+        a.benefitContact = undefined;
         if (item.action === "erase")
           await tx.db.query(
             "DELETE FROM event_hub_records WHERE kind='application' AND id=$1",

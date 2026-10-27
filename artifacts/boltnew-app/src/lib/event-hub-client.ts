@@ -182,10 +182,11 @@ async function ensureSession() {
   if (sessionPromise) return sessionPromise;
   sessionPromise = (async () => {
     const state = await hubFetch<HubState>("/state");
-    if (state.hasSession || (!state.enabled && !state.applications.length))
-      return;
+    if (state.hasSession) return;
     let code = savedRecoveryCode();
-    const create = !code || creatingRead();
+    // OFF must still recover an existing paid owner; never create a new session from an unknown draft.
+    if (!state.enabled && !code) return;
+    const create = state.enabled && (!code || creatingRead());
     if (!code) {
       const bytes = crypto.getRandomValues(new Uint8Array(32));
       code = btoa(String.fromCharCode(...bytes))

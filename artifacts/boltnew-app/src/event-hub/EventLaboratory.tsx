@@ -31,6 +31,7 @@ const stages: LabStage[] = [
   "신청 확정",
   "입금 신고",
   "입금 승인",
+  "무료 참가 승인",
   "입금확정 대기자",
   "프로필 미완료",
   "프로필 완료",
@@ -142,7 +143,7 @@ export function EventLaboratory({ event }: { event?: HubEvent }) {
           실제 개인정보·비밀번호·은행정보를 입력하지 마세요.
         </p>
         <div className="flex gap-2 flex-wrap">
-          {[1, 2, 3, 4, 10, 11, 15].map((rank) => (
+          {[1, 2, 3, 4, 5, 6, 10, 11, 15, 16].map((rank) => (
             <HubButton
               key={rank}
               aria-pressed={engine.value.rank === rank}
@@ -163,6 +164,27 @@ export function EventLaboratory({ event }: { event?: HubEvent }) {
             }
           />
         </HubField>
+        {engine.value.event.campaign && (
+          <HubField label="시험 기준 시각 (한국시간)">
+            <select
+              className={inputClass}
+              value={
+                engine.value.quoteAt?.includes("21:00")
+                  ? "21:00:00"
+                  : "20:59:59"
+              }
+              onChange={(e) => {
+                engine.configureClock(
+                  `${engine.value.event.date}T${e.target.value}+09:00`,
+                );
+                jump(stage);
+              }}
+            >
+              <option value="20:59:59">당일20:59:59</option>
+              <option value="21:00:00">당일21:00:00</option>
+            </select>
+          </HubField>
+        )}
         <HubField label="가상 진행 상태">
           <select
             className={inputClass}
@@ -327,6 +349,7 @@ export function EventLaboratory({ event }: { event?: HubEvent }) {
                     <input
                       className={inputClass}
                       name={name}
+                      readOnly={!!engine.value.event.campaign && ["date","start"].includes(name)}
                       type={
                         name === "date"
                           ? "date"
@@ -431,11 +454,13 @@ export function EventLaboratory({ event }: { event?: HubEvent }) {
                       });
                     }}
                   >
-                    4번째 포함 카드 추가 시도
+                    추가 카드 한도 검사
                   </HubButton>
                   <p>
-                    카드 {app.cards.length}/3 · 하리보 {app.candy ?? "미지급"} ·
-                    지급 {app.prizesGiven.length}건
+                    카드 {app.cards.length}/
+                    {engine.value.event.campaign?.kind === "tour" ? 2 : 3} ·
+                    하리보 {app.candy ?? "미지급"} · 지급{" "}
+                    {app.prizesGiven.length}건
                   </p>
                 </HubCard>
               )}

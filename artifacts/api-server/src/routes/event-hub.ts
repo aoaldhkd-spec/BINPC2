@@ -64,6 +64,20 @@ router.get("/receipt/:requestId", async (req, res, next) => {
     next(e);
   }
 });
+router.get("/screening-photo/:id", async (req, res, next) => {
+  try {
+    const photo = await eventHubService.screeningPhoto(
+      String(req.params.id),
+      req.session.hubOwner ?? "",
+      admin(req),
+    );
+    res.setHeader("Content-Type", photo.mime);
+    res.setHeader("X-Content-Type-Options", "nosniff");
+    res.send(Buffer.from(photo.base64, "base64"));
+  } catch (e) {
+    next(e);
+  }
+});
 router.get("/media/:file", async (req, res, next) => {
   try {
     const match = /^([a-f0-9-]{36})\.(png|jpg|webp|mp4|webm)$/.exec(

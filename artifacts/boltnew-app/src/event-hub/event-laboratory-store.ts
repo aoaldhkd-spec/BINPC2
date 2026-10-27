@@ -1,4 +1,11 @@
 import {
+  campaignInitialStocks,
+  paymentSatisfied,
+  campaignCardLimit,
+  tourDrawEligible,
+  type CampaignPrize,
+} from "../../../../lib/api-zod/src/event-campaign";
+import {
   HubBasic,
   HubConsent,
   HubEventInput,
@@ -23,6 +30,7 @@ export type LabStage =
   | "신청 확정"
   | "입금 신고"
   | "입금 승인"
+  | "무료 참가 승인"
   | "입금확정 대기자"
   | "프로필 미완료"
   | "프로필 완료"
@@ -30,6 +38,8 @@ export type LabStage =
 export type LabSnapshot = {
   version: 1;
   rank: number;
+  quoteAt?: string;
+  prizePool?: CampaignPrize[];
   event: HubEvent;
   applications: HubApplication[];
   thread: HubThread;
@@ -93,6 +103,12 @@ function eventFixture(input?: HubEvent): HubEvent {
           benefitsEnabled: input.benefitsEnabled,
           benefits: copy(input.benefits),
           type: input.type,
+          date: input.date,
+          start: input.start,
+          end: input.end,
+          campaign: input.campaign ? copy(input.campaign) : undefined,
+          theme: input.theme,
+          themeEnabled: input.themeEnabled,
         }
       : {}),
     id: "lab-event-only",
@@ -133,6 +149,8 @@ export class EventLaboratoryStore {
       version: 1,
       rank: 3,
       event: eventFixture(event),
+      prizePool: campaignInitialStocks(eventFixture(event)),
+      quoteAt: event?.campaign ? `${event.date}T20:59:59+09:00` : undefined,
       applications: [],
       thread: {
         id: "lab-owner-only",
@@ -183,9 +201,17 @@ export class EventLaboratoryStore {
     if (p.rank) {
       for (const a of this.value.applications) {
         a.rank = p.rank;
-        a.quote = quoteFor(this.value.event, p.rank);
+        a.quote = quoteFor(
+          this.value.event,
+          p.rank,
+          new Date(this.value.quoteAt ?? Date.now()),
+        );
       }
     }
+    this.emit();
+  }
+  configureClock(value: string) {
+    this.value.quoteAt = value;
     this.emit();
   }
   configureEvent(raw: unknown) {
@@ -197,15 +223,23 @@ export class EventLaboratoryStore {
     };
     // Confirmed applications keep their agreed quote, just as on the server.
     for (const app of this.value.applications) {
-      if (!app.confirmedAt) app.quote = quoteFor(this.value.event, app.rank);
+      if (!app.confirmedAt)
+        app.quote = quoteFor(
+          this.value.event,
+          app.rank,
+          new Date(this.value.quoteAt ?? Date.now()),
+        );
     }
     this.value.audit.push(`${stamp()} 가상 행사 설정 변경`);
     this.emit();
   }
   jump(stage: LabStage, rank = this.value.rank) {
     const configuredEvent = copy(this.value.event);
+    const quoteAt = this.value.quoteAt;
     this.value = this.fresh();
     this.value.event = configuredEvent;
+    this.value.quoteAt = quoteAt;
+    this.value.prizePool = campaignInitialStocks(configuredEvent);
     this.value.rank = rank;
     if (stage !== "기본정보 작성 중") {
       const a = this.create({
@@ -238,14 +272,19 @@ export class EventLaboratoryStore {
       if (
         [
           "입금 승인",
+          "무료 참가 승인",
           "입금확정 대기자",
           "프로필 미완료",
           "프로필 완료",
           "현장 입장",
         ].includes(stage)
       ) {
-        a.payment = "approved";
-        a.approvedAt = stamp();
+        if (this.value.event.campaign && a.quote?.fee === 0) {
+          a.waivedAt = stamp();
+        } else {
+          a.payment = "approved";
+          a.approvedAt = stamp();
+        }
       }
       if (stage === "입금확정 대기자") a.attendance = "paid_waitlist";
       if (["프로필 미완료", "프로필 완료", "현장 입장"].includes(stage)) {
@@ -281,7 +320,17 @@ export class EventLaboratoryStore {
       retentionDays: 180,
       events: [publicEvent],
       applications: admin
-        ? this.value.applications
+        ? this.value.applications.map((a) => ({
+            ...a,
+            cards:
+              e.campaign?.kind === "tour"
+                ? a.cards.map((c) => ({
+                    ...c,
+                    couponAmount: undefined,
+                    prizeLabel: c.prize === "다음 기회에" ? "꽝" : "당첨",
+                  }))
+                : a.cards,
+          }))
         : this.value.applications.map((a) => participantApplication(a, e)),
       threads: [
         admin ? this.value.thread : participantThread(this.value.thread),
@@ -317,7 +366,11 @@ export class EventLaboratoryStore {
       prizesGiven: [],
       history: [],
       updatedAt: stamp(),
-      quote: quoteFor(this.value.event, this.value.rank),
+      quote: quoteFor(
+        this.value.event,
+        this.value.rank,
+        new Date(this.value.quoteAt ?? Date.now()),
+      ),
     };
     this.value.applications.push(a);
     return a;
@@ -390,6 +443,14 @@ export class EventLaboratoryStore {
           case "application.notice":
             if (a.consent) a.consent.noticeVersion = e.noticeVersion;
             break;
+          case "admin.application.free":
+            if (a.quote?.fee !== 0 || a.rank !== 1)
+              throw new Error("유효 1등 무료 신청만 승인합니다.");
+            a.waivedAt = now;
+            break;
+          case "admin.application.eligibility":
+            a.eligibility = { status: data.status as "approved" | "declined" };
+            break;
           case "admin.application.payment":
             if (!a.confirmedAt) throw new Error("신청 확정이 필요합니다.");
             if (data.status === "approved" && data.bankChecked !== true)
@@ -400,12 +461,12 @@ export class EventLaboratoryStore {
             if (a.payment === "approved") a.approvedAt = now;
             break;
           case "admin.application.attendance":
-            if (a.payment !== "approved")
+            if (!paymentSatisfied(a))
               throw new Error("입금 확인 후 처리할 수 있습니다.");
             a.attendance = data.status as HubApplication["attendance"];
             break;
           case "admin.application.checkin":
-            if (a.payment !== "approved" || a.attendance !== "confirmed")
+            if (!paymentSatisfied(a) || a.attendance !== "confirmed")
               throw new Error("참가 확정 후 현장 확인하세요.");
             a.checkin = data.checked === true;
             break;
@@ -436,13 +497,56 @@ export class EventLaboratoryStore {
             if (
               !e.cardsEnabled ||
               !a.profileId ||
-              a.payment !== "approved" ||
+              !paymentSatisfied(a) ||
               !this.value.active
             )
               throw new Error("현장 입장 후 뽑을 수 있습니다.");
-            if (a.cards.length >= 3)
+            if (a.cards.length >= campaignCardLimit(e))
               throw new Error("행사별 카드는 3장까지 뽑을 수 있습니다.");
-            {
+            if (e.campaign) {
+              const pool = this.value.prizePool ?? [];
+              const random = (max: number) =>
+                crypto.getRandomValues(new Uint32Array(1))[0] % max;
+              if (e.campaign.kind === "tour") {
+                if (!tourDrawEligible(e, a))
+                  throw new Error("금·토 1차 선착순10명만 이용할 수 있습니다.");
+                const available = pool.flatMap((p, i) =>
+                  Array.from({ length: p.remaining }, () => i),
+                );
+                if (!available.length)
+                  throw new Error("할인권 재고가 없습니다.");
+                const chosen = pool[available[random(available.length)]];
+                chosen.remaining--;
+                const win = {
+                  id: crypto.randomUUID(),
+                  prize: `lab:${chosen.label}`,
+                  prizeLabel: chosen.label,
+                  couponAmount: chosen.coupon,
+                  at: now,
+                };
+                const loss = {
+                  id: crypto.randomUUID(),
+                  prize: "다음 기회에",
+                  prizeLabel: "꽝",
+                  at: now,
+                };
+                a.cards = random(2) ? [win, loss] : [loss, win];
+              } else {
+                const special =
+                  a.rank <= (e.campaign.kind === "halloween-friday" ? 10 : 15);
+                const available = pool.filter(
+                  (p) => p.remaining > 0 && (!p.special || special),
+                );
+                const chosen = available[random(available.length + 1)];
+                if (chosen) chosen.remaining--;
+                a.cards.push({
+                  id: crypto.randomUUID(),
+                  prize: chosen ? `lab:${chosen.label}` : "다음 기회에",
+                  prizeLabel: chosen?.label ?? "다음 기회에",
+                  at: now,
+                });
+              }
+            } else {
               const prize =
                 this.value.stock > 0
                   ? "lab-event-only:소품 2번"
@@ -527,11 +631,11 @@ export function laboratoryStage(value: LabSnapshot): LabStage {
   if (app.stage < 3) return "공지 동의 완료";
   if (app.stage < 4) return "회비 확인";
   if (app.payment === "reported") return "입금 신고";
-  if (app.payment === "approved") {
+  if (paymentSatisfied(app)) {
     if (app.attendance === "paid_waitlist") return "입금확정 대기자";
     if (app.attendance === "confirmed")
       return app.profile.lastStep === 6 ? "프로필 완료" : "프로필 미완료";
-    return "입금 승인";
+    return app.waivedAt ? "무료 참가 승인" : "입금 승인";
   }
   return "신청 확정";
 }

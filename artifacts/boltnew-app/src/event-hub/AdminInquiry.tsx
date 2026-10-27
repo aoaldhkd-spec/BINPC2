@@ -63,7 +63,10 @@ export function AdminInquiry() {
     thread?.messages.some(
       (m) => m.sender === "admin" && m.at > thread.readUserAt,
     ) ?? false;
-  const canPoll = !!hub.state?.enabled || !!hub.state?.applications.length;
+  const hasHistory =
+    !!hub.state?.applications.length ||
+    !!hub.state?.threads.some((t) => t.messages.length > 0);
+  const canPoll = !!hub.state?.enabled || hasHistory;
   const refresh = hub.load;
   const markRead = hub.mutate;
   useEffect(() => {
@@ -97,7 +100,7 @@ export function AdminInquiry() {
       if (window.history.state?.hubInquiry === marker) window.history.back();
     };
   }, [open]);
-  if (!hub.state?.enabled && !hub.state?.applications.length) return null;
+  if (!hub.state?.enabled && !hasHistory) return null;
   const inEventHub = window.location.pathname.includes("/events");
   return (
     <div className="event-hub-theme" data-event-dark={dark}>

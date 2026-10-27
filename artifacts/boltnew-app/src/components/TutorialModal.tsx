@@ -747,7 +747,9 @@ export function TutorialModal({
   onClose,
   darkMode,
   moduleFlags = DEFAULT_MODULE_FLAGS,
+  applicationMode,
 }: {
+  applicationMode?: "halloween" | "tour" | "normal";
   page?: number;
   onChangePage?: (p: number) => void;
   onClose: () => void;
@@ -758,7 +760,17 @@ export function TutorialModal({
   const [topicIdx, setTopicIdx] = useState(0);
   const [subView, setSubView] = useState<'tips' | 'video'>('tips');
 
-  const topics = mode === 'basic' ? tutorialBasicTopics(moduleFlags) : HIDDEN;
+  const topics: Topic[] = applicationMode ? [{id:'application',emoji:'📋',label:'신청 방법',title:'술번개 신청 방법',color:'from-teal-500 to-cyan-600',tips:[
+    {icon:'1',title:'행사 선택·날짜 확인',desc:'BINPC2는 1차 신청을 받습니다. 다른 차수는 운영자 안내를 확인하세요.'},
+    {icon:'2',title:'참가 자격',desc:'1991~2007년생 기본 범위. 이전 출생자는 관리자 사전 문의·개별 검토가 필요합니다.'},
+    {icon:'3',title:'개인정보·기본정보',desc:'수집 안내에 동의한 뒤 닉네임·년생·지역·연락처·입금자명을 입력합니다.'},
+    {icon:'4',title:'필독 공지·동의',desc:'행사 공지에 동의한 다음 화면에서 처음 금액이 공개됩니다.'},
+    {icon:'5',title:applicationMode==='tour'?'선입금 확인':'개인별 회비 확인',desc:applicationMode==='tour'?'운영자가 입력한 선입금액만 납부합니다. 최종 1/N 정산은 운영자가 직접 안내합니다.':'고정 회비·선착순 혜택을 확인합니다. 1등 무료도 관리자 별도 승인이 필요합니다.'},
+    {icon:'6',title:'신청 접수·입금 신고',desc:'서버 저장 완료를 확인하고 계좌이체 후 입금했어요를 누릅니다. 신고는 승인이 아닙니다.'},
+    {icon:'7',title:'관리자 확인',desc:'은행 대조·승인 후 참가 확정됩니다. 운영자 근무·숙면 중 지연될 수 있습니다.'},
+    {icon:'8',title:'대기방·프로필·현장',desc:'신청은 재접속해 이어볼 수 있습니다. 승인 후 장소를 확인하고 필수 프로필·현장 체크인을 완료합니다.'},
+    {icon:'9',title:applicationMode==='tour'?'추억의 뽑기':'할로윈 경품 뽑기',desc:applicationMode==='tour'?'금·토 1차 유효 선착순10명만 무료 두 장(할인권1장·꽝1장). 목·일은 없습니다. 할인권 실제 적용은 운영자가 직접 합니다.':applicationMode==='halloween'?'현장 입장 후 무료 카드3장. 추가 유료 뽑기 없음. 하리보는 별도로1개.':'행사별 안내와 관리자 문의를 확인하세요.'},
+  ]}] : mode === 'basic' ? tutorialBasicTopics(moduleFlags) : HIDDEN;
   const safeIdx = Math.min(topicIdx, topics.length - 1);
   const topic = topics[safeIdx];
   const accent = topicAccent(topic);
@@ -924,7 +936,7 @@ export function TutorialModal({
         </div>
 
         {/* Mode toggle */}
-        <div
+        {!applicationMode && <div
           className={`flex-shrink-0 h-[2.75rem] px-4 pt-2 pb-1.5 flex items-end ${darkMode ? 'bg-slate-900/80' : 'bg-gradient-to-b from-white to-slate-50/80'}`}
         >
           <div className={`grid grid-cols-2 p-1 rounded-2xl gap-1 w-full h-[2.125rem] ${darkMode ? 'bg-slate-800/80 ring-1 ring-slate-700/60' : 'bg-gray-100/90 ring-1 ring-gray-200/60'}`}>
@@ -953,6 +965,7 @@ export function TutorialModal({
           </div>
         </div>
 
+        }
         {/* Topic chips — edge-to-edge segmented tabs, no inter-tab gaps */}
         {showChips && (
           <div className={`flex-shrink-0 border-b ${darkMode ? 'border-slate-700/80 bg-slate-900/60' : 'border-gray-100/80 bg-white/80'}`}>
@@ -1035,12 +1048,12 @@ export function TutorialModal({
           <button
             onClick={() => {
               if (!isLast) { selectTopic(safeIdx + 1); return; }
-              if (mode === 'basic') { switchMode('hidden'); return; }
+              if (mode === 'basic' && !applicationMode) { switchMode('hidden'); return; }
               onClose();
             }}
             className={`touch-target flex-[3] flex items-center justify-center gap-1 py-2.5 rounded-2xl text-sm font-bold text-white bg-gradient-to-r ${topic.color} shadow-lg shadow-black/15 transition-all active:scale-[0.98] hover:brightness-105`}
           >
-            {isLast && mode === 'hidden' ? '알겠어요' : isLast && mode === 'basic' ? '숨은기능 보기' : <>다음 <ArrowRight className="w-4 h-4" /></>}
+            {applicationMode ? '알겠어요' : isLast && mode === 'hidden' ? '알겠어요' : isLast && mode === 'basic' ? '숨은기능 보기' : <>다음 <ArrowRight className="w-4 h-4" /></>}
           </button>
         </div>
       </div>

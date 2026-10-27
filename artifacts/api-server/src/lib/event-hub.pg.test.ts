@@ -1,3 +1,4 @@
+import { drawCampaign } from "./event-campaign-service.js";
 import { isolatedFixtureDatabase } from "./event-hub-isolation.js";
 import { beforeAll, beforeEach, afterAll, describe, expect, it } from "vitest";
 import pg from "pg";
@@ -1613,6 +1614,18 @@ suite("event hub V6 — actual isolated PostgreSQL transactions", () => {
       collection: true,
     });
     await call("privacy.request");
+    const screeningId = randomUUID();
+    await new HubStore(pool).transaction(async (tx) => {
+      const a = (await tx.get<HubApplication>("application", id))!;
+      a.screeningPhoto = { id: screeningId };
+      await tx.put("application", id, a);
+      await tx.put("settings", `screening:${screeningId}`, {
+        id: screeningId,
+        applicationId: id,
+        mime: "image/png",
+        base64: "synthetic-private-photo",
+      });
+    });
     await testPrivacyPolicy();
     await eraseFixture();
     expect((await adminState()).applications).toHaveLength(0);
@@ -1626,6 +1639,11 @@ suite("event hub V6 — actual isolated PostgreSQL transactions", () => {
       "synthetic private message",
     );
     expect(all.owners[0].erasedAt).toBeTruthy();
+    expect(
+      await new HubStore(pool).transaction((tx) =>
+        tx.get("settings", `screening:${screeningId}`),
+      ),
+    ).toBeUndefined();
     const secondOwner = await service.session(
       randomBytes(32).toString("base64url"),
       true,
@@ -1746,5 +1764,623 @@ suite("event hub V6 — actual isolated PostgreSQL transactions", () => {
     } finally {
       process.env.NODE_ENV = previous;
     }
+  });
+  describe("latest integrated Halloween and tour campaigns", () => {
+    const prepare = async (key: string) =>
+      String((await call("campaign.prepare", key, {}, undefined, true)).id);
+    const open = async (id: string, advance?: number) => {
+      let e = (await adminState()).events.find((e) => e.id === id)!;
+      await call(
+        "event.save",
+        id,
+        {
+          ...e,
+          account: "격리 시험 계좌",
+          deadline: "관리자 개별 안내",
+          campaign: { ...e.campaign, ...(advance ? { advance } : {}) },
+        },
+        e.revision,
+        true,
+      );
+      e = (await adminState()).events.find((e) => e.id === id)!;
+      await call("event.recruitment", id, { enabled: true }, e.revision, true);
+    };
+    it("creates exactly two unpublished Halloween events with 72 inventory units, idempotently", async () => {
+      const f = await prepare("halloween-2026-10-30"),
+        s = await prepare("halloween-2026-10-31");
+      await prepare("halloween-2026-10-30");
+      const state = await adminState();
+      expect(
+        state.events
+          .filter((e) => [f, s].includes(e.id))
+          .every((e) => !e.recruitment),
+      ).toBe(true);
+      expect(
+        state.stocks
+          .filter((v) => v.eventId === f)
+          .reduce((n, v) => n + v.remaining, 0),
+      ).toBe(23);
+      expect(
+        state.stocks
+          .filter((v) => v.eventId === s)
+          .reduce((n, v) => n + v.remaining, 0),
+      ).toBe(49);
+      expect(
+        state.stocks.find((v) => v.eventId === f && v.label === "LED 밴드")
+          ?.remaining,
+      ).toBe(0);
+      await expect(
+        call("campaign.prepare", "halloween-2026-10-30"),
+      ).rejects.toMatchObject({ code: "ADMIN" });
+    });
+    it("free approval is separate from bank payment and still requires attendance/checkin/profile", async () => {
+      eventId = await prepare("halloween-2026-10-31");
+      await open(eventId);
+      const id = await create();
+      await complete(id);
+      await expect(
+        call(
+          "admin.application.payment",
+          id,
+          { status: "approved", bankChecked: true },
+          (await app(id)).revision,
+          true,
+        ),
+      ).rejects.toMatchObject({ code: "FREE" });
+      await call(
+        "admin.application.free",
+        id,
+        {},
+        (await app(id)).revision,
+        true,
+      );
+      expect((await app(id)).payment).toBe("none");
+      expect((await app(id)).waivedAt).toBeTruthy();
+      await expect(
+        call("application.report", id, {}, (await app(id)).revision),
+      ).rejects.toMatchObject({ code: "FREE" });
+      await call(
+        "admin.application.attendance",
+        id,
+        { status: "confirmed" },
+        (await app(id)).revision,
+        true,
+      );
+      await call(
+        "admin.application.checkin",
+        id,
+        { checked: true },
+        (await app(id)).revision,
+        true,
+      );
+      await activate();
+      await expect(
+        call(
+          "application.enter",
+          id,
+          { deviceSecret: "campaign-device" },
+          (await app(id)).revision,
+        ),
+      ).rejects.toMatchObject({ code: "PROFILE_INCOMPLETE" });
+      await call(
+        "application.profile",
+        id,
+        { profile: fullProfile },
+        (await app(id)).revision,
+      );
+      await call(
+        "application.enter",
+        id,
+        { deviceSecret: "campaign-device" },
+        (await app(id)).revision,
+      );
+      expect(
+        (await service.state(owner)).applications[0].venue?.address,
+      ).toBeDefined();
+      for (let n = 0; n < 3; n++)
+        await call("application.draw", id, {}, (await app(id)).revision);
+      await expect(
+        call("application.draw", id, {}, (await app(id)).revision),
+      ).rejects.toMatchObject({ code: "CARD_LIMIT" });
+    });
+    it("manual priority exclusion needs bank review; succession preserves paid/final quotes and original order", async () => {
+      eventId = await prepare("halloween-2026-10-31");
+      await open(eventId);
+      const first = await create("선착첫째");
+      await complete(first);
+      const secondOwner = await service.session(
+        randomBytes(32).toString("base64url"),
+        true,
+      );
+      const second = await create("선착둘째", secondOwner);
+      await call(
+        "application.consent",
+        second,
+        { consent },
+        1,
+        false,
+        secondOwner,
+      );
+      await call("application.confirm", second, {}, 2, false, secondOwner);
+      await call(
+        "admin.application.payment",
+        second,
+        { status: "approved", bankChecked: true },
+        3,
+        true,
+      );
+      let e = (await adminState()).events.find((e) => e.id === eventId)!;
+      await expect(
+        call(
+          "campaign.priority",
+          eventId,
+          {
+            applicationId: second,
+            kind: "exclude",
+            confirmed: true,
+            reason: "검토",
+          },
+          e.revision,
+          true,
+        ),
+      ).rejects.toMatchObject({ code: "BANK_REVIEW" });
+      await call(
+        "campaign.priority",
+        eventId,
+        {
+          applicationId: first,
+          kind: "exclude",
+          confirmed: true,
+          reason: "개별 안내 후 무응답 확인",
+        },
+        e.revision,
+        true,
+      );
+      e = (await adminState()).events.find((e) => e.id === eventId)!;
+      await call(
+        "campaign.succeed",
+        eventId,
+        { confirmed: true, reason: "관리자 확인 후 승계" },
+        e.revision,
+        true,
+      );
+      const a = await app(second);
+      expect(a.rank).toBe(2);
+      expect(a.benefitRank).toBe(1);
+      expect(a.quote?.fee).toBe(10000);
+      expect(a.payment).toBe("approved");
+      expect(a.differenceReview?.proposed).toBe(0);
+    });
+    it("tour advance is required, rounds 2/3 are refused and no final settlement is generated", async () => {
+      eventId = await prepare("tour-2026-11-06");
+      await expect(open(eventId)).rejects.toMatchObject({ code: "ADVANCE" });
+      await open(eventId, 17000);
+      for (const round of [2, 3])
+        await expect(
+          call("application.basic", "", { eventId, round, basic: basic() }),
+        ).rejects.toMatchObject({ code: "ROUND" });
+      const id = await create();
+      await complete(id);
+      expect((await app(id)).quote).toMatchObject({
+        fee: 17000,
+        kind: "advance",
+      });
+      expect((await app(id)).quote).not.toHaveProperty("finalSettlement");
+    });
+    it("tour ten people receive exactly one random voucher and one loss each, with durable pool quantities", async () => {
+      const tourNow = () => new Date("2026-11-06T14:00:00Z");
+      service = new EventHubService(
+        new HubStore(pool),
+        "isolated-test-session-secret",
+        tourNow,
+        () => 0,
+      );
+      eventId = await prepare("tour-2026-11-06");
+      await open(eventId, 17000);
+      await pool.query(
+        "UPDATE app_kv_rows SET data=data||$1::jsonb WHERE table_name='app_settings'",
+        [
+          JSON.stringify({
+            session_active: true,
+            event_cycle_started_at: "2026-11-06T13:00:00Z",
+            event_cycle_archive_id:
+              "binpc2:event-anon:v1:2026-11-06:00000000-0000-4000-8000-000000000001",
+            event_cycle_reset_complete: false,
+          }),
+        ],
+      );
+      const amounts: number[] = [];
+      const jobs: (() => Promise<void>)[] = [];
+      for (let n = 0; n < 11; n++) {
+        const who = await service.session(
+          randomBytes(32).toString("base64url"),
+          true,
+        );
+        const id = await create(`투어${n.toString().padStart(2, "0")}`, who);
+        await call("application.consent", id, { consent }, 1, false, who);
+        await call("application.confirm", id, {}, 2, false, who);
+        await call(
+          "admin.application.payment",
+          id,
+          { status: "approved", bankChecked: true },
+          3,
+          true,
+        );
+        await call(
+          "admin.application.attendance",
+          id,
+          { status: "confirmed" },
+          4,
+          true,
+        );
+        await call("admin.application.checkin", id, { checked: true }, 5, true);
+        await call(
+          "application.profile",
+          id,
+          { profile: fullProfile },
+          6,
+          false,
+          who,
+        );
+        await call(
+          "application.enter",
+          id,
+          { deviceSecret: `tour-device-${n}` },
+          7,
+          false,
+          who,
+        );
+        if (n === 10) {
+          await expect(
+            call("application.draw", id, {}, 8, false, who),
+          ).rejects.toMatchObject({ code: "TOUR_DRAW" });
+          continue;
+        }
+        jobs.push(async () => {
+          const nonce = randomUUID();
+          await call("application.draw", id, {}, 8, false, who, nonce);
+          await call("application.draw", id, {}, 8, false, who, nonce);
+          const a = (await service.state(who)).applications[0];
+          expect(a.cards).toHaveLength(2);
+          expect(a.cards.filter((c) => c.prize === "다음 기회에")).toHaveLength(
+            1,
+          );
+          amounts.push(a.cards.find((c) => c.couponAmount)!.couponAmount!);
+          await expect(
+            call("application.draw", id, {}, 9, false, who),
+          ).rejects.toMatchObject({ code: "CARD_LIMIT" });
+        });
+      }
+      await Promise.all(jobs.map((job) => job()));
+      expect(amounts.sort((a, b) => a - b)).toEqual([
+        2000, 2000, 2000, 2000, 3000, 3000, 3000, 4000, 4000, 5000,
+      ]);
+      expect(
+        (await adminState()).stocks
+          .filter((s) => s.eventId === eventId)
+          .reduce((n, s) => n + s.remaining, 0),
+      ).toBe(0);
+      expect(
+        (await adminState()).applications
+          .filter((a) => a.eventId === eventId)
+          .flatMap((a) => a.cards)
+          .every((c) => !c.prizeLabel?.includes("원") && !c.couponAmount),
+      ).toBe(true);
+    });
+    it("private screening requires purpose consent and deletes the source after manual review", async () => {
+      eventId = await prepare("halloween-2026-10-31");
+      await open(eventId);
+      const id = String(
+        (
+          await call("application.basic", "", {
+            eventId,
+            basic: { ...basic(), birthYear: 1990 },
+          })
+        ).id,
+      );
+      await complete(id);
+      expect((await app(id)).eligibility?.status).toBe("review");
+      const image = {
+        mime: "image/png",
+        base64:
+          "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+jZAAAAABJRU5ErkJggg==",
+      };
+      await expect(
+        call("application.screening.photo", id, image, 3),
+      ).rejects.toMatchObject({ code: "CONSENT" });
+      await call(
+        "application.screening.photo",
+        id,
+        { ...image, photoConsent: true },
+        3,
+      );
+      const photo = (await app(id)).screeningPhoto!.id;
+      await expect(
+        service.screeningPhoto(photo, "other-owner", false),
+      ).rejects.toMatchObject({ status: 404 });
+      expect((await service.screeningPhoto(photo, owner, false)).mime).toBe(
+        "image/png",
+      );
+      await call(
+        "admin.application.eligibility",
+        id,
+        { status: "approved", reason: "개별 검토", message: "사전 검토 승인" },
+        4,
+        true,
+      );
+      await call("admin.application.screening.delete", id, {}, 5, true);
+      await expect(
+        service.screeningPhoto(photo, owner, false),
+      ).rejects.toMatchObject({ status: 404 });
+      expect((await app(id)).screeningPhoto?.deletedAt).toBeTruthy();
+      expect(
+        JSON.stringify((await service.state(owner)).applications),
+      ).not.toContain("iVBOR");
+    });
+  });
+  it("manual tour Saturdays suppress automatic rooms, and existing automatic drafts block duplicate tour creation", async () => {
+    const setClock = (day: string) => {
+      service = new EventHubService(
+        new HubStore(pool),
+        "isolated-test-session-secret",
+        () => new Date(day + "T12:00:00Z"),
+      );
+    };
+    setClock("2026-11-05");
+    await call("campaign.prepare", "tour-2026-11-07", {}, undefined, true);
+    await call(
+      "settings.save",
+      "",
+      { ...DEFAULT_HUB_SETTINGS, autoSaturday: true },
+      0,
+      true,
+    );
+    await service.autoTick();
+    expect(
+      (await adminState()).events.some((e) => e.id === "auto-2026-11-07"),
+    ).toBe(false);
+    setClock("2026-11-12");
+    await service.autoTick();
+    await expect(
+      call("campaign.prepare", "tour-2026-11-14", {}, undefined, true),
+    ).rejects.toMatchObject({ code: "DUPLICATE_DATE" });
+  });
+
+  it("Halloween ordinary ranks cannot consume special stock and eligible ranks reserve only remaining units", async () => {
+    const holder = await app(await create("재고검사"));
+    eventId = String(
+      (
+        await call(
+          "campaign.prepare",
+          "halloween-2026-10-31",
+          {},
+          undefined,
+          true,
+        )
+      ).id,
+    );
+    await new HubStore(pool).transaction(async (tx) => {
+      const e = (await tx.get<HubEvent>("event", eventId))!;
+      const a: HubApplication = { ...holder, eventId, rank: 16, cards: [] };
+      const stocks =
+        await tx.all<import("./event-campaign-service.js").CampaignStock>(
+          "stock",
+        );
+      for (const stock of stocks)
+        if (stock.eventId === eventId && !stock.special) {
+          stock.remaining = 0;
+          await tx.put("stock", stock.id, stock);
+        }
+      await drawCampaign(tx, e, a, now().toISOString(), () => 0);
+      expect(a.cards[0].prize).toBe("다음 기회에");
+      a.rank = 15;
+      await drawCampaign(tx, e, a, now().toISOString(), () => 0);
+      expect(a.cards[1].prizeLabel).toBe("LED 밴드");
+      expect(
+        (
+          await tx.all<import("./event-campaign-service.js").CampaignStock>(
+            "stock",
+          )
+        ).find((s) => s.eventId === eventId && s.label === "LED 밴드")
+          ?.remaining,
+      ).toBe(1);
+    });
+  });
+  it("soft OFF and exact campaign end block new use but preserve approvals, draws and administrator fulfillment across 17:00 reset", async () => {
+    eventId = String(
+      (
+        await call(
+          "campaign.prepare",
+          "halloween-2026-10-31",
+          {},
+          undefined,
+          true,
+        )
+      ).id,
+    );
+    let e = (await adminState()).events.find((e) => e.id === eventId)!;
+    await call(
+      "event.save",
+      eventId,
+      { ...e, account: "격리 시험 계좌", deadline: "개별 안내" },
+      e.revision,
+      true,
+    );
+    e = (await adminState()).events.find((e) => e.id === eventId)!;
+    await call(
+      "event.recruitment",
+      eventId,
+      { enabled: true },
+      e.revision,
+      true,
+    );
+    const id = await create();
+    await complete(id);
+    await call("admin.application.free", id, {}, 3, true);
+    await call(
+      "admin.application.attendance",
+      id,
+      { status: "confirmed" },
+      4,
+      true,
+    );
+    await call("admin.application.checkin", id, { checked: true }, 5, true);
+    await call("application.profile", id, { profile: fullProfile }, 6);
+    await activate();
+    await call(
+      "application.enter",
+      id,
+      { deviceSecret: "module-isolated-fixture" },
+      7,
+    );
+    await call("application.draw", id, {}, 8);
+    const original = await app(id);
+    await call(
+      "settings.save",
+      "",
+      {
+        ...DEFAULT_HUB_SETTINGS,
+        campaignModules: { halloweenDraw: false, tourDraw: true },
+      },
+      0,
+      true,
+    );
+    await expect(
+      call("application.draw", id, {}, original.revision),
+    ).rejects.toMatchObject({ code: "MODULE_DISABLED" });
+    expect((await service.state(owner)).applications[0].cards).toEqual(
+      original.cards,
+    );
+    expect(
+      (await service.state(owner)).events.find((e) => e.id === eventId)
+        ?.cardsEnabled,
+    ).toBe(false);
+    await call(
+      "settings.save",
+      "",
+      {
+        ...DEFAULT_HUB_SETTINGS,
+        campaignModules: { halloweenDraw: true, tourDraw: true },
+      },
+      1,
+      true,
+    );
+    await call("application.draw", id, {}, original.revision);
+    await pool.query(
+      "UPDATE app_kv_rows SET data=jsonb_set(data,'{module_flags,event_hub}','false'::jsonb) WHERE table_name='app_settings'",
+    );
+    const saved = await app(id);
+    await expect(
+      call("application.draw", id, {}, saved.revision),
+    ).rejects.toMatchObject({ code: "MODULE_DISABLED" });
+    await expect(
+      call(
+        "application.enter",
+        id,
+        { deviceSecret: "same-device" },
+        saved.revision,
+      ),
+    ).rejects.toMatchObject({ code: "MODULE_DISABLED" });
+    await call(
+      "admin.application.candy",
+      id,
+      { kind: "haribo-a" },
+      saved.revision,
+      true,
+    );
+    expect((await service.state(owner)).applications[0].cards).toHaveLength(2);
+    await pool.query(
+      "UPDATE app_kv_rows SET data=jsonb_set(data,'{module_flags,event_hub}','true'::jsonb) WHERE table_name='app_settings'",
+    );
+    const lateOwner = await service.session(
+      randomBytes(32).toString("base64url"),
+      true,
+    );
+    const lateDraft = await create("만료대기", lateOwner);
+    await call(
+      "application.consent",
+      lateDraft,
+      { consent },
+      1,
+      false,
+      lateOwner,
+    );
+    service = new EventHubService(
+      new HubStore(pool),
+      "isolated-test-session-secret",
+      () => new Date("2026-10-31T15:30:00Z"),
+    );
+    await expect(
+      call("application.confirm", lateDraft, {}, 2, false, lateOwner),
+    ).rejects.toMatchObject({ code: "CLOSED" });
+
+    await expect(
+      call("application.draw", id, {}, (await app(id)).revision),
+    ).rejects.toMatchObject({ code: "EVENT_ENDED" });
+    await expect(
+      call(
+        "application.enter",
+        id,
+        { deviceSecret: "same-device" },
+        (await app(id)).revision,
+      ),
+    ).rejects.toMatchObject({ code: "EVENT_ENDED" });
+    const view = await service.state(owner);
+    expect(view.events.find((e) => e.id === eventId)?.themeEnabled).toBe(false);
+    expect(view.applications[0].cards).toHaveLength(2);
+    await atomicEventReset(pool, {
+      clearTables: ["profiles", "device_secrets", "likes", "chats", "messages"],
+      now: new Date("2026-11-01T08:00:00Z"),
+      planAdmin: () => ({
+        id: "restored-admin",
+        pin_code: "9999",
+        nickname: "관리자",
+      }),
+      adminIsProfile: (p) => p.id === "restored-admin",
+      buildNextSettings: (s) => ({
+        ...s,
+        session_active: false,
+        event_cycle_reset_complete: true,
+      }),
+    });
+    expect((await app(id)).cards).toHaveLength(2);
+    expect((await app(id)).waivedAt).toBeTruthy();
+    expect((await app(id)).candy).toBe("haribo-a");
+    expect(
+      (await service.state(owner)).events.find((e) => e.id === eventId)
+        ?.themeEnabled,
+    ).toBe(false);
+  });
+  it("whole module OFF preserves pre-application inquiries and administrator replies but rejects a new inquiry", async () => {
+    await call("thread.send", "", {
+      text: "기존 신청 전 문의",
+      collection: true,
+    });
+    const fresh = await service.session(
+      randomBytes(32).toString("base64url"),
+      true,
+    );
+    await pool.query(
+      "UPDATE app_kv_rows SET data=jsonb_set(data,'{module_flags,event_hub}','false'::jsonb) WHERE table_name='app_settings'",
+    );
+    await call("thread.send", "", { text: "기존 문의 후속", collection: true });
+    await call(
+      "thread.send",
+      owner,
+      { text: "관리자 후속 답변" },
+      undefined,
+      true,
+    );
+    expect((await service.state(owner)).threads[0].messages).toHaveLength(3);
+    await expect(
+      call(
+        "thread.send",
+        "",
+        { text: "새 문의", collection: true },
+        undefined,
+        false,
+        fresh,
+      ),
+    ).rejects.toMatchObject({ code: "MODULE_DISABLED" });
   });
 });

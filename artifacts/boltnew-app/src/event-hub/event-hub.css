@@ -82,3 +82,9 @@ body:has(.event-profile-draft) .event-hub-dock {
 .event-hub-theme [role="dialog"] {
   overscroll-behavior: contain;
 }
+
+[data-campaign-theme="halloween"] {background:linear-gradient(135deg,#170921,#40205c);border:1px solid #f28d36;border-radius:1rem;padding:.75rem;color:#ffedd5;}
+[data-campaign-theme="halloween"] > div {border-color:#f28d36;}
+
+[data-campaign-theme="christmas"] {background:#12372a;color:#fef3c7;border:1px solid #e11d48;border-radius:1rem;padding:.75rem;}
+[data-campaign-theme="yearend"] {background:#172554;color:#fef9c3;border:1px solid #eab308;border-radius:1rem;padding:.75rem;}

@@ -1,3 +1,10 @@
+import { EVENT_THEME_PRESETS } from "../../../../lib/api-zod/src/event-hub-modules";
+import { ScreeningPhoto } from "./CampaignParticipant";
+import {
+  CampaignSetup,
+  CampaignOperations,
+  CampaignApproval,
+} from "./CampaignAdmin";
 import { useState } from "react";
 import {
   budgetSplit,
@@ -26,6 +33,11 @@ import {
 
 type Hub = HubController;
 const initialEvent = {
+  campaign: undefined as HubEvent["campaign"],
+  theme: undefined as HubEvent["theme"],
+  themeEnabled: false,
+  replyNotice: "",
+  venueCandidates: [] as string[],
   opensAt: undefined as string | undefined,
   title: "술번개 신청",
   type: "normal" as const,
@@ -110,6 +122,7 @@ export default function EventHubAdmin() {
       </HubField>
       {tab === "행사·자동방" && (
         <>
+          <CampaignSetup hub={hub} />
           <HubButton
             onClick={() => {
               setNewEvent(true);
@@ -150,6 +163,7 @@ export default function EventHubAdmin() {
       )}
       {tab === "신청·입금" && (
         <>
+          {event && <CampaignOperations event={event} hub={hub} />}
           <p className="text-sm">
             실제 은행 거래를 직접 대조한 뒤 승인하세요. ‘입금했어요’는 신고일
             뿐입니다.
@@ -165,11 +179,14 @@ export default function EventHubAdmin() {
       {tab === "현장·상품" && (
         <>
           <p className="text-sm">
-            금요일 30% / 토요일 70%는 상품·상금 예산 배분 비율입니다. 현금
-            무작위 지급은 활성화하지 않습니다.
+            {event?.campaign
+              ? "확정 행사별 실물·할인권 재고만 관리합니다. 현금 상금을 추가하거나 자동 지급하지 않습니다."
+              : "금요일30% / 토요일70%는 과거 검토용 예산 배분입니다. 현금 무작위 지급은 비활성입니다."}
           </p>
-          <BudgetPreview hub={hub} />
-          {event && <StockForm eventId={event.id} hub={hub} />}
+          {!event?.campaign && <BudgetPreview hub={hub} />}
+          {event && !event.campaign && (
+            <StockForm eventId={event.id} hub={hub} />
+          )}
           <HubCard>
             {s.stocks
               .filter((v) => !selected || v.eventId === selected)
@@ -238,6 +255,87 @@ function EventEditor({
         {event ? "행사 설정·변경" : "새 술번개 초안"}
       </h3>
       <NoticeHistory history={event?.versions} />
+      {v.campaign && (
+        <>
+          <p>행사 정책: {v.campaign.kind} · BINPC2 1차만 신청</p>
+          {v.campaign.kind === "tour" && (
+            <HubField label="전국투어 선입금액 (최종 회비 아님)">
+              <input
+                type="number"
+                min="1"
+                className={inputClass}
+                value={v.campaign.advance ?? ""}
+                onChange={(e) =>
+                  set("campaign", {
+                    ...v.campaign,
+                    advance: e.target.value
+                      ? Number(e.target.value)
+                      : undefined,
+                  })
+                }
+              />
+            </HubField>
+          )}
+          <HubField label="2차 오픈채팅 링크 (미정이면 빈칸)">
+            <input
+              className={inputClass}
+              value={v.campaign.secondRoundLink}
+              onChange={(e) =>
+                set("campaign", {
+                  ...v.campaign,
+                  secondRoundLink: e.target.value,
+                })
+              }
+            />
+          </HubField>
+          <p>
+            매장 후보 (차수 배정 아님):{" "}
+            {v.venueCandidates?.join(", ") || "운영자 확인"}
+          </p>
+        </>
+      )}
+      <HubField label="행사 테마">
+        <select
+          className={inputClass}
+          value={v.theme ?? "default"}
+          onChange={(e) => set("theme", e.target.value)}
+        >
+          {["default", "halloween", "christmas", "yearend"].map((k) => (
+            <option key={k}>{k}</option>
+          ))}
+        </select>
+      </HubField>
+      <HubCheck
+        label="행사 카드 테마 ON"
+        checked={v.themeEnabled ?? false}
+        onChange={(b) => set("themeEnabled", b)}
+      />
+      <div
+        className="rounded-xl p-3"
+        style={{
+          ...EVENT_THEME_PRESETS[
+            v.themeEnabled ? (v.theme ?? "default") : "default"
+          ],
+        }}
+      >
+        테마 미리보기{" "}
+        {v.theme === "halloween" && v.themeEnabled ? "🎃 ✦" : "기본 BINPC2"}
+      </div>
+      <HubButton
+        onClick={() => {
+          set("theme", "default");
+          set("themeEnabled", false);
+        }}
+      >
+        기본 테마 복원 (저장 필요)
+      </HubButton>
+      <HubField label="운영자 답변 자동 안내">
+        <textarea
+          className={inputClass}
+          value={v.replyNotice ?? ""}
+          onChange={(e) => set("replyNotice", e.target.value)}
+        />
+      </HubField>
       <HubField label="저장된 행사·공지 템플릿">
         <select
           className={inputClass}
@@ -279,7 +377,7 @@ function EventEditor({
           }
         />
       </HubField>
-      {hub.state?.settings && (
+      {hub.state?.settings && !v.campaign && (
         <HubButton
           onClick={() => {
             const s = hub.state!.settings!;
@@ -349,7 +447,9 @@ function EventEditor({
             >
               <option value="normal">일반 행사</option>
               <option value="halloween">할로윈</option>
-              <option value="tour">전국투어</option>
+              {v.campaign?.kind === "tour" && (
+                <option value="tour">전국투어 (1차 전용)</option>
+              )}
               <option value="custom">직접 입력</option>
             </select>
           </HubField>
@@ -368,23 +468,27 @@ function EventEditor({
               ["deadline", "입금 기한", "text"],
               ["included", "포함 내용·정산 기준", "text"],
             ] as const
-          ).map(([key, label, type]) => (
-            <HubField label={label} key={key}>
-              <input
-                required={!["mapUrl", "deposit", "included"].includes(key)}
-                type={type}
-                min={type === "number" ? 0 : undefined}
-                className={inputClass}
-                value={v[key]}
-                onChange={(e) =>
-                  set(
-                    key,
-                    type === "number" ? Number(e.target.value) : e.target.value,
-                  )
-                }
-              />
-            </HubField>
-          ))}
+          )
+            .filter(([key]) => !v.campaign || !["fee", "deposit"].includes(key))
+            .map(([key, label, type]) => (
+              <HubField label={label} key={key}>
+                <input
+                  required={!["mapUrl", "deposit", "included"].includes(key)}
+                  type={type}
+                  min={type === "number" ? 0 : undefined}
+                  className={inputClass}
+                  value={v[key]}
+                  onChange={(e) =>
+                    set(
+                      key,
+                      type === "number"
+                        ? Number(e.target.value)
+                        : e.target.value,
+                    )
+                  }
+                />
+              </HubField>
+            ))}
         </div>
         {places.length > 0 && (
           <HubField label="저장된 장소">
@@ -598,7 +702,13 @@ function EventEditor({
           혜택 구간 추가
         </HubButton>
         <HubCheck
-          label="카드 뽑기 ON"
+          label={
+            v.campaign?.kind === "tour"
+              ? "전국투어 추억의 뽑기 ON"
+              : v.campaign
+                ? "할로윈 경품 뽑기 ON"
+                : "카드 뽑기 ON"
+          }
           checked={v.cardsEnabled}
           onChange={(b) => set("cardsEnabled", b)}
         />
@@ -671,6 +781,36 @@ function AutoSettings({
       <p className="text-xs">
         자동 생성은 초안만 만들며 모집·회식 시작은 자동 실행하지 않습니다.
         금요일은 자동 생성하지 않습니다.
+      </p>
+      <HubCheck
+        label="할로윈 경품 모듈 ON (모든 할로윈 행사)"
+        checked={v.campaignModules?.halloweenDraw ?? true}
+        onChange={(b) =>
+          setV({
+            ...v,
+            campaignModules: {
+              halloweenDraw: b,
+              tourDraw: v.campaignModules?.tourDraw ?? true,
+            },
+          })
+        }
+      />
+      <HubCheck
+        label="전국투어 추억의 뽑기 모듈 ON"
+        checked={v.campaignModules?.tourDraw ?? true}
+        onChange={(b) =>
+          setV({
+            ...v,
+            campaignModules: {
+              halloweenDraw: v.campaignModules?.halloweenDraw ?? true,
+              tourDraw: b,
+            },
+          })
+        }
+      />
+      <p className="text-xs">
+        OFF는 신규 뽑기만 중단합니다. 기존 신청·입금·당첨 조회와 관리자 지급
+        확인은 유지합니다. 전체 이벤트 모듈은 기존 DB헬스에서 관리합니다.
       </p>
       <HubCheck
         label="토요일 자동 초안 생성"
@@ -794,6 +934,8 @@ export function ApplicationAdmin({
         <strong>
           {app.basic.nickname} · 접수 {app.rank}번
         </strong>
+        <CampaignApproval app={app} hub={hub} />
+        {app.eligibility && <ScreeningPhoto app={app} hub={hub} admin />}
         <p className="text-xs break-all">신청번호 {app.id}</p>
         <p className="text-sm">
           입금자명: {app.basic.depositor} · 회비{" "}
@@ -817,7 +959,13 @@ export function ApplicationAdmin({
           {!onsite && (
             <>
               <HubButton
-                disabled={hub.status === "saving"}
+                disabled={
+                  hub.status === "saving" ||
+                  !!app.waivedAt ||
+                  (hub.state?.events.find((e) => e.id === app.eventId)
+                    ?.campaign &&
+                    app.quote?.fee === 0)
+                }
                 onClick={() => {
                   if (
                     window.confirm(
