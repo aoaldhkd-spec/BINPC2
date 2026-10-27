@@ -254,3 +254,8 @@ export function useEventHub(admin = false) {
   );
   return { state, error, status, load, mutate, setError };
 }
+
+export type HubController = Pick<
+  ReturnType<typeof useEventHub>,
+  "state" | "status" | "error" | "mutate" | "load" | "setError"
+>;

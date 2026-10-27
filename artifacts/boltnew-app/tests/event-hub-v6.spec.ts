@@ -270,7 +270,7 @@ test("actual browser + API + PostgreSQL: saved stages, payment recovery, private
   await page
     .getByRole("button", { name: "술번개 입장하기", exact: true })
     .click();
-  await expect(page).toHaveURL(/127\.0\.0\.1:3001\/?$/);
+  await expect(page).toHaveURL(/127\.0\.0\.1:300[12]\/?$/);
   await expect
     .poll(async () => (await application(request, id)).profileId)
     .toBeTruthy();
@@ -299,7 +299,7 @@ test("actual browser + API + PostgreSQL: saved stages, payment recovery, private
   await page
     .getByRole("button", { name: "술번개 입장하기", exact: true })
     .click();
-  await expect(page).toHaveURL(/127\.0\.0\.1:3001\/?$/);
+  await expect(page).toHaveURL(/127\.0\.0\.1:300[12]\/?$/);
   expect((await application(request, id)).profileId).toBe(profileId);
 });
 

@@ -1,7 +1,7 @@
 import { existsSync } from "node:fs";
 import { defineConfig } from "@playwright/test";
 const baseURL = process.env.HUB_E2E_BASE_URL;
-if (!baseURL || !/^http:\/\/127\.0\.0\.1:3001$/.test(baseURL))
+if (!baseURL || !/^http:\/\/127\.0\.0\.1:300[12]$/.test(baseURL))
   throw new Error(
     "Run event hub E2E only against explicitly prepared isolated localhost:3001",
   );

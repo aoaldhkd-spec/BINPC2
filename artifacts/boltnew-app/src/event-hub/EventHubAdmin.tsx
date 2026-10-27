@@ -7,6 +7,7 @@ import {
   type PrivateApplication,
   type HubState,
   type HubSettings,
+  type HubController,
 } from "../lib/event-hub-client";
 import { EventLaboratory } from "./EventLaboratory";
 import {
@@ -19,7 +20,7 @@ import {
   inputClass,
 } from "./HubUi";
 
-type Hub = ReturnType<typeof useEventHub>;
+type Hub = HubController;
 const initialEvent = {
   opensAt: undefined as string | undefined,
   title: "술번개 신청",
@@ -709,7 +710,7 @@ function AutoSettings({
     </HubCard>
   );
 }
-function ApplicationAdmin({
+export function ApplicationAdmin({
   app,
   hub,
   onsite = false,
@@ -874,7 +875,7 @@ function Audit({
     </ol>
   );
 }
-function AdminThreads({ hub, state }: { hub: Hub; state: HubState }) {
+export function AdminThreads({ hub, state }: { hub: Hub; state: HubState }) {
   const [selected, setSelected] = useState(""),
     [draft, setDraft] = useState("");
   const t = state.threads.find((v) => v.id === selected);

@@ -13,6 +13,9 @@ const names = new Set([
   "binpc2_hub_dev",
   "binpc2_hub_test",
   "binpc2_reset_test",
+  "binpc2_hub_resume_dev",
+  "binpc2_hub_test_resume",
+  "binpc2_reset_test_resume",
 ]);
 function localDb(raw) {
   if (!raw) throw new Error("An explicit isolated database URL is required");
@@ -64,7 +67,7 @@ if (mode === "database") {
 } else if (mode === "activate") {
   localDb(process.env.DATABASE_URL);
   const base = process.env.HUB_E2E_BASE_URL;
-  if (base !== "http://127.0.0.1:3001")
+  if (!["http://127.0.0.1:3001", "http://127.0.0.1:3002"].includes(base))
     throw new Error("Only the dedicated local E2E API proxy is accepted");
   if (!process.env.SESSION_SECRET)
     throw new Error("The local API session binding is required");
@@ -96,7 +99,10 @@ if (mode === "database") {
     const dir = new URL("../.local/event-hub/", import.meta.url);
     await mkdir(dir, { recursive: true });
     await writeFile(
-      new URL("browser.env", dir),
+      new URL(
+        base.endsWith(":3002") ? "browser-resume.env" : "browser.env",
+        dir,
+      ),
       `# Generated local E2E authentication; do not commit or display values.\nHUB_E2E_BASE_URL=${base}\nHUB_E2E_ADMIN_TOKEN=${token}\n`,
       { mode: 0o600 },
     );

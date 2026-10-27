@@ -11,6 +11,7 @@ import {
   hubFetch,
   type PrivateApplication,
   type HubState,
+  type HubController,
 } from "../lib/event-hub-client";
 import { NicknameSetupScreen } from "../components/NicknameSetupScreen";
 import {
@@ -27,7 +28,7 @@ import { getDeviceSecret, setDeviceRecoveryPin } from "../lib/supabase";
 import { MATCHING_USER_KEY } from "../lib/constants";
 import { setPushOptIn } from "../lib/webPush";
 
-type Hub = ReturnType<typeof useEventHub>;
+type Hub = HubController;
 const paymentLabel = {
   none: "입금 전",
   reported: "입금 신고 · 승인 대기",
@@ -90,67 +91,12 @@ export default function EventHubPage({ path }: { path: string }) {
       </main>
     );
   if (editing && app) {
-    const remaining = profileMissing(app.profile);
-    const resumeStep = remaining.includes("MBTI")
-      ? 1
-      : remaining.includes("관심사 2개 이상")
-        ? 3
-        : remaining.length
-          ? 4
-          : 6;
-    const initial: Partial<NicknameSetupInput> & {
-      lastStep?: number;
-      pushDecision?: "enable" | "skip";
-    } = {
-      ...app.profile,
-      ...app.basic,
-      lastStep: resumeStep,
-      nickname: app.basic.nickname,
-      birthYear: app.basic.birthYear,
-      location: app.basic.location,
-      pushOptIn: app.profile.pushDecision === "enable",
-    };
     return (
-      <div className="event-profile-draft">
-        <NicknameSetupScreen
-          key={app.id}
-          loading={hub.status === "saving"}
-          registrationError={hub.error}
-          onReset={() => setEditing(false)}
-          onSubmit={() => setEditing(false)}
-          eventDraft={{
-            initial,
-            save: async (data, nextStep) => {
-              const profile = {
-                ...(data.mbti ? { mbti: data.mbti } : {}),
-                interests: data.interests ?? [],
-                ...(data.personalityScore != null
-                  ? { personalityScore: data.personalityScore }
-                  : {}),
-                ...(data.privacyConsent?.collection &&
-                data.privacyConsent.sharing
-                  ? { privacyConsent: data.privacyConsent }
-                  : {}),
-                ...(data.pushDecision
-                  ? { pushDecision: data.pushDecision }
-                  : {}),
-                idealMsg: data.idealMsg ?? null,
-                featureMsg: data.featureMsg ?? null,
-                lastStep: nextStep,
-              };
-              return !!(await hub.mutate({
-                action: "application.profile",
-                target: app.id,
-                revision: app.revision,
-                data: { profile },
-              }));
-            },
-          }}
-        />
-        <div className="fixed top-2 left-1/2 -translate-x-1/2 pointer-events-none z-50">
-          <HubFeedback status={hub.status} error="" />
-        </div>
-      </div>
+      <EventProfileEditor
+        app={app}
+        hub={hub}
+        onClose={() => setEditing(false)}
+      />
     );
   }
   return (
@@ -409,7 +355,7 @@ export default function EventHubPage({ path }: { path: string }) {
     </div>
   );
 }
-function BasicForm({
+export function BasicForm({
   eventId,
   hub,
   app,
@@ -532,7 +478,7 @@ function BasicForm({
     </HubCard>
   );
 }
-function ApplicationSteps({
+export function ApplicationSteps({
   app,
   event,
   hub,
@@ -732,16 +678,18 @@ function ApplicationSteps({
     </HubCard>
   );
 }
-function WaitingRoom({
+export function WaitingRoom({
   app,
   event,
   hub,
   edit,
+  onEnter,
 }: {
   app: PrivateApplication;
   event: HubState["events"][number];
   hub: Hub;
   edit: () => void;
+  onEnter?: (result: Record<string, unknown>) => void;
 }) {
   const missing = profileMissing(app.profile);
   const enter = async () => {
@@ -753,6 +701,10 @@ function WaitingRoom({
       data: { deviceSecret },
     });
     if (r?.profile) {
+      if (onEnter) {
+        onEnter(r);
+        return;
+      }
       const p = r.profile as { id: string; pin_code: string };
       // Register the same binding with the existing recovery client; no new profile INSERT.
       localStorage.setItem(`bolt_device_secret_${p.id}`, deviceSecret);
@@ -930,5 +882,75 @@ function WaitingRoom({
         </HubCard>
       )}
     </>
+  );
+}
+
+export function EventProfileEditor({
+  app,
+  hub,
+  onClose,
+}: {
+  app: PrivateApplication;
+  hub: Hub;
+  onClose: () => void;
+}) {
+  const remaining = profileMissing(app.profile);
+  const resumeStep = remaining.includes("MBTI")
+    ? 1
+    : remaining.includes("관심사 2개 이상")
+      ? 3
+      : remaining.length
+        ? 4
+        : 6;
+  const initial: Partial<NicknameSetupInput> & {
+    lastStep?: number;
+    pushDecision?: "enable" | "skip";
+  } = {
+    ...app.profile,
+    ...app.basic,
+    lastStep: resumeStep,
+    nickname: app.basic.nickname,
+    birthYear: app.basic.birthYear,
+    location: app.basic.location,
+    pushOptIn: app.profile.pushDecision === "enable",
+  };
+  return (
+    <div className="event-profile-draft">
+      <NicknameSetupScreen
+        key={app.id}
+        loading={hub.status === "saving"}
+        registrationError={hub.error}
+        onReset={() => onClose()}
+        onSubmit={() => onClose()}
+        eventDraft={{
+          initial,
+          save: async (data, nextStep) => {
+            const profile = {
+              ...(data.mbti ? { mbti: data.mbti } : {}),
+              interests: data.interests ?? [],
+              ...(data.personalityScore != null
+                ? { personalityScore: data.personalityScore }
+                : {}),
+              ...(data.privacyConsent?.collection && data.privacyConsent.sharing
+                ? { privacyConsent: data.privacyConsent }
+                : {}),
+              ...(data.pushDecision ? { pushDecision: data.pushDecision } : {}),
+              idealMsg: data.idealMsg ?? null,
+              featureMsg: data.featureMsg ?? null,
+              lastStep: nextStep,
+            };
+            return !!(await hub.mutate({
+              action: "application.profile",
+              target: app.id,
+              revision: app.revision,
+              data: { profile },
+            }));
+          },
+        }}
+      />
+      <div className="fixed top-2 left-1/2 -translate-x-1/2 pointer-events-none z-50">
+        <HubFeedback status={hub.status} error="" />
+      </div>
+    </div>
   );
 }
