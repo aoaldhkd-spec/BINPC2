@@ -607,3 +607,41 @@ it("recovers an approved owner from its saved code while event_hub is OFF withou
     fetch.mock.calls.some(([url]) => String(url).endsWith("/mutate")),
   ).toBe(false);
 });
+
+it("never offers Halloween free approval or final-price editing for an advance-only tour", () => {
+  const store = new EventLaboratoryStore();
+  const state = store.state(true);
+  state.events[0].campaign = {
+    kind: "tour",
+    round: 1,
+    advance: 17000,
+    secondRoundLink: "",
+  };
+  const app = {
+    ...state.applications[0],
+    quote: {
+      fee: 0,
+      original: 17000,
+      benefit: "선입금",
+      version: 1,
+      kind: "advance" as const,
+    },
+  };
+  render(
+    <ApplicationAdmin
+      app={app}
+      hub={{
+        state,
+        error: "",
+        status: "",
+        mutate: vi.fn(),
+        load: vi.fn(),
+        setError: vi.fn(),
+      }}
+    />,
+  );
+  expect(screen.queryByRole("button", { name: "무료 참가 승인" })).toBeNull();
+  expect(
+    screen.queryByLabelText("변경할 회비 (기존 금액·사유 보존)"),
+  ).toBeNull();
+});

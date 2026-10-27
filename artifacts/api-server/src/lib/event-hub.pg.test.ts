@@ -1966,6 +1966,26 @@ suite("event hub V6 — actual isolated PostgreSQL transactions", () => {
         kind: "advance",
       });
       expect((await app(id)).quote).not.toHaveProperty("finalSettlement");
+      await expect(
+        call(
+          "admin.application.reprice",
+          id,
+          {
+            fee: 0,
+            reason: "must not convert advance into a free final price",
+          },
+          (await app(id)).revision,
+          true,
+        ),
+      ).rejects.toMatchObject({ code: "ADVANCE_ONLY" });
+      await new HubStore(pool).transaction(async (tx) => {
+        const a = (await tx.get<HubApplication>("application", id))!;
+        a.quote!.fee = 0;
+        await tx.put("application", id, a);
+      });
+      await expect(
+        call("admin.application.free", id, {}, (await app(id)).revision, true),
+      ).rejects.toMatchObject({ code: "FREE" });
     });
     it("tour ten people receive exactly one random voucher and one loss each, with durable pool quantities", async () => {
       const tourNow = () => new Date("2026-11-06T14:00:00Z");

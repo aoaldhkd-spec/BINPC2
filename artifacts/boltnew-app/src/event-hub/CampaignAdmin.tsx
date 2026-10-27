@@ -203,7 +203,7 @@ export function CampaignApproval({
     hub.mutate({ action, target: app.id, revision: app.revision, data });
   return (
     <div className="space-y-2">
-      {app.quote?.fee === 0 && (
+      {event.campaign.kind !== "tour" && app.quote?.fee === 0 && (
         <HubButton
           disabled={
             !!app.waivedAt || paymentSatisfied(app) || hub.status === "saving"

@@ -1054,21 +1054,33 @@ export function ApplicationAdmin({
             >
               메모 저장
             </HubButton>
-            <HubField label="변경할 회비 (기존 금액·사유 보존)">
-              <input
-                className={inputClass}
-                type="number"
-                min={0}
-                value={fee}
-                onChange={(e) => setFee(e.target.value)}
-              />
-            </HubField>
-            <HubButton
-              disabled={!note.trim()}
-              onClick={() => act("reprice", { fee: Number(fee), reason: note })}
-            >
-              사유와 함께 회비 변경
-            </HubButton>
+            {hub.state?.events.find((e) => e.id === app.eventId)?.campaign
+              ?.kind !== "tour" ? (
+              <>
+                <HubField label="변경할 회비 (기존 금액·사유 보존)">
+                  <input
+                    className={inputClass}
+                    type="number"
+                    min={0}
+                    value={fee}
+                    onChange={(e) => setFee(e.target.value)}
+                  />
+                </HubField>
+                <HubButton
+                  disabled={!note.trim()}
+                  onClick={() =>
+                    act("reprice", { fee: Number(fee), reason: note })
+                  }
+                >
+                  사유와 함께 회비 변경
+                </HubButton>
+              </>
+            ) : (
+              <p className="text-sm">
+                전국투어의 최종 1/N·추가 납부·초과금은 운영자가 직접 안내합니다.
+                이 화면은 선입금과 확인 기록을 보존합니다.
+              </p>
+            )}
             <Audit rows={app.history} />
           </div>
         </details>

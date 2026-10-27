@@ -917,7 +917,7 @@ export class EventHubService {
         } else if (m.action === "application.report") {
           if (!a.confirmedAt)
             fail("STAGE", "먼저 금액을 확인하고 신청을 확정해 주세요.");
-          if (a.waivedAt)
+          if (a.waivedAt || (e.campaign && a.quote?.fee === 0))
             fail("FREE", "무료 참가 승인 상태입니다. 다시 송금하지 마세요.");
           if (a.payment !== "approved") {
             a.payment = "reported";
@@ -990,6 +990,7 @@ export class EventHubService {
           if (
             !a.confirmedAt ||
             !e.campaign ||
+            e.campaign.kind === "tour" ||
             a.quote?.fee !== 0 ||
             (a.benefitRank ?? a.rank) !== 1 ||
             a.benefitExcluded ||
@@ -1051,6 +1052,11 @@ export class EventHubService {
           text(m.data.reason, 1000);
         } else if (m.action === "admin.application.reprice") {
           requireAdmin();
+          if (e.campaign?.kind === "tour")
+            fail(
+              "ADVANCE_ONLY",
+              "전국투어는 최종 회비 변경·자동 정산을 하지 않습니다. 행사 선입금 설정과 운영자 수동 안내를 사용하세요.",
+            );
           if (!a.confirmedAt)
             fail("STAGE", "신청 확정 후에만 회비를 조정할 수 있습니다.");
           const reason = text(m.data.reason, 500);
