@@ -1,5 +1,5 @@
 {
-  "comparison": "Normal production Vite build, baseline688d9925 (same UI as530279a4) versus frozen50a5248c; original logo bytes retained",
+  "comparison": "Normal Vite production build baseline688d9925 (same UI as530279a4) versus source7b5558ae packaged atd36fbcc6; original logo bytes retained",
   "before": {
     "totalBytes": 8012167,
     "fileCount": 404,
@@ -42,43 +42,43 @@
     ]
   },
   "after": {
-    "totalBytes": 8025158,
+    "totalBytes": 8025151,
     "fileCount": 404,
     "logosBytes": 3204867,
     "entry": [
       {
-        "file": "index-BXRKRSvy.js",
+        "file": "index-BUoY97pg.js",
         "bytes": 348324,
-        "gzipBytes": 105358
+        "gzipBytes": 105360
       }
     ],
     "eventHub": [
       {
-        "file": "EventHubPage-DiPYdx6f.js",
+        "file": "EventHubPage-CXQ9Rm6e.js",
         "bytes": 46659,
-        "gzipBytes": 14665
+        "gzipBytes": 14668
       },
       {
-        "file": "EventHubAdmin-DTitc0ba.js",
-        "bytes": 75356,
-        "gzipBytes": 23676
+        "file": "EventHubAdmin-HfyGyMBG.js",
+        "bytes": 75349,
+        "gzipBytes": 23660
       }
     ],
     "administrator": [
       {
-        "file": "AdminInquiry-D3da-78j.js",
+        "file": "AdminInquiry-BxdnumiL.js",
         "bytes": 4895,
-        "gzipBytes": 2318
-      },
-      {
-        "file": "AdminApp-D2MeW69n.js",
-        "bytes": 63753,
-        "gzipBytes": 18223
+        "gzipBytes": 2320
       },
       {
         "file": "AdminQrTab-Bl3LPOmF.js",
         "bytes": 6706,
         "gzipBytes": 2375
+      },
+      {
+        "file": "AdminApp-B9uI-zyU.js",
+        "bytes": 63753,
+        "gzipBytes": 18221
       }
     ]
   },

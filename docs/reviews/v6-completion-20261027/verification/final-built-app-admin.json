@@ -1,0 +1,17 @@
+{
+  "sourceCheckpoint": "d36fbcc6eb0642bd6db703512551ed7a1341b611",
+  "codeSource": "7b5558aee69cf8e471d6c0c823f5988b926b50b3",
+  "codeFingerprint": "9796b778cc5226e8b2971ff085b1352263fbddd5a15dbff0b303dee5ebb8a35a",
+  "environment": "Compiled React production build through loopback Vite preview3004, same real Express8125/isolated PostgreSQL browser fixture; regular admin RPC authentication; external requests blocked",
+  "result": "PASS",
+  "cases": 1,
+  "durationSeconds": 5.4,
+  "scope": "actual administrator verification history reflects imported current/past CI results; immutable logo upload/select/restore and original byte comparison",
+  "physicalDevices": "UNKNOWN",
+  "harnessFailuresPreserved": [
+    "Existing occupied3001 caused wrong fixture login; direct8125 normal login succeeded.",
+    "Express development API serves no SPA(404); used compiled React through loopback preview, keeping exact local-target protection."
+  ],
+  "newPublicOrPaidService": false,
+  "checkedAt": "2026-10-27T18:37:04.007978+00:00"
+}

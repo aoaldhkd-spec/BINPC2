@@ -28,7 +28,7 @@ ZIP에는 최신 보고서·대조표·반영 준비서·Cursor 인계·이전 �
 | 프로필 API 일시 실패 복귀 | [기존 앱 유지](screenshots/mobile-profile-resume-api-unavailable.png). 실제 하트/채팅/PIN 보존은 assertion으로 검사, 화면 한 장만으로 입증하지 않음. |
 | 관리자 실제 검사 이력/로고 복원 | [검사 이력](screenshots/admin-verification-real-history.png), [로고 원본/복원](screenshots/admin-logo-original-restore.png) |
 
-참가자 캡처는 내부 Chromium의 실제 앱+DB다. 원래 통과한 단계/실패 기록은 삭제하지 않는다. 물리 Galaxy/iPhone 통과 자료는 아니다. 원본8종/경로/추적표/체크섬은 [기존 자산 정본](../../assets/tour-logos-v3/ACTUAL_ASSET_PATHS.json)에 보존하며 새 임의 로고를 만들지 않았다.
+관리자 두 캡처는 최종 컴파일된 React·같은 Express/격리PG의5.4초 재검사 결과다([실행 범위](verification/final-built-app-admin.json)). 참가자 캡처는 내부 Chromium의 실제 앱+DB다. 원래 통과한 단계/실패 기록은 삭제하지 않는다. 물리 Galaxy/iPhone 통과 자료는 아니다. 원본8종/경로/추적표/체크섬은 [기존 자산 정본](../../assets/tour-logos-v3/ACTUAL_ASSET_PATHS.json)에 보존하며 새 임의 로고를 만들지 않았다.
 
 ## 사용자가 결정할 것
 
