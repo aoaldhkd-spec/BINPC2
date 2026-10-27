@@ -128,6 +128,14 @@ export class HubTx {
       )
     ).rows.map((r) => this.decode<T>("application", r.id, r.data));
   }
+  /** Uses the existing unique recovery-hash index before decrypting a single owner. */
+  async ownerForRecoveryHash<T>(hash: string): Promise<T | undefined> {
+    const row = (await this.db.query(
+      "SELECT id,data FROM event_hub_records WHERE kind='owner' AND data->>'recoveryHash'=$1",
+      [hash],
+    )).rows[0];
+    return row ? this.decode<T>("owner", row.id, row.data) : undefined;
+  }
   async put(kind: string, id: string, data: unknown) {
     await this.db.query(
       "INSERT INTO event_hub_records(kind,id,data) VALUES($1,$2,$3) ON CONFLICT(kind,id) DO UPDATE SET data=EXCLUDED.data,updated_at=now()",

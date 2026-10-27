@@ -6,7 +6,7 @@ import { readFileSync } from "node:fs";
 import { randomBytes, randomUUID } from "node:crypto";
 import { EventHubService } from "./event-hub-service.js";
 import { atomicEventReset } from "./db-event-reset-transaction.js";
-import { HubStore } from "./event-hub-store.js";
+import { HubStore, digest } from "./event-hub-store.js";
 import {
   executePrivacyPlanForIsolatedTest,
   planPrivacy,
@@ -218,6 +218,17 @@ suite("event hub V6 — actual isolated PostgreSQL transactions", () => {
     const mine = await service.state(owner);
     expect(mine.applications.map((v) => v.id)).toEqual([id]);
     await expect(service.state(owner, true)).rejects.toThrow();
+  });
+  it("indexed recovery keeps authentication tied to the encrypted owner and skips unrelated ciphertext", async () => {
+    const code = randomBytes(32).toString("base64url");
+    const id = await service.session(code, true);
+    const otherCode = randomBytes(32).toString("base64url");
+    const otherId = await service.session(otherCode, true);
+    await pool.query("UPDATE event_hub_records SET data=jsonb_set(data,'{crypto_box,tag}',$1::jsonb) WHERE kind='owner' AND id=$2", [JSON.stringify("broken"), otherId]);
+    expect(await service.session(code, false)).toBe(id);
+    const stolenCode = randomBytes(32).toString("base64url");
+    await pool.query("UPDATE event_hub_records SET data=jsonb_set(data,'{recoveryHash}',$1::jsonb) WHERE kind='owner' AND id=$2", [JSON.stringify(digest(stolenCode)), id]);
+    await expect(service.session(stolenCode, false)).rejects.toMatchObject({code:"RECOVERY",status:401});
   });
   for (const [date,startDate] of [["2026-10-30","2026-10-28"],["2026-10-31","2026-10-29"]]) {
     it(`scheduled ${date} opens exactly at 20:00 once, survives restart and stays manually paused`,async()=>{

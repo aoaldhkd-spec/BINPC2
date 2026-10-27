@@ -260,9 +260,11 @@ export class EventHubService {
     if (!/^[A-Za-z0-9_-]{43,100}$/.test(code))
       fail("RECOVERY", "개인 복구코드를 확인해 주세요.", 401);
     return this.store.transaction(async (tx) => {
-      const owner = (await tx.all<HubOwner>("owner")).find(
-        (o) => o.recoveryHash === digest(code),
-      );
+      const hash = digest(code);
+      const owner = await tx.ownerForRecoveryHash<HubOwner>(hash);
+      // Routing metadata is not authentication: verify the encrypted payload too.
+      if (owner && owner.recoveryHash !== hash)
+        fail("RECOVERY", "복구코드가 일치하지 않습니다.", 401);
       if (owner && !owner.erasedAt) return owner.id;
       if (owner?.erasedAt) fail("RECOVERY", "삭제 처리된 복구수단입니다.", 401);
       if (!create) fail("RECOVERY", "복구코드가 일치하지 않습니다.", 401);
