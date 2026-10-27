@@ -36,6 +36,91 @@ describe('mergeDbRowsIntoMemory', () => {
     mergeDbRowsIntoMemory(mem, [{ id: 'a', updated_at: '2026-01-01T00:00:00.000Z', v: 1 }]);
     expect(mem[0]).toMatchObject({ v: 2 });
   });
+
+  it('keeps legacy first-slot replacement and last-row freshness with duplicate IDs', () => {
+    const mem: Record<string, unknown>[] = [
+      { id: 'same', updated_at: '2026-01-01T00:00:00.000Z', note: 'first' },
+      { id: 'same', updated_at: '2026-01-03T00:00:00.000Z', note: 'last' },
+    ];
+    mergeDbRowsIntoMemory(mem, [
+      { id: 'same', updated_at: '2026-01-02T00:00:00.000Z', note: 'stale-to-last' },
+      { id: 'same', updated_at: '2026-01-04T00:00:00.000Z', note: 'fresh' },
+    ]);
+    expect(mem).toHaveLength(2);
+    expect(mem[0]).toMatchObject({ note: 'fresh' });
+    expect(mem[1]).toMatchObject({ note: 'last' });
+  });
+
+
+  it('matches the old merge rules for 500 seeded legacy-merge snapshots', () => {
+    function legacyMerge(mem: Record<string, unknown>[], db: Record<string, unknown>[]) {
+      const byId = new Map(mem.map(r => [String(r.id), r]));
+      for (const data of db) {
+        const id = String(data.id ?? '');
+        if (!id) continue;
+        const old = byId.get(id);
+        const dbTs = String(data.updated_at ?? data.created_at ?? '');
+        const memTs = old ? String(old.updated_at ?? old.created_at ?? '') : '';
+        if (!old) {
+          mem.push(data);
+          byId.set(id, data);
+        } else if (dbTs >= memTs) {
+          const idx = mem.findIndex(r => String(r.id) === id);
+          if (idx >= 0) mem[idx] = data;
+          byId.set(id, data);
+        }
+      }
+    }
+    for (let seed = 1; seed <= 500; seed++) {
+      let state = Math.imul(seed, 2137157) >>> 0;
+      const next = () => {
+        state = (Math.imul(state, 1664525) + 1013904223) >>> 0;
+        return state;
+      };
+      const n = next() % 30;
+      const m = next() % 40;
+      const choices: unknown[] = [undefined, null, '', 'x', 'y', 'z',
+        ...Array.from({ length: 8 }, (_, i) => 'id-' + i)];
+      const make = (i: number): Record<string, unknown> => ({
+        id: choices[next() % choices.length],
+        updated_at: next() % 4 === 0 ? null : (2020 + next() % 7) + '-01-01',
+        created_at: (2018 + next() % 9) + '-01-01',
+        marker: i,
+      });
+      const input = Array.from({ length: n }, (_, i) => make(i));
+      const changes = Array.from({ length: m }, (_, i) => make(100 + i));
+      const actual = input.map(x => ({ ...x }));
+      const expected = input.map(x => ({ ...x }));
+      mergeDbRowsIntoMemory(actual, changes);
+      legacyMerge(expected, changes);
+      expect(actual, 'legacy parity seed ' + seed).toEqual(expected);
+    }
+  });
+
+  it('uses bounded ID lookups for 600 updated rows instead of rescanning the memory list', () => {
+    const count = 600;
+    let initialRowIdReads = 0;
+    const mem: Record<string, unknown>[] = Array.from({ length: count }, (_, i) => {
+      const row: Record<string, unknown> = { updated_at: '2026-01-01T00:00:00.000Z' };
+      Object.defineProperty(row, 'id', {
+        enumerable: true,
+        get: () => {
+          initialRowIdReads++;
+          return `user-${i}`;
+        },
+      });
+      return row;
+    });
+    const db: Record<string, unknown>[] = Array.from({ length: count }, (_, i) => ({
+      id: `user-${i}`, updated_at: '2026-01-02T00:00:00.000Z', note: 'merged',
+    }));
+    mergeDbRowsIntoMemory(mem, db);
+    expect(mem).toHaveLength(count);
+    expect(mem[0]).toMatchObject({ id: 'user-0', note: 'merged' });
+    expect(mem[count - 1]).toMatchObject({ id: 'user-599', note: 'merged' });
+    // Deterministic work bound, not a timing-based/flaky benchmark.
+    expect(initialRowIdReads).toBeLessThan(count * 5);
+  });
 });
 
 describe('shouldBroadcastBulkResync', () => {

@@ -14,6 +14,19 @@ describe('settingsReadyPollGapMs', () => {
 });
 
 describe('shouldRunSettingsReadyPoll', () => {
+  it('does not start a second settings poll while the first request is pending', () => {
+    expect(shouldRunSettingsReadyPoll({
+      now: 100_000, lastReadyAt: 0, sseHealthy: false, inFlight: true,
+    })).toBe(false);
+    expect(shouldRunSettingsReadyPoll({
+      now: 100_000, lastReadyAt: 0, sseHealthy: true, inFlight: true,
+    })).toBe(false);
+    // After success, timeout, or fetch rejection, the caller releases the flag.
+    expect(shouldRunSettingsReadyPoll({
+      now: 100_000, lastReadyAt: 0, sseHealthy: false, inFlight: false,
+    })).toBe(true);
+  });
+
   it('respects gap', () => {
     expect(shouldRunSettingsReadyPoll({
       now: 14_000,
