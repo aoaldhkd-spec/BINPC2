@@ -200,6 +200,25 @@ suite("event hub V6 — actual isolated PostgreSQL transactions", () => {
     await call("event.recruitment", eventId, { enabled: true }, 1, true);
   });
   afterAll(() => pool.end());
+  it("routes participant reads before decrypting unrelated owners while retaining payload ownership checks", async () => {
+    const id = await create();
+    const a = await app(id);
+    await new HubStore(pool).transaction(async (tx) => {
+      await tx.put("application", "zz-unrelated-owner", {
+        ...a,
+        id: "zz-unrelated-owner",
+        rank: 2,
+        owner: "another-private-owner",
+      });
+    });
+    await pool.query(
+      "UPDATE event_hub_records SET data=jsonb_set(data,'{crypto_box,tag}',$1::jsonb) WHERE kind='application' AND id='zz-unrelated-owner'",
+      [JSON.stringify("broken")],
+    );
+    const mine = await service.state(owner);
+    expect(mine.applications.map((v) => v.id)).toEqual([id]);
+    await expect(service.state(owner, true)).rejects.toThrow();
+  });
   it("blocks all ledger writes under a replaced key and recovers unchanged approved records with the original key", async () => {
     const id = await create();
     await call("application.consent", id, { consent }, 1);

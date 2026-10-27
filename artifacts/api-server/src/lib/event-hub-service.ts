@@ -330,9 +330,11 @@ export class EventHubService {
         (await tx.get<HubSettings>("settings", "global")) ??
         DEFAULT_HUB_SETTINGS;
       const events = await tx.all<HubEvent>("event");
-      const apps = (await tx.all<HubApplication>("application")).filter(
-        (a) => admin || a.owner === owner,
-      );
+      const apps = (
+        admin
+          ? await tx.all<HubApplication>("application")
+          : await tx.applicationsForOwner<HubApplication>(owner ?? "")
+      ).filter((a) => admin || a.owner === owner);
       const safeEvents: HubEventView[] = admin
         ? events
         : events

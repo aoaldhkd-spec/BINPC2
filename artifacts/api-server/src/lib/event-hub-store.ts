@@ -116,6 +116,18 @@ export class HubTx {
       )
     ).rows.map((r) => this.decode<T>(kind, r.id, r.data));
   }
+  /** Owner routing metadata is already stored beside encrypted application data.
+   * Filter before decrypting so one participant does not load every other application.
+   * The caller still checks authenticated payload ownership after decoding.
+   */
+  async applicationsForOwner<T>(owner: string): Promise<T[]> {
+    return (
+      await this.db.query(
+        "SELECT id,data FROM event_hub_records WHERE kind='application' AND data->>'owner'=$1 ORDER BY id",
+        [owner],
+      )
+    ).rows.map((r) => this.decode<T>("application", r.id, r.data));
+  }
   async put(kind: string, id: string, data: unknown) {
     await this.db.query(
       "INSERT INTO event_hub_records(kind,id,data) VALUES($1,$2,$3) ON CONFLICT(kind,id) DO UPDATE SET data=EXCLUDED.data,updated_at=now()",
