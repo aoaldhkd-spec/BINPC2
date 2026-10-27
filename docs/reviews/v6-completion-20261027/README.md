@@ -14,7 +14,7 @@
 
 ## 들어 있는 것과 버전 읽기
 
-기존 완료 기능/실패/보고서를 보존한다. 새 기능 소스는7b5558ae, 실제 API/DB15분 고정본은79eba69c다. 두 소스의 API tree는 동일하고 최종 차이는 관리자 정책 안내 문구뿐이다. 검증 이력은 이 둘을 서로 다른 전체 코드 지문으로 표시한다. 보고서/ZIP만 추가하는 커밋은 소스 지문이 같을 때만 같은 코드로 설명한다. 최종 원격 HEAD는 브랜치와 `verification/storage-public.json`을 함께 확인한다.
+기존 완료 기능/실패/보고서를 보존한다. 새 기능 소스는7b5558ae, 실제 API/DB15분 고정본은79eba69c다. 두 소스의 API tree는 동일하고 최종 차이는 관리자 정책 안내 문구뿐이다. 검증 이력은 이 둘을 서로 다른 전체 코드 지문으로 표시한다. 보고서/ZIP만 추가하는 커밋은 소스 지문이 같을 때만 같은 코드로 설명한다. 최종 원격 HEAD는 브랜치에서 확인하고, ZIP 복구 기준 소스는 `verification/storage-public.json`을 확인한다.
 
 ZIP에는 최신 보고서·대조표·반영 준비서·Cursor 인계·이전 주요 보고서, 검증 JSON과 아래 합성 캡처,530279a4를 전제로 복구하는 `BINPC2-V6-completion-incremental.bundle`이 들어 있다. 기존 checkout을 덮어쓰지 않고 Cursor가 Git 상태부터 확인한다. 전체 Git bundle과 기존 복구본은 로컬에 별도 보존한다. Git bundle은 DB/비공개 키 백업이 아니며 시험 DB나 `.local`/env/회복코드/cookie/DBdump는 이 ZIP에 없다.
 

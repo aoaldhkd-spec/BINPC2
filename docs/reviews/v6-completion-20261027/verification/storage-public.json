@@ -1,0 +1,14 @@
+{
+  "schemaVersion": 1,
+  "archiveSourceCheckpoint": "d4cbb31bfc2a52bde353121bffbe3a668a4f559b",
+  "validatedCodeSource": "7b5558aee69cf8e471d6c0c823f5988b926b50b3",
+  "codeFingerprint": "9796b778cc5226e8b2971ff085b1352263fbddd5a15dbff0b303dee5ebb8a35a",
+  "branch": "feat/event-hub-v6-20261027",
+  "incrementalPrerequisite": "530279a4c712711f61adff8a160360e65b5e4df5",
+  "incrementalBundle": "BINPC2-V6-completion-incremental.bundle",
+  "incrementalBundleBytes": 3030370,
+  "incrementalBundleSha256": "9abae02c609c0a5b88d32242dba103537833efe92894fe4de640443c7c95a298",
+  "packedAt": "2026-10-27T18:38:15.522641+00:00",
+  "containsPrivateEnvSessionsDbDumpOrHtmlDemo": false,
+  "note": "Source checkpoint is before packaging-only commits. Final remote HEAD is verified after push; it is not self-embedded in its own archive. Full Git bundle remains local; source backup is not DB/key backup."
+}
