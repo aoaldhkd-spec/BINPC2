@@ -15,3 +15,10 @@ CREATE UNIQUE INDEX IF NOT EXISTS event_hub_recovery ON event_hub_records
   ((data->>'recoveryHash')) WHERE kind='owner';
 CREATE UNIQUE INDEX IF NOT EXISTS event_hub_member_name ON event_hub_records
   ((data->>'nicknameKey')) WHERE kind='member';
+
+-- Private keyed lookup metadata; no plaintext nickname/phone index.
+CREATE INDEX IF NOT EXISTS event_hub_application_nickname ON event_hub_records ((data->>'nicknameLookup')) WHERE kind='application';
+CREATE INDEX IF NOT EXISTS event_hub_member_owner ON event_hub_records ((data->>'owner')) WHERE kind='member';
+CREATE INDEX IF NOT EXISTS event_hub_legacy_nickname ON event_hub_records (kind,id) WHERE kind IN ('application','member') AND NOT(data ? 'nicknameLookup');
+CREATE INDEX IF NOT EXISTS event_hub_legacy_member_owner ON event_hub_records (id) WHERE kind='member' AND NOT(data ? 'owner');
+CREATE INDEX IF NOT EXISTS event_hub_member_nickname_lookup ON event_hub_records ((data->>'nicknameLookup')) WHERE kind='member';

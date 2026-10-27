@@ -147,6 +147,10 @@ for (let n = count; n < 5000; n += 250) {
     [JSON.stringify(rows)],
   );
 }
+if(mode==='mixed'){
+ const prep=execFileSync(process.execPath,[apiDir+'/dist/event-hub-lookup-cli.mjs','--scope','isolated','--apply'],{cwd:apiDir,env:{PATH:process.env.PATH,...cfg,NODE_ENV:'development'},encoding:'utf8'}).trim();
+ await writeFile(out+'/lookup-preparation-public.json',prep+'\n');
+}
 const before = Number(
     (await pool.query("SELECT count(*) n FROM event_hub_records")).rows[0].n,
   ),

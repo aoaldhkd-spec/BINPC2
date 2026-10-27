@@ -62,7 +62,7 @@ jobs:
       - name: Current documentation checks
         run: pnpm run verify:records
       - name: Production-entry guards and redaction
-        run: node --test scripts/test/production-entry-guards.test.mjs scripts/test/ops-client.test.mjs
+        run: node --test scripts/test/production-entry-guards.test.mjs scripts/test/ops-client.test.mjs scripts/test/code-fingerprint.test.mjs scripts/test/event-hub-lookup-cli.test.mjs
       - name: Actual PostgreSQL invariants and existing reset safety
         run: pnpm --filter @workspace/api-server exec vitest run src/lib/event-hub.pg.test.ts src/lib/db-event-reset-transaction.pg.test.ts
       - run: pnpm --filter @workspace/boltnew-app exec playwright install --with-deps chromium

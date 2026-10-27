@@ -281,6 +281,29 @@ suite("event hub V6 — actual isolated PostgreSQL transactions", () => {
       await expect(call("event.recruitment",eventId,{enabled:true},3,true)).rejects.toMatchObject({code:"PRIVACY_POLICY_UNCONFIRMED"});
     }finally{process.env.NODE_ENV=saved;delete process.env.EVENT_HUB_PRODUCTION_RELEASE;delete process.env.EVENT_HUB_RELEASE_POLICY_SHA256;}
   });
+  it("keyed nickname lookup preserves legacy checks and metadata preparation never changes ciphertext or business state",async()=>{
+    const id=await create("중복검사");
+    await pool.query("UPDATE event_hub_records SET data=data-'nicknameLookup' WHERE kind='application' AND id=$1",[id]);
+    const old=(await pool.query("SELECT data,updated_at FROM event_hub_records WHERE kind='application' AND id=$1",[id])).rows[0];
+    const other=await service.session(randomBytes(32).toString("base64url"),true);
+    await expect(call("application.basic","",{eventId,basic:basic("중복검사")},undefined,false,other)).rejects.toMatchObject({code:"NICKNAME"});
+    const store=new HubStore(pool);expect(await store.transaction(tx=>tx.prepareLookupMetadata())).toBe(1);
+    const current=(await pool.query("SELECT data,updated_at FROM event_hub_records WHERE kind='application' AND id=$1",[id])).rows[0];
+    expect(current.data.crypto_box).toEqual(old.data.crypto_box);expect(current.updated_at).toEqual(old.updated_at);expect(current.data.nicknameLookup).toHaveLength(64);expect(current.data.nicknameLookup).not.toContain("중복검사");
+    expect(await store.transaction(tx=>tx.prepareLookupMetadata())).toBe(0);
+    await expect(call("application.basic","",{eventId,basic:basic("중복검사")},undefined,false,other)).rejects.toMatchObject({code:"NICKNAME"});
+    const own=await call("application.basic","",{eventId,basic:basic("중복검사")});expect(own.id).toBe(id);
+    expect(await store.transaction(tx=>tx.nicknameCandidates<HubApplication>("application","중복검사"))).toHaveLength(1);
+  });
+  it("legacy unencrypted member names keep duplicate protection and remain unchanged by lookup preparation",async()=>{
+    const id=randomUUID(),legacy={id,owner:randomUUID(),nicknameKey:"이전회원",basic:basic("이전회원"),profile:{lastStep:1},marketing:false,salt:"isolated",passwordHash:"0".repeat(128),nicknameChanges:0,history:[]};
+    await pool.query("INSERT INTO event_hub_records(kind,id,data) VALUES('member',$1,$2)",[id,JSON.stringify(legacy)]);
+    await expect(create("이전회원")).rejects.toMatchObject({code:"NICKNAME"});
+    expect(await new HubStore(pool).transaction(tx=>tx.prepareLookupMetadata())).toBe(1);
+    const row=(await pool.query("SELECT data FROM event_hub_records WHERE kind='member' AND id=$1",[id])).rows[0].data;
+    const {nicknameLookup,...unchanged}=row;expect(nicknameLookup).toHaveLength(64);expect(unchanged).toEqual(legacy);
+    await expect(create("이전회원")).rejects.toMatchObject({code:"NICKNAME"});
+  });
   for (const [date,startDate] of [["2026-10-30","2026-10-28"],["2026-10-31","2026-10-29"]]) {
     it(`scheduled ${date} opens exactly at 20:00 once, survives restart and stays manually paused`,async()=>{
       let time=new Date(startDate+"T19:59:59+09:00");

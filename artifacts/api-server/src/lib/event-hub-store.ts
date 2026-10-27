@@ -21,6 +21,8 @@ export class HubError extends Error {
 export function fail(code: string, message: string, status = 400): never {
   throw new HubError(status, code, message);
 }
+export const normalizeHubNickname = (s: string) =>
+  s.normalize("NFKC").toLocaleLowerCase("ko-KR").trim();
 export class HubTx {
   constructor(
     readonly db: PoolClient,
@@ -39,11 +41,22 @@ export class HubTx {
     return {
       id,
       ...(kind === "application"
-        ? { eventId: data.eventId, owner: data.owner, rank: data.rank }
+        ? {
+            eventId: data.eventId,
+            owner: data.owner,
+            rank: data.rank,
+            nicknameLookup: this.nicknameHash(
+              normalizeHubNickname(
+                String((data.basic as { nickname?: string })?.nickname ?? ""),
+              ),
+            ),
+          }
         : {}),
       ...(kind === "owner" ? { recoveryHash: data.recoveryHash } : {}),
       ...(kind === "member"
         ? {
+            owner: data.owner,
+            nicknameLookup: this.nicknameHash(String(data.nicknameKey)),
             nicknameKey: createHmac("sha256", this.key)
               .update(String(data.nicknameKey))
               .digest("hex"),
@@ -130,11 +143,73 @@ export class HubTx {
   }
   /** Uses the existing unique recovery-hash index before decrypting a single owner. */
   async ownerForRecoveryHash<T>(hash: string): Promise<T | undefined> {
-    const row = (await this.db.query(
-      "SELECT id,data FROM event_hub_records WHERE kind='owner' AND data->>'recoveryHash'=$1",
-      [hash],
-    )).rows[0];
+    const row = (
+      await this.db.query(
+        "SELECT id,data FROM event_hub_records WHERE kind='owner' AND data->>'recoveryHash'=$1",
+        [hash],
+      )
+    ).rows[0];
     return row ? this.decode<T>("owner", row.id, row.data) : undefined;
+  }
+  private nicknameHash(normalized: string) {
+    return createHmac("sha256", this.key).update(normalized).digest("hex");
+  }
+  async nicknameCandidates<T>(
+    kind: "application" | "member",
+    normalized: string,
+  ): Promise<T[]> {
+    const rows = (
+      await this.db.query(
+        "SELECT id,data FROM event_hub_records WHERE kind=$1 AND data->>'nicknameLookup'=$2 UNION ALL SELECT id,data FROM event_hub_records WHERE kind=$1 AND NOT(data ? 'nicknameLookup')",
+        [kind, this.nicknameHash(normalized)],
+      )
+    ).rows;
+    return rows.map((r) => this.decode<T>(kind, r.id, r.data));
+  }
+  async membersForOwner<T>(owner: string): Promise<T[]> {
+    const rows = (
+      await this.db.query(
+        "SELECT id,data FROM event_hub_records WHERE kind='member' AND data->>'owner'=$1 UNION ALL SELECT id,data FROM event_hub_records WHERE kind='member' AND NOT(data ? 'owner')",
+        [owner],
+      )
+    ).rows;
+    return rows.map((r) => this.decode<T>("member", r.id, r.data));
+  }
+  /** Offline, explicitly approved preparation only. Ciphertext, business revisions and timestamps stay byte-identical. */
+  async prepareLookupMetadata(limit = 200): Promise<number> {
+    const rows = (
+      await this.db.query(
+        "SELECT kind,id,data FROM event_hub_records WHERE (kind='application' AND NOT(data ? 'nicknameLookup')) OR (kind='member' AND (NOT(data ? 'owner') OR NOT(data ? 'nicknameLookup'))) ORDER BY kind,id LIMIT $1 FOR UPDATE",
+        [Math.min(200, Math.max(1, limit))],
+      )
+    ).rows;
+    for (const r of rows) {
+      const v = this.decode<Record<string, unknown>>(r.kind, r.id, r.data);
+      if (v.id !== r.id || typeof v.owner !== "string" || !v.owner)
+        fail(
+          "LOOKUP_METADATA_INTEGRITY",
+          "원장 식별자를 먼저 확인하세요.",
+          409,
+        );
+      const metadata =
+        r.kind === "application"
+          ? {
+              nicknameLookup: this.nicknameHash(
+                normalizeHubNickname(
+                  String((v.basic as { nickname?: string })?.nickname ?? ""),
+                ),
+              ),
+            }
+          : {
+              owner: v.owner,
+              nicknameLookup: this.nicknameHash(String(v.nicknameKey)),
+            };
+      await this.db.query(
+        "UPDATE event_hub_records SET data=data||$1::jsonb WHERE kind=$2 AND id=$3",
+        [JSON.stringify(metadata), r.kind, r.id],
+      );
+    }
+    return rows.length;
   }
   async put(kind: string, id: string, data: unknown) {
     await this.db.query(

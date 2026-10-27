@@ -56,7 +56,7 @@ import {
   type HubMedia,
 } from "./event-hub-media.js";
 import { planPrivacy } from "./event-hub-privacy.js";
-import { HubStore, HubTx, fail, digest } from "./event-hub-store.js";
+import { HubStore, HubTx, fail, digest, normalizeHubNickname } from "./event-hub-store.js";
 import { eventCycleMilestones } from "./db-event-cycle-heart.js";
 import { parseModuleFlags } from "./db-module-flags.js";
 import { newParticipantAdmissionReject } from "./db-event-admission.js";
@@ -180,8 +180,7 @@ const Mutation = z.object({
 });
 const text = (v: unknown, max = 100) =>
   z.string().trim().min(1).max(max).parse(v);
-const nickKey = (s: string) =>
-  s.normalize("NFKC").toLocaleLowerCase("ko-KR").trim();
+const nickKey = normalizeHubNickname;
 const audit = (
   actor: string,
   action: string,
@@ -788,10 +787,8 @@ export class EventHubService {
           /관리자|범일NPC|admin|운영자/i.test(basic.nickname)
         )
           fail("NICKNAME", "사용할 수 없는 닉네임입니다.");
-        const apps = await tx.all<HubApplication>("application");
-        const member = (await tx.all<HubMember>("member")).find(
-          (v) => v.owner === owner,
-        );
+        const apps = (await tx.applicationsForOwner<HubApplication>(owner)).filter(a=>a.owner===owner);
+        const member = (await tx.membersForOwner<HubMember>(owner)).find(v=>v.owner===owner);
         if (
           member &&
           member.nicknameKey !== nickKey(basic.nickname) &&
@@ -806,9 +803,10 @@ export class EventHubService {
         if (old && m.data.edit !== true) {
           result.id = old.id;
         } else {
-          const members = await tx.all<HubMember>("member");
+          const candidates=await tx.nicknameCandidates<HubApplication>("application",nickKey(basic.nickname));
+          const members = await tx.nicknameCandidates<HubMember>("member",nickKey(basic.nickname));
           if (
-            apps.some(
+            candidates.some(
               (a) =>
                 a.owner !== owner &&
                 nickKey(a.basic.nickname) === nickKey(basic.nickname),
@@ -1549,7 +1547,7 @@ export class EventHubService {
         m.action === "member.marketing" ||
         m.action === "marketing.preference"
       ) {
-        const member = (await tx.all<HubMember>("member")).find(
+        const member = (await tx.membersForOwner<HubMember>(owner)).find(
           (v) => v.owner === owner,
         );
         if (!member && m.action === "member.withdraw")
