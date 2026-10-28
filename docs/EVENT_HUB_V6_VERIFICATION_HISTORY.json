@@ -1164,6 +1164,65 @@
           "reason": "실기기 검사 이력 없음. Chromium을 실기기 성적으로 바꾸지 않음."
         }
       ]
+    },
+    {
+      "id": "local-admission-gate-20261029",
+      "sourceVersion": "1c85fc6b2d9fb50456a593b665bf76afe582dbad",
+      "codeFingerprint": "ebfdca7014e4cbf02c5891e96722dbd0372366f9803a33f4d0f3bc376249c4e1",
+      "environment": "Codex · 실제 React/Express/PostgreSQL16/Chromium · loopback-only synthetic fixture",
+      "startedAt": "2026-10-28T20:19:19Z",
+      "finishedAt": "2026-10-28T20:24:56.357825Z",
+      "reportUrl": "https://github.com/aoaldhkd-spec/BINPC2/blob/feat/event-hub-v6-20261027/docs/DEPLOYMENT_RESULT_2026-10-29.md",
+      "checks": [
+        {
+          "id": "build",
+          "title": "최종 API·React 빌드/타입 검사",
+          "kind": "build",
+          "status": "PASS"
+        },
+        {
+          "id": "unit",
+          "title": "API561·UI895 단위 회귀",
+          "kind": "unit",
+          "status": "PASS",
+          "count": 1456
+        },
+        {
+          "id": "postgres",
+          "title": "실제 PostgreSQL: 별도 오픈·정책 변경·운영 기록 보존",
+          "kind": "postgres",
+          "status": "PASS",
+          "count": 99
+        },
+        {
+          "id": "browser",
+          "title": "실제 앱: OFF 차단·명시적 오픈·다시 중지와 기존 회귀",
+          "kind": "browser",
+          "status": "PASS",
+          "count": 17
+        },
+        {
+          "id": "guard",
+          "title": "기존 기능 보호검사",
+          "kind": "guard",
+          "status": "PASS",
+          "count": 598
+        },
+        {
+          "id": "mixed",
+          "title": "새 코드의 150명 혼합 검사",
+          "kind": "mixed-http-postgres",
+          "status": "NOT_RUN",
+          "reason": "이번 로컬에서 중복 실행하지 않음. 새 GitHub CI40763157788 결과는 별도 확인해야 함."
+        },
+        {
+          "id": "physical",
+          "title": "물리 Galaxy/iPhone",
+          "kind": "physical-device",
+          "status": "UNKNOWN",
+          "reason": "실물 기기 검사 아님. Chromium 통과를 실기기 결과로 바꾸지 않음."
+        }
+      ]
     }
   ]
 }

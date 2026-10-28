@@ -1,0 +1,84 @@
+{
+  "checkedAtUtc": "2026-10-28T20:09:17.684803+00:00",
+  "processCredentialPresence": {
+    "NETLIFY_AUTH_TOKEN": false,
+    "RENDER_API_KEY": false
+  },
+  "probes": [
+    {
+      "name": "frontend",
+      "url": "https://binpc2.netlify.app/",
+      "method": "GET",
+      "explicitProcessCredential": false,
+      "status": null,
+      "phase": "proxy_connect",
+      "safeError": "Tunnel connection failed: 403 Forbidden"
+    },
+    {
+      "name": "render_health",
+      "url": "https://binpc2.onrender.com/api/healthz",
+      "method": "GET",
+      "explicitProcessCredential": false,
+      "status": null,
+      "phase": "proxy_connect",
+      "safeError": "Tunnel connection failed: 403 Forbidden"
+    },
+    {
+      "name": "netlify_site",
+      "url": "https://api.netlify.com/api/v1/sites/binpc2.netlify.app",
+      "method": "GET",
+      "explicitProcessCredential": false,
+      "status": null,
+      "phase": "proxy_connect",
+      "safeError": "Tunnel connection failed: 403 Forbidden"
+    },
+    {
+      "name": "render_services",
+      "url": "https://api.render.com/v1/services?limit=100",
+      "method": "GET",
+      "explicitProcessCredential": false,
+      "status": null,
+      "phase": "proxy_connect",
+      "safeError": "Tunnel connection failed: 403 Forbidden"
+    }
+  ],
+  "deploymentExecuted": false,
+  "productionDataModified": false,
+  "checkedAtKst": "2026-10-29T05:09:17.684803+09:00",
+  "startingLocalAndRemoteHead": "ac6d66285c1d0344fb42637d5c7f32b20907c2cf",
+  "previousVerifiedSource": "173f61f06c46f682b77dcd7633a304608d68d153",
+  "mainUnchanged": "b06a900280404f79c92e17cdbc6af907a0414c30",
+  "draftMetadata": {
+    "revision": 3,
+    "configuredCustomHosts": [
+      "api.github.com",
+      "api.netlify.com",
+      "api.render.com",
+      "binpc2.netlify.app",
+      "binpc2.onrender.com"
+    ],
+    "savedBindings": {
+      "NETLIFY_AUTH_TOKEN": false,
+      "RENDER_API_KEY": false
+    },
+    "publishedOrAppliedToCurrentRuntime": "UNKNOWN"
+  },
+  "authorization": {
+    "existingSiteDeployment": true,
+    "newServices": false,
+    "actualRecruitment": false,
+    "externalNotifications": false,
+    "secretRotation": false
+  },
+  "productionBackupVerified": false,
+  "productionUploadBackupVerified": false,
+  "matchingSessionKeyRestoreVerified": false,
+  "productionIsolatedRestoreVerified": false,
+  "frontendDeployId": null,
+  "backendDeployId": null,
+  "blocker": "Current Codex egress proxy denies CONNECT before Netlify/Render origin TLS/HTTP; provider authentication could not be tested. Existing deployment authorization is present.",
+  "requiredConnectionAction": "Apply the configured provider/live-site network rules to this active environment and connect the existing Netlify/Render credentials through secure environment settings. No secret values in chat or source.",
+  "providerProbesStoppedAtUserRequest": true,
+  "retryCondition": "Only after evidence of newly applied configuration or reconnected execution environment; no unchanged CONNECT 403 retry.",
+  "runningEnvironmentConfigurationVersion": "UNKNOWN; no runtime configuration-version introspection tool available"
+}

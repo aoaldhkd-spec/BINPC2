@@ -1,0 +1,18 @@
+{
+  "sourceCommit": "1c85fc6b2d9fb50456a593b665bf76afe582dbad",
+  "codeFingerprint": "ebfdca7014e4cbf02c5891e96722dbd0372366f9803a33f4d0f3bc376249c4e1",
+  "parentPreserved": "ac6d66285c1d0344fb42637d5c7f32b20907c2cf",
+  "sourcePushedAndRemoteVerified": true,
+  "mainUnchanged": "b06a900280404f79c92e17cdbc6af907a0414c30",
+  "privateIncrementalBundle": {
+    "name": "admission-gate-source.bundle",
+    "verified": true,
+    "prerequisite": "ac6d66285c1d0344fb42637d5c7f32b20907c2cf",
+    "bytes": 19690,
+    "sha256": "be68b48dc9cf5d7703651e6119489b695b372329ee2341a1c6a7f45c05fcc96e"
+  },
+  "existingFullBundlesAndOriginalAssets": "preserved",
+  "priorSourceZipChecksumVerified": true,
+  "productionDataOrSecretsIncluded": false,
+  "scope": "Source code and documentation only. Not a production database/upload/key backup."
+}

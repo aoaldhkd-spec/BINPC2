@@ -1,0 +1,122 @@
+{
+  "recordedAtUtc": "2026-10-28T20:27:18.564947+00:00",
+  "sourceVersion": "1c85fc6b2d9fb50456a593b665bf76afe582dbad",
+  "codeFingerprint": "ebfdca7014e4cbf02c5891e96722dbd0372366f9803a33f4d0f3bc376249c4e1",
+  "testedBuildIdentity": {
+    "sourceVersion": "ac6d66285c1d0344fb42637d5c7f32b20907c2cf-dirty-628646ad2f3d",
+    "codeFingerprint": "ebfdca7014e4cbf02c5891e96722dbd0372366f9803a33f4d0f3bc376249c4e1",
+    "builtAt": "2026-10-28T20:19:55.021Z"
+  },
+  "committedFingerprintMatched": true,
+  "environment": "Codex isolated React/Express/PostgreSQL16/Chromium; loopback-only synthetic data",
+  "results": {
+    "apiUnit": {
+      "status": "PASS",
+      "count": 561,
+      "postgresSkippedInUnitRun": 99,
+      "postgresExecutedSeparately": true
+    },
+    "uiUnit": {
+      "status": "PASS",
+      "count": 895
+    },
+    "postgres": {
+      "status": "PASS",
+      "count": 99,
+      "files": 3
+    },
+    "browser": {
+      "status": "PASS",
+      "count": 17,
+      "duration": "4.0 minutes",
+      "actual100SessionHttpIncluded": true
+    },
+    "guards": {
+      "status": "PASS",
+      "count": 598
+    },
+    "nodeSafetyAndFixture": {
+      "status": "PASS",
+      "count": 32
+    },
+    "typecheckBuildChangedSourceLint": {
+      "status": "PASS"
+    },
+    "newCode150Mixed": {
+      "status": "NOT_RUN_LOCALLY",
+      "reason": "Existing evidence retained; new remote workflow runs the mixed regression."
+    },
+    "physicalGalaxyIphone": {
+      "status": "UNKNOWN"
+    },
+    "productionBackupRestore": {
+      "status": "UNKNOWN"
+    },
+    "productionDeployment": {
+      "status": "NOT_RUN"
+    }
+  },
+  "importantAssertions": [
+    "OFF alone stays closed even when previous recruitment and production policy are already open",
+    "separate authenticated and current-revision admission confirmation required",
+    "reset and ON invalidate previous admission confirmation",
+    "scheduled recruitment, automatic room and legacy new profile paths fail closed",
+    "privacy policy revocation also blocks legacy new profiles while existing PIN/device recovery stays valid",
+    "no operational application/payment/rank/stock changed by laboratory reset",
+    "web/open-chat application guidance remains closed until explicit opening",
+    "actual browser open/close UI and stale opening acknowledgement verified"
+  ],
+  "earlierFailures": [
+    {
+      "scope": "UI focused test first parallel execution",
+      "status": "FIXED_AND_RETESTED",
+      "reason": "Existing simulation listener effect was not mounted before the test clicked. Test now flushes the subscription effect; no product guard was removed.",
+      "finalFocusedCount": 35
+    }
+  ],
+  "privateLogDigests": {
+    "apiUnit": {
+      "privateLocalFile": ".local/admission-gate-20261029/binpc2-admission-api-unit-final.log",
+      "sha256": "6e9345415bca2f55f84b6ac975cc6ff6ea255aca4d5cc57dc3fef529f171a4ec",
+      "bytes": 669626
+    },
+    "uiUnit": {
+      "privateLocalFile": ".local/deployment-20261029/ui-unit-final.log",
+      "sha256": "d20d3612d233b4f7a41ac881a49794815706f3974004f474940e59064cfb7941",
+      "bytes": 135015
+    },
+    "postgres": {
+      "privateLocalFile": ".local/admission-gate-20261029/binpc2-admission-pg-final.log",
+      "sha256": "47fc39228f43139f67b902e4846be08dc4cdee713391c336c936380df7f519cb",
+      "bytes": 21037
+    },
+    "browser": {
+      "privateLocalFile": ".local/deployment-20261029/browser-first.log",
+      "sha256": "4a18506383fd524118b68add4518a9b00423eb4d5e925adc5ad812be51002b4f",
+      "bytes": 3475
+    },
+    "build": {
+      "privateLocalFile": ".local/deployment-20261029/build-final.log",
+      "sha256": "822b090cc348058ed2c67325172b79161787e26be4893d6e2ca2f0ade541225b",
+      "bytes": 5418
+    },
+    "guard": {
+      "privateLocalFile": ".local/deployment-20261029/guards.log",
+      "sha256": "98858e263784caf7679edaefb4c46b8e0dd2ebbcabb0b525708a60338064930d",
+      "bytes": 22494
+    },
+    "uiInitialTimingFailure": {
+      "privateLocalFile": ".local/deployment-20261029/admission-ui-tests.log",
+      "sha256": "7fbb139bdf2adaa0ae1e3f8126edd62fb5f237729b89566aa97d4b6ce5bd77c4",
+      "bytes": 22913
+    }
+  },
+  "remoteCi": {
+    "id": "40763157788",
+    "url": "https://github.com/aoaldhkd-spec/BINPC2/actions/runs/40763157788",
+    "sourceVersion": "1c85fc6b2d9fb50456a593b665bf76afe582dbad",
+    "observedState": "IN_PROGRESS",
+    "observedAtUtc": "2026-10-28T20:27:18.564947+00:00",
+    "completionVerified": false
+  }
+}
