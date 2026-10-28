@@ -3,6 +3,7 @@ import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
 import { MUTUAL_HEART_TOAST } from '../lib/heart-toast';
+import { shouldAutoSkipWaiting } from '../lib/entry-gate';
 import { MAX_GROUPS_PER_USER } from '../lib/group-rooms';
 
 const root = join(dirname(fileURLToPath(import.meta.url)), '..');
@@ -137,7 +138,8 @@ describe('product copy + notification invariants', () => {
     expect(app).toContain('shownWaiting,');
     expect(settingsRt).toContain('shouldAutoSkipWaiting');
     expect(gate).toContain('opts.shownWaiting === false');
-    expect(gate).toContain('wasSessionActive === false');
+    // V4 keeps the landing even when the real session first starts.
+    for(const previous of [null,false,true])expect(shouldAutoSkipWaiting({sessionActive:true,wasSessionActive:previous,hasStoredUser:false})).toBe(false);
   });
 
   it('처음으로 돌아가기 is a dim popup over mounted MainScreen', () => {

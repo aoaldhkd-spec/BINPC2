@@ -1,7 +1,6 @@
 import { useState, useRef, useEffect } from 'react';
 import { Users, CheckCircle, Clock, ShieldAlert } from 'lucide-react';
 import { navigateToAppPath, PANEL_PIN_INPUT_PROPS, PIN_DIGIT_INPUT_PROPS, verifyPanelPassword } from '../lib/panel-password';
-import { EventScheduleBanner } from './EventScheduleBanner';
 import { eventCycleAdmissionOpen, eventCycleMilestones } from '../lib/event-cycle-heart';
 
 export function WaitingOverlay({ sessionActive, eventCycleStartedAt, eventCycleResetComplete, onEnter, onRecover }: {
@@ -266,39 +265,18 @@ export function WaitingOverlay({ sessionActive, eventCycleStartedAt, eventCycleR
           >술번개 🍻</h1>
         </div>
 
-        {/* 상태 배지 */}
-        {isActive ? (
-          <div className="inline-flex items-center gap-2 px-4 py-1.5 bg-teal-500/20 border border-teal-400/30 rounded-full mb-2">
-            <span className="w-2 h-2 rounded-full bg-teal-400 animate-pulse" />
-            <span className="text-teal-300 text-sm font-semibold">모임이 시작되었습니다!</span>
-          </div>
-        ) : (
-          <div className="inline-flex items-center gap-2 px-4 py-1.5 bg-amber-500/20 border border-amber-400/30 rounded-full mb-2">
-            <span className="w-2 h-2 rounded-full bg-amber-400 animate-pulse" />
-            <span className="text-amber-300 text-sm font-semibold">모임 대기 중</span>
-          </div>
-        )}
-        <div className="w-full mb-2">
-          <EventScheduleBanner raw={null} showStatus={false} eventCycleStartedAt={eventCycleStartedAt} eventCycleResetComplete={eventCycleResetComplete} />
-        </div>
-
-        {/* 안내 문구 — 배지와 중복되지 않는 내용만 */}
-        <p className="text-slate-300 text-sm leading-relaxed mb-3">
-          {isActive ? (
-            <><span className="text-teal-400 font-semibold">입장 버튼</span>을 눌러 참여하세요.</>
-          ) : (
-            <>관리자가 회식을 시작하면 신규 입장이 가능합니다.<br /><span className="text-slate-400 text-xs">기존 참가자는 고유번호로 프로필을 복구할 수 있습니다.</span></>
-          )}
-        </p>
-
         {/* 피라미드형 버튼 그룹 */}
         <div className="w-full flex flex-col items-center gap-2 mb-2">
-          {/* 1단: 입장하기 — 80% 너비 */}
+          <div className="grid grid-cols-2 gap-2 w-[80%] mb-1">
+            <a href="/events" className="min-h-12 flex items-center justify-center rounded-2xl border border-teal-400/30 bg-teal-500/15 px-2 py-3 text-sm font-bold text-teal-100 active:scale-[.98] transition-transform">술번개 신청</a>
+            <a href="/events/waiting" className="min-h-12 flex items-center justify-center rounded-2xl border border-cyan-400/30 bg-cyan-500/15 px-2 py-3 text-sm font-bold text-cyan-100 active:scale-[.98] transition-transform">신청대기방</a>
+          </div>
           <button
             onClick={() => setShowConsentModal(true)}
             disabled={!isActive}
             className="w-[80%] py-4 bg-gradient-to-r from-teal-500 to-cyan-500 hover:from-teal-400 hover:to-cyan-400 disabled:from-slate-700 disabled:to-slate-600 disabled:cursor-not-allowed text-white font-black text-lg rounded-2xl shadow-2xl shadow-teal-500/30 transition-all active:scale-98 disabled:active:scale-100"
-          >{isActive ? '입장하기' : '🚪 현재 신규 입장 마감'}</button>
+          >입장하기</button>
+          <p role="status" className="text-xs text-slate-400 my-1">{sessionActive === null ? '시작 여부를 확인하고 있습니다…' : isActive ? '입장 버튼을 눌러 참여하세요' : !eventCycleResetComplete && closeAt && Date.now() >= closeAt && Date.now() < closeAt + 16*3600000 ? '신규 입장이 종료되었습니다. 기존 참가자는 프로필을 복구하세요.' : '술번개 시작 후 입장할 수 있습니다'}</p>
           {/* 2단: 프로필 복구 — 65% 너비 */}
           <button
             onClick={() => { setShowPinRecovery(true); setPinDigits(['','','','']); setPinError(''); setPinStep('pin'); }}
@@ -316,32 +294,12 @@ export function WaitingOverlay({ sessionActive, eventCycleStartedAt, eventCycleR
                 <>다시 만들지 마시고 <span className="font-bold" style={{ color: C.panelHigh }}>고유번호(PIN)</span>로 입장해주세요.</>
               </p>
               <p className="text-xs leading-relaxed" style={{ color: C.panelBody, wordBreak: 'keep-all' }}>
-                <>고유번호를 모르신다면 <span className="font-bold" style={{ color: C.panelHigh }}>관리자에게 문의</span>해주세요.</>
+                <>고유번호를 모르신다면 <a href="/events#inquiry" className="font-bold underline" style={{ color: C.panelHigh }}>관리자에게 문의</a>해주세요.</>
               </p>
             </div>
           </div>
         </div>
 
-        {/* 입장 전 체크 — 2×2 그리드 */}
-        <div className="w-[90%] rounded-2xl bg-amber-500/10 border border-amber-400/25 overflow-hidden">
-          <div className="flex items-center justify-center gap-2 px-3 pt-2.5 pb-1.5">
-            <ShieldAlert className="w-3 h-3 flex-shrink-0" style={{ color: C.checkLabel }} />
-            <p className="text-[10px] font-black tracking-widest uppercase" style={{ color: C.checkLabel }}>입장 전 체크</p>
-          </div>
-          <div className="px-2.5 pb-2.5 grid grid-cols-2 gap-1.5">
-            {[
-              { emoji: '🔋', text: '절전 모드 OFF' },
-              { emoji: '🕵️', text: '시크릿 모드 금지' },
-              { emoji: '📵', text: '화면 잠금 길게 설정' },
-              { emoji: '🔖', text: '고유번호·프로필 암기' },
-            ].map(item => (
-              <div key={item.emoji} className="flex items-center justify-center gap-1.5 px-2 py-2 rounded-xl bg-black/20">
-                <span className="text-sm leading-none flex-shrink-0">{item.emoji}</span>
-                <p className="text-[10px] font-bold leading-tight" style={{ color: C.checkItem, wordBreak: 'keep-all' }}>{item.text}</p>
-              </div>
-            ))}
-          </div>
-        </div>
         {/* 개인정보 동의 모달 */}
         {showConsentModal && (
           <div className="fixed inset-0 z-50 flex items-center justify-center p-6 bg-black/75 backdrop-blur-sm">

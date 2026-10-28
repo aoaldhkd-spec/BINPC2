@@ -110,8 +110,10 @@ export const HubEventInput = z.object({
     .default([]),
 });
 export type HubLogoVersion = {id:string;url:string;label:string;role:'venue'|'thanks';provenance:'original'|'design';sourceNote:string;mime:string;width:number;height:number;size:number;sha256:string;at:string};
+export type HubMaterial = {id:string;url:string;purpose:"notice"|"map"|"poster"|"video";alt:string;hidden:boolean;at:string};
 export type HubEvent = z.infer<typeof HubEventInput> & {
   logoVersions?: HubLogoVersion[];
+  materials?: HubMaterial[];
   id: string;
   revision: number;
   recruitment: boolean;

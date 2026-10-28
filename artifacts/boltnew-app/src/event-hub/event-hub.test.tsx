@@ -566,7 +566,7 @@ it("keeps an existing pre-application inquiry reachable while the whole event mo
   vi.spyOn(globalThis, "fetch").mockImplementation(
     async () => new Response(JSON.stringify(state)),
   );
-  render(<AdminInquiry />);
+  render(<AdminInquiry hub={{state:state as unknown as import("../lib/event-hub-client").HubState,error:"",status:"",load:vi.fn(),mutate:vi.fn(),setError:vi.fn()}} />);
   await waitFor(() =>
     expect(screen.getByRole("button", { name: /관리자 문의/ })).toBeTruthy(),
   );

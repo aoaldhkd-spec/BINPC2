@@ -2,8 +2,8 @@ import {
   readHubBrowserValue,
   writeHubBrowserValue,
 } from "../lib/event-hub-browser-storage";
-import { useEffect, useState, useRef } from "react";
-import { useEventHub } from "../lib/event-hub-client";
+import { useEffect, useState, useRef, type CSSProperties } from "react";
+import { type HubController } from "../lib/event-hub-client";
 import {
   HubButton,
   HubCheck,
@@ -11,9 +11,9 @@ import {
   inputClass,
   useHubDark,
 } from "./HubUi";
-export function AdminInquiry() {
+export function AdminInquiry({ hub }: { hub: HubController }) {
   const dark = useHubDark();
-  const [open, setOpen] = useState(false),
+  const [open, setOpen] = useState(window.location.hash === "#inquiry"),
     [message, setMessage] = useState(
       () => readHubBrowserValue("session", "binpc2_inquiry_draft_v6") ?? "",
     ),
@@ -28,6 +28,31 @@ export function AdminInquiry() {
       ),
     );
   }, [message]);
+  const [viewport, setViewport] = useState({
+    height: window.innerHeight,
+    inset: 0,
+  });
+  useEffect(() => {
+    const update = () => {
+      const v = window.visualViewport;
+      setViewport({
+        height: v?.height ?? window.innerHeight,
+        inset: Math.max(
+          0,
+          window.innerHeight -
+            (v?.height ?? window.innerHeight) -
+            (v?.offsetTop ?? 0),
+        ),
+      });
+    };
+    update();
+    window.visualViewport?.addEventListener("resize", update);
+    window.visualViewport?.addEventListener("scroll", update);
+    return () => {
+      window.visualViewport?.removeEventListener("resize", update);
+      window.visualViewport?.removeEventListener("scroll", update);
+    };
+  }, []);
   const sheet = useRef<HTMLElement>(null);
   useEffect(() => {
     if (!open) return;
@@ -57,7 +82,6 @@ export function AdminInquiry() {
       prior?.focus();
     };
   }, [open]);
-  const hub = useEventHub();
   const thread = hub.state?.threads[0];
   const unread =
     thread?.messages.some(
@@ -66,17 +90,7 @@ export function AdminInquiry() {
   const hasHistory =
     !!hub.state?.applications.length ||
     !!hub.state?.threads.some((t) => t.messages.length > 0);
-  const canPoll = !!hub.state?.enabled || hasHistory;
-  const refresh = hub.load;
   const markRead = hub.mutate;
-  useEffect(() => {
-    if (!canPoll) return;
-    const t = setInterval(() => {
-      if (document.visibilityState === "visible")
-        void refresh().catch(() => {});
-    }, 15000);
-    return () => clearInterval(t);
-  }, [canPoll, refresh]);
   useEffect(() => {
     if (open && unread) void markRead({ action: "thread.read" });
   }, [open, unread, markRead]);
@@ -101,29 +115,16 @@ export function AdminInquiry() {
     };
   }, [open]);
   if (!hub.state?.enabled && !hasHistory) return null;
-  const inEventHub = window.location.pathname.includes("/events");
   return (
     <div className="event-hub-theme" data-event-dark={dark}>
       <div
-        className={
-          inEventHub
-            ? "event-hub-dock fixed bottom-0 left-0 right-0 z-40 flex justify-center gap-3 bg-slate-900 p-3 border-t border-slate-700"
-            : "fixed left-3 z-40 flex flex-col gap-2"
+        className="event-hub-dock fixed right-4 z-40"
+        style={
+          { "--hub-keyboard-inset": `${viewport.inset}px` } as CSSProperties
         }
-        style={{
-          bottom: inEventHub
-            ? "env(safe-area-inset-bottom)"
-            : "calc(90px + env(safe-area-inset-bottom))",
-        }}
       >
-        <a
-          className="rounded-full bg-slate-800 px-3 py-2 text-xs font-bold text-white shadow"
-          href="/events"
-        >
-          🎉 술번개 신청
-        </a>
         <button
-          className="rounded-full bg-teal-700 px-3 py-2 text-xs font-bold text-white shadow"
+          className="min-h-12 rounded-full bg-gradient-to-r from-teal-600 to-cyan-600 px-4 py-3 text-sm font-bold text-white shadow-lg shadow-teal-950/30 active:scale-95 transition-transform"
           onClick={() => setOpen(true)}
         >
           💬 관리자 문의 {unread ? "●" : ""}
@@ -131,11 +132,7 @@ export function AdminInquiry() {
         {unread && (
           <span
             role="status"
-            className={
-              inEventHub
-                ? "absolute bottom-full left-3 bg-white p-2 rounded-xl text-xs"
-                : "bg-white p-2 rounded-xl text-xs max-w-40"
-            }
+            className="absolute bottom-full right-0 bg-white p-2 rounded-xl text-xs"
           >
             관리자에게서 연락이 왔습니다
           </span>
@@ -144,9 +141,11 @@ export function AdminInquiry() {
       {open && (
         <div
           className="fixed inset-0 z-[100] bg-black/40 flex items-end justify-center"
+          style={{ bottom: viewport.inset }}
           onClick={() => setOpen(false)}
         >
           <section
+            style={{ maxHeight: Math.max(180, viewport.height * 0.9) }}
             ref={sheet}
             role="dialog"
             aria-modal="true"

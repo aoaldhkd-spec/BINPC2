@@ -30,17 +30,14 @@
   overflow-wrap: anywhere;
 }
 
-/* The reused profile wizard owns its bottom save bar. Keep inquiry above it. */
-body:has(.event-profile-draft) .event-hub-dock {
-  bottom: calc(90px + env(safe-area-inset-bottom)) !important;
-  left: 12px;
-  right: auto;
-  flex-direction: column;
-  background: transparent;
-  padding: 0;
-  border: 0;
-}
-
+/* Reserve the profile wizard's save bar; keep the existing MY-style right action. */
+body:has(.event-profile-draft) .event-hub-dock { bottom:max(calc(100px + env(safe-area-inset-bottom)),calc(var(--hub-keyboard-inset,0px) + 20px)); right:16px; }
+.event-hub-dock {bottom:max(calc(20px + env(safe-area-inset-bottom)),calc(var(--hub-keyboard-inset,0px) + 20px));max-width:calc(100vw - 32px);}
+.event-hub-theme button,.event-hub-theme a,.event-hub-theme input,.event-hub-theme summary {transition:background-color .15s,box-shadow .15s,transform .15s;}
+.event-hub-theme :focus-visible {outline:2px solid #22d3ee;outline-offset:3px;}
+@media(prefers-reduced-motion:reduce){.event-hub-theme *{animation:none!important;transition:none!important;}}
+.event-hub-theme[data-event-dark="true"] main {background:radial-gradient(ellipse at top,#12323e 0%,#0f172a 40%,#020617 100%);}
+.event-hub-theme[data-event-dark="true"] section {border-color:#294650;}
 /* Reveal durable server results only; motion never changes the draw outcome. */
 @keyframes hub-card-reveal {
   from {

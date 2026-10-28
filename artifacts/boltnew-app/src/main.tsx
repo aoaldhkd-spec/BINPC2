@@ -11,7 +11,6 @@ import { clientNavigationHref, resolveClientNavigation } from './lib/client-navi
 
 const UnsubscribePage = lazy(() => import('./event-hub/NotificationReadiness').then(m=>({default:m.UnsubscribePage})));
 const EventHubPage = lazy(() => import('./event-hub/EventHubPage'));
-const AdminInquiry = lazy(() => import('./event-hub/AdminInquiry').then(m => ({default:m.AdminInquiry})));
 
 const loadAdminApp = () => import('./AdminApp');
 const AdminApp = lazy(loadAdminApp);
@@ -88,10 +87,10 @@ function Root() {
   const normalized = path.replace(new RegExp(`^${base}`), '') || '/';
 
   if (normalized.startsWith('/admin')) return <AppErrorBoundary variant="app" onReset={() => window.location.reload()}><AdminApp /></AppErrorBoundary>;
-  if (normalized.startsWith('/test')) return <><TestGate /><AdminInquiry /></>;
+  if (normalized.startsWith('/test')) return <TestGate />;
   if (normalized.startsWith('/events/unsubscribe')) return <UnsubscribePage />;
-  if (normalized.startsWith('/events')) return <><EventHubPage path={normalized} /><AdminInquiry /></>;
-  return <AppErrorBoundary variant="app" onReset={() => window.location.reload()}><App /><AdminInquiry /></AppErrorBoundary>;
+  if (normalized.startsWith('/events')) return <EventHubPage path={normalized} />;
+  return <AppErrorBoundary variant="app" onReset={() => window.location.reload()}><App /></AppErrorBoundary>;
 }
 
 // HMR 환경에서 createRoot()를 같은 컨테이너에 두 번 호출하면 "Maximum update depth" 오류가 발생.

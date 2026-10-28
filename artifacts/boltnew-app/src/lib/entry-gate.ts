@@ -15,18 +15,15 @@ export function shouldShowWaitingOverlay(opts: {
   return !opts.hasValidProfile;
 }
 
-/**
- * 관리자가 회식을 켜는 순간에만 대기 랜딩을 건너뛴다.
- * 이미 켜진 상태에서 설정이 갱신되면 건너뛰지 않는다 — 닉네임 설정 1단계 뒤로가기가 대기화면으로 남으려면 이 조건이 필요하다.
+/** V4: a session start enables the entry button; it never navigates for the user.
+ * Kept as the shared transition contract so reconnects and stored accounts follow the same rule.
  */
-export function shouldAutoSkipWaiting(opts: {
+export function shouldAutoSkipWaiting(_opts: {
   sessionActive: boolean;
   wasSessionActive: boolean | null;
   hasStoredUser: boolean;
 }): boolean {
-  if (opts.hasStoredUser) return false;
-  if (!opts.sessionActive) return false;
-  return opts.wasSessionActive === false;
+  return false;
 }
 
 /** 신규 닉네임 등록 — 이미 식별됐거나 프로필이 있으면 스킵 */

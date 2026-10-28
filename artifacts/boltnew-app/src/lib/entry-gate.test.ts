@@ -48,12 +48,12 @@ describe('shouldShowWaitingOverlay', () => {
 });
 
 describe('shouldAutoSkipWaiting', () => {
-  it('skips waiting only when the session turns on', () => {
+  it('keeps the landing when the session turns on until the user presses entry', () => {
     expect(shouldAutoSkipWaiting({
       sessionActive: true,
       wasSessionActive: false,
       hasStoredUser: false,
-    })).toBe(true);
+    })).toBe(false);
   });
 
   it('does not skip waiting on later settings updates while the session stays on', () => {

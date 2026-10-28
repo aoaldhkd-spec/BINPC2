@@ -1668,6 +1668,41 @@ suite("event hub V6 — actual isolated PostgreSQL transactions", () => {
     expect((await adminState()).threads[0].messages).toHaveLength(2);
   });
 
+  it("V4 public notices require explicit approval; map and legacy bytes remain event-owner protected",async()=>{
+    const png="iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+jD9sAAAAASUVORK5CYII=";
+    const current=async()=> (await adminState()).events.find(e=>e.id===eventId)!;
+    const upload=async(purpose:string,confirmed=false)=>call("event.media.upload",eventId,{mime:"image/png",base64:png,purpose,publicConfirmed:confirmed,alt:"격리 안내"},(await current()).revision,true);
+    await expect(upload("notice")).rejects.toMatchObject({code:"MEDIA_PUBLIC_CONFIRM"});
+    await expect(call("event.media.upload",eventId,{mime:"image/png",base64:png,purpose:"notice",publicConfirmed:true},(await current()).revision)).rejects.toMatchObject({code:"ADMIN"});
+    const notice=await upload("notice",true),map=await upload("map");
+    const idOf=(url:unknown)=>String(url).split('/').at(-1)!.split('.')[0];
+    expect((await service.media(idOf(notice.mediaUrl),"")).mime).toBe("image/png");
+    await expect(service.media(idOf(map.mediaUrl),owner)).rejects.toMatchObject({code:"MEDIA"});
+    const anonymous=await service.state();
+    expect(anonymous.events.find(e=>e.id===eventId)?.media).toEqual([notice.mediaUrl]);
+    expect(anonymous.events.find(e=>e.id===eventId)?.materials?.map(m=>m.purpose)).toEqual(["notice"]);
+    const id=await create();await approved(id);
+    expect((await service.media(idOf(map.mediaUrl),owner)).base64).toBe(png);
+    const stranger=await service.session(randomBytes(32).toString("base64url"),true);
+    await expect(service.media(idOf(map.mediaUrl),stranger)).rejects.toMatchObject({code:"MEDIA"});
+    const e=await current(),items=e.materials!.map(m=>({id:m.id,alt:m.alt,hidden:m.purpose==="notice"}));
+    await call("event.media.update",eventId,{items},e.revision,true);
+    await expect(service.media(idOf(notice.mediaUrl),owner)).rejects.toMatchObject({code:"MEDIA"});
+    expect((await service.media(idOf(notice.mediaUrl),"",true)).base64).toBe(png);
+    await expect(call("event.media.update",eventId,{items},e.revision,true)).rejects.toMatchObject({code:"REVISION"});
+    await call("event.media.update",eventId,{items:items.reverse().map(m=>({...m,hidden:false}))},(await current()).revision,true);
+    expect((await service.state(owner)).events.find(e=>e.id===eventId)?.materials?.map(m=>m.purpose)).toEqual(["map","notice"]);
+    expect((await current()).history.filter(h=>h.action==="event.media.update")).toHaveLength(2);
+  });
+  it("V4 malformed image, foreign attachment and repeated upload cannot bypass file or idempotency checks",async()=>{
+    const e=(await adminState()).events.find(e=>e.id===eventId)!;
+    await expect(call("event.media.upload",eventId,{mime:"image/png",base64:Buffer.from([137,80,78,71,13,10,26,10,0,0,0,0]).toString("base64"),purpose:"map"},e.revision,true)).rejects.toThrow();
+    await expect(call("event.media.update",eventId,{items:[{id:randomUUID(),alt:"",hidden:false}]},e.revision,true)).rejects.toMatchObject({code:"MEDIA"});
+    const requestId=randomUUID(),data={mime:"image/png",base64:"iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+jD9sAAAAASUVORK5CYII=",purpose:"map"};
+    const first=await call("event.media.upload",eventId,data,e.revision,true,owner,requestId);
+    const retry=await call("event.media.upload",eventId,data,e.revision,true,owner,requestId);
+    expect(retry).toEqual(first);expect((await adminState()).events.find(e=>e.id===eventId)?.materials).toHaveLength(1);
+  });
   it("uploads passive media with admin/revision/content/size checks and requires this event's payment approval to read", async () => {
     const png = Buffer.from(
       "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+jZAAAAABJRU5ErkJggg==",

@@ -15,9 +15,9 @@ export function CampaignSetup({ hub }: { hub: HubController }) {
   const [key, setKey] = useState("halloween-2026-10-30");
   return (
     <HubCard>
-      <h3 className="font-black">할로윈·전국투어 전용 초안</h3>
+      <h3 className="font-black">할로윈·전국투어 행사 준비</h3>
       <p className="text-sm">
-        기존 방과 기록은 유지합니다. 선택한 1차 방 한 개만 비공개 초안으로
+        기존 방과 기록은 유지합니다. 선택한 1차 방 한 개를 접수 전 상태로
         만듭니다. 계좌·입금기한·주소·전국투어 선입금은 운영자가 확인 후
         입력하세요. 대구는 미확정이며 생성하지 않습니다.
       </p>
@@ -38,7 +38,7 @@ export function CampaignSetup({ hub }: { hub: HubController }) {
         disabled={hub.status === "saving"}
         onClick={() => hub.mutate({ action: "campaign.prepare", target: key })}
       >
-        선택 행사 초안·확정 재고 준비
+        선택 행사·정해진 재고 준비
       </HubButton>
       <p className="text-xs">
         할로윈 금23·토49개, 총72개. 투어 금·토는 할인권10개·30,000원. 자동
@@ -105,10 +105,7 @@ export function CampaignOperations({
           {tourSessionHours(event.date)?.third} (매장 차수 미배정)
         </p>
       )}
-      <p>
-        2차는 운영자 오픈채팅, 3차는 현장 안내입니다. 자동 탈락·자동 환불·1/N
-        자동 계산은 없습니다.
-      </p>
+      <p>{event.campaign?.kind==='tour'?'2차는 운영자 오픈채팅, 3차는 현장 안내입니다.':'할로윈은 1차만 진행하며 다음 날 01:00에 종료합니다. 2차는 없습니다.'} 자동 정산·송금·환불은 하지 않습니다.</p>
       <p className="text-sm whitespace-pre-wrap">{event.replyNotice}</p>
       <HubField label="선착순 처리 사유">
         <textarea

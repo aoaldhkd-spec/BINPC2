@@ -375,7 +375,11 @@ export class EventHubService {
               themeEnabled: effectiveEventTheme(e, this.now()) !== "default",
               replyNotice: e.replyNotice,
               noticeVersion: e.noticeVersion,
-              media: e.media,
+              media: e.media.filter(url => {
+                const material=e.materials?.find(v=>v.url===url);
+                return !material?.hidden && (material?.purpose==="notice" || apps.some(a=>a.eventId===e.id && paymentSatisfied(a) && !a.erasedAt));
+              }),
+              materials: e.materials?.filter(v=>e.media.includes(v.url) && !v.hidden && (v.purpose==="notice" || apps.some(a=>a.eventId===e.id && paymentSatisfied(a) && !a.erasedAt))),
               noticeHistory: (e.versions ?? []).map((v) => ({
                 at: v.at,
                 notice: v.notice,
@@ -579,24 +583,42 @@ export class EventHubService {
         requireAdmin();
         const e = await this.event(tx, m.target);
         revision(e.revision);
-        if (e.media.length >= 10)
-          fail("MEDIA_LIMIT", "행사 자료는 10개까지입니다.");
+        if (e.media.length >= 10 || (e.materials?.length??0)>=40)
+          fail("MEDIA_LIMIT", "표시 자료는 10개, 보존 원본은 40개까지입니다. 이전 자료의 연결을 해제하면 표시 공간을 확보할 수 있습니다.");
+        const purpose = z.enum(["notice","map","poster","video"]).optional().parse(m.data.purpose);
+        if(purpose==="notice" && m.data.publicConfirmed!==true) fail("MEDIA_PUBLIC_CONFIRM","신청 전 공개할 공지 사진인지 확인해 주세요.");
         const file = validateHubMedia(m.data);
+        if(purpose && purpose!=="video") validateLogoOriginal({...m.data,label:"행사 자료",role:"venue",provenance:"original"});
+        if(purpose==="video" && !file.mime.startsWith("video/"))fail("MEDIA_TYPE","영상 파일을 선택해 주세요.");
+        const alt=z.string().trim().max(200).parse(m.data.alt??"");
         const id = randomUUID();
         await tx.put("settings", `media:${id}`, {
           id,
           eventId: e.id,
+          purpose,
           mime: file.mime,
           base64: file.base64,
           createdAt: now,
         });
         const url = `/api/event-hub/media/${id}.${file.extension}`;
         e.media.push(url);
+        if(purpose)e.materials=[...(e.materials??[]),{id,url,purpose,alt,hidden:false,at:now}];
         e.revision++;
-        e.history.push(audit(actor, "event.media.upload", now));
+        e.history.push(audit(actor, "event.media.upload", now, JSON.stringify({id,purpose:purpose??"legacy-private",alt})));
         await tx.put("event", e.id, e);
         result.id = e.id;
         result.mediaUrl = url;
+      } else if (m.action === "event.media.update") {
+        requireAdmin();const e=await this.event(tx,m.target);revision(e.revision);
+        const order=z.array(z.object({id:z.string().uuid(),alt:z.string().trim().max(200),hidden:z.boolean()})).max(40).parse(m.data.items);
+        if(order.length!==(e.materials??[]).length || new Set(order.map(v=>v.id)).size!==order.length || order.some(v=>!e.materials?.some(x=>x.id===v.id)))fail("MEDIA","이 행사의 저장한 자료만 정리할 수 있습니다.");
+        e.materials=order.map(v=>({...e.materials!.find(x=>x.id===v.id)!,alt:v.alt,hidden:v.hidden}));
+        const legacy=e.media.filter(url=>!e.materials!.some(v=>v.url===url));
+        const visible=e.materials.filter(v=>!v.hidden).map(v=>v.url);
+        if(legacy.length+visible.length>10)fail("MEDIA_LIMIT","동시에 표시할 자료는 10개까지입니다. 원본은 보존됩니다.");
+        e.media=[...visible,...legacy];
+        e.revision++;e.history.push(audit(actor,"event.media.update",now,JSON.stringify(order)));
+        await tx.put("event",e.id,e);result.id=e.id;
       } else if (m.action === "event.save") {
         requireAdmin();
         const old = m.target ? await this.event(tx, m.target) : undefined;
@@ -609,6 +631,7 @@ export class EventHubService {
           nextRank: old?.nextRank ?? 0,
           history: [...(old?.history ?? []), audit(actor, "event.save", now)],
           logoVersions: old?.logoVersions,
+          materials: old?.materials,
         };
         if (
           old?.campaign &&
@@ -1859,6 +1882,13 @@ export class EventHubService {
       const file = await tx.get<HubMedia>("settings", `media:${id}`);
       if (!file) fail("MEDIA", "자료에 접근할 수 없습니다.", 404);
       if (!admin) {
+        const e=await this.event(tx,file.eventId);
+        const material=e.materials?.find(v=>v.id===id);
+        if(material?.hidden || (file.purpose!=="venue-logo" && !e.media.some(url=>HUB_MEDIA_PATH.exec(url)?.[1]===id)))fail("MEDIA","자료에 접근할 수 없습니다.",404);
+        if(file.purpose==="notice" && material?.purpose==="notice" && !material.hidden) {
+          const own=(await tx.applicationsForOwner<HubApplication>(owner)).some(a=>a.owner===owner&&a.eventId===e.id&&!a.erasedAt);
+          if(own || (await this.enabled(tx) && !await publicationBlockedForTx(tx) && (recruitmentIsOpen(e,this.now()) || (e.scheduleEnabled&&!e.schedulePaused&&!eventEnded(e,this.now())))))return file;
+        }
         const account = await tx.get<HubOwner>("owner", owner);
         const apps = await tx.applicationsForOwner<HubApplication>(owner);
         if (

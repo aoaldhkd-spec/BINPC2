@@ -1,3 +1,4 @@
+import { AdminInquiry } from "./AdminInquiry";
 import { VenueLogo, GoraeThanks } from "./VenueLogos";
 import { ParticipantOperations, ScheduledOpening } from "./EventOperations";
 import { eventEnded } from "../../../../lib/api-zod/src/event-hub-modules";
@@ -60,13 +61,16 @@ const attendanceLabel = {
 };
 export default function EventHubPage({ path }: { path: string }) {
   const hub = useEventHub();
+  return <><EventHubContent path={path} hub={hub}/><AdminInquiry hub={hub}/></>;
+}
+function EventHubContent({path,hub}:{path:string;hub:Hub}) {
   const s = hub.state;
   const [dark, setDark] = useState(
-    () => readHubBrowserValue("local", "dark_mode") === "1",
+    () => readHubBrowserValue("local", "dark_mode") !== "0",
   );
   useEffect(() => {
     const sync = () =>
-      setDark(readHubBrowserValue("local", "dark_mode") === "1");
+      setDark(readHubBrowserValue("local", "dark_mode") !== "0");
     window.addEventListener("storage", sync);
     return () => window.removeEventListener("storage", sync);
   }, []);
@@ -98,9 +102,13 @@ export default function EventHubPage({ path }: { path: string }) {
   useEffect(() => {
     setEditing(false);
   }, [appId, eventId]);
+  useEffect(() => {
+    if(path === "/events/waiting" && s?.applications.length === 1)
+      hubNavigate(`/events/a/${s.applications[0].id}`);
+  },[path,s?.applications]);
   if (!s)
     return (
-      <main className="min-h-screen bg-slate-50 p-5">
+      <main className="min-h-screen bg-slate-950 text-slate-100 p-5">
         <a href="/">← 뒤로</a>
         <HubLoading label="신청 기록을 불러오는 중…" />
         <HubFeedback status={hub.status} error={hub.error} />
@@ -117,13 +125,13 @@ export default function EventHubPage({ path }: { path: string }) {
   }
   return (
     <div className="event-hub-theme" data-event-dark={dark}>
-      <main className="min-h-screen bg-slate-50 text-slate-900 pb-48">
-        <header className="bg-slate-900 text-white px-4 py-5">
+      <main className="min-h-screen bg-slate-50 text-slate-900 pb-28">
+        <header className="bg-slate-900 text-white px-4 py-5 border-b border-teal-400/20">
           <div className="max-w-2xl mx-auto">
             <a href="/" className="text-sm">
               ← BINPC2
             </a>
-            <h1 className="mt-3 text-xl font-black">🎉 술번개 신청</h1>
+            <h1 className="mt-3 text-2xl font-black">{path === "/events/waiting" ? "신청대기방" : "술번개 신청"} 🍻</h1>
             <p className="text-sm text-slate-300 mt-1">
               저장한 신청부터 안전하게 이어가세요
             </p>
@@ -165,9 +173,10 @@ export default function EventHubPage({ path }: { path: string }) {
               />
             )
           ) : event ? (
-            event.recruitment ? <BasicForm key={event.id} eventId={event.id} hub={hub} /> : <ScheduledOpening event={event} hub={hub}/>
+            <>{event.materials?.some(m=>m.purpose==="notice")&&<HubCard><EventMedia links={event.materials.filter(m=>m.purpose==="notice").map(m=>m.url)} materials={event.materials}/></HubCard>}{event.recruitment ? <BasicForm key={event.id} eventId={event.id} hub={hub} /> : <ScheduledOpening event={event} hub={hub}/>}</>
           ) : (
             <>
+              {path === "/events/waiting" && s.applications.length === 0 && <HubCard><h2 className="font-bold">아직 신청한 술번개가 없습니다</h2><HubButton onClick={()=>hubNavigate("/events")}>술번개 신청</HubButton></HubCard>}
               {s.applications.length > 0 && (
                 <HubCard>
                   <h2 className="font-black">내 신청 목록</h2>
@@ -297,7 +306,7 @@ export default function EventHubPage({ path }: { path: string }) {
               </HubCard>
             </>
           )}
-          {!s.member && (
+          {!s.member && s.hasSession && (
             <HubCard>
               <h2 className="font-black">향후 행사 안내 수신</h2>
               <HubCheck
@@ -357,7 +366,7 @@ export default function EventHubPage({ path }: { path: string }) {
               </HubButton>
               {s.privacyCase && (
                 <p role="status" className="text-sm mt-3">
-                  처리 상태: {s.privacyCase.status} ·{" "}
+                  처리 상태: {({requested:"요청 접수",reviewing:"보관 기준 검토 중",approved:"처리 승인",completed:"처리 완료",rejected:"보관 사유 확인",restricted:"이용 제한"} as Record<string,string>)[s.privacyCase.status]??"운영자 확인 중"} ·{" "}
                   {s.privacyCase.publicMessage ||
                     "운영자가 본인 확인·보관 예외를 검토합니다. 삭제 완료 전 기록은 유지됩니다."}
                 </p>
@@ -585,7 +594,7 @@ export function ApplicationSteps({
         {event.title} · {event.date} · {event.start}~{event.end}
       </p>
       <p>{event.area}</p>
-      <EventMedia links={event.media} />
+      <EventMedia links={event.media} materials={event.materials}/>
       <details open>
         <summary className="font-bold cursor-pointer">행사 필독 공지</summary>
         <p className="whitespace-pre-wrap text-sm leading-7 py-3">
@@ -921,7 +930,7 @@ export function WaitingRoom({
             2차 오픈채팅 신청 (BINPC2 외부)
           </a>
         )}
-        <EventMedia links={event.media} />
+        <EventMedia links={event.media} materials={event.materials}/>
         <details>
           <summary>행사 공지</summary>
           <p className="whitespace-pre-wrap text-sm leading-7">

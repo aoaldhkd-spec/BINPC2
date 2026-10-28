@@ -89,6 +89,7 @@ async function restoreAdminProfileAfterWipe(
 
 function AdminDashboard({ onLogout }: { onLogout: () => void }) {
   const [tab, setTab] = useState<AdminTab>('settings');
+  const [eventsVisited,setEventsVisited]=useState(false);
   const [settingsSubTab, setSettingsSubTab] = useState<SettingsSubTab>(
     () => initialAdminSettingsSubTab(),
   );
@@ -607,6 +608,7 @@ function AdminDashboard({ onLogout }: { onLogout: () => void }) {
 
 
   const handleTabChange = (t: AdminTab) => {
+    if(t==='events')setEventsVisited(true);
     if (t === 'profiles') setSeenProfilesCount(profiles.length);
     if (t === 'hearts') setSeenHeartsCount(likes.length);
     if (t === 'chats') setSeenMessagesCount(allMessages.length);
@@ -674,7 +676,7 @@ function AdminDashboard({ onLogout }: { onLogout: () => void }) {
       </header>
 
       <main data-testid="admin-main" className="max-w-4xl mx-auto admin-main">
-        {tab === 'events' && <Suspense fallback={<AdminTabFallback />}><EventHubAdmin /></Suspense>}
+        {eventsVisited && <div hidden={tab!=='events'}><Suspense fallback={<AdminTabFallback />}><EventHubAdmin active={tab==='events'} /></Suspense></div>}
         {tab === 'settings' && (
           <div>
             <div className="grid grid-cols-5 border-b border-gray-200 bg-white px-2 min-[360px]:px-4">

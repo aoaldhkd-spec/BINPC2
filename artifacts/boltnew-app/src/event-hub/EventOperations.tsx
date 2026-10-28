@@ -37,7 +37,7 @@ export function ParticipantOperations({app:a,event:e,hub}:{app:PrivateApplicatio
    <HubButton disabled={hub.status==='saving'||!at} onClick={()=>save('application.late',{at:iso(at),reason})}>내용 확인 · 도착시간 저장</HubButton>
    <p>문의는 화면의 관리자 1:1 문의를 이용하세요.</p>
   </div>}
-  {a.lateArrival&&<p>예정 {formatHubTime(a.lateArrival.at)} · {a.lateArrival.status} {a.lateArrival.reviewReason}</p>}
+  {a.lateArrival&&<p>예정 {formatHubTime(a.lateArrival.at)} · {({noted:"도착 예정 접수",review:"관리자 확인 대기",approved:"늦참 승인",declined:"도착 불가 · 문의 필요"})[a.lateArrival.status]} {a.lateArrival.reviewReason}</p>}
   <HubField label="상품·상금·할인 기록용 전화번호"><input className={inputClass} type="tel" value={phone} onChange={x=>setPhone(x.target.value)}/></HubField>
   <p className="text-xs">입력·저장만 합니다. SMS·전화 인증이나 추가 비밀번호는 없습니다. 지급 전 운영자가 직접 대조합니다.</p>
   <HubButton disabled={hub.status==='saving'} onClick={()=>save('application.phone',{phone})}>기록용 전화번호 저장</HubButton>
@@ -53,7 +53,7 @@ export function BenefitResults({hub}:{hub:HubController}){
   <HubButton onClick={()=>setDetail(detail===a.id?'':a.id)}>권한 있는 관리자 상세 열람</HubButton>
   {detail===a.id&&<div className="space-y-2">
    <p>전화번호 {a.rewardPhone??a.basic.phone}</p>
-   <p>도착 {formatHubTime(a.lateArrival?.at)} · {a.lateArrival?.status} · {a.lateArrival?.reason}</p>
+   <p>도착 {formatHubTime(a.lateArrival?.at)} · {a.lateArrival?({noted:"도착 예정 접수",review:"관리자 확인 대기",approved:"늦참 승인",declined:"도착 불가 · 문의 필요"})[a.lateArrival.status]:""} · {a.lateArrival?.reason}</p>
    {a.lateArrival&&<><HubField label="늦참 검토 사유"><input className={inputClass} value={reason} onChange={x=>setReason(x.target.value)}/></HubField>{['approved','declined'].map(status=><HubButton key={status} disabled={!reason||hub.status==='saving'} onClick={()=>hub.mutate({action:'admin.application.late',target:a.id,revision:a.revision,data:{status,reason}})}>{status==='approved'?'늦참 승인':'도착 불가·문의 안내'}</HubButton>)}</>}
    {(a.resultDetails??a.cards).map(c=><p key={c.id}>{c.prizeLabel??c.prize} · {c.couponAmount??0}원 · {a.prizesGiven.includes(c.id)?'지급 확인':'지급 전'}</p>)}
    {a.manualResults?.map(r=><div key={r.id}><p>{r.label} {r.amount}원 · 수신 {r.receivedAt?'확인':'대기'} / 실제 지급 {r.paidAt?'확인':'대기'}</p>{(['receivedAt','paidAt'] as const).map(field=><HubButton key={field} disabled={!!r[field]||hub.status==='saving'||(field==='paidAt'&&!checked)} onClick={()=>hub.mutate({action:'admin.application.result.confirm',target:a.id,revision:a.revision,data:{id:r.id,field,doubleChecked:checked}})}>{field==='receivedAt'?'결과 수신 확인':'실제 지급 확인'}</HubButton>)}</div>)}

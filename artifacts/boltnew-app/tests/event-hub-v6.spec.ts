@@ -231,7 +231,7 @@ test("actual browser + API + PostgreSQL: saved stages, payment recovery, private
   await approvalCard
     .getByRole("button", { name: "입금 승인", exact: true })
     .click();
-  await expect(approvalCard.getByText(/입금 approved/)).toBeVisible();
+  await expect(approvalCard.getByText(/입금 확인 완료/)).toBeVisible();
   await approvalPage.screenshot({
     path: testInfo.outputPath("01-actual-admin-payment-approved.png"),
     fullPage: true,
@@ -360,7 +360,7 @@ test("actual browser + API + PostgreSQL: saved stages, payment recovery, private
   await page
     .getByRole("button", { name: "술번개 입장하기", exact: true })
     .click();
-  await expect(page).toHaveURL(/127\.0\.0\.1:300[1235]\/?$/);
+  await expect(page).toHaveURL(/127\.0\.0\.1:300[12356]\/?$/);
   await expect
     .poll(async () => (await application(request, id)).profileId)
     .toBeTruthy();
@@ -389,7 +389,7 @@ test("actual browser + API + PostgreSQL: saved stages, payment recovery, private
   await page
     .getByRole("button", { name: "술번개 입장하기", exact: true })
     .click();
-  await expect(page).toHaveURL(/127\.0\.0\.1:300[1235]\/?$/);
+  await expect(page).toHaveURL(/127\.0\.0\.1:300[12356]\/?$/);
   expect((await application(request, id)).profileId).toBe(profileId);
   await expect(page.getByRole("navigation",{name:"참여자 메뉴"})).toBeVisible();
   if(await page.getByTestId("first-entry-coach").isVisible()) await page.getByTestId("first-entry-coach").getByRole("button",{name:"건너뛰기",exact:true}).click();
@@ -536,7 +536,7 @@ test("mobile/tablet/desktop layouts and administrator sandbox remain isolated", 
       );
       await page.reload();
       await expect(
-        page.getByRole("heading", { name: "🎉 술번개 신청" }),
+        page.getByRole("heading", { name: "술번개 신청 🍻" }),
       ).toBeVisible();
       expect(
         await page.evaluate(
@@ -593,6 +593,7 @@ test("mobile/tablet/desktop layouts and administrator sandbox remain isolated", 
   }, token!);
   await page.goto("/admin");
   await page.getByRole("button", { name: "🎉 술번개", exact: true }).click();
+  if(!await page.getByText("행사 설정·기록·관리 도구",{exact:true}).evaluate(el=>(el.parentElement as HTMLDetailsElement).open)) await page.getByText("행사 설정·기록·관리 도구",{exact:true}).click();
   await page
     .getByRole("button", { name: "🧪 선착순 시험실", exact: true })
     .click();
@@ -943,7 +944,7 @@ test("protected media HTTP, privacy review and participant-safe notices use the 
     .getByRole("button", { name: "개인정보 삭제 검토 요청", exact: true })
     .click();
   await expect(
-    page.getByText("처리 상태: requested", { exact: false }),
+    page.getByText("처리 상태: 요청 접수", { exact: false }),
   ).toBeVisible();
   const owner = (await application(request, id)).owner;
   const ctx = await browser.newContext({
@@ -976,17 +977,17 @@ test("protected media HTTP, privacy review and participant-safe notices use the 
       .getByRole("combobox", { name: /^관리할 행사/ })
       .selectOption(eventId);
     await admin
-      .getByRole("button", { name: "공지·미디어", exact: true })
+      .getByRole("button", { name: "공지·장소", exact: true })
       .click();
-    const upload = admin.getByLabel(
-      "사진·포스터·영상 파일 업로드 (승인자 전용)",
-      { exact: false },
-    );
+    await admin.getByRole("button",{name:"사진·포스터 추가",exact:true}).click();
+    const upload = admin.getByLabel("사진·포스터 파일 선택");
     await upload.setInputFiles({
       name: "synthetic-poster.png",
       mimeType: "image/png",
-      buffer: Buffer.from(png, "base64"),
+      buffer: readFileSync(new URL('../public/tour-logos-v3/on_top.png',import.meta.url)),
     });
+    await expect(admin.getByAltText("선택한 자료 미리보기")).toBeVisible();
+    await admin.getByRole("button",{name:"선택한 자료 저장",exact:true}).click();
     await expect(
       admin.getByText("저장되었습니다 ✓", { exact: true }),
     ).toBeVisible();
@@ -996,6 +997,7 @@ test("protected media HTTP, privacy review and participant-safe notices use the 
     expect(
       latest.events.find((v: { id: string }) => v.id === eventId).media,
     ).toHaveLength(3);
+  if(!await admin.getByText("행사 설정·기록·관리 도구",{exact:true}).evaluate(el=>(el.parentElement as HTMLDetailsElement).open)) await admin.getByText("행사 설정·기록·관리 도구",{exact:true}).click();
     await admin
       .getByRole("button", { name: "이력·개인정보", exact: true })
       .click();
@@ -1073,7 +1075,9 @@ test("actual administrator Saturday toggle survives reload and returns to the or
   try {
     await page.goto("/admin");
     await page.getByRole("button", { name: "🎉 술번개", exact: true }).click();
-    const toggle = page.getByLabel("토요일 자동 초안 생성", { exact: true });
+    await page.getByText("행사 설정·기록·관리 도구",{exact:true}).click();
+    await page.getByRole("button",{name:"행사·자동방",exact:true}).click();
+    const toggle = page.getByLabel("토요일 행사 자동 준비", { exact: true });
     await toggle.setChecked(!initial.settings.autoSaturday);
     await page
       .getByRole("button", { name: "자동방 설정 저장", exact: true })
@@ -1087,6 +1091,8 @@ test("actual administrator Saturday toggle survives reload and returns to the or
     expect(saved.settings.autoSaturday).toBe(!initial.settings.autoSaturday);
     await page.reload();
     await page.getByRole("button", { name: "🎉 술번개", exact: true }).click();
+    await page.getByText("행사 설정·기록·관리 도구",{exact:true}).click();
+    await page.getByRole("button",{name:"행사·자동방",exact:true}).click();
     await expect(toggle).toBeChecked({
       checked: !initial.settings.autoSaturday,
     });
@@ -1310,6 +1316,7 @@ test("tour actual API advance and shared-component lab enforce rank ten/eleven w
   await page.goto("/admin");
   await page.getByRole("button", { name: "🎉 술번개", exact: true }).click();
   await page.getByLabel("관리할 행사").selectOption(id);
+  if(!await page.getByText("행사 설정·기록·관리 도구",{exact:true}).evaluate(el=>(el.parentElement as HTMLDetailsElement).open)) await page.getByText("행사 설정·기록·관리 도구",{exact:true}).click();
   await page
     .getByRole("button", { name: "🧪 선착순 시험실", exact: true })
     .click();
@@ -1486,6 +1493,8 @@ test("independent draw module switches persist and the Halloween theme expires i
   try {
     await page.goto("/admin");
     await page.getByRole("button", { name: "🎉 술번개", exact: true }).click();
+    await page.getByText("행사 설정·기록·관리 도구",{exact:true}).click();
+    await page.getByRole("button",{name:"행사·자동방",exact:true}).click();
     await page
       .getByLabel("할로윈 경품 모듈 ON (모든 할로윈 행사)", { exact: true })
       .uncheck();
@@ -1641,6 +1650,7 @@ test("V3 actual app: phone-only reward record, late-arrival review and eight rec
   await admin.goto("/admin");
   await admin.getByRole("button",{name:"🎉 술번개",exact:true}).click();
   await admin.getByLabel("관리할 행사").selectOption(eventId);
+  if(!await admin.getByText("행사 설정·기록·관리 도구",{exact:true}).evaluate(el=>(el.parentElement as HTMLDetailsElement).open)) await admin.getByText("행사 설정·기록·관리 도구",{exact:true}).click();
   await admin.getByRole("button",{name:"경품·상금·할인 결과",exact:true}).click();
   await admin.getByLabel("번호·닉네임·행사 검색",{exact:true}).fill(nickname);
   await admin.getByRole("button",{name:"권한 있는 관리자 상세 열람",exact:true}).click();
@@ -1649,6 +1659,7 @@ test("V3 actual app: phone-only reward record, late-arrival review and eight rec
   await admin.getByRole("button",{name:"늦참 승인",exact:true}).click();
   await expect.poll(async()=> (await application(request,id)).lateArrival?.status).toBe("approved");
   await admin.screenshot({path:testInfo.outputPath("v3-admin-benefit-phone-late-review.png"),fullPage:true});
+  if(!await admin.getByText("행사 설정·기록·관리 도구",{exact:true}).evaluate(el=>(el.parentElement as HTMLDetailsElement).open)) await admin.getByText("행사 설정·기록·관리 도구",{exact:true}).click();
   await admin.getByRole("button",{name:"행사·자동방",exact:true}).click();
   await admin.getByText("수령한 7개 매장 로고 확인",{exact:true}).click();
   for(const name of ["레드홀 · RED HOLE","페이크 · FAKE","자크 · JACK","M가라오케 · M KARAOKE (기존 제작 시안)","스피드 · SPEED","체크인 · CHECK-IN","온탑 · ON TOP","고래 Gorae 감사용 로고"]){
@@ -1665,9 +1676,10 @@ test("administrator verification history and immutable logo upload/select/restor
  const evidence=await request.get('/api/event-hub/verification',{headers:adminHeaders});expect(evidence.status()).toBe(200);const history=await evidence.json();expect(history.runs.some((r:{historical:boolean})=>r.historical)).toBe(true);
  await page.addInitScript(value=>{localStorage.setItem('admin_token_v1',value);localStorage.setItem('admin_session_v1',JSON.stringify({phone:'01000000000',authedAt:Date.now()}));},token!);
  await page.goto('/admin');await page.getByRole('button',{name:'🎉 술번개',exact:true}).click();await page.getByRole('combobox',{name:'관리할 행사',exact:true}).selectOption(eventId);
+  if(!await page.getByText("행사 설정·기록·관리 도구",{exact:true}).evaluate(el=>(el.parentElement as HTMLDetailsElement).open)) await page.getByText("행사 설정·기록·관리 도구",{exact:true}).click();
  await page.getByRole('button',{name:'행사·자동방',exact:true}).click();
  const logo=page.locator('section').filter({has:page.getByRole('heading',{name:'행사 장소 로고 (승인 후 공개)',exact:true})});
- await logo.getByText('새 원본 업로드 · 미리보기 후 저장',{exact:true}).click();
+ if(!await logo.getByText('새 원본 업로드 · 미리보기 후 저장',{exact:true}).evaluate(el=>(el.parentElement as HTMLDetailsElement).open)) await logo.getByText('새 원본 업로드 · 미리보기 후 저장',{exact:true}).click();
  const original=readFileSync(new URL('../public/tour-logos-v3/on_top.png',import.meta.url));
  await logo.getByLabel('새 로고 원본 파일').setInputFiles({name:'provided-on-top.png',mimeType:'image/png',buffer:original});
  await expect(logo.getByAltText('저장 전 새 로고 미리보기')).toBeVisible();
@@ -1676,13 +1688,14 @@ test("administrator verification history and immutable logo upload/select/restor
  let e=(await(await request.get('/api/event-hub/admin',{headers:adminHeaders})).json()).events.find((e:{id:string})=>e.id===eventId);const a=e.logoVersions[0];expect(e.venueLogoVersionId).toBeUndefined();
  await logo.getByLabel('저장한 장소용 로고 버전').selectOption(a.id);await logo.getByRole('button',{name:'선택한 로고를 행사에 연결',exact:true}).click();
  await expect.poll(async()=>{const s=await(await request.get('/api/event-hub/admin',{headers:adminHeaders})).json();return s.events.find((e:{id:string})=>e.id===eventId).venueLogoVersionId;}).toBe(a.id);
- await logo.getByText('새 원본 업로드 · 미리보기 후 저장',{exact:true}).click();await logo.getByLabel('새 로고 원본 파일').setInputFiles({name:'provided-on-top-v2.png',mimeType:'image/png',buffer:original});await logo.getByLabel('로고 이름',{exact:true}).fill('격리 ON TOP 원본 B');await logo.getByRole('button',{name:'미리본 원본 저장 (아직 미연결)',exact:true}).click();
+ if(!await logo.getByText('새 원본 업로드 · 미리보기 후 저장',{exact:true}).evaluate(el=>(el.parentElement as HTMLDetailsElement).open)) await logo.getByText('새 원본 업로드 · 미리보기 후 저장',{exact:true}).click();await logo.getByLabel('새 로고 원본 파일').setInputFiles({name:'provided-on-top-v2.png',mimeType:'image/png',buffer:original});await logo.getByLabel('로고 이름',{exact:true}).fill('격리 ON TOP 원본 B');await logo.getByRole('button',{name:'미리본 원본 저장 (아직 미연결)',exact:true}).click();
  await expect.poll(async()=>{const s=await(await request.get('/api/event-hub/admin',{headers:adminHeaders})).json();return s.events.find((e:{id:string})=>e.id===eventId).logoVersions?.length;}).toBe(2);
  e=(await(await request.get('/api/event-hub/admin',{headers:adminHeaders})).json()).events.find((e:{id:string})=>e.id===eventId);const b=e.logoVersions[1];await logo.getByLabel('저장한 장소용 로고 버전').selectOption(b.id);await logo.getByRole('button',{name:'선택한 로고를 행사에 연결',exact:true}).click();
  await expect.poll(async()=>{const s=await(await request.get('/api/event-hub/admin',{headers:adminHeaders})).json();return s.events.find((e:{id:string})=>e.id===eventId).venueLogoVersionId;}).toBe(b.id);
- await logo.getByText(/원본·변경 이력과 이전 버전 복원/).click();const row=logo.locator('article').filter({hasText:'격리 ON TOP 원본 A'});await row.getByRole('button',{name:'이 버전으로 복원',exact:true}).click();
+ if(!await logo.getByText(/원본·변경 이력과 이전 버전 복원/).evaluate(el=>(el.parentElement as HTMLDetailsElement).open)) await logo.getByText(/원본·변경 이력과 이전 버전 복원/).click();const row=logo.locator('article').filter({hasText:'격리 ON TOP 원본 A'});await row.getByRole('button',{name:'이 버전으로 복원',exact:true}).click();
  await expect.poll(async()=>{const s=await(await request.get('/api/event-hub/admin',{headers:adminHeaders})).json();return s.events.find((e:{id:string})=>e.id===eventId).venueLogoVersionId;}).toBe(a.id);
  const bytes=await request.get(a.url,{headers:adminHeaders});expect(bytes.status()).toBe(200);expect(await bytes.body()).toEqual(original);
- await logo.getByText(/원본·변경 이력과 이전 버전 복원/).click();await page.screenshot({path:testInfo.outputPath('admin-logo-original-restore.png'),fullPage:true});
+ if(!await logo.getByText(/원본·변경 이력과 이전 버전 복원/).evaluate(el=>(el.parentElement as HTMLDetailsElement).open)) await logo.getByText(/원본·변경 이력과 이전 버전 복원/).click();await page.screenshot({path:testInfo.outputPath('admin-logo-original-restore.png'),fullPage:true});
+  if(!await page.getByText("행사 설정·기록·관리 도구",{exact:true}).evaluate(el=>(el.parentElement as HTMLDetailsElement).open)) await page.getByText("행사 설정·기록·관리 도구",{exact:true}).click();
  await page.getByRole('button',{name:'운영 점검',exact:true}).click();await expect(page.getByRole('heading',{name:'코드 버전별 실제 검사결과',exact:true})).toBeVisible();if(history.runs.every((r:{historical:boolean})=>r.historical))await expect(page.getByText(/현재 코드 버전 검사결과: 미실행/)).toBeVisible();else await expect(page.getByText(/현재 코드 내용과 일치/).first()).toBeVisible();await page.getByText(/과거 버전 · github-40532639584/).click();await expect(page.getByText(/물리 기기 미검증/)).toBeVisible();await page.screenshot({path:testInfo.outputPath('admin-verification-real-history.png'),fullPage:true});
 });

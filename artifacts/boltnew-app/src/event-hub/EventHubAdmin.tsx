@@ -1,3 +1,6 @@
+import { recruitmentIsOpen } from "../../../../lib/api-zod/src/event-hub";
+import { eventEndAt } from "../../../../lib/api-zod/src/event-hub-modules";
+import { MediaManager, NoticeEditor } from "./MediaManager";
 import { OperationalReadiness } from "./OperationalReadiness";
 import { VenueLogoSettings } from "./VenueLogos";
 import { RecruitmentSchedule, BenefitResults } from "./EventOperations";
@@ -8,7 +11,7 @@ import {
   CampaignOperations,
   CampaignApproval,
 } from "./CampaignAdmin";
-import { useState } from "react";
+import { useState, useRef, useLayoutEffect, useEffect } from "react";
 import {
   budgetSplit,
   useEventHub,
@@ -64,11 +67,28 @@ const initialEvent = {
   notificationsEnabled: false,
   media: [] as string[],
 };
-export default function EventHubAdmin() {
+export default function EventHubAdmin({active=true}:{active?:boolean}) {
   const hub = useEventHub(true);
-  const [tab, setTab] = useState("행사·자동방"),
-    [selected, setSelected] = useState(""),
+  const [tab, changeTab] = useState("전체 운영"),
+    [selected, changeSelected] = useState(""),
     [newEvent, setNewEvent] = useState(false);
+  const scroll = useRef<Record<string, number>>({});
+  const preserveScroll = () => {
+    scroll.current[tab + selected] = window.scrollY;
+  };
+  const setTab = (value: string) => {
+    preserveScroll();
+    changeTab(value);
+  };
+  const setSelected = (value: string) => {
+    preserveScroll();
+    changeSelected(value);
+  };
+  useLayoutEffect(() => {
+    if(active)window.scrollTo(0, scroll.current[tab + selected] ?? 0);
+  }, [tab, selected,active]);
+  useEffect(()=>{if(!active)return;const remember=()=>{scroll.current[tab+selected]=window.scrollY;};window.addEventListener('scroll',remember,{passive:true});return()=>window.removeEventListener('scroll',remember);},[tab,selected,active]);
+  const noticeDrafts = useRef<Record<string, Record<string, string>>>({});
   const s = hub.state;
   if (!s)
     return (
@@ -79,9 +99,9 @@ export default function EventHubAdmin() {
     );
   const event = s.events.find((e) => e.id === selected);
   const tabs = [
-    "행사·자동방",
+    "전체 운영",
     "신청·입금",
-    "공지·미디어",
+    "공지·장소",
     "관리자 문의",
     "현장·상품",
     "경품·상금·할인 결과",
@@ -92,21 +112,67 @@ export default function EventHubAdmin() {
   return (
     <div className="p-3 sm:p-5 space-y-4 text-slate-900 pb-24">
       <h2 className="text-xl font-black">🎉 술번개 운영</h2>
-      <p className="text-xs">
-        초안 생성 ≠ 모집 시작 ≠ 기존 회식 시작 · 금전·외부 발송은 자동 처리하지
-        않습니다.
+      <p className="text-sm text-slate-600">
+        날짜를 고르고, 처리할 일을 바로 확인하세요.
       </p>
-      <div className="flex flex-wrap gap-2">
-        {tabs.map((t) => (
+      <div className="flex flex-wrap gap-2" aria-label="행사 날짜 선택">
+        <button
+          className={`rounded-xl px-4 py-3 font-bold ${!selected ? "bg-teal-700 text-white" : "border bg-white"}`}
+          onClick={() => {
+            setSelected("");
+            setNewEvent(false);
+          }}
+        >
+          전체
+        </button>
+        {s.events
+          .filter((e) => e.campaign?.kind.startsWith("halloween"))
+          .sort((a, b) => a.date.localeCompare(b.date))
+          .map((e) => (
+            <button
+              key={e.id}
+              aria-pressed={selected === e.id}
+              className={`rounded-xl px-4 py-3 font-bold ${selected === e.id ? "bg-teal-700 text-white" : "border bg-white"}`}
+              onClick={() => {
+                setSelected(e.id);
+                setNewEvent(false);
+              }}
+            >
+              {e.date.slice(5).replace("-", "/")}{" "}
+              {new Date(e.date + "T12:00:00+09:00").getUTCDay() === 5
+                ? "금요일"
+                : "토요일"}
+            </button>
+          ))}
+      </div>
+      <nav className="flex flex-wrap gap-2" aria-label="술번개 운영 메뉴">
+        {tabs.slice(0, 5).map((t) => (
           <button
             key={t}
             onClick={() => setTab(t)}
-            className={`rounded-xl p-3 text-xs font-bold border ${tab === t ? "bg-teal-700 text-white" : "bg-white"}`}
+            aria-pressed={tab === t}
+            className={`rounded-xl p-3 text-sm font-bold border ${tab === t ? "bg-slate-800 text-white" : "bg-white"}`}
           >
             {t}
           </button>
         ))}
-      </div>
+      </nav>
+      <details>
+        <summary className="cursor-pointer text-sm text-slate-600 py-2">
+          행사 설정·기록·관리 도구
+        </summary>
+        <div className="flex flex-wrap gap-2 py-2">
+          {["행사·자동방", ...tabs.slice(5)].map((t) => (
+            <button
+              key={t}
+              className="border rounded-xl p-3 text-sm"
+              onClick={() => setTab(t)}
+            >
+              {t}
+            </button>
+          ))}
+        </div>
+      </details>
       <HubFeedback status={hub.status} error={hub.error} />
       <HubField label="관리할 행사">
         <select
@@ -117,14 +183,38 @@ export default function EventHubAdmin() {
             setNewEvent(false);
           }}
         >
-          <option value="">행사를 선택하세요</option>
+          <option value="">전체 행사</option>
           {s.events.map((e) => (
             <option key={e.id} value={e.id}>
-              {e.date} · {e.title} · {e.recruitment ? "접수 중" : "초안/마감"}
+              {e.date} · {e.title} · {eventStatus(e)}
             </option>
           ))}
         </select>
       </HubField>
+      {tab === "전체 운영" && (
+        <OperationsOverview
+          state={s}
+          selected={selected}
+          onOpen={(id, section) => {
+            setSelected(id);
+            setTab(section);
+          }}
+        />
+      )}
+      {tab === "공지·장소" && !event && (
+        <HubCard>
+          <p>사진과 장소를 수정할 날짜를 위에서 선택하세요.</p>
+          {s.events.map((e) => (
+            <button
+              key={e.id}
+              className="block border rounded-xl p-3 my-2"
+              onClick={() => setSelected(e.id)}
+            >
+              {e.date} · {e.title}
+            </button>
+          ))}
+        </HubCard>
+      )}
       {tab === "행사·자동방" && (
         <>
           <CampaignSetup hub={hub} />
@@ -148,8 +238,20 @@ export default function EventHubAdmin() {
               }}
             />
           )}
-          {event && <VenueLogoSettings key={"logo:"+event.id+":"+event.revision} event={event} hub={hub}/>}
-          {event && <RecruitmentSchedule key={event.id+":"+event.revision} event={event} hub={hub}/>}
+          {event && (
+            <VenueLogoSettings
+              key={"logo:" + event.id}
+              event={event}
+              hub={hub}
+            />
+          )}
+          {event && (
+            <RecruitmentSchedule
+              key={event.id + ":" + event.revision}
+              event={event}
+              hub={hub}
+            />
+          )}
           {s.settings && (
             <AutoSettings
               value={s.settings}
@@ -159,17 +261,24 @@ export default function EventHubAdmin() {
           )}
         </>
       )}
-      {tab === "공지·미디어" && event && (
-        <EventEditor
-          key={`notice:${event.id}`}
-          event={event}
+      {event && (
+        <div hidden={tab !== "공지·장소"}>
+          <NoticeEditor
+            key={event.id}
+            event={event}
+            hub={hub}
+            drafts={noticeDrafts.current}
+          />
+        </div>
+      )}
+      {tab === "운영 점검" && (
+        <OperationalReadiness
           hub={hub}
-          places={s.settings?.places ?? []}
-          onSaved={setSelected}
+          event={event}
+          onLaboratory={() => setTab("🧪 선착순 시험실")}
         />
       )}
-      {tab === "운영 점검" && <OperationalReadiness hub={hub} event={event} onLaboratory={()=>setTab("🧪 선착순 시험실")}/>}
-      {tab === "경품·상금·할인 결과" && <BenefitResults hub={hub}/>}
+      {tab === "경품·상금·할인 결과" && <BenefitResults hub={hub} />}
       {tab === "신청·입금" && (
         <>
           {event && <CampaignOperations event={event} hub={hub} />}
@@ -184,27 +293,36 @@ export default function EventHubAdmin() {
             ))}
         </>
       )}
-      {tab === "관리자 문의" && <AdminThreads hub={hub} state={s} />}
+      <div hidden={tab !== "관리자 문의"}>
+        <AdminThreads
+          hub={hub}
+          state={
+            selected
+              ? {
+                  ...s,
+                  applications: s.applications.filter(
+                    (a) => a.eventId === selected,
+                  ),
+                  threads: s.threads.filter((t) =>
+                    s.applications.some(
+                      (a) => a.eventId === selected && a.owner === t.id,
+                    ),
+                  ),
+                }
+              : s
+          }
+        />
+      </div>
       {tab === "현장·상품" && (
         <>
-          <p className="text-sm">
-            {event?.campaign
-              ? "확정 행사별 실물·할인권 재고만 관리합니다. 현금 상금을 추가하거나 자동 지급하지 않습니다."
-              : "금요일30% / 토요일70%는 과거 검토용 예산 배분입니다. 현금 무작위 지급은 비활성입니다."}
-          </p>
-          {!event?.campaign && <BudgetPreview hub={hub} />}
+          <PrizeOverview state={s} selected={selected} />
           {event && !event.campaign && (
-            <StockForm eventId={event.id} hub={hub} />
+            <details>
+              <summary>일반 행사 재고 추가·예산 검토</summary>
+              <StockForm eventId={event.id} hub={hub} />
+              <BudgetPreview hub={hub} />
+            </details>
           )}
-          <HubCard>
-            {s.stocks
-              .filter((v) => !selected || v.eventId === selected)
-              .map((v) => (
-                <p key={v.id}>
-                  {v.label} · 남은 재고 {v.remaining}
-                </p>
-              ))}
-          </HubCard>
           {s.applications
             .filter((a) => !selected || a.eventId === selected)
             .map((a) => (
@@ -242,6 +360,182 @@ export default function EventHubAdmin() {
     </div>
   );
 }
+function eventStatus(e: HubEvent) {
+  const now = new Date();
+  if (now.getTime() >= eventEndAt(e)) return "행사 종료 · 기록 보존";
+  if (recruitmentIsOpen(e, now)) return "접수 중";
+  if (e.schedulePaused) return "접수 일시중지";
+  if (e.scheduleEnabled && e.opensAt && Date.parse(e.opensAt) > now.getTime())
+    return "접수 시작 예정";
+  if (e.closesAt && Date.parse(e.closesAt) <= now.getTime())
+    return "신청 접수 종료";
+  return e.history.some((h) => h.action === "event.recruitment")
+    ? "접수 중지 · 기록 보존"
+    : "행사 준비 중";
+}
+function OperationsOverview({
+  state,
+  selected,
+  onOpen,
+}: {
+  state: HubState;
+  selected: string;
+  onOpen: (id: string, section: string) => void;
+}) {
+  return (
+    <div className="grid lg:grid-cols-2 gap-4">
+      {state.events
+        .filter((e) => !selected || e.id === selected)
+        .sort((a, b) => a.date.localeCompare(b.date))
+        .map((e) => {
+          const apps = state.applications.filter((a) => a.eventId === e.id),
+            owners = new Set(apps.map((a) => a.owner));
+          const unread = state.threads.filter(
+            (t) =>
+              owners.has(t.id) &&
+              t.messages.some(
+                (m) => m.sender === "user" && m.at > t.readAdminAt,
+              ),
+          ).length;
+          return (
+            <HubCard key={e.id}>
+              <div className="flex flex-wrap justify-between gap-2">
+                <h3 className="font-black text-lg">
+                  {e.date} · {e.title}
+                </h3>
+                <span className="text-sm text-teal-700">{eventStatus(e)}</span>
+              </div>
+              <p className="text-sm">
+                {e.start} 시작 · {e.end} 종료 · {e.area || "지역 확인 필요"}
+              </p>
+              <div className="grid grid-cols-2 gap-2">
+                {[
+                  [
+                    "입금 확인 대기",
+                    apps.filter(
+                      (a) => a.payment === "reported" || a.payment === "held",
+                    ).length,
+                    "신청·입금",
+                  ],
+                  ["안 읽은 문의", unread, "관리자 문의"],
+                  [
+                    "늦참 확인",
+                    apps.filter(
+                      (a) =>
+                        a.lateArrival &&
+                        ["noted", "review"].includes(a.lateArrival.status),
+                    ).length,
+                    "신청·입금",
+                  ],
+                  [
+                    "미지급 상품",
+                    apps.flatMap((a) =>
+                      a.cards.filter(
+                        (c) =>
+                          state.stocks.some((s) => s.id === c.prize) &&
+                          !a.prizesGiven.includes(c.id),
+                      ),
+                    ).length,
+                    "현장·상품",
+                  ],
+                ].map(([label, n, section]) => (
+                  <button
+                    key={label}
+                    className="border rounded-xl p-3 text-left hover:bg-teal-50"
+                    onClick={() => onOpen(e.id, String(section))}
+                  >
+                    <span className="block text-xs text-slate-600">
+                      {label}
+                    </span>
+                    <strong className="text-xl">{n}건</strong>
+                  </button>
+                ))}
+              </div>
+              <div className="flex gap-2 flex-wrap">
+                {["신청·입금", "공지·장소", "현장·상품"].map((t) => (
+                  <button
+                    key={t}
+                    aria-label={`${e.date} ${t} 열기`}
+                    className="rounded-xl bg-slate-100 px-3 py-2 text-sm font-bold"
+                    onClick={() => onOpen(e.id, t)}
+                  >
+                    {t}
+                  </button>
+                ))}
+              </div>
+            </HubCard>
+          );
+        })}
+      {!state.events.length && (
+        <HubCard>등록된 행사가 없습니다. 행사 설정에서 준비해 주세요.</HubCard>
+      )}
+    </div>
+  );
+}
+function PrizeOverview({
+  state,
+  selected,
+}: {
+  state: HubState;
+  selected: string;
+}) {
+  return (
+    <>
+      <p className="text-sm text-slate-600">
+        날짜를 바꿔도 재고와 당첨·지급 기록은 그대로 유지됩니다. 아래 수량은
+        저장된 실제 기록입니다.
+      </p>
+      <div className="grid lg:grid-cols-2 gap-4">
+        {state.events
+          .filter((e) => !selected || e.id === selected)
+          .sort((a, b) => a.date.localeCompare(b.date))
+          .map((e) => {
+            const stocks = state.stocks.filter((s) => s.eventId === e.id),
+              apps = state.applications.filter((a) => a.eventId === e.id);
+            return (
+              <HubCard key={e.id}>
+                <h3 className="font-black text-lg">
+                  {e.date} · {e.title}
+                </h3>
+                <p className="text-sm">
+                  {e.campaign?.kind.startsWith("halloween")
+                    ? e.campaign.kind === "halloween-friday"
+                      ? "금요일 예정 배분 23개"
+                      : "토요일 예정 배분 49개"
+                    : "행사별 재고"}
+                </p>
+                {stocks.map((s) => {
+                  const winners = apps.flatMap((a) =>
+                    a.cards
+                      .filter((c) => c.prize === s.id)
+                      .map((c) => ({ given: a.prizesGiven.includes(c.id) })),
+                  );
+                  return (
+                    <div key={s.id} className="border-b py-3">
+                      <strong>{s.label}</strong>
+                      <p className="text-sm">
+                        배정 {s.remaining + winners.length} · 당첨{" "}
+                        {winners.length} · 지급{" "}
+                        {winners.filter((w) => w.given).length} · 미지급{" "}
+                        {winners.filter((w) => !w.given).length} · 남음{" "}
+                        {s.remaining}
+                      </p>
+                    </div>
+                  );
+                })}
+                {!stocks.length && (
+                  <p>
+                    등록된 재고가 없습니다. 보기 전환으로 상품을 생성하지
+                    않습니다.
+                  </p>
+                )}
+              </HubCard>
+            );
+          })}
+      </div>
+    </>
+  );
+}
 function EventEditor({
   event,
   hub,
@@ -256,17 +550,91 @@ function EventEditor({
   const [v, setV] = useState({ ...initialEvent, ...event }),
     [preview, setPreview] = useState(false),
     [media, setMedia] = useState(event?.media.join("\n") ?? "");
+  const [createdId, setCreatedId] = useState<string>();
+  const currentEvent =
+    event ?? hub.state?.events.find((e) => e.id === createdId);
+  const original = useRef({ ...initialEvent, ...event });
+  const originalMedia = useRef(event?.media.join("\n") ?? "");
+  const saveEvent = async () => {
+    const changed = Object.entries(v).filter(
+      ([key, value]) =>
+        JSON.stringify(value) !==
+        JSON.stringify((original.current as Record<string, unknown>)[key]),
+    );
+    if (
+      currentEvent &&
+      changed.some(
+        ([key, value]) =>
+          JSON.stringify((currentEvent as Record<string, unknown>)[key]) !==
+            JSON.stringify(
+              (original.current as Record<string, unknown>)[key],
+            ) &&
+          JSON.stringify((currentEvent as Record<string, unknown>)[key]) !==
+            JSON.stringify(value),
+      )
+    ) {
+      hub.setError(
+        "다른 관리자가 같은 설정을 변경했습니다. 입력은 남겨두었습니다. 최신 설정을 확인한 뒤 다시 저장해 주세요.",
+      );
+      return;
+    }
+    const links =
+      media === originalMedia.current
+        ? (currentEvent?.media ?? v.media)
+        : media
+            .split("\n")
+            .map((s) => s.trim())
+            .filter(Boolean);
+    const data = currentEvent
+      ? { ...currentEvent, ...Object.fromEntries(changed) }
+      : v;
+    const r = await hub.mutate({
+      action: "event.save",
+      target: currentEvent?.id,
+      revision: currentEvent?.revision,
+      data: {
+        ...data,
+        media: [
+          ...new Set([
+            ...links,
+            ...(currentEvent?.materials ?? [])
+              .filter((m) => !m.hidden)
+              .map((m) => m.url),
+          ]),
+        ],
+      },
+    });
+    if (!r?.id) return;
+    const id = String(r.id);
+    setCreatedId(id);
+    const state = await hub.load();
+    const saved = state.events.find((e) => e.id === id);
+    if (saved) {
+      original.current = { ...initialEvent, ...saved };
+      originalMedia.current = saved.media.join("\n");
+      setV({ ...initialEvent, ...saved });
+      setMedia(originalMedia.current);
+    }
+    return saved;
+  };
   const set = (key: string, value: unknown) =>
     setV((p) => ({ ...p, [key]: value }));
   return (
     <HubCard>
       <h3 className="font-black">
-        {event ? "행사 설정·변경" : "새 술번개 초안"}
+        {event ? "행사 설정·변경" : "새 술번개 준비"}
       </h3>
-      <NoticeHistory history={event?.versions} />
+      <details>
+        <summary>이전 공지·설정 보기</summary>
+        <NoticeHistory history={event?.versions} />
+      </details>
       {v.campaign && (
         <>
-          <p>행사 정책: {v.campaign.kind} · BINPC2 1차만 신청</p>
+          <p>
+            행사 정책:{" "}
+            {v.campaign.kind.startsWith("halloween") ? "할로윈" : "전국투어"} ·
+            BINPC2 1차만 신청
+          </p>
           {v.campaign.kind === "tour" && (
             <HubField label="전국투어 선입금액 (최종 회비 아님)">
               <input
@@ -285,18 +653,20 @@ function EventEditor({
               />
             </HubField>
           )}
-          <HubField label="2차 오픈채팅 링크 (미정이면 빈칸)">
-            <input
-              className={inputClass}
-              value={v.campaign.secondRoundLink}
-              onChange={(e) =>
-                set("campaign", {
-                  ...v.campaign,
-                  secondRoundLink: e.target.value,
-                })
-              }
-            />
-          </HubField>
+          {v.campaign.kind === "tour" && (
+            <HubField label="2차 오픈채팅 링크 (미정이면 빈칸)">
+              <input
+                className={inputClass}
+                value={v.campaign.secondRoundLink}
+                onChange={(e) =>
+                  set("campaign", {
+                    ...v.campaign,
+                    secondRoundLink: e.target.value,
+                  })
+                }
+              />
+            </HubField>
+          )}
           <p>
             매장 후보 (차수 배정 아님):{" "}
             {v.venueCandidates?.join(", ") || "운영자 확인"}
@@ -310,7 +680,18 @@ function EventEditor({
           onChange={(e) => set("theme", e.target.value)}
         >
           {["default", "halloween", "christmas", "yearend"].map((k) => (
-            <option key={k}>{k}</option>
+            <option key={k} value={k}>
+              {
+                (
+                  {
+                    default: "기본 BINPC2",
+                    halloween: "할로윈",
+                    christmas: "크리스마스",
+                    yearend: "연말",
+                  } as Record<string, string>
+                )[k]
+              }
+            </option>
           ))}
         </select>
       </HubField>
@@ -424,19 +805,8 @@ function EventEditor({
         className="space-y-4"
         onSubmit={async (e) => {
           e.preventDefault();
-          const r = await hub.mutate({
-            action: "event.save",
-            target: event?.id,
-            revision: event?.revision,
-            data: {
-              ...v,
-              media: media
-                .split("\n")
-                .map((s) => s.trim())
-                .filter(Boolean),
-            },
-          });
-          if (r?.id) onSaved(String(r.id));
+          const saved = await saveEvent();
+          if (saved) onSaved(saved.id);
         }}
       >
         <div className="grid sm:grid-cols-2 gap-3">
@@ -558,57 +928,17 @@ function EventEditor({
             onChange={(e) => set("notice", e.target.value)}
           />
         </HubField>
-        <HubField label="사진·포스터·영상 HTTPS 링크 (한 줄에 하나)">
-          <textarea
-            rows={3}
-            className={inputClass}
-            value={media}
-            onChange={(e) => setMedia(e.target.value)}
-          />
-        </HubField>
-        {event ? (
-          <HubField label="사진·포스터·영상 파일 업로드 (승인자 전용)">
-            <input
-              type="file"
-              accept="image/png,image/jpeg,image/webp,video/mp4,video/webm"
-              disabled={hub.status === "saving"}
-              onChange={async (e) => {
-                const file = e.currentTarget.files?.[0];
-                if (!file) return;
-                const max = file.type.startsWith("image/")
-                  ? 2 * 1024 * 1024
-                  : 5 * 1024 * 1024;
-                if (file.size > max) {
-                  hub.setError("이미지 2MB·영상 5MB 이하만 가능합니다.");
-                  return;
-                }
-                const bytes = new Uint8Array(await file.arrayBuffer());
-                let binary = "";
-                for (let i = 0; i < bytes.length; i += 8192)
-                  binary += String.fromCharCode(...bytes.subarray(i, i + 8192));
-                const r = await hub.mutate({
-                  action: "event.media.upload",
-                  target: event.id,
-                  revision: event.revision,
-                  data: { mime: file.type, base64: btoa(binary) },
-                });
-                if (r?.mediaUrl)
-                  setMedia((current) =>
-                    [current, String(r.mediaUrl)].filter(Boolean).join("\n"),
-                  );
-              }}
+        <details>
+          <summary>기존 외부 자료 링크 관리</summary>
+          <HubField label="사진·포스터·영상 HTTPS 링크 (한 줄에 하나)">
+            <textarea
+              rows={3}
+              className={inputClass}
+              value={media}
+              onChange={(e) => setMedia(e.target.value)}
             />
-            <p className="text-xs">
-              행사를 저장한 뒤 업로드합니다. PNG/JPEG/WebP 2MB, MP4/WebM 5MB
-              이하. 실제 신청자의 입금 승인 후 열람할 수 있습니다.
-              얼굴·연락처·계좌가 없는 안내 자료만 올리세요.
-            </p>
           </HubField>
-        ) : (
-          <p className="text-xs">
-            행사 초안을 저장하면 파일 업로드가 열립니다.
-          </p>
-        )}
+        </details>
         <HubCheck
           label="선착순 혜택 ON"
           checked={v.benefitsEnabled}
@@ -731,7 +1061,7 @@ function EventEditor({
             미리보기
           </HubButton>
           <HubButton type="submit" disabled={hub.status === "saving"}>
-            {hub.status === "saving" ? "저장 중…" : "초안·변경 저장"}
+            {hub.status === "saving" ? "저장 중…" : "행사 설정 저장"}
           </HubButton>
           {event && (
             <HubButton
@@ -767,6 +1097,9 @@ function EventEditor({
           </div>
         )}
       </form>
+      {!event && (
+        <MediaManager event={currentEvent} hub={hub} ensureEvent={saveEvent} />
+      )}
     </HubCard>
   );
 }
@@ -788,8 +1121,8 @@ function AutoSettings({
         {v.autoTemplate?.end ?? "01:00"}
       </p>
       <p className="text-xs">
-        자동 생성은 초안만 만들며 모집·회식 시작은 자동 실행하지 않습니다.
-        금요일은 자동 생성하지 않습니다.
+        자동 생성은 접수 전 행사를 준비하며 모집·회식 시작은 자동 실행하지
+        않습니다. 금요일은 자동 생성하지 않습니다.
       </p>
       <HubCheck
         label="할로윈 경품 모듈 ON (모든 할로윈 행사)"
@@ -822,7 +1155,7 @@ function AutoSettings({
         확인은 유지합니다. 전체 이벤트 모듈은 기존 DB헬스에서 관리합니다.
       </p>
       <HubCheck
-        label="토요일 자동 초안 생성"
+        label="토요일 행사 자동 준비"
         checked={v.autoSaturday}
         onChange={(b) => setV({ ...v, autoSaturday: b })}
       />
@@ -889,7 +1222,7 @@ function AutoSettings({
             })
           }
         >
-          <option value="">미설정 초안으로 생성</option>
+          <option value="">기본 설정 없이 준비</option>
           {v.templates?.map((t, i) => (
             <option value={i} key={i}>
               {t.name}
@@ -951,8 +1284,37 @@ export function ApplicationAdmin({
           {app.quote?.fee.toLocaleString() ?? "미확정"}원
         </p>
         <p className="text-sm">
-          단계 {app.stage} · 입금 {app.payment} · 참가 {app.attendance} · 현장{" "}
-          {app.checkin ? "확인" : "미확인"}
+          {(
+            {
+              1: "기본정보 작성",
+              2: "공지 확인",
+              3: "입금 안내",
+              4: "대기방",
+              entered: "입장 완료",
+            } as Record<string, string>
+          )[app.stage] ?? "신청 진행 중"}{" "}
+          ·{" "}
+          {app.waivedAt
+            ? "무료 참가 승인"
+            : ((
+                {
+                  none: "입금 전",
+                  reported: "입금 신고 · 확인 대기",
+                  approved: "입금 확인 완료",
+                  held: "입금 확인 보류",
+                  mismatch: "입금 정보 확인 필요",
+                } as Record<string, string>
+              )[app.payment] ?? "입금 확인 필요")}{" "}
+          ·{" "}
+          {(
+            {
+              applied: "신청 중",
+              confirmed: "참가 확정",
+              paid_waitlist: "입금확정 대기",
+              cancelled: "신청 취소",
+            } as Record<string, string>
+          )[app.attendance] ?? "참가 확인 중"}{" "}
+          · 현장 {app.checkin ? "확인" : "미확인"}
         </p>
         <p className="text-xs">
           입금 신고 시각 {formatHubTime(app.reportedAt)} · 최근 저장{" "}
@@ -964,6 +1326,47 @@ export function ApplicationAdmin({
             ? "미완료: " + profileMissing(app.profile).join(", ")
             : "완료"}
         </p>
+        {app.lateArrival && (
+          <details>
+            <summary className="cursor-pointer font-bold">
+              늦참 · {formatHubTime(app.lateArrival.at)} ·{" "}
+              {
+                {
+                  noted: "접수",
+                  review: "확인 대기",
+                  approved: "승인",
+                  declined: "도착 불가",
+                }[app.lateArrival.status]
+              }
+            </summary>
+            <p>{app.lateArrival.reason}</p>
+            <HubField label="늦참 검토 사유">
+              <input
+                className={inputClass}
+                value={note}
+                onChange={(e) => setNote(e.target.value)}
+              />
+            </HubField>
+            <div className="flex gap-2">
+              <HubButton
+                disabled={!note.trim()}
+                onClick={() =>
+                  act("late", { status: "approved", reason: note })
+                }
+              >
+                늦참 승인
+              </HubButton>
+              <HubButton
+                disabled={!note.trim()}
+                onClick={() =>
+                  act("late", { status: "declined", reason: note })
+                }
+              >
+                도착 불가 안내
+              </HubButton>
+            </div>
+          </details>
+        )}
         <div className="flex gap-2 flex-wrap">
           {!onsite && (
             <>
@@ -1115,7 +1518,6 @@ function Audit({
 export function AdminThreads({ hub, state }: { hub: Hub; state: HubState }) {
   const [selected, setSelected] = useState(""),
     [drafts, setDrafts] = useState<Record<string, string>>({});
-  const draft = drafts[selected] ?? "";
   const setDraft = (text: string) =>
     setDrafts((previous) => ({ ...previous, [selected]: text }));
   const t = state.threads.find((v) => v.id === selected);
@@ -1125,6 +1527,8 @@ export function AdminThreads({ hub, state }: { hub: Hub; state: HubState }) {
       ...state.applications.map((a) => a.owner!).filter(Boolean),
     ]),
   ];
+  const validSelection = owners.includes(selected);
+  const draft = validSelection ? (drafts[selected] ?? "") : "";
   return (
     <HubCard>
       <h3 className="font-black">문의함 · 관리자 먼저 연락</h3>
@@ -1162,7 +1566,7 @@ export function AdminThreads({ hub, state }: { hub: Hub; state: HubState }) {
       <HubField label="문의 대상">
         <select
           className={inputClass}
-          value={selected}
+          value={validSelection ? selected : ""}
           onChange={(e) => {
             setSelected(e.target.value);
             void hub.mutate({ action: "thread.read", target: e.target.value });
@@ -1217,13 +1621,13 @@ export function AdminThreads({ hub, state }: { hub: Hub; state: HubState }) {
         <textarea
           className={inputClass}
           value={draft}
-          disabled={!selected}
+          disabled={!validSelection}
           onChange={(e) => setDraft(e.target.value)}
           rows={3}
         />
       </HubField>
       <HubButton
-        disabled={!selected || !draft.trim() || hub.status === "saving"}
+        disabled={!validSelection || !draft.trim() || hub.status === "saving"}
         onClick={async () => {
           if (
             await hub.mutate({
@@ -1245,7 +1649,7 @@ export function AdminThreads({ hub, state }: { hub: Hub; state: HubState }) {
         {["답장 지연", "연락두절", "중도이탈", "미참석", "검토 필요"].map(
           (tag) => (
             <button
-              disabled={!selected}
+              disabled={!validSelection}
               key={tag}
               className="text-xs border rounded-xl p-2"
               onClick={() => {
@@ -1315,12 +1719,22 @@ function StockForm({ eventId, hub }: { eventId: string; hub: Hub }) {
 }
 
 function MemberManagement({ hub, state }: { hub: Hub; state: HubState }) {
-  const [search,setSearch]=useState(""),[page,setPage]=useState(0);
-  const appByOwner=new Map<string|undefined,PrivateApplication>();
-  for(const app of state.applications)if(!appByOwner.has(app.owner))appByOwner.set(app.owner,app);
-  const memberOwners=new Set(state.members?.map(m=>m.owner)??[]);
-  const owners=(state.owners??[]).filter(o=>!search||o.id.includes(search)||appByOwner.get(o.id)?.basic.nickname.includes(search));
-  const currentPage=Math.min(page,Math.max(0,Math.ceil(owners.length/50)-1));
+  const [search, setSearch] = useState(""),
+    [page, setPage] = useState(0);
+  const appByOwner = new Map<string | undefined, PrivateApplication>();
+  for (const app of state.applications)
+    if (!appByOwner.has(app.owner)) appByOwner.set(app.owner, app);
+  const memberOwners = new Set(state.members?.map((m) => m.owner) ?? []);
+  const owners = (state.owners ?? []).filter(
+    (o) =>
+      !search ||
+      o.id.includes(search) ||
+      appByOwner.get(o.id)?.basic.nickname.includes(search),
+  );
+  const currentPage = Math.min(
+    page,
+    Math.max(0, Math.ceil(owners.length / 50) - 1),
+  );
   return (
     <>
       <HubCard>
@@ -1329,10 +1743,36 @@ function MemberManagement({ hub, state }: { hub: Hub; state: HubState }) {
           IP·년생·지역으로 자동 제한하지 않습니다. 확인된 개인에게만 사유를
           기록해 처리합니다.
         </p>
-        <HubField label="회원 닉네임·신청 식별 검색"><input className={inputClass} value={search} onChange={e=>{setSearch(e.target.value);setPage(0);}}/></HubField>
-        <p className="text-xs">한 화면에50명씩 표시합니다. 기록을 삭제하거나 조회 권한을 바꾸지 않습니다. {currentPage+1}/{Math.max(1,Math.ceil(owners.length/50))}쪽</p>
-        <div className="flex gap-2"><HubButton disabled={currentPage===0} onClick={()=>setPage(currentPage-1)}>이전 회원</HubButton><HubButton disabled={(currentPage+1)*50>=owners.length} onClick={()=>setPage(currentPage+1)}>다음 회원</HubButton></div>
-        {owners.slice(currentPage*50,currentPage*50+50).map((o) => (
+        <HubField label="회원 닉네임·신청 식별 검색">
+          <input
+            className={inputClass}
+            value={search}
+            onChange={(e) => {
+              setSearch(e.target.value);
+              setPage(0);
+            }}
+          />
+        </HubField>
+        <p className="text-xs">
+          한 화면에50명씩 표시합니다. 기록을 삭제하거나 조회 권한을 바꾸지
+          않습니다. {currentPage + 1}/
+          {Math.max(1, Math.ceil(owners.length / 50))}쪽
+        </p>
+        <div className="flex gap-2">
+          <HubButton
+            disabled={currentPage === 0}
+            onClick={() => setPage(currentPage - 1)}
+          >
+            이전 회원
+          </HubButton>
+          <HubButton
+            disabled={(currentPage + 1) * 50 >= owners.length}
+            onClick={() => setPage(currentPage + 1)}
+          >
+            다음 회원
+          </HubButton>
+        </div>
+        {owners.slice(currentPage * 50, currentPage * 50 + 50).map((o) => (
           <div className="border-t py-3 space-y-2" key={o.id}>
             <strong>
               {appByOwner.get(o.id)?.basic.nickname ?? "신청 전 문의자"}
@@ -1341,8 +1781,7 @@ function MemberManagement({ hub, state }: { hub: Hub; state: HubState }) {
               {o.restricted?.active
                 ? "제한 중: " + o.restricted.reason
                 : "제한 없음"}{" "}
-              · 재사용{" "}
-              {memberOwners.has(o.id) ? "동의" : "미선택"}
+              · 재사용 {memberOwners.has(o.id) ? "동의" : "미선택"}
             </p>
             {o.deleteRequestedAt && (
               <p className="text-sm text-amber-800">

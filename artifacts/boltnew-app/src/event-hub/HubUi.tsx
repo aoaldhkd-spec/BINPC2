@@ -4,6 +4,7 @@ import {
 } from "../../../../lib/api-zod/src/event-hub-modules";
 import type { HubEvent } from "../lib/event-hub-client";
 import {
+  Children, cloneElement, isValidElement, type ReactElement,
   useEffect,
   useState,
   type ReactNode,
@@ -14,11 +15,11 @@ import "./event-hub.css";
 
 export function useHubDark() {
   const [dark, setDark] = useState(
-    () => readHubBrowserValue("local", "dark_mode") === "1",
+    () => readHubBrowserValue("local", "dark_mode") !== "0",
   );
   useEffect(() => {
     const sync = () =>
-      setDark(readHubBrowserValue("local", "dark_mode") === "1");
+      setDark(readHubBrowserValue("local", "dark_mode") !== "0");
     window.addEventListener("storage", sync);
     return () => window.removeEventListener("storage", sync);
   }, []);
@@ -47,7 +48,7 @@ export function HubField({
   return (
     <label className="block text-sm font-bold text-slate-700 space-y-1">
       <span>{label}</span>
-      {children}
+      {Children.map(children,child=>isValidElement(child)&&typeof child.type==='string'&&['input','textarea','select'].includes(child.type)?cloneElement(child as ReactElement<{'aria-label'?:string}>,{'aria-label':(child.props as {'aria-label'?:string})['aria-label']??label}):child)}
     </label>
   );
 }

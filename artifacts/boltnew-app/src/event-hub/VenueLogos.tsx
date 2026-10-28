@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import type { HubController,HubEvent } from '../lib/event-hub-client';
 import { HubCard,HubField,HubButton,inputClass } from './HubUi';
 export const VENUE_LOGOS = [
@@ -21,6 +21,8 @@ function SavedLogoPreview({url,label}:{url:string;label:string}){
 }
 export function VenueLogoSettings({event:e,hub}:{event:HubEvent;hub:HubController}){
  const [id,setId]=useState(e.venueLogoId??'');const [versionId,setVersionId]=useState(e.venueLogoVersionId??'');
+ const previousSelection=useRef({id:e.venueLogoId??'',version:e.venueLogoVersionId??''});
+ useEffect(()=>{const previous=previousSelection.current;const next={id:e.venueLogoId??'',version:e.venueLogoVersionId??''};setId(current=>current===previous.id?next.id:current);setVersionId(current=>current===previous.version?next.version:current);previousSelection.current=next;},[e.venueLogoId,e.venueLogoVersionId]);
  const [file,setFile]=useState<File|null>(null);const [preview,setPreview]=useState('');const [label,setLabel]=useState('');
  const [role,setRole]=useState<'venue'|'thanks'>('venue');const [provenance,setProvenance]=useState<'original'|'design'>('original');const [sourceNote,setSourceNote]=useState('');const [reading,setReading]=useState(false);
  useEffect(()=>{if(!file){setPreview('');return;}const url=URL.createObjectURL(file);setPreview(url);return()=>URL.revokeObjectURL(url);},[file]);

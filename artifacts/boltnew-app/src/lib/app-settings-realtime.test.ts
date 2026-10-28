@@ -41,7 +41,7 @@ describe('planAppSettingsRealtimeUpdate', () => {
     expect(plan.functionsLockedRaw).toBe(true);
   });
 
-  it('plans autoSkipWaiting only on false→true without stored user', () => {
+  it('keeps explicit entry on false→true without stored user', () => {
     const plan = planAppSettingsRealtimeUpdate(
       { session_active: true, reset_signal: null },
       {
@@ -52,7 +52,7 @@ describe('planAppSettingsRealtimeUpdate', () => {
     );
     expect(plan.kind).toBe('patch');
     if (plan.kind !== 'patch') return;
-    expect(plan.autoSkipWaiting).toBe(true);
+    expect(plan.autoSkipWaiting).toBe(false);
     expect(plan.returnToWaiting).toBe(false);
   });
 
