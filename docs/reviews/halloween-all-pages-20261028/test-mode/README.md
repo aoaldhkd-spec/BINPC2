@@ -18,3 +18,5 @@ Operational applications, payment states, ranks and stock records were identical
 - [08-global-reset-confirmation.png](08-global-reset-confirmation.png) — All four workspaces erased; stale generation rejected; a new reset requires a fresh OFF acknowledgement.
 
 After the regression, the parent restored the private fixture to ON (as requested). `09`–`11` additionally show the common banner with an existing recovered profile, unchanged participant identity and unsent chat at390/320px. This is a local fixture state, not a claim about production deployment.
+
+Final code `173f61f06c46f682b77dcd7633a304608d68d153`: [GitHub40683694827](https://github.com/aoaldhkd-spec/BINPC2/actions/runs/40683694827), all27steps success. Two prior failures are preserved in the adjacent JSON files; legacy lab fixtures now explicitly enter ON and reset/OFF after each test. This is isolated CI, not a deployment or physical-device result.

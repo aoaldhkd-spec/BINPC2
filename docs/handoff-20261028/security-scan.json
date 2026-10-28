@@ -1,0 +1,9 @@
+{
+  "at": "2026-10-28T12:05:44.801333+00:00",
+  "trackedAndNewFiles": 1607,
+  "scannedIncludingZipMembers": 6476,
+  "archiveMembers": 4869,
+  "privateCredentialComparisons": 17,
+  "findings": [],
+  "scope": "current tracked and non-ignored new files; archive contents; exact private fixture secrets and credential/dump signatures. No rewrite of existing Git history."
+}

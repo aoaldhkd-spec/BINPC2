@@ -1,0 +1,13 @@
+{
+  "sourceCommit": "173f61f06c46f682b77dcd7633a304608d68d153",
+  "scope": "Two legacy laboratory cases which failed initial full CI",
+  "tests": 2,
+  "passed": 2,
+  "durationSeconds": 54.3,
+  "typecheck": "PASS",
+  "server": "isolated Express API8122 / React3005 / PostgreSQL existing synthetic fixture",
+  "businessClock": "2026-10-31T00:10:00+09:00",
+  "changes": "Explicit authenticated lab ON, fee phase selection, finally reset/OFF; original assertions preserved",
+  "productionTouched": false,
+  "fullSuiteResult": "Separate latest GitHub CI evidence required"
+}

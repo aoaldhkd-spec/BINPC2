@@ -1,0 +1,10 @@
+{
+  "sourceCommit": "173f61f06c46f682b77dcd7633a304608d68d153",
+  "createdAt": "2026-10-28T11:58:14.486085+00:00",
+  "files": 1102,
+  "bytes": 10937471,
+  "sha256": "401563b1e1af95404cb174f138512e5e13017cc0090fd090eb9e2f4176e1bc96",
+  "exclusions": "Review media, campaign poster exports and older archive/PDF/video artifacts distributed separately; application assets and original logos retained",
+  "operatingDbBackup": false,
+  "credentialBackup": false
+}

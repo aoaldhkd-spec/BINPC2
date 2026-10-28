@@ -1,0 +1,21 @@
+{
+  "scope": "Incremental source Git bundles; existing full bundles retained separately; no operational DB/key backup",
+  "bundles": [
+    {
+      "name": "test-mode-incremental.bundle",
+      "bytes": 116263685,
+      "sha256": "d1f0eb59cd0140b718964e2aa455c74072db32cab78c9f75d954aeb0b8f02c06",
+      "verified": true,
+      "privateStorage": true,
+      "prerequisite": "2502f6cec7de74b66ebbe893f0f2140a40eaa57e"
+    },
+    {
+      "name": "test-mode-completion-incremental.bundle",
+      "bytes": 83589074,
+      "sha256": "ae5ae4a47655995015f1afff237103851cac60fb8286b08027710b6ee1949ced",
+      "verified": true,
+      "privateStorage": true,
+      "prerequisite": "60a7fe95022f81be82d15dee5c795dba8a52ef0f"
+    }
+  ]
+}

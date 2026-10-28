@@ -1,0 +1,12 @@
+{
+  "measuredAt": "2026-10-28T11:53:25.938572+00:00",
+  "scope": "local production build files; total emitted chunks, NOT measured first-page transfer or device speed",
+  "root": "artifacts/boltnew-app/dist/public",
+  "totalFiles": 407,
+  "totalBytes": 8570394,
+  "jsBytes": 1536878,
+  "jsGzipBytes": 457626,
+  "cssBytes": 253204,
+  "reviewArtifactsBundled": false,
+  "runtimeCleanup": "No original files, logos, history, tests or operational records deleted; review PDFs and posters reside outside app public assets."
+}

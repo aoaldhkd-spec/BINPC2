@@ -1,0 +1,138 @@
+{
+  "checked_at_utc": "2026-10-28T10:55:59.522752+00:00",
+  "scope": "Read-only existing BINPC2 deployment connectivity; no service, deployment, environment or Git changes.",
+  "process_auth_presence": {
+    "NETLIFY_AUTH_TOKEN": false,
+    "RENDER_API_KEY": false
+  },
+  "proxy_configured": true,
+  "draft_metadata": {
+    "revision": 3,
+    "draft_present": true,
+    "network_type": "restricted",
+    "custom_allowed_hosts": [
+      "api.github.com",
+      "api.netlify.com",
+      "api.render.com",
+      "binpc2.netlify.app",
+      "binpc2.onrender.com"
+    ],
+    "saved_secret_bindings": {
+      "NETLIFY_AUTH_TOKEN": false,
+      "RENDER_API_KEY": false
+    },
+    "publication_status": "not verified by read-draft tool; draft presence alone does not prove active network policy"
+  },
+  "probes": [
+    {
+      "label": "frontend",
+      "url": "https://binpc2.netlify.app/",
+      "method": "GET",
+      "explicit_process_bearer_sent": false,
+      "phase": "proxy_connect",
+      "status": 403,
+      "network_available": false,
+      "api_auth_verified": false,
+      "classification": "proxy_tunnel_denied",
+      "safe_error": "Tunnel connection failed: 403 Forbidden"
+    },
+    {
+      "label": "render_health",
+      "url": "https://binpc2.onrender.com/api/healthz",
+      "method": "GET",
+      "explicit_process_bearer_sent": false,
+      "phase": "proxy_connect",
+      "status": 403,
+      "network_available": false,
+      "api_auth_verified": false,
+      "classification": "proxy_tunnel_denied",
+      "safe_error": "Tunnel connection failed: 403 Forbidden"
+    },
+    {
+      "label": "netlify_api_existing_site",
+      "url": "https://api.netlify.com/api/v1/sites/binpc2.netlify.app",
+      "method": "GET",
+      "explicit_process_bearer_sent": false,
+      "phase": "proxy_connect",
+      "status": 403,
+      "network_available": false,
+      "api_auth_verified": false,
+      "classification": "proxy_tunnel_denied",
+      "safe_error": "Tunnel connection failed: 403 Forbidden"
+    },
+    {
+      "label": "render_api_services",
+      "url": "https://api.render.com/v1/services?limit=100",
+      "method": "GET",
+      "explicit_process_bearer_sent": false,
+      "phase": "proxy_connect",
+      "status": 403,
+      "network_available": false,
+      "api_auth_verified": false,
+      "classification": "proxy_tunnel_denied",
+      "safe_error": "Tunnel connection failed: 403 Forbidden"
+    }
+  ],
+  "standard_auth_file_presence": {
+    ".config/netlify/config.json": false,
+    ".netlify/config.json": false,
+    ".config/render/cli.yaml": false,
+    ".render/cli.yaml": false
+  },
+  "production_backup_and_isolated_restore_verified": false,
+  "production_db_schema_verified": false,
+  "production_session_key_preservation_verified": false,
+  "current_deployed_frontend_version_verified": false,
+  "current_deployed_api_version_verified": false,
+  "deployment_executed": false,
+  "approval_scope": {
+    "existing_site_deployment": true,
+    "new_services": false,
+    "new_recruitment": false,
+    "privacy_policy_approval": false,
+    "photos": false,
+    "ads": false,
+    "automatic_deletion": false,
+    "money_flow": false
+  },
+  "classification": {
+    "network": "Blocked at current proxy CONNECT, before origin HTTP/TLS response. All four approved targets returned proxy tunnel 403.",
+    "authentication": "Unverified: no provider 401/403/2xx response. Missing process environment values do not rule out proxy-injected authentication; draft metadata separately reports no saved bindings.",
+    "user_authorization": "Existing BINPC2 deployment already approved. No new deployment permission request is required.",
+    "execution_permissions": "Read-only probes executed without an approval rejection; provider deployment rights could not be tested before origin access."
+  },
+  "minimal_secure_next_step": [
+    "Apply/publish the intended allowed-host configuration to the active Codex environment, or reconnect an existing authorized deployment environment. The current saved draft contains both provider APIs and both live service hosts; its actual publication/application is unverified.",
+    "Register or reconnect existing authorized credentials using secure Codex environment settings: NETLIFY_AUTH_TOKEN only for api.netlify.com; RENDER_API_KEY only for api.render.com. Saved secret bindings are absent in the inspected draft. Do not send passwords or tokens in chat.",
+    "After connection is available, read current deployment versions and verify private DB/upload backup, existing SESSION_SECRET preservation, and isolated restore before the authorized deployment. Existing site deployment approval does not grant recruitment/privacy-policy/photo/ad/automatic-deletion/money-flow activation."
+  ],
+  "final_read_only_recheck": {
+    "checkedAt": "2026-10-28T12:00:53.454317+00:00",
+    "processAuthPresence": {
+      "NETLIFY_AUTH_TOKEN": false,
+      "RENDER_API_KEY": false
+    },
+    "probes": [
+      {
+        "url": "https://binpc2.netlify.app/",
+        "error": "<urlopen error Tunnel connection failed: 403 Forbidden>"
+      },
+      {
+        "url": "https://binpc2.onrender.com/api/healthz",
+        "error": "<urlopen error Tunnel connection failed: 403 Forbidden>"
+      },
+      {
+        "url": "https://api.netlify.com/api/v1/sites/binpc2.netlify.app",
+        "error": "<urlopen error Tunnel connection failed: 403 Forbidden>"
+      },
+      {
+        "url": "https://api.render.com/v1/services?limit=100",
+        "error": "<urlopen error Tunnel connection failed: 403 Forbidden>"
+      }
+    ]
+  },
+  "final_draft_saved_bindings": {
+    "NETLIFY_AUTH_TOKEN": false,
+    "RENDER_API_KEY": false
+  }
+}
