@@ -1,0 +1,54 @@
+[
+  {
+    "file": "00-actual-basic-privacy.png",
+    "title": "신청 기본정보·개인정보"
+  },
+  {
+    "file": "00-actual-notice-before-fee.png",
+    "title": "공지 확인·동의"
+  },
+  {
+    "file": "00-actual-saving.png",
+    "title": "다음 버튼 · 서버 저장 중"
+  },
+  {
+    "file": "01-actual-admin-payment-approved.png",
+    "title": "관리자 입금 승인"
+  },
+  {
+    "file": "01-actual-saved-fee.png",
+    "title": "회비 확인·신청 확정"
+  },
+  {
+    "file": "01-save-failure-input-retained.png",
+    "title": "저장 실패 · 입력 유지"
+  },
+  {
+    "file": "02-actual-incomplete-entry-blocked.png",
+    "title": "승인 후 대기방 · 프로필 미완료"
+  },
+  {
+    "file": "02-actual-profile-wizard.png",
+    "title": "대기방 프로필 작성"
+  },
+  {
+    "file": "02-approved-complete-waiting-room.png",
+    "title": "승인·프로필 완료 대기방"
+  },
+  {
+    "file": "03-approved-mobile-waiting-room.png",
+    "title": "승인된 대기방 모바일"
+  },
+  {
+    "file": "04-actual-admin-rewards.png",
+    "title": "관리자 상품 지급"
+  },
+  {
+    "file": "04-actual-three-cards-restored.png",
+    "title": "카드 3장 · 재접속 결과"
+  },
+  {
+    "file": "mobile-profile-resume-api-unavailable.png",
+    "title": "일시 조회 실패 · 프로필 유지"
+  }
+]

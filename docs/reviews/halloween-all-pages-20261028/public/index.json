@@ -1,0 +1,90 @@
+[
+  {
+    "title": "메인 · 할로윈",
+    "file": "01-home.png"
+  },
+  {
+    "title": "고유번호로 프로필 복구",
+    "file": "02-pin-recovery.png"
+  },
+  {
+    "title": "입장 개인정보 안내",
+    "file": "03-entry-privacy.png"
+  },
+  {
+    "title": "프로필 1 · MBTI",
+    "file": "04-profile-mbti.png"
+  },
+  {
+    "title": "프로필 2 · 년생·지역",
+    "file": "05-profile-region.png"
+  },
+  {
+    "title": "프로필 3 · 관심사",
+    "file": "06-profile-interests.png"
+  },
+  {
+    "title": "프로필 4 · 성향·동의",
+    "file": "07-profile-consent.png"
+  },
+  {
+    "title": "프로필 4 · 동의 선택",
+    "file": "08-profile-consent-selected.png"
+  },
+  {
+    "title": "프로필 5 · 닉네임",
+    "file": "09-profile-nickname.png"
+  },
+  {
+    "title": "프로필 6 · 이상형·자기소개",
+    "file": "10-profile-signal.png"
+  },
+  {
+    "title": "술번개 신청 · 행사 목록",
+    "file": "11-events-list.png"
+  },
+  {
+    "title": "술번개 신청 · 첫 화면",
+    "file": "12-events-list-top.png"
+  },
+  {
+    "title": "기존 신청 복구·회원 로그인",
+    "file": "13-events-recovery-login.png"
+  },
+  {
+    "title": "할로윈 금요일 상세 · 전체",
+    "file": "14-event-1.png"
+  },
+  {
+    "title": "할로윈 금요일 상세 · 첫 화면",
+    "file": "15-event-1-top.png"
+  },
+  {
+    "title": "할로윈 토요일 상세 · 전체",
+    "file": "14-event-2.png"
+  },
+  {
+    "title": "할로윈 토요일 상세 · 첫 화면",
+    "file": "15-event-2-top.png"
+  },
+  {
+    "title": "전국투어 1차 상세 · 전체",
+    "file": "14-event-3.png"
+  },
+  {
+    "title": "전국투어 1차 상세 · 첫 화면",
+    "file": "15-event-3-top.png"
+  },
+  {
+    "title": "관리자 문의",
+    "file": "16-inquiry.png"
+  },
+  {
+    "title": "신청대기방 · 신청 내역 없음",
+    "file": "17-waiting-empty.png"
+  },
+  {
+    "title": "알림 수신 거부 · 링크 없음",
+    "file": "18-unsubscribe.png"
+  }
+]

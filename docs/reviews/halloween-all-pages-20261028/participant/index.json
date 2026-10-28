@@ -1,0 +1,135 @@
+{
+  "index": [
+    {
+      "file": "01-participants.png",
+      "title": "참여자 프로필 목록"
+    },
+    {
+      "file": "02-profile-flip.png",
+      "title": "프로필 카드 뒷면"
+    },
+    {
+      "file": "03-my-profile.png",
+      "title": "MY · 내 프로필"
+    },
+    {
+      "file": "04-received-hearts.png",
+      "title": "MY · 받은 하트"
+    },
+    {
+      "file": "05-sent-hearts.png",
+      "title": "MY · 보낸 하트"
+    },
+    {
+      "file": "06-chat-list.png",
+      "title": "1:1 채팅 목록"
+    },
+    {
+      "file": "07-group-list.png",
+      "title": "단체 채팅 목록"
+    },
+    {
+      "file": "08-group-room.png",
+      "title": "단체 채팅방"
+    },
+    {
+      "file": "09-direct-chat.png",
+      "title": "1:1 채팅방"
+    },
+    {
+      "file": "10-chat-writing.png",
+      "title": "1:1 채팅 · 입력 중"
+    },
+    {
+      "file": "11-stats.png",
+      "title": "오늘의 통계"
+    },
+    {
+      "file": "12-ranking.png",
+      "title": "인기도 랭킹"
+    },
+    {
+      "file": "13-settings.png",
+      "title": "내 설정"
+    },
+    {
+      "file": "14-settings-lower.png",
+      "title": "내 설정 · 아래 항목"
+    },
+    {
+      "file": "15-profile-edit.png",
+      "title": "내 프로필 편집 · 항목 펼침"
+    },
+    {
+      "file": "16-avatar-picker.png",
+      "title": "사진·아바타·배경 선택"
+    },
+    {
+      "file": "17-settings-nickname.png",
+      "title": "닉네임 변경"
+    },
+    {
+      "file": "18-settings-interests.png",
+      "title": "관심사 편집"
+    },
+    {
+      "file": "19-settings-birth.png",
+      "title": "생일 설정"
+    },
+    {
+      "file": "20-settings-status.png",
+      "title": "상태 메시지"
+    },
+    {
+      "file": "21-settings-signals.png",
+      "title": "이상형·자기소개 편집"
+    },
+    {
+      "file": "22-profile-detail.png",
+      "title": "참가자 프로필 상세"
+    },
+    {
+      "file": "23-fortune.png",
+      "title": "궁합 보기 · 생년월일 등록 안내"
+    }
+  ],
+  "failures": [],
+  "recoveredCaptureAttempts": [
+    {
+      "name": "펼친 프로필 편집",
+      "error": "locator.waitFor: Timeout 6000ms exceeded.\nCall log:\n\u001b[2m  - waiting for locator('[data-coach=\"settings-avatar\"]') to be visible\u001b[22m\n"
+    },
+    {
+      "name": "아바타 선택",
+      "error": "locator.click: Timeout 6000ms exceeded.\nCall log:\n\u001b[2m  - waiting for locator('[data-coach=\"settings-avatar\"]').locator(':scope > button')\u001b[22m\n"
+    },
+    {
+      "name": "닉네임 변경",
+      "error": "locator.click: Timeout 6000ms exceeded.\nCall log:\n\u001b[2m  - waiting for locator('[data-coach=\"settings-nickname\"]').locator(':scope > button')\u001b[22m\n"
+    },
+    {
+      "name": "관심사 편집",
+      "error": "locator.click: Timeout 6000ms exceeded.\nCall log:\n\u001b[2m  - waiting for locator('[data-coach=\"settings-interests\"]').locator(':scope > button')\u001b[22m\n"
+    },
+    {
+      "name": "생일 설정",
+      "error": "locator.click: Timeout 6000ms exceeded.\nCall log:\n\u001b[2m  - waiting for locator('[data-coach=\"settings-birth\"]').locator(':scope > button')\u001b[22m\n"
+    },
+    {
+      "name": "상태 메시지",
+      "error": "locator.click: Target page, context or browser has been closed\nCall log:\n\u001b[2m  - waiting for locator('[data-coach=\"settings-status\"]').locator(':scope > button')\u001b[22m\n"
+    },
+    {
+      "name": "이상형·자기소개 편집",
+      "error": "locator.click: Target page, context or browser has been closed"
+    },
+    {
+      "name": "참가자 프로필 상세",
+      "error": "locator.click: Target page, context or browser has been closed"
+    },
+    {
+      "name": "궁합 보기",
+      "error": "page.goto: Target page, context or browser has been closed"
+    }
+  ]
+}

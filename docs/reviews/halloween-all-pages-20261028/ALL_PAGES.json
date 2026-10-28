@@ -1,0 +1,450 @@
+[
+  {
+    "file": "public/01-home.png",
+    "title": "메인 · 할로윈"
+  },
+  {
+    "file": "public/02-pin-recovery.png",
+    "title": "고유번호로 프로필 복구"
+  },
+  {
+    "file": "public/03-entry-privacy.png",
+    "title": "입장 개인정보 안내"
+  },
+  {
+    "file": "public/04-profile-mbti.png",
+    "title": "프로필 1 · MBTI"
+  },
+  {
+    "file": "public/05-profile-region.png",
+    "title": "프로필 2 · 년생·지역"
+  },
+  {
+    "file": "public/06-profile-interests.png",
+    "title": "프로필 3 · 관심사"
+  },
+  {
+    "file": "public/07-profile-consent.png",
+    "title": "프로필 4 · 성향·동의"
+  },
+  {
+    "file": "public/08-profile-consent-selected.png",
+    "title": "프로필 4 · 동의 선택"
+  },
+  {
+    "file": "public/09-profile-nickname.png",
+    "title": "프로필 5 · 닉네임"
+  },
+  {
+    "file": "public/10-profile-signal.png",
+    "title": "프로필 6 · 이상형·자기소개"
+  },
+  {
+    "file": "public/11-events-list.png",
+    "title": "술번개 신청 · 행사 목록"
+  },
+  {
+    "file": "public/12-events-list-top.png",
+    "title": "술번개 신청 · 첫 화면"
+  },
+  {
+    "file": "public/13-events-recovery-login.png",
+    "title": "기존 신청 복구·회원 로그인"
+  },
+  {
+    "file": "public/14-event-1.png",
+    "title": "할로윈 금요일 상세 · 전체"
+  },
+  {
+    "file": "public/15-event-1-top.png",
+    "title": "할로윈 금요일 상세 · 첫 화면"
+  },
+  {
+    "file": "public/14-event-2.png",
+    "title": "할로윈 토요일 상세 · 전체"
+  },
+  {
+    "file": "public/15-event-2-top.png",
+    "title": "할로윈 토요일 상세 · 첫 화면"
+  },
+  {
+    "file": "public/14-event-3.png",
+    "title": "전국투어 1차 상세 · 전체"
+  },
+  {
+    "file": "public/15-event-3-top.png",
+    "title": "전국투어 1차 상세 · 첫 화면"
+  },
+  {
+    "file": "public/16-inquiry.png",
+    "title": "관리자 문의"
+  },
+  {
+    "file": "public/17-waiting-empty.png",
+    "title": "신청대기방 · 신청 내역 없음"
+  },
+  {
+    "file": "public/18-unsubscribe.png",
+    "title": "알림 수신 거부 · 링크 없음"
+  },
+  {
+    "file": "application/00-actual-basic-privacy.png",
+    "title": "신청 기본정보·개인정보"
+  },
+  {
+    "file": "application/00-actual-notice-before-fee.png",
+    "title": "공지 확인·동의"
+  },
+  {
+    "file": "application/00-actual-saving.png",
+    "title": "다음 버튼 · 서버 저장 중"
+  },
+  {
+    "file": "application/01-actual-admin-payment-approved.png",
+    "title": "관리자 입금 승인"
+  },
+  {
+    "file": "application/01-actual-saved-fee.png",
+    "title": "회비 확인·신청 확정"
+  },
+  {
+    "file": "application/01-save-failure-input-retained.png",
+    "title": "저장 실패 · 입력 유지"
+  },
+  {
+    "file": "application/02-actual-incomplete-entry-blocked.png",
+    "title": "승인 후 대기방 · 프로필 미완료"
+  },
+  {
+    "file": "application/02-actual-profile-wizard.png",
+    "title": "대기방 프로필 작성"
+  },
+  {
+    "file": "application/02-approved-complete-waiting-room.png",
+    "title": "승인·프로필 완료 대기방"
+  },
+  {
+    "file": "application/03-approved-mobile-waiting-room.png",
+    "title": "승인된 대기방 모바일"
+  },
+  {
+    "file": "application/04-actual-admin-rewards.png",
+    "title": "관리자 상품 지급"
+  },
+  {
+    "file": "application/04-actual-three-cards-restored.png",
+    "title": "카드 3장 · 재접속 결과"
+  },
+  {
+    "file": "application/mobile-profile-resume-api-unavailable.png",
+    "title": "일시 조회 실패 · 프로필 유지"
+  },
+  {
+    "file": "participant/01-participants.png",
+    "title": "참여자 프로필 목록"
+  },
+  {
+    "file": "participant/02-profile-flip.png",
+    "title": "프로필 카드 뒷면"
+  },
+  {
+    "file": "participant/03-my-profile.png",
+    "title": "MY · 내 프로필"
+  },
+  {
+    "file": "participant/04-received-hearts.png",
+    "title": "MY · 받은 하트"
+  },
+  {
+    "file": "participant/05-sent-hearts.png",
+    "title": "MY · 보낸 하트"
+  },
+  {
+    "file": "participant/06-chat-list.png",
+    "title": "1:1 채팅 목록"
+  },
+  {
+    "file": "participant/07-group-list.png",
+    "title": "단체 채팅 목록"
+  },
+  {
+    "file": "participant/08-group-room.png",
+    "title": "단체 채팅방"
+  },
+  {
+    "file": "participant/09-direct-chat.png",
+    "title": "1:1 채팅방"
+  },
+  {
+    "file": "participant/10-chat-writing.png",
+    "title": "1:1 채팅 · 입력 중"
+  },
+  {
+    "file": "participant/11-stats.png",
+    "title": "오늘의 통계"
+  },
+  {
+    "file": "participant/12-ranking.png",
+    "title": "인기도 랭킹"
+  },
+  {
+    "file": "participant/13-settings.png",
+    "title": "내 설정"
+  },
+  {
+    "file": "participant/14-settings-lower.png",
+    "title": "내 설정 · 아래 항목"
+  },
+  {
+    "file": "participant/15-profile-edit.png",
+    "title": "내 프로필 편집 · 항목 펼침"
+  },
+  {
+    "file": "participant/16-avatar-picker.png",
+    "title": "사진·아바타·배경 선택"
+  },
+  {
+    "file": "participant/17-settings-nickname.png",
+    "title": "닉네임 변경"
+  },
+  {
+    "file": "participant/18-settings-interests.png",
+    "title": "관심사 편집"
+  },
+  {
+    "file": "participant/19-settings-birth.png",
+    "title": "생일 설정"
+  },
+  {
+    "file": "participant/20-settings-status.png",
+    "title": "상태 메시지"
+  },
+  {
+    "file": "participant/21-settings-signals.png",
+    "title": "이상형·자기소개 편집"
+  },
+  {
+    "file": "participant/22-profile-detail.png",
+    "title": "참가자 프로필 상세"
+  },
+  {
+    "file": "participant/23-fortune.png",
+    "title": "궁합 보기 · 생년월일 등록 안내"
+  },
+  {
+    "file": "admin/admin-01-login.png",
+    "title": "관리자 로그인"
+  },
+  {
+    "file": "admin/admin-02-test-gate.png",
+    "title": "테스트 접속"
+  },
+  {
+    "file": "admin/admin-03-dashboard.png",
+    "title": "설정 · 대시보드"
+  },
+  {
+    "file": "admin/admin-04-dashboard-lower.png",
+    "title": "설정 · 초기화·복구"
+  },
+  {
+    "file": "admin/admin-05-qr.png",
+    "title": "QR 코드"
+  },
+  {
+    "file": "admin/admin-06-qr-lower.png",
+    "title": "QR 코드"
+  },
+  {
+    "file": "admin/admin-07-db-modules.png",
+    "title": "DB 헬스 · 모듈"
+  },
+  {
+    "file": "admin/admin-08-db-modules-lower.png",
+    "title": "DB 헬스 · 모듈"
+  },
+  {
+    "file": "admin/admin-09-reports.png",
+    "title": "성과 리포트"
+  },
+  {
+    "file": "admin/admin-10-reports-lower.png",
+    "title": "성과 리포트"
+  },
+  {
+    "file": "admin/admin-11-participants.png",
+    "title": "참여자"
+  },
+  {
+    "file": "admin/admin-12-hearts.png",
+    "title": "하트 현황"
+  },
+  {
+    "file": "admin/admin-13-ranking.png",
+    "title": "인기도 랭킹"
+  },
+  {
+    "file": "admin/admin-14-chats-direct.png",
+    "title": "1:1 채팅"
+  },
+  {
+    "file": "admin/admin-15-chats-group.png",
+    "title": "단체채팅"
+  },
+  {
+    "file": "admin/admin-16-notices.png",
+    "title": "공지"
+  },
+  {
+    "file": "admin/admin-17-event-overview.png",
+    "title": "술번개 · 전체 운영"
+  },
+  {
+    "file": "admin/admin-18-event-overview-lower.png",
+    "title": "술번개 · 전체 운영 아래"
+  },
+  {
+    "file": "admin/admin-19-applications.png",
+    "title": "신청·입금"
+  },
+  {
+    "file": "admin/admin-20-applications-roster.png",
+    "title": "신청·입금 · 신청자 목록"
+  },
+  {
+    "file": "admin/admin-21-inquiry.png",
+    "title": "관리자 문의"
+  },
+  {
+    "file": "admin/admin-22-inquiry-lower.png",
+    "title": "관리자 문의 · 답장"
+  },
+  {
+    "file": "admin/admin-23-photo-controls.png",
+    "title": "공지·장소"
+  },
+  {
+    "file": "admin/admin-24-photo-notice.png",
+    "title": "공지 사진 업로드"
+  },
+  {
+    "file": "admin/admin-25-friday-products.png",
+    "title": "할로윈 이벤트 술번개 · 현장·상품"
+  },
+  {
+    "file": "admin/admin-26-friday-products-lower.png",
+    "title": "할로윈 이벤트 술번개 · 현장 신청자"
+  },
+  {
+    "file": "admin/admin-27-friday-results.png",
+    "title": "할로윈 이벤트 술번개 · 결과"
+  },
+  {
+    "file": "admin/admin-28-friday-results-lower.png",
+    "title": "할로윈 이벤트 술번개 · 결과 아래"
+  },
+  {
+    "file": "admin/admin-29-saturday-products.png",
+    "title": "할로윈 이벤트 술번개 · 현장·상품"
+  },
+  {
+    "file": "admin/admin-30-saturday-products-lower.png",
+    "title": "할로윈 이벤트 술번개 · 현장 신청자"
+  },
+  {
+    "file": "admin/admin-31-saturday-results.png",
+    "title": "할로윈 이벤트 술번개 · 결과"
+  },
+  {
+    "file": "admin/admin-32-saturday-results-lower.png",
+    "title": "할로윈 이벤트 술번개 · 결과 아래"
+  },
+  {
+    "file": "admin/admin-33-event-setup.png",
+    "title": "행사·자동방 설정"
+  },
+  {
+    "file": "admin/admin-34-venue-logos.png",
+    "title": "행사 장소 로고"
+  },
+  {
+    "file": "admin/admin-35-venue-logos-expanded.png",
+    "title": "수령한 매장 로고"
+  },
+  {
+    "file": "admin/admin-36-recruitment-schedule.png",
+    "title": "모집 시작 예약"
+  },
+  {
+    "file": "admin/admin-37-saturday-auto.png",
+    "title": "토요일 자동방"
+  },
+  {
+    "file": "admin/admin-38-saturday-auto-lower.png",
+    "title": "토요일 자동방 아래"
+  },
+  {
+    "file": "admin/admin-39-verification.png",
+    "title": "운영 점검"
+  },
+  {
+    "file": "admin/admin-40-verification-lower.png",
+    "title": "운영 점검 아래"
+  },
+  {
+    "file": "admin/admin-41-privacy.png",
+    "title": "이력·개인정보"
+  },
+  {
+    "file": "admin/admin-42-history.png",
+    "title": "이력·개인정보 · 기록"
+  },
+  {
+    "file": "admin/admin-43-sandbox-rank3.png",
+    "title": "시험실 · 가상 3등"
+  },
+  {
+    "file": "admin/admin-44-sandbox-participant-confirmed.png",
+    "title": "시험실 · 참가자 신청 확정"
+  },
+  {
+    "file": "admin/admin-45-sandbox-participant-approved.png",
+    "title": "시험실 · 참가자 입금 승인"
+  },
+  {
+    "file": "admin/admin-46-sandbox-participant-profile.png",
+    "title": "시험실 · 참가자 프로필 완료"
+  },
+  {
+    "file": "admin/admin-47-sandbox-admin.png",
+    "title": "시험실 · 관리자 3등"
+  },
+  {
+    "file": "admin/admin-48-sandbox-admin-lower.png",
+    "title": "시험실 · 관리자 아래"
+  },
+  {
+    "file": "admin/admin-49-new-event.png",
+    "title": "새 술번개 양식"
+  },
+  {
+    "file": "admin/admin-50-new-event-lower.png",
+    "title": "새 술번개 양식 아래"
+  },
+  {
+    "file": "admin/admin-51-credentials-masked.png",
+    "title": "관리자 접속정보(비밀번호 숨김)"
+  },
+  {
+    "file": "admin/admin-52-photo-map.png",
+    "title": "지도·약도 사진 업로드"
+  },
+  {
+    "file": "admin/admin-53-notice-place-edit.png",
+    "title": "공지·장소 수정"
+  },
+  {
+    "file": "admin/admin-54-scheduled-opening-controls.png",
+    "title": "모집 일정 · 예약 자동접수"
+  }
+]

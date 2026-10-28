@@ -1,0 +1,609 @@
+{
+  "screens": [
+    {
+      "title": "관리자 로그인 / Admin login",
+      "path": "admin/admin-01-login.png",
+      "status": "captured",
+      "url": "/admin",
+      "section": "top",
+      "viewport": {
+        "width": 1360,
+        "height": 1000
+      }
+    },
+    {
+      "title": "테스트 접속 / Test gate",
+      "path": "admin/admin-02-test-gate.png",
+      "status": "captured",
+      "url": "/test",
+      "section": "top",
+      "viewport": {
+        "width": 1360,
+        "height": 1000
+      }
+    },
+    {
+      "title": "설정 · 대시보드 / Settings dashboard",
+      "path": "admin/admin-03-dashboard.png",
+      "status": "captured",
+      "url": "/admin",
+      "section": "top",
+      "viewport": {
+        "width": 1360,
+        "height": 1000
+      }
+    },
+    {
+      "title": "설정 · 초기화·복구 / Dashboard lower controls",
+      "path": "admin/admin-04-dashboard-lower.png",
+      "status": "captured",
+      "url": "/admin",
+      "section": "bottom",
+      "viewport": {
+        "width": 1360,
+        "height": 1000
+      }
+    },
+    {
+      "title": "QR 코드 / Entry QR",
+      "path": "admin/admin-05-qr.png",
+      "status": "captured",
+      "url": "/admin",
+      "section": "top",
+      "viewport": {
+        "width": 1360,
+        "height": 1000
+      }
+    },
+    {
+      "title": "QR 코드 / Entry QR · 아래 / lower",
+      "path": "admin/admin-06-qr-lower.png",
+      "status": "captured",
+      "url": "/admin",
+      "section": "bottom",
+      "viewport": {
+        "width": 1360,
+        "height": 1000
+      }
+    },
+    {
+      "title": "DB 헬스 · 모듈 / Health and modules",
+      "path": "admin/admin-07-db-modules.png",
+      "status": "captured",
+      "url": "/admin",
+      "section": "top",
+      "viewport": {
+        "width": 1360,
+        "height": 1000
+      }
+    },
+    {
+      "title": "DB 헬스 · 모듈 / Health and modules · 아래 / lower",
+      "path": "admin/admin-08-db-modules-lower.png",
+      "status": "captured",
+      "url": "/admin",
+      "section": "bottom",
+      "viewport": {
+        "width": 1360,
+        "height": 1000
+      }
+    },
+    {
+      "title": "성과 리포트 / Reports",
+      "path": "admin/admin-09-reports.png",
+      "status": "captured",
+      "url": "/admin",
+      "section": "top",
+      "viewport": {
+        "width": 1360,
+        "height": 1000
+      }
+    },
+    {
+      "title": "성과 리포트 / Reports · 아래 / lower",
+      "path": "admin/admin-10-reports-lower.png",
+      "status": "captured",
+      "url": "/admin",
+      "section": "bottom",
+      "viewport": {
+        "width": 1360,
+        "height": 1000
+      }
+    },
+    {
+      "title": "참여자 / Participants",
+      "path": "admin/admin-11-participants.png",
+      "status": "captured",
+      "url": "/admin",
+      "section": "top",
+      "viewport": {
+        "width": 1360,
+        "height": 1000
+      }
+    },
+    {
+      "title": "하트 현황 / Hearts",
+      "path": "admin/admin-12-hearts.png",
+      "status": "captured",
+      "url": "/admin",
+      "section": "top",
+      "viewport": {
+        "width": 1360,
+        "height": 1000
+      }
+    },
+    {
+      "title": "인기도 랭킹 / Ranking",
+      "path": "admin/admin-13-ranking.png",
+      "status": "captured",
+      "url": "/admin",
+      "section": "top",
+      "viewport": {
+        "width": 1360,
+        "height": 1000
+      }
+    },
+    {
+      "title": "1:1 채팅 / Direct chat history",
+      "path": "admin/admin-14-chats-direct.png",
+      "status": "captured",
+      "url": "/admin",
+      "section": "top",
+      "viewport": {
+        "width": 1360,
+        "height": 1000
+      }
+    },
+    {
+      "title": "단체채팅 / Group chat history",
+      "path": "admin/admin-15-chats-group.png",
+      "status": "captured",
+      "url": "/admin",
+      "section": "top",
+      "viewport": {
+        "width": 1360,
+        "height": 1000
+      }
+    },
+    {
+      "title": "공지 / Notices",
+      "path": "admin/admin-16-notices.png",
+      "status": "captured",
+      "url": "/admin",
+      "section": "top",
+      "viewport": {
+        "width": 1360,
+        "height": 1000
+      }
+    },
+    {
+      "title": "술번개 · 전체 운영 / Event overview",
+      "path": "admin/admin-17-event-overview.png",
+      "status": "captured",
+      "url": "/admin",
+      "section": "top",
+      "viewport": {
+        "width": 1360,
+        "height": 1000
+      }
+    },
+    {
+      "title": "술번개 · 전체 운영 아래 / Event overview lower",
+      "path": "admin/admin-18-event-overview-lower.png",
+      "status": "captured",
+      "url": "/admin",
+      "section": "bottom",
+      "viewport": {
+        "width": 1360,
+        "height": 1000
+      }
+    },
+    {
+      "title": "신청·입금 / Applications and payments",
+      "path": "admin/admin-19-applications.png",
+      "status": "captured",
+      "url": "/admin",
+      "section": "top",
+      "viewport": {
+        "width": 1360,
+        "height": 1000
+      }
+    },
+    {
+      "title": "신청·입금 · 신청자 목록 / Application roster",
+      "path": "admin/admin-20-applications-roster.png",
+      "status": "captured",
+      "url": "/admin",
+      "section": "bottom",
+      "viewport": {
+        "width": 1360,
+        "height": 1000
+      }
+    },
+    {
+      "title": "관리자 문의 / Admin inquiries",
+      "path": "admin/admin-21-inquiry.png",
+      "status": "captured",
+      "url": "/admin",
+      "section": "top",
+      "viewport": {
+        "width": 1360,
+        "height": 1000
+      }
+    },
+    {
+      "title": "관리자 문의 · 답장 / Inquiry reply controls",
+      "path": "admin/admin-22-inquiry-lower.png",
+      "status": "captured",
+      "url": "/admin",
+      "section": "bottom",
+      "viewport": {
+        "width": 1360,
+        "height": 1000
+      }
+    },
+    {
+      "title": "공지·장소 / Notice and venue photos",
+      "path": "admin/admin-23-photo-controls.png",
+      "status": "captured",
+      "url": "/admin",
+      "section": "top",
+      "viewport": {
+        "width": 1360,
+        "height": 1000
+      }
+    },
+    {
+      "title": "공지 사진 업로드 / Notice photo controls",
+      "path": "admin/admin-24-photo-notice.png",
+      "status": "captured",
+      "url": "/admin",
+      "section": "focused",
+      "viewport": {
+        "width": 1360,
+        "height": 1000
+      }
+    },
+    {
+      "title": "할로윈 이벤트 술번개 · 현장·상품 / Products",
+      "path": "admin/admin-25-friday-products.png",
+      "status": "captured",
+      "url": "/admin",
+      "section": "top",
+      "viewport": {
+        "width": 1360,
+        "height": 1000
+      }
+    },
+    {
+      "title": "할로윈 이벤트 술번개 · 현장 신청자 / Onsite roster",
+      "path": "admin/admin-26-friday-products-lower.png",
+      "status": "captured",
+      "url": "/admin",
+      "section": "bottom",
+      "viewport": {
+        "width": 1360,
+        "height": 1000
+      }
+    },
+    {
+      "title": "할로윈 이벤트 술번개 · 결과 / Results",
+      "path": "admin/admin-27-friday-results.png",
+      "status": "captured",
+      "url": "/admin",
+      "section": "top",
+      "viewport": {
+        "width": 1360,
+        "height": 1000
+      }
+    },
+    {
+      "title": "할로윈 이벤트 술번개 · 결과 아래 / Results lower",
+      "path": "admin/admin-28-friday-results-lower.png",
+      "status": "captured",
+      "url": "/admin",
+      "section": "bottom",
+      "viewport": {
+        "width": 1360,
+        "height": 1000
+      }
+    },
+    {
+      "title": "할로윈 이벤트 술번개 · 현장·상품 / Products",
+      "path": "admin/admin-29-saturday-products.png",
+      "status": "captured",
+      "url": "/admin",
+      "section": "top",
+      "viewport": {
+        "width": 1360,
+        "height": 1000
+      }
+    },
+    {
+      "title": "할로윈 이벤트 술번개 · 현장 신청자 / Onsite roster",
+      "path": "admin/admin-30-saturday-products-lower.png",
+      "status": "captured",
+      "url": "/admin",
+      "section": "bottom",
+      "viewport": {
+        "width": 1360,
+        "height": 1000
+      }
+    },
+    {
+      "title": "할로윈 이벤트 술번개 · 결과 / Results",
+      "path": "admin/admin-31-saturday-results.png",
+      "status": "captured",
+      "url": "/admin",
+      "section": "top",
+      "viewport": {
+        "width": 1360,
+        "height": 1000
+      }
+    },
+    {
+      "title": "할로윈 이벤트 술번개 · 결과 아래 / Results lower",
+      "path": "admin/admin-32-saturday-results-lower.png",
+      "status": "captured",
+      "url": "/admin",
+      "section": "bottom",
+      "viewport": {
+        "width": 1360,
+        "height": 1000
+      }
+    },
+    {
+      "title": "행사·자동방 설정 / Event setup",
+      "path": "admin/admin-33-event-setup.png",
+      "status": "captured",
+      "url": "/admin",
+      "section": "top",
+      "viewport": {
+        "width": 1360,
+        "height": 1000
+      }
+    },
+    {
+      "title": "행사 장소 로고 / Venue logos",
+      "path": "admin/admin-34-venue-logos.png",
+      "status": "captured",
+      "url": "/admin",
+      "section": "focused",
+      "viewport": {
+        "width": 1360,
+        "height": 1000
+      }
+    },
+    {
+      "title": "수령한 매장 로고 / Supplied venue logos",
+      "path": "admin/admin-35-venue-logos-expanded.png",
+      "status": "captured",
+      "url": "/admin",
+      "section": "focused",
+      "viewport": {
+        "width": 1360,
+        "height": 1000
+      }
+    },
+    {
+      "title": "모집 시작 예약 / Recruitment schedule",
+      "path": "admin/admin-36-recruitment-schedule.png",
+      "status": "captured",
+      "url": "/admin",
+      "section": "focused",
+      "viewport": {
+        "width": 1360,
+        "height": 1000
+      }
+    },
+    {
+      "title": "토요일 자동방 / Saturday automatic event settings",
+      "path": "admin/admin-37-saturday-auto.png",
+      "status": "captured",
+      "url": "/admin",
+      "section": "focused",
+      "viewport": {
+        "width": 1360,
+        "height": 1000
+      }
+    },
+    {
+      "title": "토요일 자동방 아래 / Saturday setup lower",
+      "path": "admin/admin-38-saturday-auto-lower.png",
+      "status": "captured",
+      "url": "/admin",
+      "section": "bottom",
+      "viewport": {
+        "width": 1360,
+        "height": 1000
+      }
+    },
+    {
+      "title": "운영 점검 / Operational verification",
+      "path": "admin/admin-39-verification.png",
+      "status": "captured",
+      "url": "/admin",
+      "section": "top",
+      "viewport": {
+        "width": 1360,
+        "height": 1000
+      }
+    },
+    {
+      "title": "운영 점검 아래 / Verification lower",
+      "path": "admin/admin-40-verification-lower.png",
+      "status": "captured",
+      "url": "/admin",
+      "section": "bottom",
+      "viewport": {
+        "width": 1360,
+        "height": 1000
+      }
+    },
+    {
+      "title": "이력·개인정보 / History and privacy",
+      "path": "admin/admin-41-privacy.png",
+      "status": "captured",
+      "url": "/admin",
+      "section": "top",
+      "viewport": {
+        "width": 1360,
+        "height": 1000
+      }
+    },
+    {
+      "title": "이력·개인정보 · 기록 / Audit history",
+      "path": "admin/admin-42-history.png",
+      "status": "captured",
+      "url": "/admin",
+      "section": "bottom",
+      "viewport": {
+        "width": 1360,
+        "height": 1000
+      }
+    },
+    {
+      "title": "시험실 · 가상 3등 / Sandbox rank 3 controls",
+      "path": "admin/admin-43-sandbox-rank3.png",
+      "status": "captured",
+      "url": "/admin",
+      "section": "top",
+      "viewport": {
+        "width": 1360,
+        "height": 1000
+      }
+    },
+    {
+      "title": "시험실 · 참가자 신청 확정",
+      "path": "admin/admin-44-sandbox-participant-confirmed.png",
+      "status": "captured",
+      "url": "/admin",
+      "section": "focused",
+      "viewport": {
+        "width": 1360,
+        "height": 1000
+      }
+    },
+    {
+      "title": "시험실 · 참가자 입금 승인",
+      "path": "admin/admin-45-sandbox-participant-approved.png",
+      "status": "captured",
+      "url": "/admin",
+      "section": "focused",
+      "viewport": {
+        "width": 1360,
+        "height": 1000
+      }
+    },
+    {
+      "title": "시험실 · 참가자 프로필 완료",
+      "path": "admin/admin-46-sandbox-participant-profile.png",
+      "status": "captured",
+      "url": "/admin",
+      "section": "focused",
+      "viewport": {
+        "width": 1360,
+        "height": 1000
+      }
+    },
+    {
+      "title": "시험실 · 관리자 3등 / Sandbox administrator rank 3",
+      "path": "admin/admin-47-sandbox-admin.png",
+      "status": "captured",
+      "url": "/admin",
+      "section": "focused",
+      "viewport": {
+        "width": 1360,
+        "height": 1000
+      }
+    },
+    {
+      "title": "시험실 · 관리자 아래 / Sandbox administrator lower",
+      "path": "admin/admin-48-sandbox-admin-lower.png",
+      "status": "captured",
+      "url": "/admin",
+      "section": "bottom",
+      "viewport": {
+        "width": 1360,
+        "height": 1000
+      }
+    },
+    {
+      "title": "새 술번개 양식 / New event form, unsaved",
+      "path": "admin/admin-49-new-event.png",
+      "status": "captured",
+      "url": "/admin",
+      "section": "top",
+      "viewport": {
+        "width": 1360,
+        "height": 1000
+      }
+    },
+    {
+      "title": "새 술번개 양식 아래 / New event form lower, unsaved",
+      "path": "admin/admin-50-new-event-lower.png",
+      "status": "captured",
+      "url": "/admin",
+      "section": "bottom",
+      "viewport": {
+        "width": 1360,
+        "height": 1000
+      }
+    },
+    {
+      "title": "관리자 접속정보(비밀번호 숨김) / Admin credentials masked",
+      "path": "admin/admin-51-credentials-masked.png",
+      "status": "captured",
+      "url": "/admin",
+      "section": "top",
+      "viewport": {
+        "width": 1360,
+        "height": 1000
+      }
+    },
+    {
+      "title": "지도·약도 사진 업로드 / Map photo controls",
+      "path": "admin/admin-52-photo-map.png",
+      "status": "captured",
+      "url": "/admin",
+      "section": "focused",
+      "viewport": {
+        "width": 1360,
+        "height": 1000
+      }
+    },
+    {
+      "title": "공지·장소 수정 / Notice and venue editing",
+      "path": "admin/admin-53-notice-place-edit.png",
+      "status": "captured",
+      "url": "/admin",
+      "section": "bottom",
+      "viewport": {
+        "width": 1360,
+        "height": 1000
+      }
+    },
+    {
+      "title": "모집 일정 · 예약 자동접수 / Scheduled opening controls",
+      "path": "admin/admin-54-scheduled-opening-controls.png",
+      "status": "captured",
+      "url": "/admin",
+      "section": "focused",
+      "viewport": {
+        "width": 1360,
+        "height": 1000
+      }
+    }
+  ],
+  "errors": [
+    {
+      "title": "photos",
+      "status": "recovered",
+      "reason": "locator.click: Timeout 8000ms exceeded."
+    }
+  ],
+  "blockedMutationPaths": [],
+  "localOnly": true,
+  "syntheticFixture": true,
+  "liveWrites": false
+}
