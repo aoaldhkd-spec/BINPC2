@@ -7,6 +7,7 @@ export const DETACHABLE_MODULE_IDS = [
   'ranking',
   'push',
   'event_hub',
+  'seasonal_landing',
 ] as const;
 
 export type DetachableModuleId = (typeof DETACHABLE_MODULE_IDS)[number];
@@ -21,6 +22,7 @@ export const DEFAULT_MODULE_FLAGS: ModuleFlags = {
   ranking: true,
   push: true,
   event_hub: false,
+  seasonal_landing: true,
 };
 
 export const MODULE_LABELS: Record<DetachableModuleId, string> = {
@@ -32,6 +34,7 @@ export const MODULE_LABELS: Record<DetachableModuleId, string> = {
   ranking: '랭킹',
   push: '모바일 알림',
   event_hub: '술번개 신청/이벤트 시스템',
+  seasonal_landing: '메인 계절 테마',
 };
 
 function parseBool(v: unknown, fallback: boolean): boolean {

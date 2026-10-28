@@ -1,15 +1,18 @@
+import { useLandingHalloween } from '../lib/landing-season';
 import { useState, useRef, useEffect } from 'react';
 import { Users, CheckCircle, Clock, ShieldAlert, Wine, List, DoorOpen, LockKeyhole } from 'lucide-react';
 import { navigateToAppPath, PANEL_PIN_INPUT_PROPS, PIN_DIGIT_INPUT_PROPS, verifyPanelPassword } from '../lib/panel-password';
 import { eventCycleAdmissionOpen, eventCycleMilestones } from '../lib/event-cycle-heart';
 
-export function WaitingOverlay({ sessionActive, eventCycleStartedAt, eventCycleResetComplete, onEnter, onRecover }: {
+export function WaitingOverlay({ landingThemeEnabled = true, sessionActive, eventCycleStartedAt, eventCycleResetComplete, onEnter, onRecover }: {
   sessionActive: boolean | null;
+  landingThemeEnabled?: boolean;
   eventCycleStartedAt?: string | null;
   eventCycleResetComplete?: boolean;
   onEnter: () => void;
   onRecover?: (profileId: string, pinCode: string) => void;
 }) {
+  const halloween = useLandingHalloween(landingThemeEnabled);
   // Default amber contrast (multi-theme light overrides removed)
   const C = {
     panelTitle: '#fde68a',
@@ -221,8 +224,9 @@ export function WaitingOverlay({ sessionActive, eventCycleStartedAt, eventCycleR
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-950 via-slate-900 to-black flex flex-col items-center justify-center px-5 py-4 relative overflow-hidden">
-      <div className="absolute inset-0 overflow-hidden pointer-events-none">
+    <div data-landing-season={halloween ? 'halloween' : 'normal'} className="min-h-screen bg-gradient-to-br from-slate-950 via-slate-900 to-black flex flex-col items-center justify-center px-5 py-4 relative overflow-hidden">
+      {halloween && <div className="absolute inset-0 pointer-events-none" aria-hidden="true"><img src="/event-art/halloween-lounge.webp" alt="" className="w-full h-full object-cover object-[90%_center]"/><div className="absolute inset-0 bg-gradient-to-b from-[#090413]/35 via-[#100616]/70 to-[#080411]/95"/><div className="absolute inset-0 bg-gradient-to-r from-[#190d24]/60 via-transparent to-[#35150e]/15"/></div>}
+      <div className="absolute inset-0 overflow-hidden pointer-events-none" hidden={halloween}>
         <div className="absolute -top-40 -right-40 w-96 h-96 bg-cyan-500/20 rounded-full blur-3xl" />
         <div className="absolute -bottom-40 -left-40 w-96 h-96 bg-teal-500/20 rounded-full blur-3xl" />
         <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[600px] h-[600px] bg-cyan-500/10 rounded-full blur-3xl" />
@@ -238,7 +242,7 @@ export function WaitingOverlay({ sessionActive, eventCycleStartedAt, eventCycleR
           aria-label="테스터"
           className="relative inline-flex items-center justify-center mb-5 active:scale-95 transition-transform"
         >
-          <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-cyan-500 to-teal-600 flex items-center justify-center shadow-2xl shadow-cyan-500/30">
+          <div className={`w-14 h-14 rounded-2xl bg-gradient-to-br flex items-center justify-center shadow-2xl ${halloween ? "from-amber-400 to-orange-700 shadow-orange-500/30" : "from-cyan-500 to-teal-600 shadow-cyan-500/30"}`}>
             <Users className="w-7 h-7 text-white" />
           </div>
           <div className={`absolute -top-2 -right-2 w-7 h-7 rounded-full flex items-center justify-center shadow-lg ${isActive ? 'bg-teal-400' : 'bg-amber-400'}`}>
@@ -246,6 +250,7 @@ export function WaitingOverlay({ sessionActive, eventCycleStartedAt, eventCycleR
           </div>
         </button>
         <div className="mb-3 text-center">
+          {halloween && <p className="text-[10px] font-bold tracking-[.25em] text-orange-200 mb-3">HALLOWEEN 2026</p>}
           <button
             type="button"
             data-gate="npc-admin"

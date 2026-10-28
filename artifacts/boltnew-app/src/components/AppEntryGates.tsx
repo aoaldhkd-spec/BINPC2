@@ -14,6 +14,7 @@ type RecoverFn = (profileId: string, pinCode: string) => void;
 export type AppEntryGatesProps = {
   appLoading: boolean;
   sessionActive: boolean | null;
+  landingThemeEnabled?: boolean;
   eventCycleStartedAt?: string | null;
   eventCycleResetComplete?: boolean;
   showWaiting: boolean;
@@ -69,6 +70,7 @@ export function renderAppEntryGates(props: AppEntryGatesProps): ReactNode {
     return (
       <WaitingOverlay
         sessionActive={props.sessionActive}
+        landingThemeEnabled={props.landingThemeEnabled}
         eventCycleStartedAt={props.eventCycleStartedAt}
         eventCycleResetComplete={props.eventCycleResetComplete}
         onEnter={props.onWaitingEnter}

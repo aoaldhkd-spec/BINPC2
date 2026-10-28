@@ -19,8 +19,10 @@ describe("db-module-flags", () => {
       ranking: true,
       push: true,
       event_hub: false,
+      seasonal_landing: true,
     });
     expect(parseModuleFlags("not-json")).toEqual(DEFAULT_MODULE_FLAGS);
+    expect(parseModuleFlags(serializeModuleFlags({ seasonal_landing: false }))).toMatchObject({ seasonal_landing: false, event_hub: false, hearts: true, direct_chat: true });
   });
 
   it("parses partial flags without disabling unspecified modules", () => {

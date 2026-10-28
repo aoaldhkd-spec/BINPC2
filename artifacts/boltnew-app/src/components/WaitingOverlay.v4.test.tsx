@@ -75,3 +75,15 @@ it("V4 01:00 closes only new entry and leaves the existing recovery route visibl
     screen.getByRole("button", { name: /고유번호로 프로필 복구/ }),
   ).toBeTruthy();
 });
+it('home Halloween expires at Nov 1 17:00 KST without changing admission or recovery', async () => {
+  vi.useFakeTimers(); vi.setSystemTime(new Date('2026-11-01T16:59:59+09:00'));
+  const {container,rerender}=render(<WaitingOverlay sessionActive={false} onEnter={()=>{}}/>);
+  expect(container.querySelector('[data-landing-season="halloween"]')).toBeTruthy();
+  expect((screen.getByRole('button',{name:'입장하기'}) as HTMLButtonElement).disabled).toBe(true);
+  const {act}=await import('@testing-library/react');act(()=>vi.advanceTimersByTime(1000));
+  expect(container.querySelector('[data-landing-season="normal"]')).toBeTruthy();
+  expect(screen.getByRole('button',{name:/고유번호로 프로필 복구/})).toBeTruthy();
+  vi.setSystemTime(new Date('2026-10-28T20:00:00+09:00'));
+  rerender(<WaitingOverlay sessionActive={false} landingThemeEnabled={false} onEnter={()=>{}}/>);
+  expect(container.querySelector('img[src="/event-art/halloween-lounge.webp"]')).toBeNull();
+});

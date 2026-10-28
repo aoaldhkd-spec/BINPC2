@@ -17,7 +17,9 @@ describe("module-flags", () => {
       ranking: true,
       push: true,
       event_hub: false,
+      seasonal_landing: true,
     });
+    expect(parseModuleFlags(serializeModuleFlags({ seasonal_landing: false }))).toMatchObject({ seasonal_landing: false, event_hub: false, hearts: true, direct_chat: true });
   });
 
   it("supports safe partial soft-detach", () => {

@@ -1,0 +1,22 @@
+{
+  "at": "2026-10-28T09:29:21.454Z",
+  "environment": "Actual React + Express + isolated local PostgreSQL; all browser nonlocal requests blocked",
+  "checks": [
+    "390px Halloween image loaded",
+    "320px no horizontal overflow",
+    "admin authenticated settings ON/OFF persisted and read by real app",
+    "entry stays disabled before session start",
+    "PIN recovery stays visible",
+    "event/application/owner/thread counts unchanged",
+    "no page errors"
+  ],
+  "counts": {
+    "events": 45,
+    "applications": 1084,
+    "owners": 1138,
+    "threads": 11
+  },
+  "errors": [],
+  "realDevices": "UNKNOWN",
+  "operatingDeployment": "NOT_EXECUTED"
+}

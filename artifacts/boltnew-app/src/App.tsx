@@ -1163,6 +1163,7 @@ function App() {
   const entryGate = renderAppEntryGates({
     appLoading,
     sessionActive,
+    landingThemeEnabled: moduleFlags.seasonal_landing,
     eventCycleStartedAt: cycleMeta.startedAt,
     eventCycleResetComplete: cycleMeta.resetComplete,
     showWaiting,

@@ -96,6 +96,7 @@ export function OpsOverviewPanel({ settings, profiles, onToggleModule, dbHealth,
               ranking: '참여자 랭킹 화면',
               push: '휴대폰 하트/1:1 알림',
               event_hub: '술번개 신청·대기방·행사 운영 (기본 OFF)',
+              seasonal_landing: '메인 할로윈 장식 · 11/1 17시 자동 종료 (입장·모집과 별개)',
             };
             return (
               <button
