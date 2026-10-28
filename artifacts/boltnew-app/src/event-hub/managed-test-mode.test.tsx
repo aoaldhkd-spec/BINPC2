@@ -206,7 +206,7 @@ it("keeps admission closed and revokes confirmation when the server refuses an o
   await screen.findByText(/운영 개인정보 정책이 아직 초안입니다/);
   expect(screen.getByText("실제 모집: 차단 · 웹·오픈채팅 모두 접수 전")).toBeTruthy();
   expect(mock.state.mode.publicAdmissionOpen).toBe(false);
-  expect((screen.getByLabelText(confirmation) as HTMLInputElement).checked).toBe(false);
+  await waitFor(() => expect((screen.getByLabelText(confirmation) as HTMLInputElement).checked).toBe(false));
   fireEvent.click(screen.getByLabelText(confirmation));
   expect((screen.getByRole("button", { name: "실제 모집 오픈 확인·저장" }) as HTMLButtonElement).disabled).toBe(true);
   expect(mock.writes()).toHaveLength(1);
