@@ -1,3 +1,4 @@
+import { SEASONAL_SKIN_CHANGED } from './themes/SeasonalSkin';
 import { DisplayScaleControls } from './components/DisplayScaleControls';
 import {
   lazy, Suspense, useState, useEffect, useCallback, useMemo, useRef,
@@ -593,6 +594,7 @@ function AdminDashboard({ onLogout }: { onLogout: () => void }) {
     const next = { ...current, [id]: !current[id] };
     try {
       await patchAdminSettings({ module_flags: serializeModuleFlags(next) }, setSettings);
+      if (id === 'seasonal_landing') window.dispatchEvent(new CustomEvent(SEASONAL_SKIN_CHANGED, { detail: next.seasonal_landing }));
     } catch (e) {
       console.error('[admin] module toggle failed:', e);
       alert(`기능 전환 실패: ${e instanceof Error ? e.message : String(e)}`);

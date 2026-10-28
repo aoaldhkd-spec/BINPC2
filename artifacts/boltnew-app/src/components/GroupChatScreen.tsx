@@ -109,7 +109,7 @@ export function GroupChatScreen({
   return (
     <AppErrorBoundary screenName="단체 채팅" onReset={onBack}>
       <div
-        className={`fixed left-0 right-0 min-w-0 flex flex-col z-[9999] ${darkMode ? 'bg-slate-900' : 'bg-gray-100'}`}
+        className={`season-chat fixed left-0 right-0 min-w-0 flex flex-col z-[9999] ${darkMode ? 'bg-slate-900' : 'bg-gray-100'}`}
         style={{
           ...vpStyle,
           paddingTop: 'env(safe-area-inset-top)',

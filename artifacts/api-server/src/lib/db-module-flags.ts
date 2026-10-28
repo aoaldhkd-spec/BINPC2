@@ -85,7 +85,7 @@ const MODULE_LABELS: Record<DetachableModuleId, string> = {
   ranking: '랭킹',
   push: '모바일 알림',
   event_hub: '술번개 신청/이벤트 시스템',
-  seasonal_landing: '메인 계절 테마',
+  seasonal_landing: '전체 할로윈 테마',
 };
 
 export function moduleWriteGate(table: string, rawFlags: unknown): ModuleWriteGate {

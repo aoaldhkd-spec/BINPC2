@@ -224,15 +224,15 @@ export function WaitingOverlay({ landingThemeEnabled = true, sessionActive, even
   };
 
   return (
-    <div data-landing-season={halloween ? 'halloween' : 'normal'} className="min-h-screen bg-gradient-to-br from-slate-950 via-slate-900 to-black flex flex-col items-center justify-center px-5 py-4 relative overflow-hidden">
-      {halloween && <div className="absolute inset-0 pointer-events-none" aria-hidden="true"><img src="/event-art/halloween-lounge.webp" alt="" className="w-full h-full object-cover object-[90%_center]"/><div className="absolute inset-0 bg-gradient-to-b from-[#090413]/35 via-[#100616]/70 to-[#080411]/95"/><div className="absolute inset-0 bg-gradient-to-r from-[#190d24]/60 via-transparent to-[#35150e]/15"/></div>}
+    <div data-landing-season={halloween ? 'halloween' : 'normal'} className="season-home min-h-screen bg-gradient-to-br from-slate-950 via-slate-900 to-black flex flex-col items-center justify-center px-5 py-4 relative overflow-hidden">
+      {halloween && <div className="season-home-backdrop absolute inset-0 pointer-events-none" aria-hidden="true"><img src="/event-art/halloween-lounge.webp" alt="" className="w-full h-full object-cover object-[90%_center]"/><div className="absolute inset-0 bg-gradient-to-b from-[#090413]/35 via-[#100616]/70 to-[#080411]/95"/><div className="absolute inset-0 bg-gradient-to-r from-[#190d24]/60 via-transparent to-[#35150e]/15"/></div>}
       <div className="absolute inset-0 overflow-hidden pointer-events-none" hidden={halloween}>
         <div className="absolute -top-40 -right-40 w-96 h-96 bg-cyan-500/20 rounded-full blur-3xl" />
         <div className="absolute -bottom-40 -left-40 w-96 h-96 bg-teal-500/20 rounded-full blur-3xl" />
         <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[600px] h-[600px] bg-cyan-500/10 rounded-full blur-3xl" />
       </div>
 
-      <div className="relative z-10 text-center max-w-sm w-full flex flex-col items-center">
+      <div className="season-home-content relative z-10 text-center max-w-sm w-full flex flex-col items-center">
         {/* 로고 → 테스터(/test) / 범일NPC → 관리자 / 술번개 → 게이트 없음 */}
         <button
           type="button"
@@ -240,7 +240,7 @@ export function WaitingOverlay({ landingThemeEnabled = true, sessionActive, even
           onClick={() => { setTestPw(''); setTestErr(''); setTestOpen(true); }}
           title="테스터"
           aria-label="테스터"
-          className="relative inline-flex items-center justify-center mb-5 active:scale-95 transition-transform"
+          className="season-home-logo-gate relative inline-flex items-center justify-center mb-5 active:scale-95 transition-transform"
         >
           <div className={`w-14 h-14 rounded-2xl bg-gradient-to-br flex items-center justify-center shadow-2xl ${halloween ? "from-amber-400 to-orange-700 shadow-orange-500/30" : "from-cyan-500 to-teal-600 shadow-cyan-500/30"}`}>
             <Users className="w-7 h-7 text-white" />
@@ -249,14 +249,14 @@ export function WaitingOverlay({ landingThemeEnabled = true, sessionActive, even
             {isActive ? <CheckCircle className="w-3.5 h-3.5 text-teal-900" /> : <Clock className="w-3.5 h-3.5 text-amber-900" />}
           </div>
         </button>
-        <div className="mb-3 text-center">
+        <div className="season-home-heading mb-3 text-center">
           {halloween && <p className="text-[10px] font-bold tracking-[.25em] text-orange-200 mb-3">HALLOWEEN 2026</p>}
           <button
             type="button"
             data-gate="npc-admin"
             onClick={() => { setAdminPw(''); setAdminErr(''); setAdminOpen(true); }}
             title="관리자"
-            className="block mx-auto"
+            className="season-home-admin block mx-auto"
           >
             <p className="text-[12px] font-bold tracking-[0.3em] uppercase mb-2"
                style={{ color: '#cffafe' }}>
@@ -265,11 +265,17 @@ export function WaitingOverlay({ landingThemeEnabled = true, sessionActive, even
           </button>
           <h1
             data-gate="sulbun-none"
-            className="text-5xl font-black italic tracking-tight leading-tight"
+            className="season-home-brand text-5xl font-black italic tracking-tight leading-tight"
             style={{ color: '#f6dfab' }}
           >BINPC2</h1>
-          <p className="text-sm text-slate-300 mt-3 mb-5 tracking-wide">좋은 사람들과, 특별한 밤</p>
+          <p className="season-home-caption text-sm text-slate-300 mt-3 mb-5 tracking-wide">좋은 사람들과, 특별한 밤</p>
         </div>
+
+        {halloween && <div className="season-home-hero" aria-hidden="true">
+          <span className="season-date-sticker">10.30 FRI<br/>10.31 SAT</span>
+          <img src="/event-art/halloween-party.webp" alt="" width="1200" height="900"/>
+          <span className="season-night-sticker">BOO!<br/>좋은 밤의 시작</span>
+        </div>}
 
         {/* 피라미드형 버튼 그룹 */}
         <div className="w-full flex flex-col items-center gap-2 mb-2">

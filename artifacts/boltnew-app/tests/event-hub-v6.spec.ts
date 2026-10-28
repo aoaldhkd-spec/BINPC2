@@ -539,6 +539,17 @@ test("mobile/tablet/desktop layouts and administrator sandbox remain isolated", 
   page,
   request,
 }, testInfo) => {
+  const originalReady = await (await request.get("/api/db/ready")).json();
+  const rawFlags = originalReady.settings.module_flags;
+  const originalFlags = typeof rawFlags === "string" ? JSON.parse(rawFlags) : rawFlags;
+  const setSkin = async (enabled: boolean) => {
+    const response = await request.post("/api/db/rpc/admin_update_settings", {data: {adminToken: token, p_payload: {module_flags: {...originalFlags, seasonal_landing: enabled}}}});
+    expect(response.status()).toBe(200);
+    expect((await response.json()).error).toBeFalsy();
+  };
+  try {
+  for (const skin of [false, true]) {
+    await setSkin(skin);
   for (const dark of [false, true]) {
     for (const width of [320, 360, 390, 768, 1024]) {
       await page.setViewportSize({ width, height: 844 });
@@ -558,6 +569,8 @@ test("mobile/tablet/desktop layouts and administrator sandbox remain isolated", 
             document.documentElement.clientWidth,
         ),
       ).toBe(true);
+      if (skin) await expect(page.locator("html")).toHaveAttribute("data-seasonal-skin", "halloween");
+      else await expect(page.locator("html")).not.toHaveAttribute("data-seasonal-skin");
       const inquiry = page.getByRole("button", { name: /💬 관리자 문의/ });
       await expect(inquiry).toBeVisible();
       const rect = await inquiry.boundingBox();
@@ -565,7 +578,7 @@ test("mobile/tablet/desktop layouts and administrator sandbox remain isolated", 
       expect((rect?.x ?? 0) + (rect?.width ?? 0)).toBeLessThanOrEqual(width);
       await page.screenshot({
         path: testInfo.outputPath(
-          `layout-${width}-${dark ? "dark" : "light"}.png`,
+          `theme-${skin ? "halloween" : "original"}-layout-${width}-${dark ? "dark" : "light"}.png`,
         ),
         fullPage: true,
       });
@@ -579,7 +592,7 @@ test("mobile/tablet/desktop layouts and administrator sandbox remain isolated", 
         await dialog.evaluate(
           (element) => getComputedStyle(element).backgroundColor,
         ),
-      ).toBe(dark ? "rgb(15, 23, 42)" : "rgb(255, 255, 255)");
+      ).toBe(skin ? "rgb(33, 23, 47)" : dark ? "rgb(15, 23, 42)" : "rgb(255, 255, 255)");
       const dialogRect = await dialog.boundingBox();
       expect(dialogRect!.x).toBeGreaterThanOrEqual(0);
       expect(dialogRect!.width).toBeLessThanOrEqual(width);
@@ -587,13 +600,15 @@ test("mobile/tablet/desktop layouts and administrator sandbox remain isolated", 
       if (width === 390)
         await page.screenshot({
           path: testInfo.outputPath(
-            `inquiry-390-${dark ? "dark" : "light"}.png`,
+            `theme-${skin ? "halloween" : "original"}-inquiry-390-${dark ? "dark" : "light"}.png`,
           ),
         });
       await page.keyboard.press("Escape");
       await expect(dialog).toHaveCount(0);
     }
   }
+  }
+  } finally { await setSkin(originalFlags.seasonal_landing ?? true); }
   const before = await (
     await request.get("/api/event-hub/admin", { headers: adminHeaders })
   ).json();

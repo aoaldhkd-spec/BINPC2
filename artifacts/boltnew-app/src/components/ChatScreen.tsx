@@ -685,7 +685,7 @@ function ChatScreen({ chatId, messages, currentUserId, otherProfile, onSend, onS
 
   return (
     <div
-      className="fixed left-0 right-0 min-w-0 bg-gray-100 flex flex-col z-[9999]"
+      className="season-chat fixed left-0 right-0 min-w-0 bg-gray-100 flex flex-col z-[9999]"
       style={{
         ...vpStyle,
         paddingTop: 'env(safe-area-inset-top)',
