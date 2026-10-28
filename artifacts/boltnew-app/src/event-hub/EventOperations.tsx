@@ -75,5 +75,6 @@ export function ScheduledOpening({event:e,hub}:{event:HubEvent;hub:HubController
   const update=()=>setSeconds(e.opensAt?Math.max(0,Math.ceil((Date.parse(e.opensAt)-baseline-(performance.now()-started))/1000)):null);
   update();const timer=setInterval(update,1000);return()=>clearInterval(timer);
  },[e.opensAt,hub.state?.serverNow]);
- return <HubCard><h2 className="font-black">신청 시작 예정</h2><p>{formatHubTime(e.opensAt)}</p><p>남은 시간 {seconds===null?"확인 중":seconds+"초"} · 서버 기준</p><p>정식 접수 전에는 신청 순번을 확보할 수 없습니다. 개인정보 입력과 입금은 접수 시작 후 진행하세요.</p><HubButton onClick={()=>hub.load()}>연결 상태·접수 시작 다시 확인</HubButton></HubCard>;
+ const scheduled=!!(e.opensAt&&e.scheduleEnabled&&!e.schedulePaused);
+ return <HubCard><h2 className="font-black">신청창 준비 중 · 오픈 후 접수</h2>{e.opensAt&&<p>신청 시작 예정 {formatHubTime(e.opensAt)}</p>}{scheduled&&<p>{seconds===null?"접수 시각 확인 중":seconds>0?`남은 시간 ${seconds}초 · 서버 기준`:"예약 시각이 지났습니다. 현재 접수 상태를 다시 확인해 주세요."}</p>}<p>정식 접수 전에는 신청 순번을 확보할 수 없습니다. 개인정보 입력과 입금은 접수 시작 후 진행하세요.</p><HubButton onClick={()=>hub.load()}>연결 상태·접수 시작 다시 확인</HubButton></HubCard>;
 }

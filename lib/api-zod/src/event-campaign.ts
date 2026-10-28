@@ -4,6 +4,7 @@ import {
   halloweenQuote,
   HALLOWEEN_CARD_LIMIT,
   halloweenEligibility,
+  type HalloweenRecognitionKind,
 } from "./event-policy-halloween";
 import {
   TOUR_CARD_LIMIT,
@@ -39,10 +40,11 @@ export function campaignQuote(
     Partial<Pick<HubEvent, "benefitsEnabled">>,
   rank: number,
   at: Date,
+  recognition?: HalloweenRecognitionKind,
 ) {
   return e.campaign?.kind === "tour"
     ? tourQuote(e)
-    : halloweenQuote(e, rank, at);
+    : halloweenQuote(e, rank, at, recognition);
 }
 export function paymentSatisfied(
   a: Pick<HubApplication, "payment" | "waivedAt">,

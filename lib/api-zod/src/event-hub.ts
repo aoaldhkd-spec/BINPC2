@@ -2,6 +2,7 @@ import { eventEnded } from "./event-hub-modules";
 import { normalQuote } from "./event-policy-normal";
 import { z } from "zod";
 import { CampaignInput, campaignQuote } from "./event-campaign";
+import type { HalloweenRecognitionKind } from "./event-policy-halloween";
 
 export const HUB_CONSENT_VERSION = "2026-10-27-event-v6";
 export const PROFILE_CONSENT_VERSION = "2026-10-13-v1";
@@ -168,6 +169,13 @@ export type HubApplication = {
   benefitExcluded?: boolean;
   benefitContact?: string;
   differenceReview?: { previous: number; proposed: number; at: string };
+  halloweenRecognition?: {
+    kind: HalloweenRecognitionKind;
+    at: string;
+    finalFee: number;
+    proposedFee: number;
+    participantNotice: string;
+  };
   eligibility?: {
     status: "review" | "approved" | "declined";
     message?: string;
@@ -240,10 +248,11 @@ export function quoteFor(
     Partial<Pick<HubEvent, "campaign" | "date" | "benefitsOpensAt" | "benefitsClosesAt">>,
   rank: number,
   at: Date = new Date(),
+  recognition?: HalloweenRecognitionKind,
 ) {
   const outsideBenefitWindow = (e.benefitsOpensAt && at.getTime()<Date.parse(e.benefitsOpensAt)) || (e.benefitsClosesAt && at.getTime()>=Date.parse(e.benefitsClosesAt));
   if (outsideBenefitWindow) e={...e,benefitsEnabled:false};
-  if (e.campaign) return campaignQuote(e as HubEvent, rank, at);
+  if (e.campaign) return campaignQuote(e as HubEvent, rank, at, recognition);
   return normalQuote(e, rank);
 }
 /** Pure preview also used by the removable administrator laboratory. */

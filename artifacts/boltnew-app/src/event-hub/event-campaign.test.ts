@@ -165,3 +165,45 @@ it("V3 corrects an existing Saturday 00:30 draft to 01:00 while keeping tour's d
  const saturday=event("halloween-2026-10-31");
  expect(effectiveEventTheme(saturday,new Date("2026-10-31T17:00:00+09:00"))).toBe("halloween");
 });
+
+describe("Halloween recognized costume fees choose one lowest eligible amount", () => {
+  for (const [date, rank, recognition, fee] of [
+    ["2026-10-30", 1, "costume", 0],
+    ["2026-10-30", 2, "costume", 12000],
+    ["2026-10-30", 3, "costume", 14000],
+    ["2026-10-30", 4, "costume", 15000],
+    ["2026-10-30", 6, "costume", 15000],
+    ["2026-10-30", 4, "painting-sticker", 16000],
+    ["2026-10-30", 11, "painting-sticker", 18000],
+    ["2026-10-31", 1, "painting-sticker", 0],
+    ["2026-10-31", 3, "costume", 10000],
+    ["2026-10-31", 5, "costume", 13000],
+    ["2026-10-31", 6, "costume", 15000],
+    ["2026-10-31", 11, "costume", 15000],
+    ["2026-10-31", 11, "painting-sticker", 18000],
+    ["2026-10-31", 16, "painting-sticker", 18000],
+  ] as const) {
+    it(`${date} rank ${rank} with ${recognition} pays ${fee} without stacking`, () => {
+      const e = event(`halloween-${date}`);
+      for (const time of ["20:59:59.999", "21:00:00"]) {
+        expect(campaignQuote(e, rank, new Date(`${date}T${time}+09:00`), recognition).fee).toBe(fee);
+      }
+    });
+  }
+
+  for (const [date, early, regular] of [["2026-10-30", 20000, 23000], ["2026-10-31", 22000, 25000]] as const) {
+    it(`${date} never awards an unrecognized costume fee or an invalid rank benefit`, () => {
+      const e = event(`halloween-${date}`);
+      for (const rank of [0, 100]) {
+        expect(campaignQuote(e, rank, new Date(`${date}T20:59:59.999+09:00`)).fee).toBe(early);
+        expect(campaignQuote(e, rank, new Date(`${date}T21:00:00+09:00`), "none").fee).toBe(regular);
+      }
+    });
+  }
+
+  it("keeps tour advances independent of Halloween operator recognition", () => {
+    const e = event("tour-2026-11-06");
+    e.campaign!.advance = 17000;
+    expect(campaignQuote(e, 1, new Date(), "costume")).toMatchObject({ fee: 17000, kind: "advance" });
+  });
+});

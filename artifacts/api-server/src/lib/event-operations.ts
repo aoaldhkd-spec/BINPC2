@@ -1,5 +1,5 @@
 import { publicationBlockedForTx } from "./event-hub-publication.js";
-import { z, eventEnded, eventEndAt, type HubEvent, type HubApplication } from '@workspace/api-zod';
+import { z, eventEnded, eventEndAt, quoteFor, HALLOWEEN_RECOGNITION_LABELS, type HubEvent, type HubApplication } from '@workspace/api-zod';
 import { fail, type HubTx } from './event-hub-store.js';
 
 export function recruitmentConfigurationIssue(e: HubEvent): string | null {
@@ -33,6 +33,35 @@ export async function applyScheduledRecruitment(tx: HubTx, now: Date, enabled: b
 export function applyApplicationOperation(
  a: HubApplication,e: HubEvent,action:string,data:Record<string,unknown>,now:Date,admin:boolean,
 ): boolean {
+  if (action === 'admin.application.costume') {
+    if (!admin) fail('ADMIN','관리자만 처리할 수 있습니다.',403);
+    if (!e.campaign || !['halloween-friday','halloween-saturday'].includes(e.campaign.kind))
+      fail('HALLOWEEN_POLICY','할로윈 행사에서만 분장 혜택을 인정할 수 있습니다.');
+    const {kind,reason} = z.object({
+      kind:z.enum(['none','costume','painting-sticker']),
+      reason:z.string().trim().min(1).max(500),
+    }).parse(data);
+    if (!a.quote) fail('QUOTE','저장된 신청 회비를 먼저 확인해 주세요.');
+    // The original application time, not the operator's review time, controls 21:00 eligibility.
+    const proposed = quoteFor(e,a.benefitExcluded?1000000:(a.benefitRank??a.rank),new Date(a.history[0]?.at??now.toISOString()),kind);
+    const previousFee = a.quote.fee;
+    const frozen = Boolean(a.quote.fee === 0 || a.confirmedAt || a.reportedAt || a.approvedAt || a.waivedAt || a.payment !== 'none');
+    if (frozen && proposed.fee !== previousFee)
+      a.differenceReview={previous:previousFee,proposed:proposed.fee,at:now.toISOString()};
+    else {
+      delete a.differenceReview;
+      if (!frozen) a.quote=proposed;
+    }
+    const participantNotice = `${HALLOWEEN_RECOGNITION_LABELS[kind]} · ${
+      frozen && proposed.fee !== previousFee
+        ? `기존 확정 금액 ${previousFee.toLocaleString('ko-KR')}원 유지. 혜택 검토 금액 ${proposed.fee.toLocaleString('ko-KR')}원은 관리자 별도 안내를 확인해 주세요.`
+        : `적용 회비 ${a.quote.fee.toLocaleString('ko-KR')}원. 유효한 혜택 중 가장 낮은 금액 한 가지만 적용합니다.`
+    }`;
+    a.halloweenRecognition={kind,at:now.toISOString(),finalFee:a.quote.fee,proposedFee:proposed.fee,participantNotice};
+    a.history.push({actor:'admin',action:'admin.halloween.recognition',at:now.toISOString(),
+      reason:JSON.stringify({reason,previousFee,...a.halloweenRecognition})});
+    return true;
+  }
   if (action === 'application.phone') {
     a.rewardPhone = z.string().regex(/^0[0-9 -]{8,14}$/).parse(data.phone);
     return true; // Existing session ownership only; no new verification, merging or password.

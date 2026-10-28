@@ -48,6 +48,7 @@ export function participantApplication(a: HubApplication, e: HubEvent) {
     benefitRank,
     benefitExcluded,
     benefitContact,
+    halloweenRecognition,
     ...safe
   } = a;
   // Internal notes/restrictions are not participant notices. Preserve transparent fee changes.
@@ -76,7 +77,7 @@ export function participantApplication(a: HubApplication, e: HubEvent) {
   return {
     ...safe,
     manualResults: manualResults?.map(({reason:_reason,...r})=>r),
-    ...(a.stage >= 3 ? { benefitRank, benefitExcluded } : {}),
+    ...(a.stage >= 3 ? { benefitRank, benefitExcluded, halloweenRecognition } : {}),
     history: visibleHistory,
     profileMissing: profileMissing(a.profile),
     ...(a.stage >= 3 && quote

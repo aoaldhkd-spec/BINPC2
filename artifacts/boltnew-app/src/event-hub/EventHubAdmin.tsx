@@ -11,6 +11,7 @@ import { VenueLogoSettings } from "./VenueLogos";
 import { RecruitmentSchedule, BenefitResults } from "./EventOperations";
 import { EVENT_THEME_PRESETS } from "../../../../lib/api-zod/src/event-hub-modules";
 import { ScreeningPhoto } from "./CampaignParticipant";
+import { HalloweenRecognitionAdmin } from "./HalloweenRecognition";
 import {
   CampaignSetup,
   CampaignOperations,
@@ -1460,6 +1461,7 @@ export function ApplicationAdmin({
           {app.basic.nickname} · 접수 {app.rank}번
         </strong>
         <CampaignApproval app={app} hub={hub} />
+        <HalloweenRecognitionAdmin key={app.id} app={app} hub={hub} />
         {app.eligibility && <ScreeningPhoto app={app} hub={hub} admin />}
         <p className="text-xs break-all">신청번호 {app.id}</p>
         <p className="text-sm">

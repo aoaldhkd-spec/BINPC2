@@ -1,6 +1,7 @@
 import { AdminInquiry } from "./AdminInquiry";
 import { StrictMode } from "react";
 import { ApplicationGuide } from "./CampaignParticipant";
+import { ScheduledOpening } from "./EventOperations";
 // @vitest-environment happy-dom
 import { afterEach, describe, expect, it, vi } from "vitest";
 import {
@@ -474,6 +475,42 @@ it("keeps the first application tutorial open through StrictMode mount probes an
   expect(screen.queryByRole("dialog")).toBeNull();
   fireEvent.click(screen.getByRole("button", { name: "? 신청 방법" }));
   expect(screen.getByRole("dialog")).toBeTruthy();
+});
+
+it("keeps the manual room unavailable until its new URL exists and explains the separate application records", () => {
+  const view = render(<ApplicationGuide webOpen={false} />);
+  expect(screen.getByText("신청창 준비 중 · 오픈 후 접수")).toBeTruthy();
+  expect(screen.getByRole("link", { name: "https://binpc2.netlify.app", hidden: true }).getAttribute("href")).toBe("https://binpc2.netlify.app");
+  const room = screen.getByRole("button", { name: "오픈채팅 신청방 준비 중", hidden: true }) as HTMLButtonElement;
+  expect(room.disabled).toBe(true);
+  expect(view.container.querySelector('a[href=""], a[href="#"], a[href*="open.kakao"], canvas')).toBeNull();
+  expect(view.container.textContent).toContain("‘년생 / 사는곳 / 인원’");
+  expect(view.container.textContent).toContain("이 닉네임 형식은 오픈채팅용입니다");
+  expect(view.container.textContent).toContain("행사·지역·날짜·차수·도착시각 전달");
+  expect(view.container.textContent).toContain("전국투어 2차는 별도 오픈채팅 신청, 3차는 현장 안내");
+  expect(view.container.textContent).toContain("수동 신청과 웹 신청은 자동으로 합쳐지지 않습니다");
+  expect(view.container.textContent).toContain("다시 신청·입금하지 말고 기존 내역");
+  view.rerender(<ApplicationGuide webOpen />);
+  expect(screen.queryByText("신청창 준비 중 · 오픈 후 접수")).toBeNull();
+  expect(screen.getByText("웹 접수 중 · 신청할 행사·날짜를 확인해 주세요")).toBeTruthy();
+  expect((screen.getByRole("button", { name: "오픈채팅 신청방 준비 중", hidden: true }) as HTMLButtonElement).disabled).toBe(true);
+});
+
+it("does not imply inactive or elapsed schedules have opened recruitment", () => {
+  const event = new EventLaboratoryStore().value.event;
+  event.recruitment = false;
+  event.opensAt = "2026-10-28T11:00:00Z";
+  event.scheduleEnabled = false;
+  event.schedulePaused = true;
+  const load = vi.fn();
+  const hub = { state: { serverNow: "2026-10-28T11:00:01Z" }, load } as unknown as import("../lib/event-hub-client").HubController;
+  const view = render(<ScheduledOpening event={event} hub={hub} />);
+  expect(screen.getByText("신청창 준비 중 · 오픈 후 접수")).toBeTruthy();
+  expect(view.container.textContent).not.toContain("남은 시간");
+  view.rerender(<ScheduledOpening event={{ ...event, scheduleEnabled: true, schedulePaused: false }} hub={hub} />);
+  expect(screen.getByText("예약 시각이 지났습니다. 현재 접수 상태를 다시 확인해 주세요.")).toBeTruthy();
+  fireEvent.click(screen.getByRole("button", { name: "연결 상태·접수 시작 다시 확인" }));
+  expect(load).toHaveBeenCalledTimes(1);
 });
 
 import { useEventTheme } from "./HubUi";

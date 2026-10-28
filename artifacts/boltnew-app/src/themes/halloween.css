@@ -199,3 +199,41 @@ html[data-seasonal-skin="halloween"] .season-chat :is(.bg-cyan-500, .bg-sky-500)
 html[data-seasonal-skin="halloween"] .season-chat :is(.bg-cyan-500, .bg-sky-500) .text-white { color: #251435 !important; }
 html[data-seasonal-skin="halloween"] .profile-setup-card { border: 1px solid #8c5ba1; box-shadow: 0 14px 44px #08030e80; }
 html[data-seasonal-skin="halloween"] .profile-setup-card > .bg-gradient-to-r { background: linear-gradient(120deg, #553568, #362146) !important; border-bottom: 2px solid var(--boo-orange); }
+
+/* Additional Halloween atmosphere, entirely removable with the existing skin. */
+html[data-seasonal-skin="halloween"] body::before {
+  content: '';
+  position: fixed;
+  inset: 0;
+  z-index: 40;
+  pointer-events: none;
+  background: url('/event-art/halloween-web.svg') left top / 150px 105px no-repeat;
+  opacity: .42;
+}
+html[data-seasonal-skin="halloween"] :is(.season-home, .app-viewport, .hub-participant main) {
+  background-image: linear-gradient(180deg, #100b19d9, #190e20ec 65%, #211020ef), url('/event-art/halloween-lounge.webp') !important;
+  background-size: cover !important;
+  background-position: center !important;
+}
+html[data-seasonal-skin="halloween"] :is(.hub-participant-header, .hub-admin-header) {
+  border-bottom-color: #da7f43;
+  box-shadow: 0 5px 30px #e4702426;
+}
+html[data-seasonal-skin="halloween"] .season-home-hero img {
+  filter: drop-shadow(0 0 25px #ff7c3542) drop-shadow(0 12px 22px #05020b88);
+}
+html[data-seasonal-skin="halloween"] .season-home-heading > p:not(.season-home-caption) {
+  background: #ffab61;
+  box-shadow: 0 0 20px #ff76213d;
+}
+html[data-seasonal-skin="halloween"] :is(.hub-event-list-card, .hub-detail-card, .hub-waiting-summary, .hub-operation-row) {
+  border-color: #956044 !important;
+  box-shadow: 0 5px 0 #09060f, inset 0 1px 0 #ffbd7c30, 0 0 24px #f878190b;
+}
+html[data-seasonal-skin="halloween"] .participant-tabbar {
+  border-top-color: #c47c47 !important;
+  box-shadow: 0 -5px 20px #f47a2018;
+}
+@media(min-width: 768px) {
+  html[data-seasonal-skin="halloween"] body::before { background-size: 230px 161px; opacity: .5; }
+}

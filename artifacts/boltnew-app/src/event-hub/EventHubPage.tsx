@@ -10,6 +10,7 @@ import { VenueLogo, GoraeThanks } from "./VenueLogos";
 import { ParticipantOperations, ScheduledOpening } from "./EventOperations";
 import { eventEnded } from "../../../../lib/api-zod/src/event-hub-modules";
 import { ApplicationGuide, ScreeningPhoto } from "./CampaignParticipant";
+import { HalloweenRecognitionNotice } from "./HalloweenRecognition";
 import {
   paymentSatisfied,
   campaignCardLimit,
@@ -161,7 +162,15 @@ function EventHubContent({ path, hub }: { path: string; hub: Hub }) {
         </header>
         <div className="max-w-2xl mx-auto p-4 space-y-4">
           <HubFeedback status={hub.status} error={hub.error} />
-          {event && <ApplicationGuide key={event.id} event={event} />}
+          {(event || path === "/events") && (
+            <ApplicationGuide
+              key={event?.id ?? "events"}
+              event={event}
+              webOpen={s.enabled && !s.publicationBlocked && (event
+                ? event.recruitment
+                : s.events.some((e) => e.recruitment))}
+            />
+          )}
           {(appId || eventId) && (
             <HubButton onClick={() => hubNavigate("/events")}>
               ← 내 신청 목록
@@ -263,7 +272,7 @@ function EventHubContent({ path, hub }: { path: string; hub: Hub }) {
               )}
               {path !== "/events/waiting" && (
                 <HubCard>
-                  <h2 className="font-black">신청 가능한 행사</h2>
+                  <h2 className="font-black">행사·신청 일정</h2>
                   <div className="hub-segmented" aria-label="행사 상태 필터">
                     {["전체", "신청 가능", "접수 예정", "종료"].map((f) => (
                       <button
@@ -856,6 +865,7 @@ export function ApplicationSteps({
             <p>일반 회비 {app.billing?.quote.original.toLocaleString()}원</p>
           )}
           <p>본인 혜택: {app.billing?.quote.benefit}</p>
+          <HalloweenRecognitionNotice app={app} />
           <p className="text-xl font-black text-teal-700">
             {app.billing?.quote.kind === "advance"
               ? "선입금액 (최종 회비 아님)"
@@ -984,6 +994,7 @@ export function WaitingRoom({
       <HubCard>
         {event.type === "tour" && <GoraeThanks logo={app.venue?.thanksLogo} />}
         <ParticipantOperations app={app} event={event} hub={hub} />
+        <HalloweenRecognitionNotice app={app} />
         {app.eligibility && <ScreeningPhoto app={app} hub={hub} />}
         <h2 className="font-black">{event.title}</h2>
         <p>
@@ -1099,7 +1110,7 @@ export function WaitingRoom({
             {tourSessionHours(event.date)?.third}. BINPC2는 1차만 신청합니다.
           </p>
         )}
-        {event.campaign?.secondRoundLink && (
+        {event.campaign?.kind === "tour" && event.campaign.secondRoundLink && (
           <a
             className="underline text-teal-700"
             href={event.campaign.secondRoundLink}

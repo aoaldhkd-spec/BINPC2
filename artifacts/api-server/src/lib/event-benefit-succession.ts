@@ -69,6 +69,7 @@ export async function benefitSuccession(
         e,
         a.benefitExcluded ? 1000000 : a.benefitRank,
         new Date(a.history[0]?.at ?? now),
+        a.halloweenRecognition?.kind,
       );
       if (a.quote && proposed.fee !== a.quote.fee) {
         // All finalized amounts remain frozen. An operator must review any difference.

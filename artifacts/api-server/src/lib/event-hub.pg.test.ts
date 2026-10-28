@@ -2020,10 +2020,63 @@ suite("event hub V6 — actual isolated PostgreSQL transactions", () => {
         call("campaign.prepare", "halloween-2026-10-30"),
       ).rejects.toMatchObject({ code: "ADMIN" });
     });
+    it("operator costume recognition persists its minimum fee, private audit and participant notice idempotently", async () => {
+      eventId = await prepare("halloween-2026-10-31");
+      await open(eventId);
+      await new HubStore(pool).transaction(async tx => {
+        const e = (await tx.get<HubEvent>("event", eventId))!;
+        e.nextRank = 15;
+        await tx.put("event", e.id, e);
+      });
+      const id = await create();
+      expect((await app(id)).quote?.fee).toBe(25000);
+      const data = {kind:"costume",reason:"operator-only recognition note"};
+      await expect(call("admin.application.costume",id,data,1)).rejects.toMatchObject({code:"ADMIN"});
+      const requestId = randomUUID();
+      await call("admin.application.costume",id,data,1,true,owner,requestId);
+      await call("admin.application.costume",id,data,1,true,owner,requestId);
+      const recognized = await app(id);
+      expect(recognized.revision).toBe(2);
+      expect(recognized.quote?.fee).toBe(15000);
+      expect(recognized.halloweenRecognition).toMatchObject({kind:"costume",finalFee:15000,proposedFee:15000});
+      expect(recognized.history.filter(h=>h.action==="admin.halloween.recognition")).toHaveLength(1);
+      expect(JSON.parse(recognized.history.find(h=>h.action==="admin.halloween.recognition")!.reason!))
+        .toMatchObject({...data,previousFee:25000,finalFee:15000,participantNotice:recognized.halloweenRecognition!.participantNotice});
+      expect((await service.state(owner)).applications[0]).not.toHaveProperty("halloweenRecognition");
+      await call("application.consent",id,{consent},2);
+      const visible = (await service.state(owner)).applications[0];
+      expect(visible.halloweenRecognition?.participantNotice).toContain("15,000원");
+      expect(JSON.stringify(visible)).not.toContain(data.reason);
+    });
+    it.each(["none", "reported", "approved"] as const)("costume recognition preserves a confirmed %s payment and records the lower proposal", async payment => {
+      eventId = await prepare("halloween-2026-10-31");
+      await open(eventId);
+      await new HubStore(pool).transaction(async tx => {
+        const e = (await tx.get<HubEvent>("event", eventId))!;
+        e.nextRank = 15;
+        await tx.put("event", e.id, e);
+      });
+      const id = await create();
+      await complete(id);
+      if (payment === "reported") await call("application.report",id,{},(await app(id)).revision);
+      if (payment === "approved") await call("admin.application.payment",id,{status:"approved",bankChecked:true},(await app(id)).revision,true);
+      const before = await app(id);
+      await call("admin.application.costume",id,{kind:"costume",reason:"현장 코스튬 확인"},before.revision,true);
+      const after = await app(id);
+      expect(after.quote).toEqual(before.quote);
+      expect(after.payment).toBe(payment);
+      expect(after.confirmedAt).toBe(before.confirmedAt);
+      expect(after.approvedAt).toBe(before.approvedAt);
+      expect(after.differenceReview).toMatchObject({previous:25000,proposed:15000});
+      expect(after.halloweenRecognition?.participantNotice).toContain("25,000원 유지");
+    });
     it("free approval is separate from bank payment and still requires attendance/checkin/profile", async () => {
       eventId = await prepare("halloween-2026-10-31");
       await open(eventId);
       const id = await create();
+      await call("admin.application.costume",id,{kind:"costume",reason:"1등 코스튬 확인"},(await app(id)).revision,true);
+      expect((await app(id)).quote?.fee).toBe(0);
+      expect((await app(id)).waivedAt).toBeUndefined();
       await complete(id);
       await expect(
         call(
