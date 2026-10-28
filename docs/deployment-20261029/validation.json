@@ -43,8 +43,9 @@
       "status": "PASS"
     },
     "newCode150Mixed": {
-      "status": "NOT_RUN_LOCALLY",
-      "reason": "Existing evidence retained; new remote workflow runs the mixed regression."
+      "status": "PASS_IN_REMOTE_CI",
+      "runId": "40764092274",
+      "reason": "Actual 150-person HTTP/PostgreSQL mixed regression step passed; workflow uses one-minute mixed phase. Not a new hours-long soak or production load test."
     },
     "physicalGalaxyIphone": {
       "status": "UNKNOWN"
@@ -75,7 +76,7 @@
     },
     {
       "scope": "GitHub UI unit check40763157788",
-      "status": "LOCAL_CORRECTION_PASSED_REMOTE_RETEST_PENDING",
+      "status": "FIXED_LOCAL_AND_REMOTE_PASS",
       "reason": "Confirmation checkbox reset occurs in an effect after error rendering; unchanged false assertion now awaited.",
       "uiRerunPassed": 895
     }
@@ -126,9 +127,12 @@
     "id": "40764092274",
     "url": "https://github.com/aoaldhkd-spec/BINPC2/actions/runs/40764092274",
     "sourceVersion": "c53bc3337f68387a87b8cb15984fa91dbbf2fd08",
-    "observedState": "IN_PROGRESS",
-    "observedAtUtc": "2026-10-28T20:32:07.407083+00:00",
-    "completionVerified": false
+    "observedState": "SUCCESS",
+    "observedAtUtc": "2026-10-28T20:41:45.735372+00:00",
+    "completionVerified": true,
+    "jobId": "123083455867",
+    "successfulSteps": 27,
+    "evidence": "ci-40764092274-success.json"
   },
   "latestSourceVersion": "c53bc3337f68387a87b8cb15984fa91dbbf2fd08",
   "latestSourceFingerprint": "8019d40dde03bf89e2a3b922a03af283f2860dcaa65209608f923b155b112759",
@@ -151,5 +155,6 @@
     "sourceVersion": "1c85fc6b2d9fb50456a593b665bf76afe582dbad",
     "status": "FAIL",
     "evidence": "ci-40763157788-failure.json"
-  }
+  },
+  "resumedFromHead": "54fe3f6a01c4553e6365b19a86fcb34eb2611fee"
 }

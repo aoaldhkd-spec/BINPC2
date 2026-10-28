@@ -1277,6 +1277,60 @@
           "status": "UNKNOWN"
         }
       ]
+    },
+    {
+      "id": "github-40764092274",
+      "sourceVersion": "c53bc3337f68387a87b8cb15984fa91dbbf2fd08",
+      "codeFingerprint": "8019d40dde03bf89e2a3b922a03af283f2860dcaa65209608f923b155b112759",
+      "environment": "GitHub Actions Ubuntu24.04 · Node22 · 실제 React/Express/PostgreSQL16/Chromium",
+      "startedAt": "2026-10-28T20:31:47Z",
+      "reportUrl": "https://github.com/aoaldhkd-spec/BINPC2/actions/runs/40764092274",
+      "checks": [
+        {
+          "id": "build",
+          "title": "실제 API·React 빌드",
+          "kind": "build",
+          "status": "PASS"
+        },
+        {
+          "id": "unit",
+          "title": "API·React 단위 회귀",
+          "kind": "unit",
+          "status": "PASS"
+        },
+        {
+          "id": "postgres",
+          "title": "실제 PostgreSQL·테스트 모드·17시 초기화 보호",
+          "kind": "postgres",
+          "status": "PASS"
+        },
+        {
+          "id": "browser",
+          "title": "실제 앱·프로필 복구·문의·레이아웃·100세션 HTTP",
+          "kind": "browser",
+          "status": "PASS"
+        },
+        {
+          "id": "mixed",
+          "title": "150명 실제 HTTP/PostgreSQL 혼합 회귀",
+          "kind": "mixed-http-postgres",
+          "status": "PASS",
+          "reason": "CI의 1분 혼합 구간. 별도 수시간 검사나 운영 DB 검사로 해석하지 않음."
+        },
+        {
+          "id": "guard",
+          "title": "기존 기능 보호·문서·운영 진입 안전검사",
+          "kind": "guard",
+          "status": "PASS"
+        },
+        {
+          "id": "physical",
+          "title": "실물 Galaxy/iPhone",
+          "kind": "physical-device",
+          "status": "UNKNOWN",
+          "reason": "물리 휴대폰 검증 없음. Chromium 결과로 대체하지 않음."
+        }
+      ]
     }
   ]
 }

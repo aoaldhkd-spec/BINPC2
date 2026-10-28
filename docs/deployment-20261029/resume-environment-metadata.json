@@ -1,0 +1,31 @@
+{
+  "recordedAtUtc": "2026-10-28T20:44:16.987Z",
+  "startingLocalAndRemoteHead": "54fe3f6a01c4553e6365b19a86fcb34eb2611fee",
+  "draftRevision": 3,
+  "networkType": "restricted",
+  "customAllowedHosts": [
+    "api.github.com",
+    "api.netlify.com",
+    "api.render.com",
+    "binpc2.netlify.app",
+    "binpc2.onrender.com"
+  ],
+  "savedCredentialBindings": {
+    "NETLIFY_AUTH_TOKEN": false,
+    "RENDER_API_KEY": false
+  },
+  "runtimeCredentialPresence": {
+    "NETLIFY_AUTH_TOKEN": false,
+    "RENDER_API_KEY": false
+  },
+  "comparisonWithPreviousRead": "Draft revision, base version, configured hosts and saved-credential metadata unchanged.",
+  "runtimeConfigurationVersion": "UNKNOWN; no available tool exposes the active runtime configuration version for direct comparison.",
+  "newApplicationOrReconnectionEvidence": false,
+  "providerNetworkRequestsThisResume": 0,
+  "whyNoProviderProbe": "User explicitly prohibited repeating unchanged proxy CONNECT 403 requests; no new configuration-application/reconnection evidence was found.",
+  "githubAccess": "Successful Git read and public Actions inspection; separate platform authentication.",
+  "existingSiteDeploymentAuthorization": true,
+  "productionDeploymentExecuted": false,
+  "productionDbUploadKeyBackupAndRestore": "UNKNOWN; not accessed.",
+  "nextRequiredAction": "Apply the existing configured network and authorized provider credential connections to the active environment through secure environment settings; do not put values in chat/source. Recheck only after meaningful application/reconnection evidence."
+}
