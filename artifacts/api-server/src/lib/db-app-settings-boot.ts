@@ -14,6 +14,7 @@ import {
 export function buildDefaultAppSettings(input: {
   now: string;
   bootstrapAdmin?: string;
+  bootstrapAdminPhone?: string;
   bootstrapTest?: string;
   panelDefault?: string;
   productionQrBase?: string;
@@ -27,7 +28,7 @@ export function buildDefaultAppSettings(input: {
   return {
     id: 1,
     session_active: false,
-    admin_phone: input.privatePreview ? "010-0000-0000" : "010-3878-6740",
+    admin_phone: input.privatePreview ? "010-0000-0000" : (input.bootstrapAdminPhone?.trim() ?? ""),
     admin_password: bootstrapAdmin || panelDefault,
     updated_at: input.now,
     timer_end_at: null,

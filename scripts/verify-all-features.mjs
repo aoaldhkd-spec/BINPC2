@@ -1,5 +1,6 @@
 #!/usr/bin/env node
 /** Full production smoke test — hearts, chat, admin, test, session, realtime readiness. */
+import { parseArgs, requireLoadTarget, redactText } from './lib/ops-client.mjs';
 import { readFileSync, existsSync } from 'node:fs';
 import { spawnSync } from 'node:child_process';
 import { resolve, dirname } from 'node:path';
@@ -9,7 +10,7 @@ const __dirname = dirname(fileURLToPath(import.meta.url));
 const CRED = resolve(__dirname, '../artifacts/api-server/.security-credentials.txt');
 const API = (process.env.API_PUBLIC_URL || 'https://binpc2.onrender.com').replace(/\/$/, '');
 const SITE = (process.env.NETLIFY_URL || 'https://binpc2.netlify.app').replace(/\/$/, '');
-const PW = (process.env.PANEL_PASSWORD || '116606').trim();
+const PW = (process.env.PANEL_PASSWORD || '').trim();
 
 function readCred(prefix) {
   if (!existsSync(CRED)) return '';
@@ -60,6 +61,8 @@ function runStaticAudit() {
 }
 
 async function main() {
+  const permission = requireLoadTarget({ args: parseArgs(), url: API, operation: 'Explicit operator action' });
+  if (permission.dryRun) { console.log('DRY RUN: no credentials read, files changed, or provider requests sent.'); return; }
   const checks = [];
   checks.push(['full_code_audit', runStaticAudit()]);
   const adminPw = readCred('Admin login (/admin)') || PW;
@@ -74,7 +77,7 @@ async function main() {
   // 비밀번호만으로 먼저 시도 — prod admin_phone 과 로컬 credentials 불일치 시 403 방지
   let adminLogin = await rpc('admin_create_session', { p_admin_password: adminPw });
   if (adminLogin.status !== 200 && adminPw) {
-    adminLogin = await rpc('admin_create_session', { p_phone: '010-3878-6740', p_admin_password: adminPw });
+    adminLogin = await rpc('admin_create_session', { p_phone: process.env.ADMIN_PHONE?.trim(), p_admin_password: adminPw });
   }
   const adminToken = adminLogin.json?.data;
   if (adminLogin.status === 200 && adminToken) {
@@ -170,4 +173,4 @@ async function main() {
   if (checks.some(([, r]) => String(r).startsWith('FAIL'))) process.exit(1);
 }
 
-main().catch((e) => { console.error(e.message); process.exit(1); });
+main().catch((e) => { console.error(redactText(e.message)); process.exit(1); });

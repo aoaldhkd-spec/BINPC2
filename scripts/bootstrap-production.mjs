@@ -86,7 +86,7 @@ async function main() {
 
   console.log('[3/3] Verify admin/test login...');
   for (let i = 0; i < 12; i++) {
-    const admin = await rpc('admin_create_session', { p_phone: '010-3878-6740', p_admin_password: adminPw });
+    const admin = await rpc('admin_create_session', { p_phone: process.env.ADMIN_PHONE?.trim(), p_admin_password: adminPw });
     const test = await rpc('test_verify_password', { p_test_password: testPw });
     if (admin.status === 200 && admin.json.data && test.status === 200 && test.json.data) {
       console.log('  admin login OK');

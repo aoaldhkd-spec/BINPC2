@@ -21,13 +21,17 @@ function Preview({
   secured?: boolean;
 }) {
   const [src, setSrc] = useState(secured ? "" : url);
+  const [failed, setFailed] = useState(false);
+  const [retry, setRetry] = useState(0);
   useEffect(() => {
+    setFailed(false);
     if (!secured) {
       setSrc(url);
       return;
     }
     let active = true,
       object = "";
+    setSrc("");
     const abort = new AbortController();
     void fetch(url, {
       credentials: "include",
@@ -40,14 +44,17 @@ function Preview({
         if (!r.ok) throw Error();
         object = URL.createObjectURL(await r.blob());
         if (active) setSrc(object);
+        else URL.revokeObjectURL(object);
       })
-      .catch(() => {});
+      .catch(() => {
+        if (active) setFailed(true);
+      });
     return () => {
       active = false;
       abort.abort();
       if (object) URL.revokeObjectURL(object);
     };
-  }, [url, secured]);
+  }, [url, secured, retry]);
   return src ? (
     video ? (
       <video
@@ -70,6 +77,17 @@ function Preview({
         />
       </a>
     )
+  ) : failed ? (
+    <div role="alert" className="space-y-2 text-sm">
+      <p>미리보기를 불러오지 못했습니다. 저장한 원본은 그대로 있습니다.</p>
+      <button
+        type="button"
+        className="underline font-bold"
+        onClick={() => setRetry((n) => n + 1)}
+      >
+        미리보기 다시 불러오기
+      </button>
+    </div>
   ) : (
     <p>사진을 불러오는 중…</p>
   );

@@ -818,7 +818,7 @@ export default function AdminApp() {
               localStorage.setItem(ADMIN_TOKEN_KEY, data.token);
               localStorage.setItem(ADMIN_PW_KEY, data.password);
               localStorage.setItem(ADMIN_SESSION_KEY, JSON.stringify({
-                phone: data.phone || '010-3878-6740',
+                phone: data.phone || '',
                 authedAt: Date.now(),
               }));
               token = data.token;

@@ -21,7 +21,8 @@ export function localDevAdminOrigin(
     return null;
   }
 }
-const PHONE = '010-3878-6740';
+// Explicit isolated fixture identity; never embed the operator's phone.
+const PHONE = process.env.DEV_ADMIN_PHONE?.trim() || '01000000000';
 
 export function viteDevAdminSession(): Plugin {
   return {

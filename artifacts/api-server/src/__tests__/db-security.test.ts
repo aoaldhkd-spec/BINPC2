@@ -29,6 +29,7 @@ import { randomUUID } from 'node:crypto';
 const TEST_SSE_SECRET = vi.hoisted(() => {
   const secret = 'test-sse-secret-for-unit-tests';
   process.env.SESSION_SECRET = secret;
+  process.env.BOOTSTRAP_ADMIN_PHONE = '010-0000-0000';
   return secret;
 });
 
@@ -1027,7 +1028,7 @@ describe('[Security] test dashboard password', () => {
 
     const adminOk = await request(app)
       .post('/api/db/rpc/admin_create_session')
-      .send({ p_phone: '010-3878-6740', p_admin_password: customAdmin });
+      .send({ p_phone: '010-0000-0000', p_admin_password: customAdmin });
     expect(adminOk.status).toBe(200);
     expect(typeof adminOk.body.data).toBe('string');
 
@@ -1084,7 +1085,7 @@ describe('[Security] test dashboard password', () => {
 
       const defaultAdmin = await request(app)
         .post('/api/db/rpc/admin_create_session')
-        .send({ p_phone: '010-3878-6740', p_admin_password: '116606' });
+        .send({ p_phone: '010-0000-0000', p_admin_password: '116606' });
       expect(defaultAdmin.status).toBe(403);
 
       const defaultTest = await request(app)
@@ -1099,7 +1100,7 @@ describe('[Security] test dashboard password', () => {
 
       const customAdmin = await request(app)
         .post('/api/db/rpc/admin_create_session')
-        .send({ p_phone: '010-3878-6740', p_admin_password: 'custom-admin-pw-xyz' });
+        .send({ p_phone: '010-0000-0000', p_admin_password: 'custom-admin-pw-xyz' });
       expect(customAdmin.status).toBe(200);
 
       const customTest = await request(app)
@@ -1142,7 +1143,7 @@ describe('[Security] test dashboard password', () => {
 
     const adminOk = await request(app)
       .post('/api/db/rpc/admin_create_session')
-      .send({ p_phone: '010-3878-6740', p_admin_password: customAdmin });
+      .send({ p_phone: '010-0000-0000', p_admin_password: customAdmin });
     expect(adminOk.status).toBe(200);
     expect(typeof adminOk.body.data).toBe('string');
 
@@ -1153,7 +1154,7 @@ describe('[Security] test dashboard password', () => {
 
     const stillOk = await request(app)
       .post('/api/db/rpc/admin_create_session')
-      .send({ p_phone: '010-3878-6740', p_admin_password: customAdmin });
+      .send({ p_phone: '010-0000-0000', p_admin_password: customAdmin });
     expect(stillOk.status).toBe(200);
 
     const testOk = await request(app)
@@ -1176,7 +1177,7 @@ describe('[Security] test dashboard password', () => {
     try {
       const adminOk = await request(app)
         .post('/api/db/rpc/admin_create_session')
-        .send({ p_phone: '010-3878-6740', p_admin_password: 'env-admin-secret-zz' });
+        .send({ p_phone: '010-0000-0000', p_admin_password: 'env-admin-secret-zz' });
       expect(adminOk.status).toBe(200);
       expect(typeof adminOk.body.data).toBe('string');
 

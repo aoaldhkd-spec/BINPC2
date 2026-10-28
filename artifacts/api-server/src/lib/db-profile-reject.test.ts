@@ -56,7 +56,7 @@ describe('db-profile-reject', () => {
   });
 
   it('profileNpcAvatarRejected blocks NPC sentinel for non-admin only', () => {
-    const digits = '01038786740';
+    const digits = '01000000000';
     const nonNpc = mockRes();
     expect(profileNpcAvatarRejected(nonNpc.res, 'https://x/y.webp', { nickname: '유저' }, digits)).toBe(false);
 

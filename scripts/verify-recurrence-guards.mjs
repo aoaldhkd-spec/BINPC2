@@ -1777,7 +1777,7 @@ mustMatch('artifacts/api-server/src/routes/db.ts', '63_db_still_single_router_ex
 mustNotMatch('artifacts/api-server/src/routes/db.ts', '63_db_no_inline_ensure_or_settings_boot_impl', [
   /avatarNeedsRepair = String\(existing\['photo_url'\]/,
   /personality_score: 50,/,
-  /admin_phone: '010-3878-6740',/,
+  /admin_phone:\s*['"]01\d[-\d]+['"]/,
   /const targetAdmin = bootstrapAdmin \|\| PANEL_DEFAULT_PASSWORD/,
 ]);
 mustMatch('ARCHITECTURE.md', '63_architecture_path_after_admin_ensure_peel', [

@@ -26,7 +26,7 @@ beforeEach(() => {
   from.mockReturnValue({
     select: () => ({
       eq: () => ({
-        maybeSingle: () => Promise.resolve({ data: { admin_phone: '010-3878-6740' }, error: null }),
+        maybeSingle: () => Promise.resolve({ data: { admin_phone: '010-0000-0000' }, error: null }),
       }),
     }),
   } as never);
@@ -36,7 +36,7 @@ beforeEach(() => {
 describe('LoginScreen 테스트 관리자', () => {
   it('fills phone only, does not submit, and does not use a retired public password', async () => {
     render(<LoginScreen onLogin={() => {}} />);
-    await screen.findByDisplayValue('010-3878-6740');
+    await screen.findByDisplayValue('010-0000-0000');
 
     fireEvent.click(screen.getByRole('button', { name: '테스트 관리자' }));
 
@@ -48,7 +48,7 @@ describe('LoginScreen 테스트 관리자', () => {
   it('reads autofilled DOM password instead of empty React state', async () => {
     rpc.mockResolvedValue({ data: null, error: { message: '비밀번호가 일치하지 않습니다.' } });
     render(<LoginScreen onLogin={() => {}} />);
-    await screen.findByDisplayValue('010-3878-6740');
+    await screen.findByDisplayValue('010-0000-0000');
 
     const field = screen.getByPlaceholderText('비밀번호 입력') as HTMLInputElement;
     field.value = 'from-autofill';
@@ -56,7 +56,7 @@ describe('LoginScreen 테스트 관리자', () => {
 
     await waitFor(() => {
       expect(rpc).toHaveBeenCalledWith('admin_create_session', {
-        p_phone: '010-3878-6740',
+        p_phone: '010-0000-0000',
         p_admin_password: 'from-autofill',
       });
     });
@@ -65,7 +65,7 @@ describe('LoginScreen 테스트 관리자', () => {
   it('explains retired public defaults and 429 separately', async () => {
     rpc.mockResolvedValue({ data: null, error: { message: '비밀번호가 일치하지 않습니다.' } });
     render(<LoginScreen onLogin={() => {}} />);
-    await screen.findByDisplayValue('010-3878-6740');
+    await screen.findByDisplayValue('010-0000-0000');
 
     fireEvent.change(screen.getByPlaceholderText('비밀번호 입력'), { target: { value: '116606' } });
     fireEvent.submit(screen.getByPlaceholderText('비밀번호 입력').closest('form')!);
@@ -75,7 +75,7 @@ describe('LoginScreen 테스트 관리자', () => {
     cleanup();
     rpc.mockResolvedValue({ data: null, error: { message: 'HTTP 429' } });
     render(<LoginScreen onLogin={() => {}} />);
-    await screen.findByDisplayValue('010-3878-6740');
+    await screen.findByDisplayValue('010-0000-0000');
     fireEvent.change(screen.getByPlaceholderText('비밀번호 입력'), { target: { value: 'not-the-default' } });
     fireEvent.submit(screen.getByPlaceholderText('비밀번호 입력').closest('form')!);
     expect(await screen.findByText('시도가 너무 많습니다. 잠시 후 다시 시도해 주세요.')).toBeTruthy();

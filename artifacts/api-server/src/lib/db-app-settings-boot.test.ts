@@ -18,7 +18,7 @@ describe("db-app-settings-boot", () => {
     expect(row).toMatchObject({
       id: 1,
       session_active: false,
-      admin_phone: "010-3878-6740",
+      admin_phone: "",
       admin_password: "admin-secret",
       test_password: "test-secret",
       reset_password: PANEL_DEFAULT_PASSWORD,
@@ -126,4 +126,9 @@ it("private preview repairs any operational QR origin while normal custom origin
       qr_base_url: "https://custom.example.test",
     }).patch,
   ).toEqual({});
+});
+
+it("uses only explicitly supplied administrator contact for a fresh database", () => {
+  expect(buildDefaultAppSettings({now:"n0", bootstrapAdminPhone:" 010-0000-0000 "}).admin_phone).toBe("010-0000-0000");
+  expect(buildDefaultAppSettings({now:"n0"}).admin_phone).toBe("");
 });

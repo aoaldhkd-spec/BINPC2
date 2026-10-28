@@ -134,7 +134,7 @@ describe('longevity recurrence guards (server)', () => {
     expect(dbTs).toContain('buildDefaultAppSettings');
     expect(dbTs).toContain('planAppSettingsSecretsPatch');
     expect(dbTs).not.toMatch(/personality_score: 50,/);
-    expect(dbTs).not.toMatch(/admin_phone: '010-3878-6740',/);
+    expect(dbTs).not.toMatch(/admin_phone:\s*['"]01\d[-\d]+['"]/);
     const ensure = readFileSync(join(here, '../lib/db-admin-ensure-plan.ts'), 'utf8');
     const boot = readFileSync(join(here, '../lib/db-app-settings-boot.ts'), 'utf8');
     expect(ensure).toContain('planEnsureAdminProfile');

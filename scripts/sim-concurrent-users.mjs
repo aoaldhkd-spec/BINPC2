@@ -25,6 +25,7 @@
  *   CONCURRENCY entry-only parallel requests (default 100, max 500)
  */
 
+import { parseArgs, requireLoadTarget, redactText } from './lib/ops-client.mjs';
 import { randomUUID } from 'node:crypto';
 import { createTestPersona, profilePayload, reserveNickname } from './lib/test-personas.mjs';
 import { runEntryBurst } from './lib/entry-burst.mjs';
@@ -621,10 +622,10 @@ async function runStage(n) {
     }
   });
 
-  const PANEL_PW = String(process.env.PANEL_PASSWORD || '116606').trim();
+  const PANEL_PW = String(process.env.PANEL_PASSWORD || '').trim();
   try {
     const loginAdmin = await api('/rpc/admin_create_session', {
-      body: { p_phone: '010-3878-6740', p_admin_password: PANEL_PW },
+      body: { p_phone: process.env.ADMIN_PHONE?.trim(), p_admin_password: PANEL_PW },
     });
     const adminToken = loginAdmin.json?.data;
     if (adminToken && withTok.length) {
@@ -731,6 +732,8 @@ function stagePass(m) {
 }
 
 async function main() {
+  const permission = requireLoadTarget({ args: parseArgs(), url: API, operation: 'Explicit operator action' });
+  if (permission.dryRun) { console.log('DRY RUN: no credentials read, files changed, or provider requests sent.'); return; }
   if (ENTRY_ONLY) {
     console.log('\nSIM entry burst (--entry-only)');
     console.log(`API=${API}`);
@@ -792,6 +795,6 @@ async function main() {
 }
 
 main().catch((e) => {
-  console.error(e);
+  console.error(redactText(e.message));
   process.exit(1);
 });

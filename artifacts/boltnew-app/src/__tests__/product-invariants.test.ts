@@ -559,7 +559,7 @@ describe('product copy + notification invariants', () => {
     expect(db).toContain('buildDefaultAppSettings');
     expect(db).toContain('planAppSettingsSecretsPatch');
     expect(db).not.toMatch(/personality_score: 50,/);
-    expect(db).not.toMatch(/admin_phone: '010-3878-6740',/);
+    expect(db).not.toMatch(/admin_phone:\s*['"]01\d[-\d]+['"]/);
     expect(db).toContain("from '../lib/db-op-result-shape'");
     expect(db).toContain('orderLimitShape');
     expect(db).toContain('sanitizeBroadcastValue');

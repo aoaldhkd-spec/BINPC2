@@ -9,6 +9,7 @@
  *   $env:RENDER_API_KEY="rnd_..."
  *   node scripts/security-harden.mjs
  */
+import { parseArgs, requireProductionWrite, redactText } from './lib/ops-client.mjs';
 import { randomBytes } from 'node:crypto';
 import { readFileSync, writeFileSync, existsSync } from 'node:fs';
 import { resolve, dirname } from 'node:path';
@@ -22,7 +23,7 @@ const OUT_PATH = resolve(ROOT, 'artifacts/api-server/.security-credentials.txt')
 const RENDER_API_KEY = process.env.RENDER_API_KEY?.trim();
 const RENDER_SERVICE_NAME = process.env.RENDER_SERVICE_NAME?.trim() || 'BINPC2';
 const API_URL = (process.env.API_PUBLIC_URL || 'https://binpc2.onrender.com').replace(/\/$/, '');
-const OLD_ADMIN_PW = (process.env.OLD_ADMIN_PASSWORD || '116606').trim();
+const OLD_ADMIN_PW = (process.env.OLD_ADMIN_PASSWORD || '').trim();
 
 function genPassword(bytes = 18) {
   return randomBytes(bytes).toString('base64url');
@@ -53,7 +54,10 @@ async function rpc(name, args) {
 }
 
 async function main() {
+  const permission = requireProductionWrite({ args: parseArgs(), identities: [RENDER_SERVICE_NAME, new URL(API_URL).host], operation: 'Production security settings and redeployment' });
+  if (permission.dryRun) { console.log('DRY RUN: no credentials read, files changed, or provider requests sent.'); return; }
   if (!RENDER_API_KEY) throw new Error('Set RENDER_API_KEY');
+  if (!OLD_ADMIN_PW) throw new Error('Explicit OLD_ADMIN_PASSWORD required');
 
   const sessionSecret = genPassword(48);
   const adminPassword = genPassword(16);
@@ -131,6 +135,6 @@ async function main() {
 }
 
 main().catch((err) => {
-  console.error('[security] failed:', err.message);
+  console.error('[security] failed:', redactText(err.message));
   process.exit(1);
 });

@@ -164,9 +164,9 @@ async function restoreAdminSettingsAfterDeploy() {
     return;
   }
   console.log('[5/5] Restoring admin/test passwords after redeploy...');
-  for (const bootstrapPw of ['116606', adminPassword]) {
+  for (const bootstrapPw of [adminPassword]) {
     const login = await rpc('admin_create_session', {
-      p_phone: '010-3878-6740',
+      p_phone: process.env.ADMIN_PHONE?.trim(),
       p_admin_password: bootstrapPw,
     });
     if (login.status !== 200 || !login.json.data) continue;
@@ -186,7 +186,7 @@ async function restoreAdminSettingsAfterDeploy() {
       return;
     }
   }
-  console.warn('  [warn] Could not restore admin settings — log in with default 116606 and set password manually');
+  console.warn('  [warn] Could not restore admin settings — use the explicitly configured administrator credential');
 }
 
 async function main() {

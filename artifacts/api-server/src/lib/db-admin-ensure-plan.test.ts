@@ -9,8 +9,8 @@ import {
 } from './db-admin-ensure-plan.js';
 
 describe('db-admin-ensure-plan', () => {
-  const digits = '01038786740';
-  const settings = { admin_phone: '010-3878-6740' };
+  const digits = '01000000000';
+  const settings = { admin_phone: '010-0000-0000' };
 
   it('skips when no admin phone configured', () => {
     expect(planEnsureAdminProfile({
@@ -25,7 +25,7 @@ describe('db-admin-ensure-plan', () => {
     const existing = {
       id: 'npc1',
       nickname: ADMIN_FIXED_NICKNAME,
-      phone_number: '01038786740',
+      phone_number: '01000000000',
       photo_url: NPC_TEXT_AVATAR_SENTINEL,
     };
     const plan = planEnsureAdminProfile({
@@ -45,7 +45,7 @@ describe('db-admin-ensure-plan', () => {
     const existing = {
       id: 'npc1',
       nickname: 'tmp',
-      phone_number: '01038786740',
+      phone_number: '01000000000',
       photo_url: 'https://example.com/x.png',
     };
     const plan = planEnsureAdminProfile({
@@ -98,7 +98,7 @@ describe('db-admin-ensure-plan', () => {
 
     const backup = {
       id: 'old-npc',
-      phone_number: '010-3878-6740',
+      phone_number: '010-0000-0000',
       nickname: 'x',
       pin_code: '9999',
       created_at: 'c0',

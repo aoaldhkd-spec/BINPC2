@@ -1683,6 +1683,7 @@ function defaultAppSettings(): Record<string, unknown> {
   return buildDefaultAppSettings({
     now: ts(),
     bootstrapAdmin: process.env.BOOTSTRAP_ADMIN_PASSWORD?.trim(),
+    bootstrapAdminPhone: process.env.BOOTSTRAP_ADMIN_PHONE?.trim(),
     bootstrapTest: process.env.BOOTSTRAP_TEST_PASSWORD?.trim(),
     panelDefault: process.env.APP_MODE === "private-preview" ? process.env.BOOTSTRAP_ADMIN_PASSWORD : PANEL_DEFAULT_PASSWORD,
     productionQrBase: process.env.APP_MODE === "private-preview" ? (process.env.PREVIEW_PUBLIC_ORIGIN ?? process.env.RENDER_EXTERNAL_URL) : PRODUCTION_QR_BASE,

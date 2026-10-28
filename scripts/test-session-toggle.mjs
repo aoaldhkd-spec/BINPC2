@@ -1,7 +1,8 @@
 #!/usr/bin/env node
 /** Verify admin can toggle session_active on production. */
+import { parseArgs, requireLoadTarget, redactText } from './lib/ops-client.mjs';
 const API = (process.env.API_PUBLIC_URL || 'https://binpc2.onrender.com').replace(/\/$/, '');
-const PW = (process.env.PANEL_PASSWORD || '116606').trim();
+const PW = (process.env.PANEL_PASSWORD || '').trim();
 
 async function rpc(name, args) {
   const res = await fetch(`${API}/api/db/rpc/${name}`, {
@@ -13,7 +14,9 @@ async function rpc(name, args) {
 }
 
 async function main() {
-  const login = await rpc('admin_create_session', { p_phone: '010-3878-6740', p_admin_password: PW });
+  const permission = requireLoadTarget({ args: parseArgs(), url: API, operation: 'Explicit operator action' });
+  if (permission.dryRun) { console.log('DRY RUN: no credentials read, files changed, or provider requests sent.'); return; }
+  const login = await rpc('admin_create_session', { p_phone: process.env.ADMIN_PHONE?.trim(), p_admin_password: PW });
   if (!login.json.data) throw new Error(`login failed ${login.status}`);
   const token = login.json.data;
 
@@ -42,4 +45,4 @@ async function main() {
   console.log('meeting toggle: OK');
 }
 
-main().catch(e => { console.error(e.message); process.exit(1); });
+main().catch(e => { console.error(redactText(e.message)); process.exit(1); });
