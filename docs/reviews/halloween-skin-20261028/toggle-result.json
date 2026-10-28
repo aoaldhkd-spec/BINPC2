@@ -1,0 +1,11 @@
+{
+  "realApp": true,
+  "isolatedPostgres": true,
+  "checks": [
+    "administrator-authorized OFF/ON persists on server",
+    "same participant identity retained",
+    "unsent chat draft retained through OFF and ON",
+    "reduced motion disables transitions"
+  ],
+  "realDevices": "UNKNOWN"
+}

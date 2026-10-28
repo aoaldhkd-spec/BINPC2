@@ -1,0 +1,17 @@
+
+ RUN  v4.1.10 /workspace/BINPC2/artifacts/boltnew-app
+
+ ✓ src/lib/module-flags.test.ts > module-flags > preserves current module defaults and keeps the new event hub opt-in 3ms
+ ✓ src/lib/module-flags.test.ts > module-flags > supports safe partial soft-detach 0ms
+ ✓ src/lib/module-flags.test.ts > module-flags > canonicalizes malformed/extra input 0ms
+ ✓ src/themes/SeasonalSkin.test.tsx > admin skin OFF restores presentation without remounting or clearing profile input/dark preference 32ms
+ ✓ src/themes/SeasonalSkin.test.tsx > late settings and temporary failures cannot turn the skin back on after an administrator turns it off 4ms
+ ✓ src/components/WaitingOverlay.v4.test.tsx > V4 central entry waits for the authoritative cycle, keeps recovery, and omits retired home banners 65ms
+ ✓ src/components/WaitingOverlay.v4.test.tsx > V4 01:00 closes only new entry and leaves the existing recovery route visible 17ms
+ ✓ src/components/WaitingOverlay.v4.test.tsx > home Halloween expires at Nov 1 17:00 KST without changing admission or recovery 16ms
+
+ Test Files  3 passed (3)
+      Tests  8 passed (8)
+   Start at  10:21:29
+   Duration  850ms (transform 315ms, setup 0ms, import 595ms, tests 142ms, environment 502ms)
+

@@ -1,0 +1,18 @@
+node:internal/modules/run_main:107
+    triggerUncaughtException(
+    ^
+
+AssertionError [ERR_ASSERTION]: Expected values to be strictly equal:
+
+'1e-05s' !== '0s'
+
+    at file:///workspace/BINPC2/.local/halloween-skin-20261028/social.mjs:16:364 {
+  generatedMessage: true,
+  code: 'ERR_ASSERTION',
+  actual: '1e-05s',
+  expected: '0s',
+  operator: 'strictEqual',
+  diff: 'simple'
+}
+
+Node.js v24.19.0

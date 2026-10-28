@@ -1,0 +1,205 @@
+{
+  "status": "completed",
+  "conclusion": "success",
+  "headSha": "e97730298f07fa6f0900874b3284b373efc0ab43",
+  "url": "https://github.com/aoaldhkd-spec/BINPC2/actions/runs/40672489994",
+  "jobs": [
+    {
+      "name": "event-hub",
+      "startedAt": "2026-10-28T10:29:13Z",
+      "completedAt": "2026-10-28T10:35:22Z",
+      "steps": [
+        {
+          "name": "Set up job",
+          "number": 1,
+          "conclusion": "success",
+          "startedAt": "2026-10-28T10:29:13Z",
+          "completedAt": "2026-10-28T10:29:15Z"
+        },
+        {
+          "name": "Initialize containers",
+          "number": 2,
+          "conclusion": "success",
+          "startedAt": "2026-10-28T10:29:15Z",
+          "completedAt": "2026-10-28T10:29:26Z"
+        },
+        {
+          "name": "Run actions/checkout@v4",
+          "number": 3,
+          "conclusion": "success",
+          "startedAt": "2026-10-28T10:29:26Z",
+          "completedAt": "2026-10-28T10:29:31Z"
+        },
+        {
+          "name": "Run pnpm/action-setup@v4",
+          "number": 4,
+          "conclusion": "success",
+          "startedAt": "2026-10-28T10:29:31Z",
+          "completedAt": "2026-10-28T10:29:32Z"
+        },
+        {
+          "name": "Run actions/setup-node@v4",
+          "number": 5,
+          "conclusion": "success",
+          "startedAt": "2026-10-28T10:29:32Z",
+          "completedAt": "2026-10-28T10:29:35Z"
+        },
+        {
+          "name": "Run corepack enable",
+          "number": 6,
+          "conclusion": "success",
+          "startedAt": "2026-10-28T10:29:35Z",
+          "completedAt": "2026-10-28T10:29:35Z"
+        },
+        {
+          "name": "Run pnpm install --frozen-lockfile",
+          "number": 7,
+          "conclusion": "success",
+          "startedAt": "2026-10-28T10:29:35Z",
+          "completedAt": "2026-10-28T10:29:40Z"
+        },
+        {
+          "name": "Run node scripts/prepare-event-hub-e2e.mjs database",
+          "number": 8,
+          "conclusion": "success",
+          "startedAt": "2026-10-28T10:29:40Z",
+          "completedAt": "2026-10-28T10:29:41Z"
+        },
+        {
+          "name": "Run pnpm run build",
+          "number": 9,
+          "conclusion": "success",
+          "startedAt": "2026-10-28T10:29:41Z",
+          "completedAt": "2026-10-28T10:30:01Z"
+        },
+        {
+          "name": "Existing API unit regression checks",
+          "number": 10,
+          "conclusion": "success",
+          "startedAt": "2026-10-28T10:30:01Z",
+          "completedAt": "2026-10-28T10:30:14Z"
+        },
+        {
+          "name": "Existing UI unit regression checks",
+          "number": 11,
+          "conclusion": "success",
+          "startedAt": "2026-10-28T10:30:14Z",
+          "completedAt": "2026-10-28T10:30:31Z"
+        },
+        {
+          "name": "Existing core-protection guards",
+          "number": 12,
+          "conclusion": "success",
+          "startedAt": "2026-10-28T10:30:31Z",
+          "completedAt": "2026-10-28T10:30:32Z"
+        },
+        {
+          "name": "Current documentation checks",
+          "number": 13,
+          "conclusion": "success",
+          "startedAt": "2026-10-28T10:30:32Z",
+          "completedAt": "2026-10-28T10:30:32Z"
+        },
+        {
+          "name": "Production-entry guards and redaction",
+          "number": 14,
+          "conclusion": "success",
+          "startedAt": "2026-10-28T10:30:32Z",
+          "completedAt": "2026-10-28T10:30:33Z"
+        },
+        {
+          "name": "Actual PostgreSQL invariants and existing reset safety",
+          "number": 15,
+          "conclusion": "success",
+          "startedAt": "2026-10-28T10:30:33Z",
+          "completedAt": "2026-10-28T10:30:41Z"
+        },
+        {
+          "name": "Run pnpm --filter @workspace/boltnew-app exec playwright install --with-deps chromium",
+          "number": 16,
+          "conclusion": "success",
+          "startedAt": "2026-10-28T10:30:41Z",
+          "completedAt": "2026-10-28T10:31:05Z"
+        },
+        {
+          "name": "Pin an explicit internal business clock for admission and mobile regression",
+          "number": 17,
+          "conclusion": "success",
+          "startedAt": "2026-10-28T10:31:05Z",
+          "completedAt": "2026-10-28T10:31:05Z"
+        },
+        {
+          "name": "Start dedicated local API and frontend",
+          "number": 18,
+          "conclusion": "success",
+          "startedAt": "2026-10-28T10:31:05Z",
+          "completedAt": "2026-10-28T10:31:06Z"
+        },
+        {
+          "name": "Run node scripts/prepare-event-hub-e2e.mjs activate",
+          "number": 19,
+          "conclusion": "success",
+          "startedAt": "2026-10-28T10:31:06Z",
+          "completedAt": "2026-10-28T10:31:07Z"
+        },
+        {
+          "name": "Browser recovery, inquiry, layout and 100-session HTTP tests",
+          "number": 20,
+          "conclusion": "success",
+          "startedAt": "2026-10-28T10:31:07Z",
+          "completedAt": "2026-10-28T10:33:52Z"
+        },
+        {
+          "name": "Actual 150-person HTTP/PostgreSQL mixed regression on accumulated records",
+          "number": 21,
+          "conclusion": "success",
+          "startedAt": "2026-10-28T10:33:52Z",
+          "completedAt": "2026-10-28T10:35:19Z"
+        },
+        {
+          "name": "Preserve synthetic actual-app screenshots and videos",
+          "number": 22,
+          "conclusion": "success",
+          "startedAt": "2026-10-28T10:35:19Z",
+          "completedAt": "2026-10-28T10:35:21Z"
+        },
+        {
+          "name": "Post Run actions/setup-node@v4",
+          "number": 41,
+          "conclusion": "success",
+          "startedAt": "2026-10-28T10:35:21Z",
+          "completedAt": "2026-10-28T10:35:21Z"
+        },
+        {
+          "name": "Post Run pnpm/action-setup@v4",
+          "number": 42,
+          "conclusion": "success",
+          "startedAt": "2026-10-28T10:35:21Z",
+          "completedAt": "2026-10-28T10:35:21Z"
+        },
+        {
+          "name": "Post Run actions/checkout@v4",
+          "number": 43,
+          "conclusion": "success",
+          "startedAt": "2026-10-28T10:35:21Z",
+          "completedAt": "2026-10-28T10:35:22Z"
+        },
+        {
+          "name": "Stop containers",
+          "number": 44,
+          "conclusion": "success",
+          "startedAt": "2026-10-28T10:35:22Z",
+          "completedAt": "2026-10-28T10:35:22Z"
+        },
+        {
+          "name": "Complete job",
+          "number": 45,
+          "conclusion": "success",
+          "startedAt": "2026-10-28T10:35:22Z",
+          "completedAt": "2026-10-28T10:35:22Z"
+        }
+      ]
+    }
+  ],
+  "observedFrom": "official public GitHub run and job HTML; original HTML retained privately"
+}

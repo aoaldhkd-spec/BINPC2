@@ -1,0 +1,6 @@
+{
+  "realApp": true,
+  "isolated": true,
+  "beforeStartEntryDisabled": true,
+  "operationalSessionTouched": false
+}

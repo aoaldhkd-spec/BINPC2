@@ -1,0 +1,75 @@
+
+Running 16 tests using 1 worker
+
+(node:76296) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+
+
+[1/16] tests/event-hub-v4-ui.spec.ts:77:1 › V4 main uses central actions; actual server start activates entry and inquiry is route-scoped
+[2/16] tests/event-hub-v4-ui.spec.ts:151:1 › V4 integrated overview shows both Halloween inventories without mutation on view switches
+[3/16] tests/event-hub-v4-ui.spec.ts:205:1 › V4 notice/map actual file preview, save, reopen, approval ACL and context-safe drafts
+[4/16] tests/event-hub-v4-ui.spec.ts:387:1 › V4 new-event photo survives upload failure without duplicate event; drafts stay with their date
+[5/16] tests/event-hub-v6.spec.ts:93:1 › actual browser + API + PostgreSQL: saved stages, payment recovery, private profile and exactly-once entry
+[6/16] tests/event-hub-v6.spec.ts:538:1 › mobile/tablet/desktop layouts and administrator sandbox remain isolated
+  1) tests/event-hub-v6.spec.ts:538:1 › mobile/tablet/desktop layouts and administrator sandbox remain isolated 
+
+    Error: expect(received).toBe(expected) // Object.is equality
+
+    Expected: "rgb(255, 255, 255)"
+    Received: "rgb(33, 23, 47)"
+
+      580 |           (element) => getComputedStyle(element).backgroundColor,
+      581 |         ),
+    > 582 |       ).toBe(dark ? "rgb(15, 23, 42)" : "rgb(255, 255, 255)");
+          |         ^
+      583 |       const dialogRect = await dialog.boundingBox();
+      584 |       expect(dialogRect!.x).toBeGreaterThanOrEqual(0);
+      585 |       expect(dialogRect!.width).toBeLessThanOrEqual(width);
+        at /workspace/BINPC2/artifacts/boltnew-app/tests/event-hub-v6.spec.ts:582:9
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    ../../.local/halloween-skin-20261028/browser-evidence/event-hub-v6-mobile-tablet-2c84e-tor-sandbox-remain-isolated/test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    attachment #2: video (video/webm) ──────────────────────────────────────────────────────────────
+    ../../.local/halloween-skin-20261028/browser-evidence/event-hub-v6-mobile-tablet-2c84e-tor-sandbox-remain-isolated/video.webm
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: ../../.local/halloween-skin-20261028/browser-evidence/event-hub-v6-mobile-tablet-2c84e-tor-sandbox-remain-isolated/error-context.md
+
+
+(node:76874) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+
+
+[7/16] tests/event-hub-v6.spec.ts:657:1 › inquiry drafts, participant messages and administrator replies survive reopening without external notifications
+[8/16] tests/event-hub-v6.spec.ts:753:1 › 100 distinct cookie sessions submit concurrently through the actual HTTP API without duplicate applications or ranks
+[9/16] tests/event-hub-v6.spec.ts:815:1 › protected media HTTP, privacy review and participant-safe notices use the real isolated DB
+tests/event-hub-v6.spec.ts:815:1 › protected media HTTP, privacy review and participant-safe notices use the real isolated DB
+V3_PRIVACY_TRACE {"path":"/api/event-hub/admin","status":200,"responseStartMs":20.655}
+
+V3_PRIVACY_TRACE {"path":"/api/event-hub/admin","status":200,"responseStartMs":33.567}
+
+V3_PRIVACY_TRACE {"path":"/api/event-hub/admin","status":200,"responseStartMs":31.84}
+
+V3_PRIVACY_TRACE {"path":"/api/event-hub/admin","status":200,"responseStartMs":16.81}
+
+V3_PRIVACY_TRACE {"path":"/api/event-hub/mutate","action":"admin.privacy.review","status":200,"responseStartMs":21.879}
+
+V3_PRIVACY_TRACE {"path":"/api/event-hub/admin","status":200,"responseStartMs":36.624}
+
+V3_PRIVACY_TRACE {"path":"/api/event-hub/admin","status":200,"responseStartMs":22.726}
+
+[10/16] tests/event-hub-v6.spec.ts:1074:1 › actual administrator Saturday toggle survives reload and returns to the original isolated configuration
+[11/16] tests/event-hub-v6.spec.ts:1130:1 › latest campaign actual API: first-rank free approval stays separate from bank payment and private venue
+[12/16] tests/event-hub-v6.spec.ts:1258:1 › tour actual API advance and shared-component lab enforce rank ten/eleven without changing live inventory
+[13/16] tests/event-hub-v6.spec.ts:1370:1 › private screening photo UI requires explicit consent, administrator review and verified source deletion
+[14/16] tests/event-hub-v6.spec.ts:1495:1 › independent draw module switches persist and the Halloween theme expires in the actual React page without a reset
+[15/16] tests/event-hub-v6.spec.ts:1632:1 › V3 actual app: phone-only reward record, late-arrival review and eight received logos preserve ownership
+[16/16] tests/event-hub-v6.spec.ts:1691:1 › administrator verification history and immutable logo upload/select/restore use the actual app and DB
+  1 failed
+    tests/event-hub-v6.spec.ts:538:1 › mobile/tablet/desktop layouts and administrator sandbox remain isolated 
+  15 passed (2.2m)
+undefined
+/workspace/BINPC2/artifacts/boltnew-app:
+[ERR_PNPM_RECURSIVE_EXEC_FIRST_FAIL] Command failed with exit code 1: playwright test --config playwright.event-hub.config.ts '--reporter=line' '--output=/workspace/BINPC2/.local/halloween-skin-20261028/browser-evidence'
