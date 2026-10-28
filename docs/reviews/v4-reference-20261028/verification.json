@@ -1,0 +1,55 @@
+{
+  "codeSha": "db93e1263e185fa41ddf42be510209fef044c21a",
+  "sourceStartingSha": "a4bd7da95633da6d62bf379148d9c3a5a791256d",
+  "codeFingerprint": "f6f1ee815fe3547c86b2df12d7eb5d298fa68934ae5fa9c8c4721027f1b8062f",
+  "local": {
+    "uiUnits": 853,
+    "recurrenceGuards": 598,
+    "typecheck": "PASS",
+    "eslint": "PASS",
+    "build": "PASS",
+    "docs": "PASS",
+    "staticBuildBytes": 8232472,
+    "decorationBytes": 169690,
+    "physicalGalaxyIphone": "UNKNOWN"
+  },
+  "browserEvidence": {
+    "environment": "real React + compiled Express + isolated PostgreSQL16; 127.0.0.1 only; synthetic owners and media; normal authentication/rate limits",
+    "scenarioCount": 16,
+    "firstRun": {
+      "passed": 10,
+      "failed": 6
+    },
+    "lastBroadLocalRun": {
+      "passed": 14,
+      "failed": 2
+    },
+    "fixedAndRetestedAffectedAndAdjacentScenarios": {
+      "passed": 3,
+      "failed": 0
+    },
+    "completeCiRun": "https://github.com/aoaldhkd-spec/BINPC2/actions/runs/40658695188"
+  },
+  "noOperationalDeployment": true,
+  "noOperationalDatabaseRequests": true,
+  "noExternalNotifications": true,
+  "newPaidServices": 0,
+  "scope": "Actual app screen refinement using existing flows; not a production readiness attestation",
+  "latestCi": {
+    "url": "https://github.com/aoaldhkd-spec/BINPC2/actions/runs/40660200816",
+    "headSha": "db93e1263e185fa41ddf42be510209fef044c21a",
+    "conclusion": "success",
+    "allSteps": 27,
+    "browserScenarios": 16,
+    "actualPostgres": true,
+    "mixed150HttpPostgres": true
+  },
+  "internalFixtureFinal": {
+    "internalOnly": true,
+    "sessionActive": false,
+    "applicationsPreserved": 1084,
+    "eventsPreserved": 45,
+    "stocksPreserved": 37,
+    "at": "2026-10-28T09:03:20.330Z"
+  }
+}
