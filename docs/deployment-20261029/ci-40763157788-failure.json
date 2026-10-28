@@ -1,0 +1,125 @@
+{
+  "runId": "40763157788",
+  "sourceVersion": "1c85fc6b2d9fb50456a593b665bf76afe582dbad",
+  "jobId": "123080149544",
+  "url": "https://github.com/aoaldhkd-spec/BINPC2/actions/runs/40763157788",
+  "observedAtUtc": "2026-10-28T20:31:10.039133+00:00",
+  "conclusion": "FAILURE",
+  "steps": [
+    {
+      "name": "Set up job",
+      "conclusion": "success"
+    },
+    {
+      "name": "Initialize containers",
+      "conclusion": "success"
+    },
+    {
+      "name": "Run actions/checkout@v4",
+      "conclusion": "success"
+    },
+    {
+      "name": "Run pnpm/action-setup@v4",
+      "conclusion": "success"
+    },
+    {
+      "name": "Run actions/setup-node@v4",
+      "conclusion": "success"
+    },
+    {
+      "name": "Run corepack enable",
+      "conclusion": "success"
+    },
+    {
+      "name": "Run pnpm install --frozen-lockfile",
+      "conclusion": "success"
+    },
+    {
+      "name": "Run node scripts/prepare-event-hub-e2e.mjs database",
+      "conclusion": "success"
+    },
+    {
+      "name": "Run pnpm run build",
+      "conclusion": "success"
+    },
+    {
+      "name": "Existing API unit regression checks",
+      "conclusion": "success"
+    },
+    {
+      "name": "Existing UI unit regression checks",
+      "conclusion": "failure"
+    },
+    {
+      "name": "Existing core-protection guards",
+      "conclusion": "skipped"
+    },
+    {
+      "name": "Current documentation checks",
+      "conclusion": "skipped"
+    },
+    {
+      "name": "Production-entry guards and redaction",
+      "conclusion": "skipped"
+    },
+    {
+      "name": "Actual PostgreSQL invariants and existing reset safety",
+      "conclusion": "skipped"
+    },
+    {
+      "name": "Run pnpm --filter @workspace/boltnew-app exec playwright install --with-deps chromium",
+      "conclusion": "skipped"
+    },
+    {
+      "name": "Pin an explicit internal business clock for admission and mobile regression",
+      "conclusion": "skipped"
+    },
+    {
+      "name": "Start dedicated local API and frontend",
+      "conclusion": "skipped"
+    },
+    {
+      "name": "Run node scripts/prepare-event-hub-e2e.mjs activate",
+      "conclusion": "skipped"
+    },
+    {
+      "name": "Browser recovery, inquiry, layout and 100-session HTTP tests",
+      "conclusion": "skipped"
+    },
+    {
+      "name": "Actual 150-person HTTP/PostgreSQL mixed regression on accumulated records",
+      "conclusion": "skipped"
+    },
+    {
+      "name": "Preserve synthetic actual-app screenshots and videos",
+      "conclusion": "success"
+    },
+    {
+      "name": "Post Run actions/setup-node@v4",
+      "conclusion": "skipped"
+    },
+    {
+      "name": "Post Run pnpm/action-setup@v4",
+      "conclusion": "success"
+    },
+    {
+      "name": "Post Run actions/checkout@v4",
+      "conclusion": "success"
+    },
+    {
+      "name": "Stop containers",
+      "conclusion": "success"
+    },
+    {
+      "name": "Complete job",
+      "conclusion": "success"
+    }
+  ],
+  "failure": {
+    "file": "artifacts/boltnew-app/src/event-hub/managed-test-mode.test.tsx",
+    "line": 209,
+    "message": "expected true to be false (confirmation checkbox immediately after asynchronous error rendering)",
+    "correction": "Wait for the same required unchecked condition with waitFor; no guard/assertion removed.",
+    "scope": "Test sequencing only; production code unchanged by this correction."
+  }
+}

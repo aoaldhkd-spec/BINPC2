@@ -4,10 +4,12 @@
 
 ## 저장한 코드와 이번 검사
 
-- 이번 기능 코드: `1c85fc6b2d9fb50456a593b665bf76afe582dbad`. 개발 브랜치 Push와 원격 동일 SHA를 확인했다.
+- 최신 검사 코드: `c53bc3337f68387a87b8cb15984fa91dbbf2fd08`. 아래 기능 코드 이후 변경은 오류 뒤 체크 해제를 기다리는 **UI 검사 1줄**뿐이며 제품 코드는 같다. 로컬 UI895개 재검사 통과.
+- 이번 기능 구현 코드: `1c85fc6b2d9fb50456a593b665bf76afe582dbad`. 개발 브랜치 Push와 원격 동일 SHA를 확인했다.
 - 로컬 단위 **1,456개**(API561/UI895), 실제 PostgreSQL **99개**, 실제 앱 브라우저 **17개**(4분), 보호검사 **598개**, Node 안전/fixture 검사 **32개** 통과. 빌드·타입·변경 파일 lint 통과.
 - 실제 테스트 빌드 지문과 커밋 소스 지문이 `ebfdca7014e4cbf02c5891e96722dbd0372366f9803a33f4d0f3bc376249c4e1`로 일치한다.
-- 새 [GitHub Actions40763157788](https://github.com/aoaldhkd-spec/BINPC2/actions/runs/40763157788)은 저장 시점에 **진행 중**이다. 원격 최종 성공으로 보고하지 않으며, 다음 작업은 해당 실행의 완료/실패부터 확인한다.
+- [GitHub Actions40763157788](https://github.com/aoaldhkd-spec/BINPC2/actions/runs/40763157788)은 UI 오류 후 체크 해제 대기 검사1건에서 **실패**했다. 빌드/API 단위는 성공했고 후속 PG/브라우저/150명 단계는 실행되지 않았다. [실패 증거](deployment-20261029/ci-40763157788-failure.json)를 보존했다.
+- 같은 필수 체크 해제 조건을 `waitFor`로 기다리도록 수정하고 로컬 UI895개를 다시 통과했다. 새 [GitHub Actions40764092274](https://github.com/aoaldhkd-spec/BINPC2/actions/runs/40764092274)은 인계 시점에 **진행 중**이다. 최종 원격 성공으로 보고하지 않으며 다음 작업에서 이 실행부터 확인한다.
 - 최초 UI 집중검사의 구독 effect 대기 타이밍 실패1건은 로그를 보존하고 검사 준비 순서를 수정했다. 같은 검사군35개 및 전체 UI895개 재검사 통과. 제품 보호조건을 제거하지 않았다.
 - [시험 OFF여도 실제 모집 차단되는 실제 앱 화면](deployment-20261029/09-test-off-admission-still-closed.png), [일반 화면 신청 차단](deployment-20261029/01-public-test-mode.png). 둘 다 운영이 아닌 격리 합성 데이터 검사 화면이다.
 

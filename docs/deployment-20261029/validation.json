@@ -72,6 +72,12 @@
       "status": "FIXED_AND_RETESTED",
       "reason": "Existing simulation listener effect was not mounted before the test clicked. Test now flushes the subscription effect; no product guard was removed.",
       "finalFocusedCount": 35
+    },
+    {
+      "scope": "GitHub UI unit check40763157788",
+      "status": "LOCAL_CORRECTION_PASSED_REMOTE_RETEST_PENDING",
+      "reason": "Confirmation checkbox reset occurs in an effect after error rendering; unchanged false assertion now awaited.",
+      "uiRerunPassed": 895
     }
   ],
   "privateLogDigests": {
@@ -109,14 +115,41 @@
       "privateLocalFile": ".local/deployment-20261029/admission-ui-tests.log",
       "sha256": "7fbb139bdf2adaa0ae1e3f8126edd62fb5f237729b89566aa97d4b6ce5bd77c4",
       "bytes": 22913
+    },
+    "uiCiCorrection": {
+      "privateLocalFile": ".local/deployment-20261029/ui-unit-ci-correction.log",
+      "sha256": "f9ac2a28c147a5c0bb481d951c4ab6b436ed370fc21e2d24e7bda351cb12b6a4",
+      "bytes": 134996
     }
   },
   "remoteCi": {
-    "id": "40763157788",
-    "url": "https://github.com/aoaldhkd-spec/BINPC2/actions/runs/40763157788",
-    "sourceVersion": "1c85fc6b2d9fb50456a593b665bf76afe582dbad",
+    "id": "40764092274",
+    "url": "https://github.com/aoaldhkd-spec/BINPC2/actions/runs/40764092274",
+    "sourceVersion": "c53bc3337f68387a87b8cb15984fa91dbbf2fd08",
     "observedState": "IN_PROGRESS",
-    "observedAtUtc": "2026-10-28T20:27:18.564947+00:00",
+    "observedAtUtc": "2026-10-28T20:32:07.407083+00:00",
     "completionVerified": false
+  },
+  "latestSourceVersion": "c53bc3337f68387a87b8cb15984fa91dbbf2fd08",
+  "latestSourceFingerprint": "8019d40dde03bf89e2a3b922a03af283f2860dcaa65209608f923b155b112759",
+  "testOnlyCorrection": {
+    "sha": "c53bc3337f68387a87b8cb15984fa91dbbf2fd08",
+    "codeFingerprint": "8019d40dde03bf89e2a3b922a03af283f2860dcaa65209608f923b155b112759",
+    "nonDocumentationChangedFiles": [
+      "artifacts/boltnew-app/src/event-hub/managed-test-mode.test.tsx"
+    ],
+    "runtimeImplementationUnchanged": true,
+    "reason": "Await asynchronous confirmation reset after error; same required assertion retained",
+    "uiFullRerun": {
+      "count": 895,
+      "status": "PASS",
+      "durationSeconds": 16.61
+    }
+  },
+  "previousRemoteFailure": {
+    "id": "40763157788",
+    "sourceVersion": "1c85fc6b2d9fb50456a593b665bf76afe582dbad",
+    "status": "FAIL",
+    "evidence": "ci-40763157788-failure.json"
   }
 }

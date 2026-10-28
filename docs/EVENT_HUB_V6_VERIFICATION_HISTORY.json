@@ -1223,6 +1223,60 @@
           "reason": "실물 기기 검사 아님. Chromium 통과를 실기기 결과로 바꾸지 않음."
         }
       ]
+    },
+    {
+      "id": "github-40763157788",
+      "sourceVersion": "1c85fc6b2d9fb50456a593b665bf76afe582dbad",
+      "codeFingerprint": "ebfdca7014e4cbf02c5891e96722dbd0372366f9803a33f4d0f3bc376249c4e1",
+      "environment": "GitHub Actions Ubuntu24.04 · Node22 · UI error-effect assertion timing failure",
+      "startedAt": "2026-10-28T20:25:31Z",
+      "reportUrl": "https://github.com/aoaldhkd-spec/BINPC2/actions/runs/40763157788",
+      "checks": [
+        {
+          "id": "build",
+          "title": "실제 앱 빌드",
+          "kind": "build",
+          "status": "PASS"
+        },
+        {
+          "id": "api-unit",
+          "title": "API 단위",
+          "kind": "unit",
+          "status": "PASS",
+          "count": 561
+        },
+        {
+          "id": "ui-unit",
+          "title": "UI 단위",
+          "kind": "unit",
+          "status": "FAIL",
+          "reason": "managed-test-mode.test.tsx:209 확인 체크 해제 effect 직전 즉시 assertion. 후속 커밋에서 같은 false 조건을 waitFor로 대기, 로컬895개 통과. 원격 재검사는 별도 실행."
+        },
+        {
+          "id": "postgres",
+          "title": "실제 PostgreSQL",
+          "kind": "postgres",
+          "status": "NOT_RUN"
+        },
+        {
+          "id": "browser",
+          "title": "브라우저",
+          "kind": "browser",
+          "status": "NOT_RUN"
+        },
+        {
+          "id": "mixed",
+          "title": "150명 혼합",
+          "kind": "mixed-http-postgres",
+          "status": "NOT_RUN"
+        },
+        {
+          "id": "physical",
+          "title": "Galaxy/iPhone 실기기",
+          "kind": "physical-device",
+          "status": "UNKNOWN"
+        }
+      ]
     }
   ]
 }

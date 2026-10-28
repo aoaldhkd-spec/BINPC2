@@ -1,6 +1,6 @@
 {
-  "sourceCommit": "1c85fc6b2d9fb50456a593b665bf76afe582dbad",
-  "codeFingerprint": "ebfdca7014e4cbf02c5891e96722dbd0372366f9803a33f4d0f3bc376249c4e1",
+  "sourceCommit": "c53bc3337f68387a87b8cb15984fa91dbbf2fd08",
+  "codeFingerprint": "8019d40dde03bf89e2a3b922a03af283f2860dcaa65209608f923b155b112759",
   "parentPreserved": "ac6d66285c1d0344fb42637d5c7f32b20907c2cf",
   "sourcePushedAndRemoteVerified": true,
   "mainUnchanged": "b06a900280404f79c92e17cdbc6af907a0414c30",
@@ -14,5 +14,14 @@
   "existingFullBundlesAndOriginalAssets": "preserved",
   "priorSourceZipChecksumVerified": true,
   "productionDataOrSecretsIncluded": false,
-  "scope": "Source code and documentation only. Not a production database/upload/key backup."
+  "scope": "Source code and documentation only. Not a production database/upload/key backup.",
+  "implementationCommit": "1c85fc6b2d9fb50456a593b665bf76afe582dbad",
+  "testOnlyCorrection": {
+    "sha": "c53bc3337f68387a87b8cb15984fa91dbbf2fd08",
+    "codeFingerprint": "8019d40dde03bf89e2a3b922a03af283f2860dcaa65209608f923b155b112759",
+    "nonDocumentationChangedFiles": [
+      "artifacts/boltnew-app/src/event-hub/managed-test-mode.test.tsx"
+    ],
+    "runtimeImplementationUnchanged": true
+  }
 }

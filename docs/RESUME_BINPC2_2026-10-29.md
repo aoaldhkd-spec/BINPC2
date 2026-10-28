@@ -4,8 +4,8 @@
 
 - 저장소: `aoaldhkd-spec/BINPC2`
 - 브랜치: `feat/event-hub-v6-20261027`
-- 이번 기능 코드: `1c85fc6b2d9fb50456a593b665bf76afe582dbad`. 뒤에 문서·검사 증거 보존 커밋이 있으므로 실제 원격 HEAD부터 확인해.
-- 새 원격 CI: `40763157788` (인계 저장 때 진행 중). 먼저 최종 상태를 확인해. 로컬은 단위1456·DB99·브라우저17·보호598·Node32 통과.
+- 최신 검사 코드: `c53bc3337f68387a87b8cb15984fa91dbbf2fd08`; 기능 구현 코드: `1c85fc6b2d9fb50456a593b665bf76afe582dbad`. 이후 차이는 UI 검사 대기1줄이며 제품 코드는 같다. 뒤에 문서·검사 증거 보존 커밋이 있으므로 실제 원격 HEAD부터 확인해.
+- 새 원격 CI: `40764092274` (인계 저장 때 진행 중). 먼저 최종 상태를 확인해. 이전 `40763157788`은 UI 비동기 대기 검사1건 실패로 기록했고, 같은 필수 조건을 기다리도록 수정한 뒤 UI895개 재통과했다. 기능 구현의 로컬 단위1456·DB99·브라우저17·보호598·Node32 통과는 보존했다.
 - 먼저 원격 HEAD·로컬 HEAD·미커밋·다른 작업자 변경을 확인해. 이 문서나 과거 인계문의 SHA로 reset하지 마.
 - `docs/DEPLOYMENT_RESULT_2026-10-29.md`, `docs/DEPLOYMENT_BACKUP_AND_RELEASE_2026-10-29.md`, `docs/deployment-20261029/source-preservation.json`, `docs/deployment-20261029/validation.json`부터 읽어. 기존 `docs/LATEST_TEST_MODE_AND_DEPLOYMENT_2026-10-28.md`와 `docs/handoff-20261028/README.md`의 과거 증거도 보존해.
 
