@@ -1,0 +1,79 @@
+{
+  "capturedAt": "2026-10-28T11:09:01.862Z",
+  "actualReact": true,
+  "actualHttp": true,
+  "actualPostgreSQL": true,
+  "fixtureOrigin": "http://127.0.0.1:3006",
+  "syntheticOnly": true,
+  "operationalRequests": false,
+  "externalNotifications": false,
+  "screens": [
+    {
+      "path": "admin-recognition.png",
+      "title": "할로윈 코스튬 운영자 인정 · 실제 서버 저장 후",
+      "status": "captured",
+      "viewport": {
+        "width": 1360,
+        "height": 1000
+      },
+      "route": "/admin"
+    },
+    {
+      "path": "participant-fee-notice.png",
+      "title": "참가자 최종 회비15000원 · 운영자 인정 안내",
+      "status": "captured",
+      "viewport": {
+        "width": 390,
+        "height": 844
+      },
+      "route": "/events/a/ca28a0e8-dc21-4ceb-b6c4-9ca7d91a39c6"
+    },
+    {
+      "path": "admin-paid-preserved.png",
+      "title": "입금 승인된 기존 회비 보존 · 코스튬 차액 검토",
+      "status": "captured",
+      "viewport": {
+        "width": 1360,
+        "height": 1000
+      },
+      "route": "/admin"
+    },
+    {
+      "path": "participant-paid-preserved.png",
+      "title": "참가자 입금 승인 회비 보존 · 별도 검토 안내",
+      "status": "captured",
+      "viewport": {
+        "width": 390,
+        "height": 844
+      },
+      "route": "/events/a/f78a8ea5-a9fd-4820-a013-6cd3b82c4746"
+    },
+    {
+      "path": "guidance-expanded.png",
+      "title": "웹·오픈채팅 신청 안내 펼침",
+      "status": "captured",
+      "viewport": {
+        "width": 390,
+        "height": 844
+      },
+      "route": "/events"
+    }
+  ],
+  "checks": [
+    "Participant recognition request rejected with HTTP403 and no quote change",
+    "Actual administrator React control persisted recognized minimum15000 and audit in encrypted PostgreSQL ledger",
+    "Participant actual React fee screen shows15000 and saved notice without internal audit reason",
+    "Actual admin recognition keeps approved18000 quote/payment timestamps and records15000 review proposal; participant notice matches",
+    "Direct PostgreSQL read verified both captured application records exist encrypted in the isolated fixture ledger"
+  ],
+  "errors": [],
+  "guidanceChecks": {
+    "webLinkVisible": true,
+    "webLinkHref": "https://binpc2.netlify.app",
+    "unavailableChatVisible": true,
+    "unavailableChatDisabled": true,
+    "manualApplicationStepsVisible": true,
+    "separateApplicationsNoticeVisible": true,
+    "noHorizontalOverflow": true
+  }
+}

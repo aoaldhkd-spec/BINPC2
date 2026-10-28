@@ -1,0 +1,31 @@
+{
+  "createdAt": "2026-10-28T11:06:29.126Z",
+  "source": "http://127.0.0.1:3006/events",
+  "viewport": {
+    "width": 390,
+    "height": 844
+  },
+  "capture": "actual React application guidance card expanded; locator screenshot at mobile viewport",
+  "file": "guidance-expanded.png",
+  "checks": {
+    "webLinkVisible": true,
+    "webLinkHref": "https://binpc2.netlify.app",
+    "unavailableChatVisible": true,
+    "unavailableChatDisabled": true,
+    "manualApplicationStepsVisible": true,
+    "separateApplicationsNoticeVisible": true,
+    "noHorizontalOverflow": true
+  },
+  "blockedRequests": [
+    {
+      "origin": "https://fonts.googleapis.com",
+      "path": "/css2",
+      "method": "GET"
+    },
+    {
+      "origin": "http://127.0.0.1:3006",
+      "path": "/api/event-hub/session",
+      "method": "POST"
+    }
+  ]
+}

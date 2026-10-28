@@ -1,0 +1,107 @@
+{
+  "format": "one continuous portrait PNG per campaign",
+  "environment": "local Chromium rendering; no external requests or generation credits",
+  "webQrPayload": "https://binpc2.netlify.app",
+  "openchatLink": "",
+  "published": false,
+  "publicApplicationsOpen": false,
+  "statusBanner": "현재 테스트 및 점검 중입니다. 테스트 완료 후 신청이 오픈됩니다.",
+  "assets": [
+    {
+      "path": "artifacts/boltnew-app/public/event-art/halloween-lounge.webp",
+      "sha256": "2a9d2bf4a661491224d9cf5b7d32974189b61fc19703ba060c5dadfd5e57c398"
+    },
+    {
+      "path": "artifacts/boltnew-app/public/event-art/halloween-party.webp",
+      "sha256": "19051faf120e7d966fceb211a7d0e08a32455ba750574dcb8f852877e8dfa763"
+    },
+    {
+      "path": "artifacts/boltnew-app/public/tour-logos-v3/red_hole.png",
+      "sha256": "a11302bbdb4fc1eb188b5d04226c30017ea1096fd0f53a212a318d711f7b51b6"
+    },
+    {
+      "path": "artifacts/boltnew-app/public/tour-logos-v3/fake.png",
+      "sha256": "c999ef3948a9258c26525f7b60e493feea43b652666748e07e922b569cf9217d"
+    },
+    {
+      "path": "artifacts/boltnew-app/public/tour-logos-v3/jack.png",
+      "sha256": "5b42a89062901fbb0ec9ddf7b59b65ccc0ef0154c62a158652a6c16e8cd68c6e"
+    },
+    {
+      "path": "artifacts/boltnew-app/public/tour-logos-v3/m_karaoke.png",
+      "sha256": "c7a9e1420097f7ca3fc2e21ca52bab803d03c99ae3a2c7cc0f2b7b68657b73f3"
+    },
+    {
+      "path": "artifacts/boltnew-app/public/tour-logos-v3/speed.png",
+      "sha256": "554c2cf489a4cc3a8ae6b0d429255a690d67b0a5f4e8fff641a123d2b34042e7"
+    },
+    {
+      "path": "artifacts/boltnew-app/public/tour-logos-v3/check_in.png",
+      "sha256": "4c90ef692142368adb67ee6830fc209db0fbe7f882f5d5c8b8d5a73d7032727d"
+    },
+    {
+      "path": "artifacts/boltnew-app/public/tour-logos-v3/on_top.png",
+      "sha256": "9bb8c93b7f87269903aea33df451126146b7a39da9260a2ca1b2c5c98bd8e330"
+    },
+    {
+      "path": "artifacts/boltnew-app/public/tour-logos-v3/gorae.png",
+      "sha256": "66357b5575610113923e968213a6ba69f0447d357fbfe0a9dd956b74545e3f29"
+    }
+  ],
+  "posters": [
+    {
+      "file": "Halloween.png",
+      "source": "01_할로윈_모집글.md",
+      "sourceSha256": "7ea18654e2680d449e3f09cbca4339feb19217e2f52f35c914c900c2f8eb6f6c",
+      "width": 2000,
+      "height": 5171,
+      "nonemptyBodyLinesChecked": 107,
+      "missingLines": [],
+      "allSourceBodyTermsRetained": true,
+      "linksExceptWebQr": 0,
+      "logoCount": 0,
+      "outputSha256": "9936ffac789ec87785037698c1357fa5029086a74856dec5fdb506b6656840c9"
+    },
+    {
+      "file": "Tour.png",
+      "source": "02_전국투어_모집글.md",
+      "sourceSha256": "5e16e4f364d2fad094d5b538743e7affac86bc8f1fbbb243abbcac0f219f6d09",
+      "width": 2000,
+      "height": 5366,
+      "nonemptyBodyLinesChecked": 99,
+      "missingLines": [],
+      "allSourceBodyTermsRetained": true,
+      "linksExceptWebQr": 0,
+      "logoCount": 8,
+      "outputSha256": "74d7f31c2f713d66f39813d12822670b858843966229a1587cee4178c139bafd"
+    },
+    {
+      "file": "Combined.png",
+      "source": "03_통합_모집글.md",
+      "sourceSha256": "0c504553ee3329c7e307a2b0af6e9eef799a7b73369445af7603f2755cb52dc1",
+      "width": 2000,
+      "height": 6949,
+      "nonemptyBodyLinesChecked": 131,
+      "missingLines": [],
+      "allSourceBodyTermsRetained": true,
+      "linksExceptWebQr": 0,
+      "logoCount": 8,
+      "outputSha256": "cf3008cc3ea5a5843779e65ebb30bce61534e9a1ccedbf88a45c331b9c42ded6"
+    },
+    {
+      "file": "HeartNow.png",
+      "source": "05_하트나우_쉽게보는안내.md",
+      "sourceSha256": "d2a2d472603873aa4ee844e2873ea9c5ad5e95459a5ac519c5a6dd09054c4798",
+      "width": 2000,
+      "height": 4616,
+      "nonemptyBodyLinesChecked": 83,
+      "missingLines": [],
+      "allSourceBodyTermsRetained": true,
+      "linksExceptWebQr": 0,
+      "logoCount": 0,
+      "outputSha256": "1cef224a76d45177f1c234501574f9b6f7e2d57374d2c2f36333d7f3a5b2fc6f"
+    }
+  ],
+  "visualInspection": "All four final PNGs opened and visually inspected; exact testing banner and closed public applications text visible; no clipped content; HeartNow is a single full portrait guide.",
+  "sourceScope": "Exact recruitment or guide body between first and second Markdown separators; document header and editorial notes excluded."
+}
