@@ -1,0 +1,163 @@
+{
+  "scope": "n=1 per version, Chromium compiled production bundles -> same isolated API/PG, loopback; not production internet latency",
+  "measurements": [
+    {
+      "label": "before",
+      "origin": "http://127.0.0.1:3007",
+      "firstVisibleEntryMs": 1041,
+      "idleObservedMs": 17000,
+      "eventHubStateReads": 3,
+      "resourceBytes": 302368,
+      "resources": [
+        {
+          "name": "/css2",
+          "encoded": 0,
+          "decoded": 0,
+          "duration": 19.5
+        },
+        {
+          "name": "/assets/index-BUoY97pg.js",
+          "encoded": 106476,
+          "decoded": 348324,
+          "duration": 52
+        },
+        {
+          "name": "/assets/vendor-nMyBP3dz.js",
+          "encoded": 76599,
+          "decoded": 254768,
+          "duration": 51.5
+        },
+        {
+          "name": "/assets/index-Djdgrgf3.css",
+          "encoded": 28015,
+          "decoded": 220801,
+          "duration": 33.400000005960464
+        },
+        {
+          "name": "/assets/AdminInquiry-BxdnumiL.js",
+          "encoded": 2339,
+          "decoded": 4895,
+          "duration": 45.399999998509884
+        },
+        {
+          "name": "/assets/HubUi-DYUOfOvZ.js",
+          "encoded": 7877,
+          "decoded": 18196,
+          "duration": 46.29999999701977
+        },
+        {
+          "name": "/assets/HubUi-CBiC4w-F.css",
+          "encoded": 798,
+          "decoded": 2351,
+          "duration": 39.70000000298023
+        },
+        {
+          "name": "/favicon.svg",
+          "encoded": 163,
+          "decoded": 163,
+          "duration": 41.100000001490116
+        },
+        {
+          "name": "/assets/MainScreen-B_ql9FbA.js",
+          "encoded": 39974,
+          "decoded": 153334,
+          "duration": 22.600000001490116
+        },
+        {
+          "name": "/assets/stats-ranking-zcHHDVMw.js",
+          "encoded": 1768,
+          "decoded": 3230,
+          "duration": 21.200000002980232
+        },
+        {
+          "name": "/assets/birth-md-edit--9y-XoIu.js",
+          "encoded": 2418,
+          "decoded": 5274,
+          "duration": 32.899999998509884
+        },
+        {
+          "name": "/assets/fortune-Dy_FLvgy.js",
+          "encoded": 8229,
+          "decoded": 18907,
+          "duration": 33.29999999701977
+        },
+        {
+          "name": "/assets/ChatScreen-Ckw6POJn.js",
+          "encoded": 27712,
+          "decoded": 139513,
+          "duration": 33.600000001490116
+        }
+      ]
+    },
+    {
+      "label": "after",
+      "origin": "http://127.0.0.1:3008",
+      "firstVisibleEntryMs": 380,
+      "idleObservedMs": 17000,
+      "eventHubStateReads": 0,
+      "resourceBytes": 291383,
+      "resources": [
+        {
+          "name": "/css2",
+          "encoded": 0,
+          "decoded": 0,
+          "duration": 19.100000001490116
+        },
+        {
+          "name": "/assets/index-5RrdeMd5.js",
+          "encoded": 105035,
+          "decoded": 343018,
+          "duration": 64.70000000298023
+        },
+        {
+          "name": "/assets/index-qY5Rvf8Y.css",
+          "encoded": 28073,
+          "decoded": 221505,
+          "duration": 56.399999998509884
+        },
+        {
+          "name": "/assets/vendor-nMyBP3dz.js",
+          "encoded": 76599,
+          "decoded": 254768,
+          "duration": 60.80000000447035
+        },
+        {
+          "name": "/assets/MainScreen-DwAL2GPI.js",
+          "encoded": 41391,
+          "decoded": 156849,
+          "duration": 68.89999999850988
+        },
+        {
+          "name": "/assets/stats-ranking-CYIkI-Z_.js",
+          "encoded": 1767,
+          "decoded": 3230,
+          "duration": 38.599999994039536
+        },
+        {
+          "name": "/assets/birth-md-edit--9y-XoIu.js",
+          "encoded": 2418,
+          "decoded": 5274,
+          "duration": 45.20000000298023
+        },
+        {
+          "name": "/assets/fortune-Dy_FLvgy.js",
+          "encoded": 8229,
+          "decoded": 18907,
+          "duration": 46.600000001490116
+        },
+        {
+          "name": "/assets/ChatScreen-C1QYHb21.js",
+          "encoded": 27708,
+          "decoded": 139513,
+          "duration": 63.399999998509884
+        },
+        {
+          "name": "/favicon.svg",
+          "encoded": 163,
+          "decoded": 163,
+          "duration": 68.5
+        }
+      ]
+    }
+  ]
+}

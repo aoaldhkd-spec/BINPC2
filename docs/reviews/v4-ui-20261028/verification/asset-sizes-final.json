@@ -1,0 +1,9 @@
+{
+  "measuredAt": "2026-10-28T06:58:36.256236+00:00",
+  "scope": "Local final application build before test-only synchronization commit; originals and previous measured build preserved",
+  "beforeBytes": 8025151,
+  "afterBytes": 8041862,
+  "afterJavaScriptBytes": 1507664,
+  "afterJavaScriptGzipBytes": 448851,
+  "reviewArchiveIncludedInAppPublic": false
+}

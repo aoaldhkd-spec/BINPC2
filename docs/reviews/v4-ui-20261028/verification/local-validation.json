@@ -1,0 +1,36 @@
+{
+  "sourceSha": "7403f3c1b6e317a0741c77117da7b12bd4589904",
+  "unit": {
+    "api": 538,
+    "ui": 848,
+    "total": 1386,
+    "passed": true
+  },
+  "postgres": {
+    "count": 80,
+    "passed": true
+  },
+  "browser": {
+    "count": 16,
+    "seconds": 174,
+    "passed": true
+  },
+  "guards": {
+    "count": 598,
+    "passed": true
+  },
+  "operationalScriptGuardsAndClient": {
+    "count": 23,
+    "passed": true
+  },
+  "typecheck": true,
+  "build": true,
+  "changedFilesLint": true,
+  "physicalDevices": "UNKNOWN",
+  "logsLocation": ".local/v4-work (private; full failure logs preserved)",
+  "failuresCorrected": [
+    "Legacy UI text/source-string assertions adjusted to actual stricter gate, without dropping behavioral guards",
+    "Load fixture was before event start; correct fake clock used for subsequent run",
+    "Explicit synthetic contact added to unit fixtures after removing embedded real-looking operator contact; original403/503 failures retained"
+  ]
+}

@@ -1,0 +1,23 @@
+{
+  "mediaOrder": true,
+  "detachPreservesOriginal": true,
+  "restorePersists": true,
+  "reducedViewport": {
+    "width": 390,
+    "height": 440,
+    "dialog": {
+      "x": 0,
+      "y": 56.59375,
+      "width": 390,
+      "height": 383.40625
+    },
+    "send": {
+      "x": 16.3125,
+      "y": 379.125,
+      "width": 102.21875,
+      "height": 44.875
+    },
+    "fits": true
+  },
+  "realKeyboard": "UNKNOWN"
+}

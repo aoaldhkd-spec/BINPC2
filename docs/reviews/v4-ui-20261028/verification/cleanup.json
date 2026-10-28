@@ -1,0 +1,12 @@
+{
+  "removed": [
+    {
+      "path": ".local/v4-work/baseline-public",
+      "bytes": 8025151,
+      "reason": "Temporary copy of pre-V4 compiled static assets. Actual screenshots, resource measurements, hash manifest, original source/history and logo originals retained; regenerable from preserved source."
+    }
+  ],
+  "sourceFilesRemoved": 0,
+  "originalsRemoved": 0,
+  "dataOrKeysRemoved": 0
+}

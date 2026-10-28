@@ -1,0 +1,9 @@
+{
+  "sourceSha": "abfa0069bc79ecbd252291665f15ac7d38a0cc23",
+  "file": "BINPC2-V4-full.bundle",
+  "bytes": 560335070,
+  "sha256": "fd920322dad939259aa22d940c6b32b1f3c9e4117836a331f865f5b935e6010a",
+  "verify": "PASS",
+  "storage": "private .local/v4-work; not published because full historical objects may include retired credentials",
+  "scope": "Git source and history only; not operational DB/upload/encryption-key backup"
+}

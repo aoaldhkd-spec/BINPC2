@@ -1,0 +1,12 @@
+{
+  "beforeBytes": 8025151,
+  "afterBytes": 8041461,
+  "beforeJavaScriptBytes": 1492287,
+  "afterJavaScriptBytes": 1507263,
+  "beforeJavaScriptGzipBytes": 444427,
+  "afterJavaScriptGzipBytes": 448724,
+  "beforeRootChunkBytes": 348324,
+  "afterRootChunkBytes": 343018,
+  "beforeRootChunkGzipBytes": 105360,
+  "afterRootChunkGzipBytes": 103914
+}

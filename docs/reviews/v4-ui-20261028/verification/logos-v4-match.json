@@ -1,0 +1,42 @@
+[
+  {
+    "provided": "고래_GORAE_감사용_로고영역추출.png",
+    "sha256": "66357b5575610113923e968213a6ba69f0447d357fbfe0a9dd956b74545e3f29",
+    "installed": "artifacts/boltnew-app/public/tour-logos-v3/gorae.png"
+  },
+  {
+    "provided": "M가라오케_M_KARAOKE_기존제작시안.png",
+    "sha256": "c7a9e1420097f7ca3fc2e21ca52bab803d03c99ae3a2c7cc0f2b7b68657b73f3",
+    "installed": "artifacts/boltnew-app/public/tour-logos-v3/m_karaoke.png"
+  },
+  {
+    "provided": "스피드_SPEED_표제영역추출.png",
+    "sha256": "554c2cf489a4cc3a8ae6b0d429255a690d67b0a5f4e8fff641a123d2b34042e7",
+    "installed": "artifacts/boltnew-app/public/tour-logos-v3/speed.png"
+  },
+  {
+    "provided": "온탑_ONTOP_제공원본.png",
+    "sha256": "9bb8c93b7f87269903aea33df451126146b7a39da9260a2ca1b2c5c98bd8e330",
+    "installed": "artifacts/boltnew-app/public/tour-logos-v3/on_top.png"
+  },
+  {
+    "provided": "페이크_FAKE_제공원본.png",
+    "sha256": "c999ef3948a9258c26525f7b60e493feea43b652666748e07e922b569cf9217d",
+    "installed": "artifacts/boltnew-app/public/tour-logos-v3/fake.png"
+  },
+  {
+    "provided": "체크인_CHECK_IN_로고영역추출.png",
+    "sha256": "4c90ef692142368adb67ee6830fc209db0fbe7f882f5d5c8b8d5a73d7032727d",
+    "installed": "artifacts/boltnew-app/public/tour-logos-v3/check_in.png"
+  },
+  {
+    "provided": "자크_JACK_최신지퍼로고_제공원본.png",
+    "sha256": "5b42a89062901fbb0ec9ddf7b59b65ccc0ef0154c62a158652a6c16e8cd68c6e",
+    "installed": "artifacts/boltnew-app/public/tour-logos-v3/jack.png"
+  },
+  {
+    "provided": "레드홀_RED_HOLE_로고영역추출.png",
+    "sha256": "a11302bbdb4fc1eb188b5d04226c30017ea1096fd0f53a212a318d711f7b51b6",
+    "installed": "artifacts/boltnew-app/public/tour-logos-v3/red_hole.png"
+  }
+]

@@ -1,0 +1,413 @@
+{
+  "status": "EVIDENCE_REVIEW_NOT_FULL_OPERATIONAL_COMPLETION",
+  "version": "V4",
+  "date": "2026-10-28",
+  "baseline_sha": "470c0390b8ae35ca5c765944a4188e82d4522af1",
+  "items": [
+    {
+      "id": "HOME-01",
+      "requirement": "술번개 신청·신청대기방을 중앙 입장 버튼 바로 위에 배치",
+      "status": "IMPLEMENTED_AUTOMATED_VERIFIED",
+      "code_evidence": "artifacts/boltnew-app/src/components/WaitingOverlay.tsx",
+      "test_evidence": [
+        "verification/local-validation.json",
+        "artifacts/boltnew-app/tests/event-hub-v4-ui.spec.ts",
+        "verification/ci-40641891181-metadata.json"
+      ],
+      "actual_device_evidence": "UNKNOWN: physical Galaxy/iPhone not accessed"
+    },
+    {
+      "id": "HOME-02",
+      "requirement": "메인 왼쪽 플로팅 신청/문의 제거",
+      "status": "IMPLEMENTED_AUTOMATED_VERIFIED",
+      "code_evidence": "artifacts/boltnew-app/src/components/WaitingOverlay.tsx",
+      "test_evidence": [
+        "verification/local-validation.json",
+        "artifacts/boltnew-app/tests/event-hub-v4-ui.spec.ts",
+        "verification/ci-40641891181-metadata.json"
+      ],
+      "actual_device_evidence": "UNKNOWN: physical Galaxy/iPhone not accessed"
+    },
+    {
+      "id": "HOME-03",
+      "requirement": "입장 전 체크 카드 전체 제거, 실제 보안·복구 유지",
+      "status": "IMPLEMENTED_AUTOMATED_VERIFIED",
+      "code_evidence": "artifacts/boltnew-app/src/components/WaitingOverlay.tsx",
+      "test_evidence": [
+        "verification/local-validation.json",
+        "artifacts/boltnew-app/tests/event-hub-v4-ui.spec.ts",
+        "verification/ci-40641891181-metadata.json"
+      ],
+      "actual_device_evidence": "UNKNOWN: physical Galaxy/iPhone not accessed"
+    },
+    {
+      "id": "HOME-04",
+      "requirement": "메인 하트 해금 배너 제거,23/24시 실제 기능 유지",
+      "status": "IMPLEMENTED_AUTOMATED_VERIFIED",
+      "code_evidence": "artifacts/boltnew-app/src/components/WaitingOverlay.tsx",
+      "test_evidence": [
+        "verification/local-validation.json",
+        "artifacts/boltnew-app/tests/event-hub-v4-ui.spec.ts",
+        "verification/ci-40641891181-metadata.json"
+      ],
+      "actual_device_evidence": "UNKNOWN: physical Galaxy/iPhone not accessed"
+    },
+    {
+      "id": "HOME-05",
+      "requirement": "모임 시작 배지 제거",
+      "status": "IMPLEMENTED_AUTOMATED_VERIFIED",
+      "code_evidence": "artifacts/boltnew-app/src/components/WaitingOverlay.tsx",
+      "test_evidence": [
+        "verification/local-validation.json",
+        "artifacts/boltnew-app/tests/event-hub-v4-ui.spec.ts",
+        "verification/ci-40641891181-metadata.json"
+      ],
+      "actual_device_evidence": "UNKNOWN: physical Galaxy/iPhone not accessed"
+    },
+    {
+      "id": "ENTRY-01",
+      "requirement": "실제 시작 전 disabled, 실제 서버 시작 후 자동 활성",
+      "status": "IMPLEMENTED_AUTOMATED_VERIFIED",
+      "code_evidence": "artifacts/boltnew-app/src/lib/entry-gate.ts",
+      "test_evidence": [
+        "verification/local-validation.json",
+        "artifacts/boltnew-app/tests/event-hub-v4-ui.spec.ts",
+        "verification/ci-40641891181-metadata.json"
+      ],
+      "actual_device_evidence": "UNKNOWN: physical Galaxy/iPhone not accessed"
+    },
+    {
+      "id": "ENTRY-02",
+      "requirement": "20시 접수와 실제 입장·회식 시작 분리",
+      "status": "IMPLEMENTED_AUTOMATED_VERIFIED",
+      "code_evidence": "artifacts/boltnew-app/src/lib/entry-gate.ts",
+      "test_evidence": [
+        "verification/local-validation.json",
+        "artifacts/boltnew-app/tests/event-hub-v4-ui.spec.ts",
+        "verification/ci-40641891181-metadata.json"
+      ],
+      "actual_device_evidence": "UNKNOWN: physical Galaxy/iPhone not accessed"
+    },
+    {
+      "id": "ENTRY-03",
+      "requirement": "01시 신규 입장 차단과 기존 참가자 복귀 분리",
+      "status": "IMPLEMENTED_AUTOMATED_VERIFIED",
+      "code_evidence": "artifacts/boltnew-app/src/lib/entry-gate.ts",
+      "test_evidence": [
+        "verification/local-validation.json",
+        "artifacts/boltnew-app/tests/event-hub-v4-ui.spec.ts",
+        "verification/ci-40641891181-metadata.json"
+      ],
+      "actual_device_evidence": "UNKNOWN: physical Galaxy/iPhone not accessed"
+    },
+    {
+      "id": "ENTRY-04",
+      "requirement": "입금/무료/참가 승인·현장확인·프로필 서버 검사",
+      "status": "IMPLEMENTED_AUTOMATED_VERIFIED",
+      "code_evidence": "artifacts/boltnew-app/src/lib/entry-gate.ts",
+      "test_evidence": [
+        "verification/local-validation.json",
+        "artifacts/boltnew-app/tests/event-hub-v4-ui.spec.ts",
+        "verification/ci-40641891181-metadata.json"
+      ],
+      "actual_device_evidence": "UNKNOWN: physical Galaxy/iPhone not accessed"
+    },
+    {
+      "id": "WAIT-01",
+      "requirement": "신청대기방은 기존 본인 내역 복구·여러 날짜·중복신청 차단",
+      "status": "IMPLEMENTED_AUTOMATED_VERIFIED",
+      "code_evidence": "artifacts/boltnew-app/src/event-hub/EventHubPage.tsx",
+      "test_evidence": [
+        "verification/local-validation.json",
+        "artifacts/boltnew-app/tests/event-hub-v6.spec.ts",
+        "verification/ci-40641891181-metadata.json"
+      ],
+      "actual_device_evidence": "UNKNOWN: physical Galaxy/iPhone not accessed"
+    },
+    {
+      "id": "CHAT-01",
+      "requirement": "신청 영역 내부에서만 오른쪽 아래 MY형 문의",
+      "status": "IMPLEMENTED_AUTOMATED_VERIFIED",
+      "code_evidence": "artifacts/boltnew-app/src/event-hub/AdminInquiry.tsx",
+      "test_evidence": [
+        "verification/local-validation.json",
+        "artifacts/boltnew-app/tests/event-hub-v4-ui.spec.ts",
+        "verification/ci-40641891181-metadata.json"
+      ],
+      "actual_device_evidence": "UNKNOWN: physical Galaxy/iPhone not accessed"
+    },
+    {
+      "id": "CHAT-02",
+      "requirement": "키보드/저장버튼 겹침 없음·뒤로가기/입력 유지",
+      "status": "PARTIAL_ADDITIONAL_VALIDATION_REQUIRED",
+      "code_evidence": "artifacts/boltnew-app/src/event-hub/AdminInquiry.tsx",
+      "test_evidence": [
+        "verification/local-validation.json",
+        "artifacts/boltnew-app/tests/event-hub-v4-ui.spec.ts",
+        "verification/ci-40641891181-metadata.json"
+      ],
+      "actual_device_evidence": "UNKNOWN: physical Galaxy/iPhone not accessed",
+      "remaining": "Reduced viewport passes; actual Android/iOS keyboard UNKNOWN."
+    },
+    {
+      "id": "CHAT-03",
+      "requirement": "전역 문의 중복 마운트/폴링/리스너 정리",
+      "status": "IMPLEMENTED_AUTOMATED_VERIFIED",
+      "code_evidence": "artifacts/boltnew-app/src/event-hub/AdminInquiry.tsx",
+      "test_evidence": [
+        "verification/local-validation.json",
+        "artifacts/boltnew-app/tests/event-hub-v4-ui.spec.ts",
+        "verification/ci-40641891181-metadata.json"
+      ],
+      "actual_device_evidence": "UNKNOWN: physical Galaxy/iPhone not accessed"
+    },
+    {
+      "id": "ADMIN-01",
+      "requirement": "하나의 운영 대시보드에서 처리할 일과 금토 요약",
+      "status": "IMPLEMENTED_AUTOMATED_VERIFIED",
+      "code_evidence": "artifacts/boltnew-app/src/event-hub/EventHubAdmin.tsx",
+      "test_evidence": [
+        "verification/local-validation.json",
+        "artifacts/boltnew-app/tests/event-hub-v4-ui.spec.ts",
+        "verification/ci-40641891181-metadata.json"
+      ],
+      "actual_device_evidence": "UNKNOWN: physical Galaxy/iPhone not accessed"
+    },
+    {
+      "id": "ADMIN-02",
+      "requirement": "날짜 컨텍스트 보존·엉뚱한 행사 저장 차단",
+      "status": "IMPLEMENTED_AUTOMATED_VERIFIED",
+      "code_evidence": "artifacts/boltnew-app/src/event-hub/EventHubAdmin.tsx",
+      "test_evidence": [
+        "verification/local-validation.json",
+        "artifacts/boltnew-app/tests/event-hub-v4-ui.spec.ts",
+        "verification/ci-40641891181-metadata.json"
+      ],
+      "actual_device_evidence": "UNKNOWN: physical Galaxy/iPhone not accessed"
+    },
+    {
+      "id": "ADMIN-03",
+      "requirement": "초안/마감 혼합과 개발자 용어를 실제 상태 한글로 교체",
+      "status": "IMPLEMENTED_AUTOMATED_VERIFIED",
+      "code_evidence": "artifacts/boltnew-app/src/event-hub/EventHubAdmin.tsx",
+      "test_evidence": [
+        "verification/local-validation.json",
+        "artifacts/boltnew-app/tests/event-hub-v4-ui.spec.ts",
+        "verification/ci-40641891181-metadata.json"
+      ],
+      "actual_device_evidence": "UNKNOWN: physical Galaxy/iPhone not accessed"
+    },
+    {
+      "id": "MEDIA-01",
+      "requirement": "공지 사진 직접 추가/미리보기/저장/재열기/참가자 표시",
+      "status": "IMPLEMENTED_AUTOMATED_VERIFIED",
+      "code_evidence": "artifacts/boltnew-app/src/event-hub/MediaManager.tsx; artifacts/api-server/src/lib/event-hub-service.ts",
+      "test_evidence": [
+        "verification/local-validation.json",
+        "artifacts/boltnew-app/tests/event-hub-v4-ui.spec.ts",
+        "verification/ci-40641891181-metadata.json"
+      ],
+      "actual_device_evidence": "UNKNOWN: physical Galaxy/iPhone not accessed"
+    },
+    {
+      "id": "MEDIA-02",
+      "requirement": "지도 사진 별도 목적·승인 전 원본/썸네일/URL 차단",
+      "status": "IMPLEMENTED_AUTOMATED_VERIFIED",
+      "code_evidence": "artifacts/boltnew-app/src/event-hub/MediaManager.tsx; artifacts/api-server/src/lib/event-hub-service.ts",
+      "test_evidence": [
+        "verification/local-validation.json",
+        "artifacts/boltnew-app/tests/event-hub-v4-ui.spec.ts",
+        "verification/ci-40641891181-metadata.json"
+      ],
+      "actual_device_evidence": "UNKNOWN: physical Galaxy/iPhone not accessed"
+    },
+    {
+      "id": "MEDIA-03",
+      "requirement": "파일 교체/순서/확대/실패 재시도/미디어 revision 충돌 검사",
+      "status": "IMPLEMENTED_AUTOMATED_VERIFIED",
+      "code_evidence": "artifacts/boltnew-app/src/event-hub/MediaManager.tsx; artifacts/api-server/src/lib/event-hub-service.ts",
+      "test_evidence": [
+        "verification/local-validation.json",
+        "artifacts/boltnew-app/tests/event-hub-v4-ui.spec.ts",
+        "verification/ci-40641891181-metadata.json"
+      ],
+      "actual_device_evidence": "UNKNOWN: physical Galaxy/iPhone not accessed"
+    },
+    {
+      "id": "STOCK-01",
+      "requirement": "금23/토49개 양일 함께 표시·원장 보존",
+      "status": "IMPLEMENTED_AUTOMATED_VERIFIED",
+      "code_evidence": "artifacts/boltnew-app/src/event-hub/EventHubAdmin.tsx",
+      "test_evidence": [
+        "verification/local-validation.json",
+        "artifacts/boltnew-app/tests/event-hub-v4-ui.spec.ts",
+        "verification/ci-40641891181-metadata.json"
+      ],
+      "actual_device_evidence": "UNKNOWN: physical Galaxy/iPhone not accessed"
+    },
+    {
+      "id": "STOCK-02",
+      "requirement": "보기 변경으로 재고 생성/차감/초기화하지 않음",
+      "status": "IMPLEMENTED_AUTOMATED_VERIFIED",
+      "code_evidence": "artifacts/boltnew-app/src/event-hub/EventHubAdmin.tsx",
+      "test_evidence": [
+        "verification/local-validation.json",
+        "artifacts/boltnew-app/tests/event-hub-v4-ui.spec.ts",
+        "verification/ci-40641891181-metadata.json"
+      ],
+      "actual_device_evidence": "UNKNOWN: physical Galaxy/iPhone not accessed"
+    },
+    {
+      "id": "STYLE-01",
+      "requirement": "기존 실제 앱과 전후 비교·반응형/다크모드",
+      "status": "PARTIAL_ADDITIONAL_VALIDATION_REQUIRED",
+      "code_evidence": "artifacts/boltnew-app/src/event-hub/event-hub.css",
+      "test_evidence": [
+        "verification/local-validation.json",
+        "artifacts/boltnew-app/tests/event-hub-v6.spec.ts",
+        "verification/ci-40641891181-metadata.json"
+      ],
+      "actual_device_evidence": "UNKNOWN: physical Galaxy/iPhone not accessed",
+      "remaining": "User visual acceptance, physical device zoom/keyboard and inaccessible reference video not attested."
+    },
+    {
+      "id": "SAVE-01",
+      "requirement": "같은 신청·프로필·입금 상태로 자동저장/재접속",
+      "status": "IMPLEMENTED_AUTOMATED_VERIFIED",
+      "code_evidence": "artifacts/boltnew-app/src/lib/event-hub-client.ts",
+      "test_evidence": [
+        "verification/local-validation.json",
+        "artifacts/boltnew-app/tests/event-hub-v6.spec.ts",
+        "verification/ci-40641891181-metadata.json"
+      ],
+      "actual_device_evidence": "UNKNOWN: physical Galaxy/iPhone not accessed"
+    },
+    {
+      "id": "PHONE-01",
+      "requirement": "번호 입력만·관리자 혜택 보고·타인정보 차단",
+      "status": "IMPLEMENTED_AUTOMATED_VERIFIED",
+      "code_evidence": "artifacts/boltnew-app/src/event-hub/EventOperations.tsx",
+      "test_evidence": [
+        "verification/local-validation.json",
+        "artifacts/boltnew-app/tests/event-hub-v6.spec.ts",
+        "verification/ci-40641891181-metadata.json"
+      ],
+      "actual_device_evidence": "UNKNOWN: physical Galaxy/iPhone not accessed"
+    },
+    {
+      "id": "TIME-01",
+      "requirement": "금22:30/토22:00 시작·양일01시 종료·회차별17시 만료",
+      "status": "IMPLEMENTED_AUTOMATED_VERIFIED",
+      "code_evidence": "lib/api-zod/src/event-policy-halloween.ts; lib/api-zod/src/event-hub-modules.ts",
+      "test_evidence": [
+        "verification/local-validation.json",
+        "artifacts/boltnew-app/tests/event-hub-v6.spec.ts",
+        "verification/ci-40641891181-metadata.json"
+      ],
+      "actual_device_evidence": "UNKNOWN: physical Galaxy/iPhone not accessed"
+    },
+    {
+      "id": "BOOK-01",
+      "requirement": "10/28,10/29 20시 예약값·경계·중복·중지/복구",
+      "status": "IMPLEMENTED_AUTOMATED_VERIFIED",
+      "code_evidence": "lib/api-zod/src/event-hub.ts",
+      "test_evidence": [
+        "verification/local-validation.json",
+        "artifacts/boltnew-app/tests/event-hub-v6.spec.ts",
+        "verification/ci-40641891181-metadata.json"
+      ],
+      "actual_device_evidence": "UNKNOWN: physical Galaxy/iPhone not accessed"
+    },
+    {
+      "id": "TOUR-01",
+      "requirement": "1차만 신청·수동 정산·금토10명2장 중1당첨 유지",
+      "status": "IMPLEMENTED_AUTOMATED_VERIFIED",
+      "code_evidence": "lib/api-zod/src/event-policy-tour.ts",
+      "test_evidence": [
+        "verification/local-validation.json",
+        "artifacts/boltnew-app/tests/event-hub-v6.spec.ts",
+        "verification/ci-40641891181-metadata.json"
+      ],
+      "actual_device_evidence": "UNKNOWN: physical Galaxy/iPhone not accessed"
+    },
+    {
+      "id": "PROFILE-01",
+      "requirement": "모바일 첫화면 복귀 보호·실기기와 모의검사 구분",
+      "status": "PARTIAL_ADDITIONAL_VALIDATION_REQUIRED",
+      "code_evidence": "artifacts/boltnew-app/src/App.tsx; artifacts/boltnew-app/src/lib/profile-boot-machine.ts",
+      "test_evidence": [
+        "verification/local-validation.json",
+        "artifacts/boltnew-app/tests/event-hub-v6.spec.ts",
+        "verification/ci-40641891181-metadata.json"
+      ],
+      "actual_device_evidence": "UNKNOWN: physical Galaxy/iPhone not accessed",
+      "remaining": "Production deployed SHA and actual device root cause unconfirmed; simulated transient/partial/offline/reverse/reset/storage regression preserved."
+    },
+    {
+      "id": "OPS-01",
+      "requirement": "기존 실제 검사 성적·로고 버전·모듈OFF 기록 보존",
+      "status": "IMPLEMENTED_AUTOMATED_VERIFIED",
+      "code_evidence": "artifacts/boltnew-app/src/event-hub/VerificationResults.tsx; artifacts/boltnew-app/src/event-hub/VenueLogos.tsx",
+      "test_evidence": [
+        "verification/local-validation.json",
+        "artifacts/boltnew-app/tests/event-hub-v6.spec.ts",
+        "verification/ci-40641891181-metadata.json"
+      ],
+      "actual_device_evidence": "UNKNOWN: physical Galaxy/iPhone not accessed"
+    },
+    {
+      "id": "PERF-01",
+      "requirement": "변경 후 실제 성능 비교·미달 숨기지 않음",
+      "status": "PARTIAL_ADDITIONAL_VALIDATION_REQUIRED",
+      "code_evidence": "docs/EVENT_HUB_V4_UI_OPERATIONS_2026-10-28.md",
+      "test_evidence": [
+        "verification/local-validation.json",
+        "artifacts/boltnew-app/tests/event-hub-v6.spec.ts",
+        "verification/ci-40641891181-metadata.json"
+      ],
+      "actual_device_evidence": "UNKNOWN: physical Galaxy/iPhone not accessed",
+      "remaining": "Some P95 stages exceed2s; hours/24h soak and real-device latency unverified."
+    },
+    {
+      "id": "CLEAN-01",
+      "requirement": "정리 경로/용량/근거·기능/테스트/원본/이력 보존",
+      "status": "IMPLEMENTED_AUTOMATED_VERIFIED",
+      "code_evidence": "docs/EVENT_HUB_V4_UI_OPERATIONS_2026-10-28.md",
+      "test_evidence": [
+        "verification/local-validation.json",
+        "artifacts/boltnew-app/tests/event-hub-v6.spec.ts",
+        "verification/ci-40641891181-metadata.json"
+      ],
+      "actual_device_evidence": "UNKNOWN: physical Galaxy/iPhone not accessed"
+    },
+    {
+      "id": "BACKUP-01",
+      "requirement": "코드·검토자료와 운영DB/업로드/키 백업 범위 구분",
+      "status": "PARTIAL_ADDITIONAL_VALIDATION_REQUIRED",
+      "code_evidence": "docs/EVENT_HUB_V4_UI_OPERATIONS_2026-10-28.md",
+      "test_evidence": [
+        "verification/local-validation.json",
+        "artifacts/boltnew-app/tests/event-hub-v6.spec.ts",
+        "verification/ci-40641891181-metadata.json"
+      ],
+      "actual_device_evidence": "UNKNOWN: physical Galaxy/iPhone not accessed",
+      "remaining": "Code/evidence preserved; operational DB/uploads/matching-key restore not executed."
+    },
+    {
+      "id": "RELEASE-01",
+      "requirement": "새 유료서비스/사이트 없음·운영변경 별도 승인",
+      "status": "BOUNDARY_PRESERVED_NOT_DEPLOYED",
+      "code_evidence": "docs/EVENT_HUB_V4_UI_OPERATIONS_2026-10-28.md",
+      "test_evidence": [
+        "verification/local-validation.json",
+        "artifacts/boltnew-app/tests/event-hub-v6.spec.ts",
+        "verification/ci-40641891181-metadata.json"
+      ],
+      "actual_device_evidence": "UNKNOWN: physical Galaxy/iPhone not accessed"
+    }
+  ],
+  "source_sha": "abfa0069bc79ecbd252291665f15ac7d38a0cc23",
+  "ui_change_sha": "f644652d77377ca92d388a1df995c111d5866947",
+  "remote_ci": "https://github.com/aoaldhkd-spec/BINPC2/actions/runs/40646701349",
+  "remote_ci_status": "SUCCESS_27_STEPS"
+}

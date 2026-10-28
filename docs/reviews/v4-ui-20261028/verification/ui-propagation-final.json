@@ -1,0 +1,9 @@
+{
+  "environment": "Actual Chromium UI + compiled Express + existing isolated V4 PostgreSQL; development React, no simultaneous bulk load; one sample",
+  "startedAt": "2026-10-28T06:45:03.454Z",
+  "physicalDevices": "UNKNOWN",
+  "approvalToParticipantVisibleMs": 893,
+  "replyToParticipantVisibleMs": 443,
+  "pass": true,
+  "finishedAt": "2026-10-28T06:45:09.381Z"
+}

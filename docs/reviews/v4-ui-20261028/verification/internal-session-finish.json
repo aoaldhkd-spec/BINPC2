@@ -1,0 +1,17 @@
+{
+  "scope": "only existing internal V4 fixture; no operational requests",
+  "sessionActive": false,
+  "before": {
+    "events": 26,
+    "applications": 648,
+    "stocks": 25,
+    "threads": 7
+  },
+  "after": {
+    "events": 26,
+    "applications": 648,
+    "stocks": 25,
+    "threads": 7
+  },
+  "countsPreserved": true
+}

@@ -1,0 +1,864 @@
+{
+  "counts": {
+    "error": 0,
+    "warn": 93,
+    "info": 575
+  },
+  "staticWarnings": [
+    {
+      "rel": ".local/preview/build/assets/index-nqdCCGJO.js",
+      "line": 3,
+      "id": "empty_catch",
+      "sev": "warn",
+      "priority": "P3",
+      "category": "가상 시험/검사 도구",
+      "disposition": "Retained; not a proof that unknown secrets cannot exist. Test/config values and rule-pattern false positives reviewed separately."
+    },
+    {
+      "rel": ".local/v6-finish/browser-final-fixture.mjs",
+      "line": 69,
+      "id": "hardcoded_secret",
+      "sev": "warn",
+      "priority": "P3",
+      "category": "가상 시험/검사 도구",
+      "disposition": "Retained; not a proof that unknown secrets cannot exist. Test/config values and rule-pattern false positives reviewed separately."
+    },
+    {
+      "rel": "artifacts/api-server/src/__tests__/admin-event-end-reset.test.ts",
+      "line": 9,
+      "id": "hardcoded_secret",
+      "sev": "warn",
+      "priority": "P3",
+      "category": "가상 시험/검사 도구",
+      "disposition": "Retained; not a proof that unknown secrets cannot exist. Test/config values and rule-pattern false positives reviewed separately."
+    },
+    {
+      "rel": "artifacts/api-server/src/__tests__/broadcast-targets.test.ts",
+      "line": 7,
+      "id": "hardcoded_secret",
+      "sev": "warn",
+      "priority": "P3",
+      "category": "가상 시험/검사 도구",
+      "disposition": "Retained; not a proof that unknown secrets cannot exist. Test/config values and rule-pattern false positives reviewed separately."
+    },
+    {
+      "rel": "artifacts/api-server/src/__tests__/db-security.test.ts",
+      "line": 30,
+      "id": "hardcoded_secret",
+      "sev": "warn",
+      "priority": "P3",
+      "category": "가상 시험/검사 도구",
+      "disposition": "Retained; not a proof that unknown secrets cannot exist. Test/config values and rule-pattern false positives reviewed separately."
+    },
+    {
+      "rel": "artifacts/api-server/src/__tests__/db-security.test.ts",
+      "line": 300,
+      "id": "hardcoded_secret",
+      "sev": "warn",
+      "priority": "P3",
+      "category": "가상 시험/검사 도구",
+      "disposition": "Retained; not a proof that unknown secrets cannot exist. Test/config values and rule-pattern false positives reviewed separately."
+    },
+    {
+      "rel": "artifacts/api-server/src/__tests__/db-security.test.ts",
+      "line": 1014,
+      "id": "hardcoded_secret",
+      "sev": "warn",
+      "priority": "P3",
+      "category": "가상 시험/검사 도구",
+      "disposition": "Retained; not a proof that unknown secrets cannot exist. Test/config values and rule-pattern false positives reviewed separately."
+    },
+    {
+      "rel": "artifacts/api-server/src/__tests__/db-security.test.ts",
+      "line": 1077,
+      "id": "hardcoded_secret",
+      "sev": "warn",
+      "priority": "P3",
+      "category": "가상 시험/검사 도구",
+      "disposition": "Retained; not a proof that unknown secrets cannot exist. Test/config values and rule-pattern false positives reviewed separately."
+    },
+    {
+      "rel": "artifacts/api-server/src/__tests__/db-security.test.ts",
+      "line": 1078,
+      "id": "hardcoded_secret",
+      "sev": "warn",
+      "priority": "P3",
+      "category": "가상 시험/검사 도구",
+      "disposition": "Retained; not a proof that unknown secrets cannot exist. Test/config values and rule-pattern false positives reviewed separately."
+    },
+    {
+      "rel": "artifacts/api-server/src/__tests__/db-security.test.ts",
+      "line": 1079,
+      "id": "hardcoded_secret",
+      "sev": "warn",
+      "priority": "P3",
+      "category": "가상 시험/검사 도구",
+      "disposition": "Retained; not a proof that unknown secrets cannot exist. Test/config values and rule-pattern false positives reviewed separately."
+    },
+    {
+      "rel": "artifacts/api-server/src/__tests__/db-security.test.ts",
+      "line": 1103,
+      "id": "hardcoded_secret",
+      "sev": "warn",
+      "priority": "P3",
+      "category": "가상 시험/검사 도구",
+      "disposition": "Retained; not a proof that unknown secrets cannot exist. Test/config values and rule-pattern false positives reviewed separately."
+    },
+    {
+      "rel": "artifacts/api-server/src/__tests__/db-security.test.ts",
+      "line": 1108,
+      "id": "hardcoded_secret",
+      "sev": "warn",
+      "priority": "P3",
+      "category": "가상 시험/검사 도구",
+      "disposition": "Retained; not a proof that unknown secrets cannot exist. Test/config values and rule-pattern false positives reviewed separately."
+    },
+    {
+      "rel": "artifacts/api-server/src/__tests__/db-security.test.ts",
+      "line": 1113,
+      "id": "hardcoded_secret",
+      "sev": "warn",
+      "priority": "P3",
+      "category": "가상 시험/검사 도구",
+      "disposition": "Retained; not a proof that unknown secrets cannot exist. Test/config values and rule-pattern false positives reviewed separately."
+    },
+    {
+      "rel": "artifacts/api-server/src/__tests__/db-security.test.ts",
+      "line": 1175,
+      "id": "hardcoded_secret",
+      "sev": "warn",
+      "priority": "P3",
+      "category": "가상 시험/검사 도구",
+      "disposition": "Retained; not a proof that unknown secrets cannot exist. Test/config values and rule-pattern false positives reviewed separately."
+    },
+    {
+      "rel": "artifacts/api-server/src/__tests__/db-security.test.ts",
+      "line": 1176,
+      "id": "hardcoded_secret",
+      "sev": "warn",
+      "priority": "P3",
+      "category": "가상 시험/검사 도구",
+      "disposition": "Retained; not a proof that unknown secrets cannot exist. Test/config values and rule-pattern false positives reviewed separately."
+    },
+    {
+      "rel": "artifacts/api-server/src/__tests__/db-security.test.ts",
+      "line": 1180,
+      "id": "hardcoded_secret",
+      "sev": "warn",
+      "priority": "P3",
+      "category": "가상 시험/검사 도구",
+      "disposition": "Retained; not a proof that unknown secrets cannot exist. Test/config values and rule-pattern false positives reviewed separately."
+    },
+    {
+      "rel": "artifacts/api-server/src/__tests__/db-security.test.ts",
+      "line": 1186,
+      "id": "hardcoded_secret",
+      "sev": "warn",
+      "priority": "P3",
+      "category": "가상 시험/검사 도구",
+      "disposition": "Retained; not a proof that unknown secrets cannot exist. Test/config values and rule-pattern false positives reviewed separately."
+    },
+    {
+      "rel": "artifacts/api-server/src/__tests__/db-security.test.ts",
+      "line": 1244,
+      "id": "hardcoded_secret",
+      "sev": "warn",
+      "priority": "P3",
+      "category": "가상 시험/검사 도구",
+      "disposition": "Retained; not a proof that unknown secrets cannot exist. Test/config values and rule-pattern false positives reviewed separately."
+    },
+    {
+      "rel": "artifacts/api-server/src/__tests__/db-security.test.ts",
+      "line": 1252,
+      "id": "hardcoded_secret",
+      "sev": "warn",
+      "priority": "P3",
+      "category": "가상 시험/검사 도구",
+      "disposition": "Retained; not a proof that unknown secrets cannot exist. Test/config values and rule-pattern false positives reviewed separately."
+    },
+    {
+      "rel": "artifacts/api-server/src/__tests__/db-security.test.ts",
+      "line": 1269,
+      "id": "hardcoded_secret",
+      "sev": "warn",
+      "priority": "P3",
+      "category": "가상 시험/검사 도구",
+      "disposition": "Retained; not a proof that unknown secrets cannot exist. Test/config values and rule-pattern false positives reviewed separately."
+    },
+    {
+      "rel": "artifacts/api-server/src/__tests__/db-security.test.ts",
+      "line": 1274,
+      "id": "hardcoded_secret",
+      "sev": "warn",
+      "priority": "P3",
+      "category": "가상 시험/검사 도구",
+      "disposition": "Retained; not a proof that unknown secrets cannot exist. Test/config values and rule-pattern false positives reviewed separately."
+    },
+    {
+      "rel": "artifacts/api-server/src/__tests__/db-security.test.ts",
+      "line": 1291,
+      "id": "hardcoded_secret",
+      "sev": "warn",
+      "priority": "P3",
+      "category": "가상 시험/검사 도구",
+      "disposition": "Retained; not a proof that unknown secrets cannot exist. Test/config values and rule-pattern false positives reviewed separately."
+    },
+    {
+      "rel": "artifacts/api-server/src/__tests__/db-security.test.ts",
+      "line": 1296,
+      "id": "hardcoded_secret",
+      "sev": "warn",
+      "priority": "P3",
+      "category": "가상 시험/검사 도구",
+      "disposition": "Retained; not a proof that unknown secrets cannot exist. Test/config values and rule-pattern false positives reviewed separately."
+    },
+    {
+      "rel": "artifacts/api-server/src/__tests__/db-security.test.ts",
+      "line": 1303,
+      "id": "hardcoded_secret",
+      "sev": "warn",
+      "priority": "P3",
+      "category": "가상 시험/검사 도구",
+      "disposition": "Retained; not a proof that unknown secrets cannot exist. Test/config values and rule-pattern false positives reviewed separately."
+    },
+    {
+      "rel": "artifacts/api-server/src/__tests__/db-security.test.ts",
+      "line": 1333,
+      "id": "hardcoded_secret",
+      "sev": "warn",
+      "priority": "P3",
+      "category": "가상 시험/검사 도구",
+      "disposition": "Retained; not a proof that unknown secrets cannot exist. Test/config values and rule-pattern false positives reviewed separately."
+    },
+    {
+      "rel": "artifacts/api-server/src/__tests__/db-security.test.ts",
+      "line": 1344,
+      "id": "hardcoded_secret",
+      "sev": "warn",
+      "priority": "P3",
+      "category": "가상 시험/검사 도구",
+      "disposition": "Retained; not a proof that unknown secrets cannot exist. Test/config values and rule-pattern false positives reviewed separately."
+    },
+    {
+      "rel": "artifacts/api-server/src/__tests__/hearts-chat-group-invariants.test.ts",
+      "line": 10,
+      "id": "hardcoded_secret",
+      "sev": "warn",
+      "priority": "P3",
+      "category": "가상 시험/검사 도구",
+      "disposition": "Retained; not a proof that unknown secrets cannot exist. Test/config values and rule-pattern false positives reviewed separately."
+    },
+    {
+      "rel": "artifacts/api-server/src/__tests__/load-venue-150.test.ts",
+      "line": 9,
+      "id": "hardcoded_secret",
+      "sev": "warn",
+      "priority": "P3",
+      "category": "가상 시험/검사 도구",
+      "disposition": "Retained; not a proof that unknown secrets cannot exist. Test/config values and rule-pattern false positives reviewed separately."
+    },
+    {
+      "rel": "artifacts/api-server/src/__tests__/push-self-test.test.ts",
+      "line": 6,
+      "id": "hardcoded_secret",
+      "sev": "warn",
+      "priority": "P3",
+      "category": "가상 시험/검사 도구",
+      "disposition": "Retained; not a proof that unknown secrets cannot exist. Test/config values and rule-pattern false positives reviewed separately."
+    },
+    {
+      "rel": "artifacts/api-server/src/__tests__/sulbun-event-reset.test.ts",
+      "line": 9,
+      "id": "hardcoded_secret",
+      "sev": "warn",
+      "priority": "P3",
+      "category": "가상 시험/검사 도구",
+      "disposition": "Retained; not a proof that unknown secrets cannot exist. Test/config values and rule-pattern false positives reviewed separately."
+    },
+    {
+      "rel": "artifacts/api-server/src/lib/db-app-settings-boot.test.ts",
+      "line": 14,
+      "id": "hardcoded_secret",
+      "sev": "warn",
+      "priority": "P3",
+      "category": "가상 시험/검사 도구",
+      "disposition": "Retained; not a proof that unknown secrets cannot exist. Test/config values and rule-pattern false positives reviewed separately."
+    },
+    {
+      "rel": "artifacts/api-server/src/lib/db-app-settings-boot.test.ts",
+      "line": 22,
+      "id": "hardcoded_secret",
+      "sev": "warn",
+      "priority": "P3",
+      "category": "가상 시험/검사 도구",
+      "disposition": "Retained; not a proof that unknown secrets cannot exist. Test/config values and rule-pattern false positives reviewed separately."
+    },
+    {
+      "rel": "artifacts/api-server/src/lib/db-app-settings-boot.test.ts",
+      "line": 23,
+      "id": "hardcoded_secret",
+      "sev": "warn",
+      "priority": "P3",
+      "category": "가상 시험/검사 도구",
+      "disposition": "Retained; not a proof that unknown secrets cannot exist. Test/config values and rule-pattern false positives reviewed separately."
+    },
+    {
+      "rel": "artifacts/api-server/src/lib/db-app-settings-boot.test.ts",
+      "line": 25,
+      "id": "hardcoded_secret",
+      "sev": "warn",
+      "priority": "P3",
+      "category": "가상 시험/검사 도구",
+      "disposition": "Retained; not a proof that unknown secrets cannot exist. Test/config values and rule-pattern false positives reviewed separately."
+    },
+    {
+      "rel": "artifacts/api-server/src/lib/db-app-settings-boot.test.ts",
+      "line": 43,
+      "id": "hardcoded_secret",
+      "sev": "warn",
+      "priority": "P3",
+      "category": "가상 시험/검사 도구",
+      "disposition": "Retained; not a proof that unknown secrets cannot exist. Test/config values and rule-pattern false positives reviewed separately."
+    },
+    {
+      "rel": "artifacts/api-server/src/lib/db-app-settings-boot.test.ts",
+      "line": 51,
+      "id": "hardcoded_secret",
+      "sev": "warn",
+      "priority": "P3",
+      "category": "가상 시험/검사 도구",
+      "disposition": "Retained; not a proof that unknown secrets cannot exist. Test/config values and rule-pattern false positives reviewed separately."
+    },
+    {
+      "rel": "artifacts/api-server/src/lib/db-app-settings-boot.test.ts",
+      "line": 60,
+      "id": "hardcoded_secret",
+      "sev": "warn",
+      "priority": "P3",
+      "category": "가상 시험/검사 도구",
+      "disposition": "Retained; not a proof that unknown secrets cannot exist. Test/config values and rule-pattern false positives reviewed separately."
+    },
+    {
+      "rel": "artifacts/api-server/src/lib/db-app-settings-boot.test.ts",
+      "line": 68,
+      "id": "hardcoded_secret",
+      "sev": "warn",
+      "priority": "P3",
+      "category": "가상 시험/검사 도구",
+      "disposition": "Retained; not a proof that unknown secrets cannot exist. Test/config values and rule-pattern false positives reviewed separately."
+    },
+    {
+      "rel": "artifacts/api-server/src/lib/db-app-settings-boot.test.ts",
+      "line": 69,
+      "id": "hardcoded_secret",
+      "sev": "warn",
+      "priority": "P3",
+      "category": "가상 시험/검사 도구",
+      "disposition": "Retained; not a proof that unknown secrets cannot exist. Test/config values and rule-pattern false positives reviewed separately."
+    },
+    {
+      "rel": "artifacts/api-server/src/lib/db-app-settings-boot.test.ts",
+      "line": 70,
+      "id": "hardcoded_secret",
+      "sev": "warn",
+      "priority": "P3",
+      "category": "가상 시험/검사 도구",
+      "disposition": "Retained; not a proof that unknown secrets cannot exist. Test/config values and rule-pattern false positives reviewed separately."
+    },
+    {
+      "rel": "artifacts/api-server/src/lib/db-app-settings-boot.test.ts",
+      "line": 113,
+      "id": "hardcoded_secret",
+      "sev": "warn",
+      "priority": "P3",
+      "category": "가상 시험/검사 도구",
+      "disposition": "Retained; not a proof that unknown secrets cannot exist. Test/config values and rule-pattern false positives reviewed separately."
+    },
+    {
+      "rel": "artifacts/api-server/src/lib/db-app-settings-boot.test.ts",
+      "line": 114,
+      "id": "hardcoded_secret",
+      "sev": "warn",
+      "priority": "P3",
+      "category": "가상 시험/검사 도구",
+      "disposition": "Retained; not a proof that unknown secrets cannot exist. Test/config values and rule-pattern false positives reviewed separately."
+    },
+    {
+      "rel": "artifacts/api-server/src/lib/db-app-settings-boot.test.ts",
+      "line": 115,
+      "id": "hardcoded_secret",
+      "sev": "warn",
+      "priority": "P3",
+      "category": "가상 시험/검사 도구",
+      "disposition": "Retained; not a proof that unknown secrets cannot exist. Test/config values and rule-pattern false positives reviewed separately."
+    },
+    {
+      "rel": "artifacts/api-server/src/lib/db-app-settings-view.test.ts",
+      "line": 40,
+      "id": "hardcoded_secret",
+      "sev": "warn",
+      "priority": "P3",
+      "category": "가상 시험/검사 도구",
+      "disposition": "Retained; not a proof that unknown secrets cannot exist. Test/config values and rule-pattern false positives reviewed separately."
+    },
+    {
+      "rel": "artifacts/api-server/src/lib/db-app-settings-view.test.ts",
+      "line": 41,
+      "id": "hardcoded_secret",
+      "sev": "warn",
+      "priority": "P3",
+      "category": "가상 시험/검사 도구",
+      "disposition": "Retained; not a proof that unknown secrets cannot exist. Test/config values and rule-pattern false positives reviewed separately."
+    },
+    {
+      "rel": "artifacts/api-server/src/lib/db-app-settings-view.test.ts",
+      "line": 42,
+      "id": "hardcoded_secret",
+      "sev": "warn",
+      "priority": "P3",
+      "category": "가상 시험/검사 도구",
+      "disposition": "Retained; not a proof that unknown secrets cannot exist. Test/config values and rule-pattern false positives reviewed separately."
+    },
+    {
+      "rel": "artifacts/api-server/src/lib/db-app-settings-view.test.ts",
+      "line": 43,
+      "id": "hardcoded_secret",
+      "sev": "warn",
+      "priority": "P3",
+      "category": "가상 시험/검사 도구",
+      "disposition": "Retained; not a proof that unknown secrets cannot exist. Test/config values and rule-pattern false positives reviewed separately."
+    },
+    {
+      "rel": "artifacts/api-server/src/lib/db-app-settings-view.test.ts",
+      "line": 115,
+      "id": "hardcoded_secret",
+      "sev": "warn",
+      "priority": "P3",
+      "category": "가상 시험/검사 도구",
+      "disposition": "Retained; not a proof that unknown secrets cannot exist. Test/config values and rule-pattern false positives reviewed separately."
+    },
+    {
+      "rel": "artifacts/api-server/src/lib/db-session-tokens.test.ts",
+      "line": 21,
+      "id": "hardcoded_secret",
+      "sev": "warn",
+      "priority": "P3",
+      "category": "가상 시험/검사 도구",
+      "disposition": "Retained; not a proof that unknown secrets cannot exist. Test/config values and rule-pattern false positives reviewed separately."
+    },
+    {
+      "rel": "artifacts/api-server/src/lib/event-hub.pg.test.ts",
+      "line": 673,
+      "id": "hardcoded_secret",
+      "sev": "warn",
+      "priority": "P3",
+      "category": "가상 시험/검사 도구",
+      "disposition": "Retained; not a proof that unknown secrets cannot exist. Test/config values and rule-pattern false positives reviewed separately."
+    },
+    {
+      "rel": "artifacts/api-server/src/lib/event-hub.pg.test.ts",
+      "line": 690,
+      "id": "hardcoded_secret",
+      "sev": "warn",
+      "priority": "P3",
+      "category": "가상 시험/검사 도구",
+      "disposition": "Retained; not a proof that unknown secrets cannot exist. Test/config values and rule-pattern false positives reviewed separately."
+    },
+    {
+      "rel": "artifacts/api-server/src/lib/event-hub.pg.test.ts",
+      "line": 700,
+      "id": "hardcoded_secret",
+      "sev": "warn",
+      "priority": "P3",
+      "category": "가상 시험/검사 도구",
+      "disposition": "Retained; not a proof that unknown secrets cannot exist. Test/config values and rule-pattern false positives reviewed separately."
+    },
+    {
+      "rel": "artifacts/api-server/src/lib/event-hub.pg.test.ts",
+      "line": 709,
+      "id": "hardcoded_secret",
+      "sev": "warn",
+      "priority": "P3",
+      "category": "가상 시험/검사 도구",
+      "disposition": "Retained; not a proof that unknown secrets cannot exist. Test/config values and rule-pattern false positives reviewed separately."
+    },
+    {
+      "rel": "artifacts/api-server/src/lib/event-hub.pg.test.ts",
+      "line": 748,
+      "id": "hardcoded_secret",
+      "sev": "warn",
+      "priority": "P3",
+      "category": "가상 시험/검사 도구",
+      "disposition": "Retained; not a proof that unknown secrets cannot exist. Test/config values and rule-pattern false positives reviewed separately."
+    },
+    {
+      "rel": "artifacts/api-server/src/lib/event-hub.pg.test.ts",
+      "line": 761,
+      "id": "hardcoded_secret",
+      "sev": "warn",
+      "priority": "P3",
+      "category": "가상 시험/검사 도구",
+      "disposition": "Retained; not a proof that unknown secrets cannot exist. Test/config values and rule-pattern false positives reviewed separately."
+    },
+    {
+      "rel": "artifacts/api-server/src/lib/event-hub.pg.test.ts",
+      "line": 784,
+      "id": "hardcoded_secret",
+      "sev": "warn",
+      "priority": "P3",
+      "category": "가상 시험/검사 도구",
+      "disposition": "Retained; not a proof that unknown secrets cannot exist. Test/config values and rule-pattern false positives reviewed separately."
+    },
+    {
+      "rel": "artifacts/api-server/src/lib/event-hub.pg.test.ts",
+      "line": 960,
+      "id": "hardcoded_secret",
+      "sev": "warn",
+      "priority": "P3",
+      "category": "가상 시험/검사 도구",
+      "disposition": "Retained; not a proof that unknown secrets cannot exist. Test/config values and rule-pattern false positives reviewed separately."
+    },
+    {
+      "rel": "artifacts/api-server/src/lib/event-hub.pg.test.ts",
+      "line": 976,
+      "id": "hardcoded_secret",
+      "sev": "warn",
+      "priority": "P3",
+      "category": "가상 시험/검사 도구",
+      "disposition": "Retained; not a proof that unknown secrets cannot exist. Test/config values and rule-pattern false positives reviewed separately."
+    },
+    {
+      "rel": "artifacts/api-server/src/lib/event-hub.pg.test.ts",
+      "line": 987,
+      "id": "hardcoded_secret",
+      "sev": "warn",
+      "priority": "P3",
+      "category": "가상 시험/검사 도구",
+      "disposition": "Retained; not a proof that unknown secrets cannot exist. Test/config values and rule-pattern false positives reviewed separately."
+    },
+    {
+      "rel": "artifacts/api-server/src/lib/event-hub.pg.test.ts",
+      "line": 996,
+      "id": "hardcoded_secret",
+      "sev": "warn",
+      "priority": "P3",
+      "category": "가상 시험/검사 도구",
+      "disposition": "Retained; not a proof that unknown secrets cannot exist. Test/config values and rule-pattern false positives reviewed separately."
+    },
+    {
+      "rel": "artifacts/api-server/src/lib/event-hub.pg.test.ts",
+      "line": 1041,
+      "id": "hardcoded_secret",
+      "sev": "warn",
+      "priority": "P3",
+      "category": "가상 시험/검사 도구",
+      "disposition": "Retained; not a proof that unknown secrets cannot exist. Test/config values and rule-pattern false positives reviewed separately."
+    },
+    {
+      "rel": "artifacts/api-server/src/lib/event-hub.pg.test.ts",
+      "line": 1060,
+      "id": "hardcoded_secret",
+      "sev": "warn",
+      "priority": "P3",
+      "category": "가상 시험/검사 도구",
+      "disposition": "Retained; not a proof that unknown secrets cannot exist. Test/config values and rule-pattern false positives reviewed separately."
+    },
+    {
+      "rel": "artifacts/api-server/src/lib/event-hub.pg.test.ts",
+      "line": 1099,
+      "id": "hardcoded_secret",
+      "sev": "warn",
+      "priority": "P3",
+      "category": "가상 시험/검사 도구",
+      "disposition": "Retained; not a proof that unknown secrets cannot exist. Test/config values and rule-pattern false positives reviewed separately."
+    },
+    {
+      "rel": "artifacts/api-server/src/lib/event-hub.pg.test.ts",
+      "line": 1195,
+      "id": "hardcoded_secret",
+      "sev": "warn",
+      "priority": "P3",
+      "category": "가상 시험/검사 도구",
+      "disposition": "Retained; not a proof that unknown secrets cannot exist. Test/config values and rule-pattern false positives reviewed separately."
+    },
+    {
+      "rel": "artifacts/api-server/src/lib/event-hub.pg.test.ts",
+      "line": 1299,
+      "id": "hardcoded_secret",
+      "sev": "warn",
+      "priority": "P3",
+      "category": "가상 시험/검사 도구",
+      "disposition": "Retained; not a proof that unknown secrets cannot exist. Test/config values and rule-pattern false positives reviewed separately."
+    },
+    {
+      "rel": "artifacts/api-server/src/lib/event-hub.pg.test.ts",
+      "line": 1336,
+      "id": "hardcoded_secret",
+      "sev": "warn",
+      "priority": "P3",
+      "category": "가상 시험/검사 도구",
+      "disposition": "Retained; not a proof that unknown secrets cannot exist. Test/config values and rule-pattern false positives reviewed separately."
+    },
+    {
+      "rel": "artifacts/api-server/src/lib/event-hub.pg.test.ts",
+      "line": 1447,
+      "id": "hardcoded_secret",
+      "sev": "warn",
+      "priority": "P3",
+      "category": "가상 시험/검사 도구",
+      "disposition": "Retained; not a proof that unknown secrets cannot exist. Test/config values and rule-pattern false positives reviewed separately."
+    },
+    {
+      "rel": "artifacts/api-server/src/lib/event-hub.pg.test.ts",
+      "line": 1571,
+      "id": "hardcoded_secret",
+      "sev": "warn",
+      "priority": "P3",
+      "category": "가상 시험/검사 도구",
+      "disposition": "Retained; not a proof that unknown secrets cannot exist. Test/config values and rule-pattern false positives reviewed separately."
+    },
+    {
+      "rel": "artifacts/api-server/src/lib/event-hub.pg.test.ts",
+      "line": 1908,
+      "id": "hardcoded_secret",
+      "sev": "warn",
+      "priority": "P3",
+      "category": "가상 시험/검사 도구",
+      "disposition": "Retained; not a proof that unknown secrets cannot exist. Test/config values and rule-pattern false positives reviewed separately."
+    },
+    {
+      "rel": "artifacts/api-server/src/lib/event-hub.pg.test.ts",
+      "line": 2068,
+      "id": "hardcoded_secret",
+      "sev": "warn",
+      "priority": "P3",
+      "category": "가상 시험/검사 도구",
+      "disposition": "Retained; not a proof that unknown secrets cannot exist. Test/config values and rule-pattern false positives reviewed separately."
+    },
+    {
+      "rel": "artifacts/api-server/src/lib/event-hub.pg.test.ts",
+      "line": 2081,
+      "id": "hardcoded_secret",
+      "sev": "warn",
+      "priority": "P3",
+      "category": "가상 시험/검사 도구",
+      "disposition": "Retained; not a proof that unknown secrets cannot exist. Test/config values and rule-pattern false positives reviewed separately."
+    },
+    {
+      "rel": "artifacts/api-server/src/lib/event-hub.pg.test.ts",
+      "line": 2460,
+      "id": "hardcoded_secret",
+      "sev": "warn",
+      "priority": "P3",
+      "category": "가상 시험/검사 도구",
+      "disposition": "Retained; not a proof that unknown secrets cannot exist. Test/config values and rule-pattern false positives reviewed separately."
+    },
+    {
+      "rel": "artifacts/api-server/src/lib/event-hub.pg.test.ts",
+      "line": 2507,
+      "id": "hardcoded_secret",
+      "sev": "warn",
+      "priority": "P3",
+      "category": "가상 시험/검사 도구",
+      "disposition": "Retained; not a proof that unknown secrets cannot exist. Test/config values and rule-pattern false positives reviewed separately."
+    },
+    {
+      "rel": "artifacts/api-server/src/lib/event-hub.pg.test.ts",
+      "line": 2548,
+      "id": "hardcoded_secret",
+      "sev": "warn",
+      "priority": "P3",
+      "category": "가상 시험/검사 도구",
+      "disposition": "Retained; not a proof that unknown secrets cannot exist. Test/config values and rule-pattern false positives reviewed separately."
+    },
+    {
+      "rel": "artifacts/api-server/src/lib/event-hub.pg.test.ts",
+      "line": 2550,
+      "id": "hardcoded_secret",
+      "sev": "warn",
+      "priority": "P3",
+      "category": "가상 시험/검사 도구",
+      "disposition": "Retained; not a proof that unknown secrets cannot exist. Test/config values and rule-pattern false positives reviewed separately."
+    },
+    {
+      "rel": "artifacts/api-server/src/lib/private-preview.test.ts",
+      "line": 5,
+      "id": "hardcoded_secret",
+      "sev": "warn",
+      "priority": "P3",
+      "category": "가상 시험/검사 도구",
+      "disposition": "Retained; not a proof that unknown secrets cannot exist. Test/config values and rule-pattern false positives reviewed separately."
+    },
+    {
+      "rel": "artifacts/api-server/src/lib/private-preview.test.ts",
+      "line": 6,
+      "id": "hardcoded_secret",
+      "sev": "warn",
+      "priority": "P3",
+      "category": "가상 시험/검사 도구",
+      "disposition": "Retained; not a proof that unknown secrets cannot exist. Test/config values and rule-pattern false positives reviewed separately."
+    },
+    {
+      "rel": "artifacts/api-server/vitest.config.ts",
+      "line": 14,
+      "id": "hardcoded_secret",
+      "sev": "warn",
+      "priority": "P3",
+      "category": "가상 시험/검사 도구",
+      "disposition": "Retained; not a proof that unknown secrets cannot exist. Test/config values and rule-pattern false positives reviewed separately."
+    },
+    {
+      "rel": "artifacts/boltnew-app/scripts/check-responsive-preview.mjs",
+      "line": 55,
+      "id": "hardcoded_secret",
+      "sev": "warn",
+      "priority": "P3",
+      "category": "가상 시험/검사 도구",
+      "disposition": "Retained; not a proof that unknown secrets cannot exist. Test/config values and rule-pattern false positives reviewed separately."
+    },
+    {
+      "rel": "artifacts/boltnew-app/src/admin/LoginScreen.test.tsx",
+      "line": 60,
+      "id": "hardcoded_secret",
+      "sev": "warn",
+      "priority": "P3",
+      "category": "가상 시험/검사 도구",
+      "disposition": "Retained; not a proof that unknown secrets cannot exist. Test/config values and rule-pattern false positives reviewed separately."
+    },
+    {
+      "rel": "artifacts/boltnew-app/src/event-hub/event-laboratory-store.test.ts",
+      "line": 176,
+      "id": "hardcoded_secret",
+      "sev": "warn",
+      "priority": "P3",
+      "category": "가상 시험/검사 도구",
+      "disposition": "Retained; not a proof that unknown secrets cannot exist. Test/config values and rule-pattern false positives reviewed separately."
+    },
+    {
+      "rel": "artifacts/boltnew-app/src/lib/signal-match.test.ts",
+      "line": 152,
+      "id": "hardcoded_secret",
+      "sev": "warn",
+      "priority": "P3",
+      "category": "가상 시험/검사 도구",
+      "disposition": "Retained; not a proof that unknown secrets cannot exist. Test/config values and rule-pattern false positives reviewed separately."
+    },
+    {
+      "rel": "artifacts/boltnew-app/src/lib/signal-match.test.ts",
+      "line": 247,
+      "id": "hardcoded_secret",
+      "sev": "warn",
+      "priority": "P3",
+      "category": "가상 시험/검사 도구",
+      "disposition": "Retained; not a proof that unknown secrets cannot exist. Test/config values and rule-pattern false positives reviewed separately."
+    },
+    {
+      "rel": "artifacts/boltnew-app/tests/event-hub-v6.spec.ts",
+      "line": 269,
+      "id": "hardcoded_secret",
+      "sev": "warn",
+      "priority": "P3",
+      "category": "가상 시험/검사 도구",
+      "disposition": "Retained; not a proof that unknown secrets cannot exist. Test/config values and rule-pattern false positives reviewed separately."
+    },
+    {
+      "rel": "artifacts/boltnew-app/tests/event-hub-v6.spec.ts",
+      "line": 383,
+      "id": "hardcoded_secret",
+      "sev": "warn",
+      "priority": "P3",
+      "category": "가상 시험/검사 도구",
+      "disposition": "Retained; not a proof that unknown secrets cannot exist. Test/config values and rule-pattern false positives reviewed separately."
+    },
+    {
+      "rel": "scripts/event-hub-browser-fixture.mjs",
+      "line": 71,
+      "id": "hardcoded_secret",
+      "sev": "warn",
+      "priority": "P3",
+      "category": "가상 시험/검사 도구",
+      "disposition": "Retained; not a proof that unknown secrets cannot exist. Test/config values and rule-pattern false positives reviewed separately."
+    },
+    {
+      "rel": "scripts/event-hub-http-soak.mjs",
+      "line": 98,
+      "id": "hardcoded_secret",
+      "sev": "warn",
+      "priority": "P3",
+      "category": "독립 격리 시험용 설정",
+      "disposition": "Retained; not a proof that unknown secrets cannot exist. Test/config values and rule-pattern false positives reviewed separately."
+    },
+    {
+      "rel": "scripts/full-code-audit.mjs",
+      "line": 55,
+      "id": "ts_ignore",
+      "sev": "warn",
+      "priority": "P3",
+      "category": "감사 규칙 자기 탐지",
+      "disposition": "Retained; not a proof that unknown secrets cannot exist. Test/config values and rule-pattern false positives reviewed separately."
+    },
+    {
+      "rel": "scripts/lib/ops-client.mjs",
+      "line": 103,
+      "id": "hardcoded_secret",
+      "sev": "warn",
+      "priority": "P3",
+      "category": "마스킹 문자열",
+      "disposition": "Retained; not a proof that unknown secrets cannot exist. Test/config values and rule-pattern false positives reviewed separately."
+    },
+    {
+      "rel": "scripts/rotate-exposed-secrets.mjs",
+      "line": 9,
+      "id": "hardcoded_secret",
+      "sev": "warn",
+      "priority": "P3",
+      "category": "주석의 토큰 예시",
+      "disposition": "Retained; not a proof that unknown secrets cannot exist. Test/config values and rule-pattern false positives reviewed separately."
+    },
+    {
+      "rel": "scripts/rotate-exposed-secrets.mjs",
+      "line": 10,
+      "id": "hardcoded_secret",
+      "sev": "warn",
+      "priority": "P3",
+      "category": "주석의 토큰 예시",
+      "disposition": "Retained; not a proof that unknown secrets cannot exist. Test/config values and rule-pattern false positives reviewed separately."
+    },
+    {
+      "rel": "scripts/test/ops-client.test.mjs",
+      "line": 127,
+      "id": "hardcoded_secret",
+      "sev": "warn",
+      "priority": "P3",
+      "category": "가상 시험/검사 도구",
+      "disposition": "Retained; not a proof that unknown secrets cannot exist. Test/config values and rule-pattern false positives reviewed separately."
+    },
+    {
+      "rel": "scripts/test/ops-client.test.mjs",
+      "line": 128,
+      "id": "hardcoded_secret",
+      "sev": "warn",
+      "priority": "P3",
+      "category": "가상 시험/검사 도구",
+      "disposition": "Retained; not a proof that unknown secrets cannot exist. Test/config values and rule-pattern false positives reviewed separately."
+    }
+  ],
+  "manualFindings": [
+    {
+      "priority": "P1",
+      "issue": "Legacy restoration helper embedded candidate passwords and logged credential fragments",
+      "status": "fixed in current code; historical objects not rewritten; live validity UNKNOWN"
+    },
+    {
+      "priority": "P2",
+      "issue": "Operator contact embedded in bootstrap/dev/operation/test source",
+      "status": "replaced with explicit input or synthetic fixture; existing operational DB untouched"
+    },
+    {
+      "priority": "P1",
+      "issue": "Legacy live mutation helpers lacked explicit operator target/confirmation gate",
+      "status": "guard added and 14 entrypoint checks passed; no operational execution"
+    }
+  ],
+  "scope": "Original79-warning record and subsequent92/94 snapshots retained as historical. Current93 static warnings are not93 confirmed vulnerabilities."
+}

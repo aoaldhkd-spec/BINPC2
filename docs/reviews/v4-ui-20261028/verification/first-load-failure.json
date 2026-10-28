@@ -1,0 +1,20 @@
+{
+  "runId": "mixed-1793165998685",
+  "mode": "mixed",
+  "sourceSha": "470c0390b8ae35ca5c765944a4188e82d4522af1",
+  "preexistingOwnerRows": 5994,
+  "businessClockStart": "2026-10-30T13:40:00.247Z",
+  "durationSeconds": 15,
+  "requestCount": 1686,
+  "statusCounts": {
+    "200": 1526,
+    "403": 160
+  },
+  "failures": [
+    {
+      "stage": "150-enter-and-three-cards",
+      "reason": "application.enter: HTTP403 EVENT_NOT_STARTED (150 concurrent failures)"
+    }
+  ],
+  "diagnosis": "Preserved fixture cycle began at 2026-10-30T13:44:23Z, while attempted business clock began at13:40Z. EVENT_NOT_STARTED correctly rejected admission. Only the isolated test clock was corrected; security checks/data were retained."
+}
