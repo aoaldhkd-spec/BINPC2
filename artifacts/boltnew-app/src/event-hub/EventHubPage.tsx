@@ -1,3 +1,10 @@
+import {
+  EventListCard,
+  EventDetailHeader,
+  WaitingSummary,
+  applicationListStatus,
+  eventListStatus,
+} from "./EventPresentation";
 import { AdminInquiry } from "./AdminInquiry";
 import { VenueLogo, GoraeThanks } from "./VenueLogos";
 import { ParticipantOperations, ScheduledOpening } from "./EventOperations";
@@ -61,9 +68,14 @@ const attendanceLabel = {
 };
 export default function EventHubPage({ path }: { path: string }) {
   const hub = useEventHub();
-  return <><EventHubContent path={path} hub={hub}/><AdminInquiry hub={hub}/></>;
+  return (
+    <>
+      <EventHubContent path={path} hub={hub} />
+      <AdminInquiry hub={hub} />
+    </>
+  );
 }
-function EventHubContent({path,hub}:{path:string;hub:Hub}) {
+function EventHubContent({ path, hub }: { path: string; hub: Hub }) {
   const s = hub.state;
   const [dark, setDark] = useState(
     () => readHubBrowserValue("local", "dark_mode") !== "0",
@@ -74,6 +86,9 @@ function EventHubContent({path,hub}:{path:string;hub:Hub}) {
     window.addEventListener("storage", sync);
     return () => window.removeEventListener("storage", sync);
   }, []);
+  const [eventFilter, setEventFilter] = useState("전체");
+  const [visibleEvents, setVisibleEvents] = useState(6);
+  const [waitingFilter, setWaitingFilter] = useState("전체");
   const [editing, setEditing] = useState(false),
     [recovery, setRecovery] = useState(""),
     [loginNick, setLoginNick] = useState(""),
@@ -102,10 +117,6 @@ function EventHubContent({path,hub}:{path:string;hub:Hub}) {
   useEffect(() => {
     setEditing(false);
   }, [appId, eventId]);
-  useEffect(() => {
-    if(path === "/events/waiting" && s?.applications.length === 1)
-      hubNavigate(`/events/a/${s.applications[0].id}`);
-  },[path,s?.applications]);
   if (!s)
     return (
       <main className="min-h-screen bg-slate-950 text-slate-100 p-5">
@@ -124,16 +135,27 @@ function EventHubContent({path,hub}:{path:string;hub:Hub}) {
     );
   }
   return (
-    <div className="event-hub-theme" data-event-dark={dark}>
+    <div className="event-hub-theme hub-participant" data-event-dark={dark}>
       <main className="min-h-screen bg-slate-50 text-slate-900 pb-28">
-        <header className="bg-slate-900 text-white px-4 py-5 border-b border-teal-400/20">
+        <header className="hub-participant-header">
           <div className="max-w-2xl mx-auto">
             <a href="/" className="text-sm">
               ← BINPC2
             </a>
-            <h1 className="mt-3 text-2xl font-black">{path === "/events/waiting" ? "신청대기방" : "술번개 신청"} 🍻</h1>
+            <span className="hub-eyebrow">BINPC2 · EVENT</span>
+            <h1 className="mt-2 text-2xl font-black">
+              {path === "/events/waiting"
+                ? "신청대기방"
+                : event
+                  ? "행사 상세"
+                  : "술번개 신청"}
+            </h1>
             <p className="text-sm text-slate-300 mt-1">
-              저장한 신청부터 안전하게 이어가세요
+              {event
+                ? "공지부터 확인하고, 내 신청을 이어가세요"
+                : path === "/events/waiting"
+                  ? "내 신청과 승인 상태를 한눈에 확인하세요"
+                  : "좋은 사람들과, 특별한 밤"}
             </p>
           </div>
         </header>
@@ -173,65 +195,154 @@ function EventHubContent({path,hub}:{path:string;hub:Hub}) {
               />
             )
           ) : event ? (
-            <>{event.materials?.some(m=>m.purpose==="notice")&&<HubCard><EventMedia links={event.materials.filter(m=>m.purpose==="notice").map(m=>m.url)} materials={event.materials}/></HubCard>}{event.recruitment ? <BasicForm key={event.id} eventId={event.id} hub={hub} /> : <ScheduledOpening event={event} hub={hub}/>}</>
+            <>
+              <EventDetailHeader key={event.id} event={event} />
+              {event.recruitment ? (
+                <BasicForm key={event.id} eventId={event.id} hub={hub} />
+              ) : (
+                <ScheduledOpening event={event} hub={hub} />
+              )}
+            </>
           ) : (
             <>
-              {path === "/events/waiting" && s.applications.length === 0 && <HubCard><h2 className="font-bold">아직 신청한 술번개가 없습니다</h2><HubButton onClick={()=>hubNavigate("/events")}>술번개 신청</HubButton></HubCard>}
+              {path === "/events/waiting" && s.applications.length === 0 && (
+                <HubCard>
+                  <h2 className="font-bold">아직 신청한 술번개가 없습니다</h2>
+                  <HubButton onClick={() => hubNavigate("/events")}>
+                    술번개 신청
+                  </HubButton>
+                </HubCard>
+              )}
               {s.applications.length > 0 && (
                 <HubCard>
                   <h2 className="font-black">내 신청 목록</h2>
-                  {s.applications.map((a) => (
-                    <button
-                      key={a.id}
-                      onClick={() => hubNavigate(`/events/a/${a.id}`)}
-                      className="w-full text-left border-t py-3"
-                    >
-                      <strong>
-                        {s.events.find((e) => e.id === a.eventId)?.title ??
-                          "행사"}
-                      </strong>
-                      <p className="text-sm">
-                        {s.events.find((e) => e.id === a.eventId)?.date} ·{" "}
-                        {a.stage === 4
-                          ? paymentLabel[a.payment]
-                          : "작성 중 · 이어서 신청"}
-                      </p>
-                    </button>
-                  ))}
+                  <div className="hub-segmented" aria-label="내 신청 상태 필터">
+                    {["전체", "작성 중", "확인 대기", "승인"].map((f) => (
+                      <button
+                        type="button"
+                        key={f}
+                        aria-pressed={waitingFilter === f}
+                        onClick={() => setWaitingFilter(f)}
+                      >
+                        {f}
+                      </button>
+                    ))}
+                  </div>
+                  <div className="hub-event-list">
+                    {s.applications
+                      .filter(
+                        (a) =>
+                          waitingFilter === "전체" ||
+                          (waitingFilter === "승인"
+                            ? paymentSatisfied(a)
+                            : waitingFilter === "작성 중"
+                              ? a.stage < 4
+                              : a.stage === 4 && !paymentSatisfied(a)),
+                      )
+                      .map((a) => {
+                        const e = s.events.find((e) => e.id === a.eventId);
+                        return e ? (
+                          <EventListCard
+                            key={a.id}
+                            event={e}
+                            app={a}
+                            now={new Date(s.serverNow ?? Date.now())}
+                            onOpen={() => hubNavigate(`/events/a/${a.id}`)}
+                          />
+                        ) : (
+                          <button
+                            key={a.id}
+                            onClick={() => hubNavigate(`/events/a/${a.id}`)}
+                          >
+                            기존 신청 · {applicationListStatus(a)}
+                          </button>
+                        );
+                      })}
+                  </div>
                 </HubCard>
               )}
-              <HubCard>
-                <h2 className="font-black">신청 가능한 행사</h2>
-                {s.events
-                  .filter((e) => e.recruitment || (e.scheduleEnabled&&!e.schedulePaused))
-                  .map((e) => (
+              {path !== "/events/waiting" && (
+                <HubCard>
+                  <h2 className="font-black">신청 가능한 행사</h2>
+                  <div className="hub-segmented" aria-label="행사 상태 필터">
+                    {["전체", "신청 가능", "접수 예정", "종료"].map((f) => (
+                      <button
+                        type="button"
+                        key={f}
+                        aria-pressed={eventFilter === f}
+                        onClick={() => {
+                          setEventFilter(f);
+                          setVisibleEvents(6);
+                        }}
+                      >
+                        {f}
+                      </button>
+                    ))}
+                  </div>
+                  <div className="hub-event-list">
+                    {[...s.events]
+                      .sort(
+                        (a, b) =>
+                          Number(!!b.campaign) - Number(!!a.campaign) ||
+                          a.date.localeCompare(b.date) ||
+                          a.start.localeCompare(b.start),
+                      )
+                      .filter(
+                        (e) =>
+                          eventFilter === "전체" ||
+                          eventListStatus(
+                            e,
+                            new Date(s.serverNow ?? Date.now()),
+                          ) === eventFilter,
+                      )
+                      .slice(0, visibleEvents)
+                      .map((e) => (
+                        <EventListCard
+                          key={e.id}
+                          event={e}
+                          now={new Date(s.serverNow ?? Date.now())}
+                          onOpen={() => {
+                            const a = s.applications.find(
+                              (a) => a.eventId === e.id,
+                            );
+                            hubNavigate(
+                              a ? `/events/a/${a.id}` : `/events/e/${e.id}`,
+                            );
+                          }}
+                        />
+                      ))}
+                  </div>
+                  {s.events.filter(
+                    (e) =>
+                      eventFilter === "전체" ||
+                      eventListStatus(
+                        e,
+                        new Date(s.serverNow ?? Date.now()),
+                      ) === eventFilter,
+                  ).length > visibleEvents && (
                     <button
-                      className="w-full text-left border-t py-4"
-                      key={e.id}
-                      onClick={() => {
-                        const a = s.applications.find(
-                          (a) => a.eventId === e.id,
-                        );
-                        hubNavigate(
-                          a ? `/events/a/${a.id}` : `/events/e/${e.id}`,
-                        );
-                      }}
+                      className="hub-more"
+                      onClick={() => setVisibleEvents((n) => n + 6)}
                     >
-                      <strong>{e.title}</strong>
-                      <p>
-                        {e.date} · {e.start}~
-                        {e.end <= e.start ? "다음 날 " : ""}
-                        {e.end}
-                      </p>
-                      <p className="text-sm text-slate-600">{e.area}</p>
+                      행사 더 보기
                     </button>
-                  ))}
-                {!s.events.some((e) => e.recruitment) && (
-                  <p className="text-sm text-slate-600">
-                    현재 모집 중인 행사가 없습니다.
-                  </p>
-                )}
-              </HubCard>
+                  )}
+                  {!s.events.some(
+                    (e) =>
+                      eventFilter === "전체" ||
+                      eventListStatus(
+                        e,
+                        new Date(s.serverNow ?? Date.now()),
+                      ) === eventFilter,
+                  ) && (
+                    <p className="hub-empty-state">
+                      {eventFilter === "전체"
+                        ? "등록된 모집 일정이 없습니다."
+                        : `${eventFilter} 행사가 없습니다.`}
+                    </p>
+                  )}
+                </HubCard>
+              )}
               <HubCard>
                 <details>
                   <summary className="font-bold cursor-pointer">
@@ -366,7 +477,18 @@ function EventHubContent({path,hub}:{path:string;hub:Hub}) {
               </HubButton>
               {s.privacyCase && (
                 <p role="status" className="text-sm mt-3">
-                  처리 상태: {({requested:"요청 접수",reviewing:"보관 기준 검토 중",approved:"처리 승인",completed:"처리 완료",rejected:"보관 사유 확인",restricted:"이용 제한"} as Record<string,string>)[s.privacyCase.status]??"운영자 확인 중"} ·{" "}
+                  처리 상태:{" "}
+                  {(
+                    {
+                      requested: "요청 접수",
+                      reviewing: "보관 기준 검토 중",
+                      approved: "처리 승인",
+                      completed: "처리 완료",
+                      rejected: "보관 사유 확인",
+                      restricted: "이용 제한",
+                    } as Record<string, string>
+                  )[s.privacyCase.status] ?? "운영자 확인 중"}{" "}
+                  ·{" "}
                   {s.privacyCase.publicMessage ||
                     "운영자가 본인 확인·보관 예외를 검토합니다. 삭제 완료 전 기록은 유지됩니다."}
                 </p>
@@ -455,7 +577,7 @@ export function BasicForm({
             revision: app?.revision,
             data: {
               eventId,
-              privacyPolicyFingerprint:hub.state?.privacyNotice?.fingerprint,
+              privacyPolicyFingerprint: hub.state?.privacyNotice?.fingerprint,
               edit: !!app,
               basic: {
                 ...v,
@@ -501,13 +623,46 @@ export function BasicForm({
         ))}
         <details className="text-sm">
           <summary>개인정보 수집 안내 · 보유기간</summary>
-          {hub.state?.privacyNotice?<div className="py-3 space-y-2"><p>{hub.state.privacyNotice.policyVersion} · {hub.state.privacyNotice.controllerName} · 문의 {hub.state.privacyNotice.contact}</p><p className="whitespace-pre-wrap">{hub.state.privacyNotice.notice}</p><ul>{hub.state.privacyNotice.periods.map(r=><li key={r.purpose}>{({application:"신청·행사",finance:"입금·분쟁",member:"회원 재사용",inquiry:"문의",audit:"운영 이력",recovery:"세션·복구",backup:"백업"} as Record<string,string>)[r.purpose]??r.purpose}: {r.days??"미확정"}일</li>)}</ul><p>보류·백업 예외는 확정 고지 원문에서 확인하세요.</p></div>:<p className="py-3">
-            행사 운영자가 신청 처리·입금 확인·연락을 위해
-            닉네임·출생연도·지역·연락처·입금자명을 수집합니다. 행사 운영기록은
-            기본 {hub.state?.retentionDays ?? 180}일의 보관 검토기간을 사용하며
-            법정 보관이 필요한 기록은 별도 정책을 따릅니다. 필수 수집을 거부하면
-            신청할 수 없습니다. 현장 공개 프로필은 입장 승인 후에만 생성합니다.
-          </p>}
+          {hub.state?.privacyNotice ? (
+            <div className="py-3 space-y-2">
+              <p>
+                {hub.state.privacyNotice.policyVersion} ·{" "}
+                {hub.state.privacyNotice.controllerName} · 문의{" "}
+                {hub.state.privacyNotice.contact}
+              </p>
+              <p className="whitespace-pre-wrap">
+                {hub.state.privacyNotice.notice}
+              </p>
+              <ul>
+                {hub.state.privacyNotice.periods.map((r) => (
+                  <li key={r.purpose}>
+                    {(
+                      {
+                        application: "신청·행사",
+                        finance: "입금·분쟁",
+                        member: "회원 재사용",
+                        inquiry: "문의",
+                        audit: "운영 이력",
+                        recovery: "세션·복구",
+                        backup: "백업",
+                      } as Record<string, string>
+                    )[r.purpose] ?? r.purpose}
+                    : {r.days ?? "미확정"}일
+                  </li>
+                ))}
+              </ul>
+              <p>보류·백업 예외는 확정 고지 원문에서 확인하세요.</p>
+            </div>
+          ) : (
+            <p className="py-3">
+              행사 운영자가 신청 처리·입금 확인·연락을 위해
+              닉네임·출생연도·지역·연락처·입금자명을 수집합니다. 행사 운영기록은
+              기본 {hub.state?.retentionDays ?? 180}일의 보관 검토기간을
+              사용하며 법정 보관이 필요한 기록은 별도 정책을 따릅니다. 필수
+              수집을 거부하면 신청할 수 없습니다. 현장 공개 프로필은 입장 승인
+              후에만 생성합니다.
+            </p>
+          )}
         </details>
         <HubCheck
           label="[필수] 위 개인정보 수집·이용 안내를 확인하고 동의합니다"
@@ -594,7 +749,7 @@ export function ApplicationSteps({
         {event.title} · {event.date} · {event.start}~{event.end}
       </p>
       <p>{event.area}</p>
-      <EventMedia links={event.media} materials={event.materials}/>
+      <EventMedia links={event.media} materials={event.materials} />
       <details open>
         <summary className="font-bold cursor-pointer">행사 필독 공지</summary>
         <p className="whitespace-pre-wrap text-sm leading-7 py-3">
@@ -795,6 +950,7 @@ export function WaitingRoom({
   };
   return (
     <>
+      <WaitingSummary app={app} event={event} />
       <HubCard>
         <h2 className="font-black text-lg">👤 내 프로필</h2>
         <p>
@@ -826,8 +982,8 @@ export function WaitingRoom({
         )}
       </HubCard>
       <HubCard>
-        {event.type==="tour"&&<GoraeThanks logo={app.venue?.thanksLogo}/>}
-        <ParticipantOperations app={app} event={event} hub={hub}/>
+        {event.type === "tour" && <GoraeThanks logo={app.venue?.thanksLogo} />}
+        <ParticipantOperations app={app} event={event} hub={hub} />
         {app.eligibility && <ScreeningPhoto app={app} hub={hub} />}
         <h2 className="font-black">{event.title}</h2>
         <p>
@@ -845,27 +1001,35 @@ export function WaitingRoom({
           {attendanceLabel[app.attendance]} · 현장 확인{" "}
           {app.checkin ? "완료" : "대기"}
         </p>
-        {!paymentSatisfied(app) && !app.waivedAt && app.lateArrival?.status!=="review" && app.lateArrival?.status!=="declined" && (
-          <p className="text-sm">
-            관리자가 업무 중이거나 취침 중이면 입금 승인이 늦어질 수 있습니다.
-            이미 송금했다면 다시 송금하지 마세요.
-          </p>
-        )}
-        {app.billing && (paymentSatisfied(app) || (app.lateArrival?.status!=="review"&&app.lateArrival?.status!=="declined")) && (
-          <details open={app.payment === "none"}>
-            <summary>내 회비·계좌 안내</summary>
-            <p>
-              {app.billing.quote.kind === "advance"
-                ? "선입금액 (최종 회비 아님)"
-                : "확정 금액"}{" "}
-              {app.billing.quote.fee.toLocaleString()}원 ·{" "}
-              {app.billing.quote.benefit}
+        {!paymentSatisfied(app) &&
+          !app.waivedAt &&
+          app.lateArrival?.status !== "review" &&
+          app.lateArrival?.status !== "declined" && (
+            <p className="text-sm">
+              관리자가 업무 중이거나 취침 중이면 입금 승인이 늦어질 수 있습니다.
+              이미 송금했다면 다시 송금하지 마세요.
             </p>
-            <p className="break-words">{app.billing.account}</p>
-            <p>기한 {app.billing.deadline}</p>
-          </details>
-        )}
-        {!app.waivedAt && app.lateArrival?.status!=="review" && app.lateArrival?.status!=="declined" &&
+          )}
+        {app.billing &&
+          (paymentSatisfied(app) ||
+            (app.lateArrival?.status !== "review" &&
+              app.lateArrival?.status !== "declined")) && (
+            <details open={app.payment === "none"}>
+              <summary>내 회비·계좌 안내</summary>
+              <p>
+                {app.billing.quote.kind === "advance"
+                  ? "선입금액 (최종 회비 아님)"
+                  : "확정 금액"}{" "}
+                {app.billing.quote.fee.toLocaleString()}원 ·{" "}
+                {app.billing.quote.benefit}
+              </p>
+              <p className="break-words">{app.billing.account}</p>
+              <p>기한 {app.billing.deadline}</p>
+            </details>
+          )}
+        {!app.waivedAt &&
+        app.lateArrival?.status !== "review" &&
+        app.lateArrival?.status !== "declined" &&
         app.quote?.fee !== 0 &&
         (app.payment === "none" ||
           app.payment === "held" ||
@@ -884,13 +1048,17 @@ export function WaitingRoom({
           </HubButton>
         ) : (
           <p className="text-sm">
-            {(app.lateArrival?.status==="review"||app.lateArrival?.status==="declined")&&!paymentSatisfied(app) ? "도착 예정시간을 관리자와 확인 중입니다. 먼저 송금하지 마세요." : app.waivedAt
-              ? "무료 참가 승인 기록이 보관되어 있습니다. 재입금하지 마세요."
-              : event.campaign && app.quote?.fee === 0
-                ? "무료 참가 관리자 승인을 기다려 주세요. 송금할 필요가 없습니다."
-                : app.payment === "reported"
-                  ? "입금 신고가 저장되었습니다. 승인 결과를 기다려 주세요."
-                  : "입금 확인 기록이 보관되어 있습니다."}
+            {(app.lateArrival?.status === "review" ||
+              app.lateArrival?.status === "declined") &&
+            !paymentSatisfied(app)
+              ? "도착 예정시간을 관리자와 확인 중입니다. 먼저 송금하지 마세요."
+              : app.waivedAt
+                ? "무료 참가 승인 기록이 보관되어 있습니다. 재입금하지 마세요."
+                : event.campaign && app.quote?.fee === 0
+                  ? "무료 참가 관리자 승인을 기다려 주세요. 송금할 필요가 없습니다."
+                  : app.payment === "reported"
+                    ? "입금 신고가 저장되었습니다. 승인 결과를 기다려 주세요."
+                    : "입금 확인 기록이 보관되어 있습니다."}
           </p>
         )}
         <p>
@@ -898,8 +1066,19 @@ export function WaitingRoom({
           {app.venue?.address ??
             `${event.area} · 상세 주소는 입금 승인 후 공개`}
         </p>
-        {app.venue?.logoId && <VenueLogo id={app.venue.logoId}/>}
-        {app.venue?.logo && <figure><img src={app.venue.logo.url} alt={app.venue.logo.label} width={app.venue.logo.width} height={app.venue.logo.height} className="h-36 max-w-full object-contain bg-white rounded-xl"/><figcaption>{app.venue.logo.label}</figcaption></figure>}
+        {app.venue?.logoId && <VenueLogo id={app.venue.logoId} />}
+        {app.venue?.logo && (
+          <figure>
+            <img
+              src={app.venue.logo.url}
+              alt={app.venue.logo.label}
+              width={app.venue.logo.width}
+              height={app.venue.logo.height}
+              className="h-36 max-w-full object-contain bg-white rounded-xl"
+            />
+            <figcaption>{app.venue.logo.label}</figcaption>
+          </figure>
+        )}
         {app.venue?.mapUrl && (
           <a
             className="underline text-teal-700"
@@ -930,7 +1109,7 @@ export function WaitingRoom({
             2차 오픈채팅 신청 (BINPC2 외부)
           </a>
         )}
-        <EventMedia links={event.media} materials={event.materials}/>
+        <EventMedia links={event.media} materials={event.materials} />
         <details>
           <summary>행사 공지</summary>
           <p className="whitespace-pre-wrap text-sm leading-7">

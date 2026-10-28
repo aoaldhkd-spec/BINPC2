@@ -9,16 +9,18 @@ const labels: Record<Purpose, string> = {
   poster: "사진·포스터",
   video: "영상",
 };
-function Preview({
+export function Preview({
   url,
   alt,
   video = false,
   secured = false,
+  interactive = true,
 }: {
   url: string;
   alt: string;
   video?: boolean;
   secured?: boolean;
+  interactive?: boolean;
 }) {
   const [src, setSrc] = useState(secured ? "" : url);
   const [failed, setFailed] = useState(false);
@@ -63,6 +65,13 @@ function Preview({
         preload="none"
         className="w-full max-h-56 rounded-xl"
       />
+    ) : !interactive ? (
+      <img
+        src={src}
+        alt={alt}
+        loading="lazy"
+        className="w-full object-contain"
+      />
     ) : (
       <a
         href={src}
@@ -77,6 +86,8 @@ function Preview({
         />
       </a>
     )
+  ) : failed && !interactive ? (
+    <span className="text-xs">사진을 불러오지 못했습니다</span>
   ) : failed ? (
     <div role="alert" className="space-y-2 text-sm">
       <p>미리보기를 불러오지 못했습니다. 저장한 원본은 그대로 있습니다.</p>

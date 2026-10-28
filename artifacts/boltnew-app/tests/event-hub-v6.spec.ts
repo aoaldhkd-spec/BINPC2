@@ -549,7 +549,7 @@ test("mobile/tablet/desktop layouts and administrator sandbox remain isolated", 
       );
       await page.reload();
       await expect(
-        page.getByRole("heading", { name: "술번개 신청 🍻" }),
+        page.getByRole("heading", { name: "술번개 신청", exact: true }),
       ).toBeVisible();
       expect(
         await page.evaluate(
@@ -1196,7 +1196,7 @@ test("latest campaign actual API: first-rank free approval stays separate from b
   const expected =
     [0, 12000, 14000, 16000, 16000, 18000, 18000, 18000, 18000, 18000][
       a.rank - 1
-    ] ?? 20000;
+    ] ?? (Date.parse(a.history.find((h: {action:string;at:string}) => h.action === "application.basic").at) < Date.parse("2026-10-30T21:00:00+09:00") ? 20000 : 23000);
   await expect(
     page.getByText(`최종 납부 금액 ${expected.toLocaleString()}원`, {
       exact: true,
@@ -1224,6 +1224,8 @@ test("latest campaign actual API: first-rank free approval stays separate from b
     await admin.getByRole("button", { name: "🎉 술번개", exact: true }).click();
     await admin.getByLabel("관리할 행사").selectOption(id);
     await admin.getByRole("button", { name: "신청·입금", exact: true }).click();
+    await admin.getByLabel("닉네임·신청번호로 찾기", { exact: true }).fill(appId);
+    await admin.locator(".hub-applicant-list > button").click();
     const card = admin
       .locator("section")
       .filter({ has: admin.getByText(`신청번호 ${appId}`, { exact: true }) });
@@ -1463,6 +1465,8 @@ test("private screening photo UI requires explicit consent, administrator review
     await admin.getByRole("button", { name: "🎉 술번개", exact: true }).click();
     await admin.getByLabel("관리할 행사").selectOption(id);
     await admin.getByRole("button", { name: "신청·입금", exact: true }).click();
+    await admin.getByLabel("닉네임·신청번호로 찾기", { exact: true }).fill(appId);
+    await admin.locator(".hub-applicant-list > button").click();
     const card = admin
       .locator("section")
       .filter({ has: admin.getByText(`신청번호 ${appId}`, { exact: true }) });
@@ -1632,7 +1636,7 @@ test("V3 actual app: phone-only reward record, late-arrival review and eight rec
   const response=await page.request.post("/api/event-hub/mutate",{data:{action,target,data,revision,requestId:randomUUID()}});
   expect(response.status()).toBe(200);return response.json();
  };
- const nickname="추가"+suffix.slice(-3);
+ const nickname="추"+randomBytes(3).toString("hex").slice(0,5);
  const {id}=await user("application.basic","",{eventId,basic:{nickname,birthYear:1995,location:"부산",phone:"01000000000",depositor:"합성",collection:true,version:"2026-10-27-event-v6"}});
  await user("application.consent",id,{consent:{collection:true,sharing:true,notice:true,version:"2026-10-27-event-v6"}},1);
  await user("application.confirm",id,{},2);

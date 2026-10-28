@@ -1,3 +1,8 @@
+import {
+  EventArtwork,
+  eventDateLabel,
+  applicationListStatus,
+} from "./EventPresentation";
 import { recruitmentIsOpen } from "../../../../lib/api-zod/src/event-hub";
 import { eventEndAt } from "../../../../lib/api-zod/src/event-hub-modules";
 import { MediaManager, NoticeEditor } from "./MediaManager";
@@ -67,7 +72,7 @@ const initialEvent = {
   notificationsEnabled: false,
   media: [] as string[],
 };
-export default function EventHubAdmin({active=true}:{active?:boolean}) {
+export default function EventHubAdmin({ active = true }: { active?: boolean }) {
   const hub = useEventHub(true);
   const [tab, changeTab] = useState("전체 운영"),
     [selected, changeSelected] = useState(""),
@@ -85,9 +90,16 @@ export default function EventHubAdmin({active=true}:{active?:boolean}) {
     changeSelected(value);
   };
   useLayoutEffect(() => {
-    if(active)window.scrollTo(0, scroll.current[tab + selected] ?? 0);
-  }, [tab, selected,active]);
-  useEffect(()=>{if(!active)return;const remember=()=>{scroll.current[tab+selected]=window.scrollY;};window.addEventListener('scroll',remember,{passive:true});return()=>window.removeEventListener('scroll',remember);},[tab,selected,active]);
+    if (active) window.scrollTo(0, scroll.current[tab + selected] ?? 0);
+  }, [tab, selected, active]);
+  useEffect(() => {
+    if (!active) return;
+    const remember = () => {
+      scroll.current[tab + selected] = window.scrollY;
+    };
+    window.addEventListener("scroll", remember, { passive: true });
+    return () => window.removeEventListener("scroll", remember);
+  }, [tab, selected, active]);
   const noticeDrafts = useRef<Record<string, Record<string, string>>>({});
   const s = hub.state;
   if (!s)
@@ -110,253 +122,292 @@ export default function EventHubAdmin({active=true}:{active?:boolean}) {
     "🧪 선착순 시험실",
   ];
   return (
-    <div className="p-3 sm:p-5 space-y-4 text-slate-900 pb-24">
-      <h2 className="text-xl font-black">🎉 술번개 운영</h2>
-      <p className="text-sm text-slate-600">
-        날짜를 고르고, 처리할 일을 바로 확인하세요.
-      </p>
-      <div className="flex flex-wrap gap-2" aria-label="행사 날짜 선택">
-        <button
-          className={`rounded-xl px-4 py-3 font-bold ${!selected ? "bg-teal-700 text-white" : "border bg-white"}`}
-          onClick={() => {
-            setSelected("");
-            setNewEvent(false);
-          }}
-        >
-          전체
-        </button>
-        {s.events
-          .filter((e) => e.campaign?.kind.startsWith("halloween"))
-          .sort((a, b) => a.date.localeCompare(b.date))
-          .map((e) => (
-            <button
-              key={e.id}
-              aria-pressed={selected === e.id}
-              className={`rounded-xl px-4 py-3 font-bold ${selected === e.id ? "bg-teal-700 text-white" : "border bg-white"}`}
-              onClick={() => {
-                setSelected(e.id);
-                setNewEvent(false);
-              }}
-            >
-              {e.date.slice(5).replace("-", "/")}{" "}
-              {new Date(e.date + "T12:00:00+09:00").getUTCDay() === 5
-                ? "금요일"
-                : "토요일"}
-            </button>
-          ))}
-      </div>
-      <nav className="flex flex-wrap gap-2" aria-label="술번개 운영 메뉴">
-        {tabs.slice(0, 5).map((t) => (
-          <button
-            key={t}
-            onClick={() => setTab(t)}
-            aria-pressed={tab === t}
-            className={`rounded-xl p-3 text-sm font-bold border ${tab === t ? "bg-slate-800 text-white" : "bg-white"}`}
-          >
-            {t}
-          </button>
-        ))}
-      </nav>
-      <details>
-        <summary className="cursor-pointer text-sm text-slate-600 py-2">
-          행사 설정·기록·관리 도구
-        </summary>
-        <div className="flex flex-wrap gap-2 py-2">
-          {["행사·자동방", ...tabs.slice(5)].map((t) => (
-            <button
-              key={t}
-              className="border rounded-xl p-3 text-sm"
-              onClick={() => setTab(t)}
-            >
-              {t}
-            </button>
-          ))}
-        </div>
-      </details>
-      <HubFeedback status={hub.status} error={hub.error} />
-      <HubField label="관리할 행사">
-        <select
-          className={inputClass}
-          value={selected}
-          onChange={(e) => {
-            setSelected(e.target.value);
-            setNewEvent(false);
-          }}
-        >
-          <option value="">전체 행사</option>
-          {s.events.map((e) => (
-            <option key={e.id} value={e.id}>
-              {e.date} · {e.title} · {eventStatus(e)}
-            </option>
-          ))}
-        </select>
-      </HubField>
-      {tab === "전체 운영" && (
-        <OperationsOverview
-          state={s}
-          selected={selected}
-          onOpen={(id, section) => {
-            setSelected(id);
-            setTab(section);
-          }}
-        />
-      )}
-      {tab === "공지·장소" && !event && (
-        <HubCard>
-          <p>사진과 장소를 수정할 날짜를 위에서 선택하세요.</p>
-          {s.events.map((e) => (
-            <button
-              key={e.id}
-              className="block border rounded-xl p-3 my-2"
-              onClick={() => setSelected(e.id)}
-            >
-              {e.date} · {e.title}
-            </button>
-          ))}
-        </HubCard>
-      )}
-      {tab === "행사·자동방" && (
-        <>
-          <CampaignSetup hub={hub} />
-          <HubButton
-            onClick={() => {
-              setNewEvent(true);
-              setSelected("");
-            }}
-          >
-            + 술번개 만들기
-          </HubButton>
-          {(newEvent || event) && (
-            <EventEditor
-              key={event?.id ?? "new"}
-              event={event}
-              hub={hub}
-              places={s.settings?.places ?? []}
-              onSaved={(id) => {
-                setSelected(id);
-                setNewEvent(false);
-              }}
-            />
-          )}
-          {event && (
-            <VenueLogoSettings
-              key={"logo:" + event.id}
-              event={event}
-              hub={hub}
-            />
-          )}
-          {event && (
-            <RecruitmentSchedule
-              key={event.id + ":" + event.revision}
-              event={event}
-              hub={hub}
-            />
-          )}
-          {s.settings && (
-            <AutoSettings
-              value={s.settings}
-              preview={s.nextSaturday ?? ""}
-              hub={hub}
-            />
-          )}
-        </>
-      )}
-      {event && (
-        <div hidden={tab !== "공지·장소"}>
-          <NoticeEditor
-            key={event.id}
-            event={event}
-            hub={hub}
-            drafts={noticeDrafts.current}
-          />
-        </div>
-      )}
-      {tab === "운영 점검" && (
-        <OperationalReadiness
-          hub={hub}
-          event={event}
-          onLaboratory={() => setTab("🧪 선착순 시험실")}
-        />
-      )}
-      {tab === "경품·상금·할인 결과" && <BenefitResults hub={hub} />}
-      {tab === "신청·입금" && (
-        <>
-          {event && <CampaignOperations event={event} hub={hub} />}
-          <p className="text-sm">
-            실제 은행 거래를 직접 대조한 뒤 승인하세요. ‘입금했어요’는 신고일
-            뿐입니다.
+    <div className="hub-admin-shell text-slate-900 pb-24">
+      <header className="hub-admin-header">
+        <div>
+          <span className="hub-eyebrow">BINPC2 · ADMIN</span>
+          <h2 className="text-xl font-black">술번개 운영</h2>
+          <p className="text-sm text-slate-600">
+            신청부터 입장까지, 여기서 한 번에 관리하세요.
           </p>
-          {s.applications
-            .filter((a) => !selected || a.eventId === selected)
-            .map((a) => (
-              <ApplicationAdmin key={a.id} app={a} hub={hub} />
+        </div>
+        <button
+          className="hub-admin-create"
+          onClick={() => {
+            setNewEvent(true);
+            setSelected("");
+            setTab("행사·자동방");
+          }}
+        >
+          + 새 술번개
+        </button>
+      </header>
+      <div className="hub-admin-layout">
+        <aside className="hub-admin-sidebar">
+          <p className="hub-sidebar-label">행사 관리</p>
+          <nav aria-label="술번개 운영 메뉴">
+            {tabs.slice(0, 5).map((t) => (
+              <button
+                key={t}
+                aria-pressed={tab === t}
+                onClick={() => setTab(t)}
+              >
+                {t}
+              </button>
             ))}
-        </>
-      )}
-      <div hidden={tab !== "관리자 문의"}>
-        <AdminThreads
-          hub={hub}
-          state={
-            selected
-              ? {
-                  ...s,
-                  applications: s.applications.filter(
-                    (a) => a.eventId === selected,
-                  ),
-                  threads: s.threads.filter((t) =>
-                    s.applications.some(
-                      (a) => a.eventId === selected && a.owner === t.id,
-                    ),
-                  ),
-                }
-              : s
-          }
-        />
-      </div>
-      {tab === "현장·상품" && (
-        <>
-          <PrizeOverview state={s} selected={selected} />
-          {event && !event.campaign && (
-            <details>
-              <summary>일반 행사 재고 추가·예산 검토</summary>
-              <StockForm eventId={event.id} hub={hub} />
-              <BudgetPreview hub={hub} />
-            </details>
-          )}
-          {s.applications
-            .filter((a) => !selected || a.eventId === selected)
-            .map((a) => (
-              <ApplicationAdmin key={a.id} app={a} hub={hub} onsite />
-            ))}
-        </>
-      )}
-      {tab === "이력·개인정보" && (
-        <>
-          <NotificationReadiness event={event} />
-          <PrivacyManagement hub={hub} />
-          <MemberManagement hub={hub} state={s} />
-          <HubCard>
-            <h3 className="font-black">현장·운영·재사용 기록 분리</h3>
-            <p className="text-sm">
-              현장 프로필·하트·채팅은 기존 17시 초기화 대상입니다.
-              신청·입금·문의·경품은 별도 원장으로 보존합니다. 재사용 비밀번호는
-              해시로만 보관하며 관리자에게 표시하지 않습니다. 개인정보 삭제·제한
-              정책의 운영 적용은 별도 검토가 필요합니다.
+          </nav>
+          <details>
+            <summary>행사 설정·기록·관리 도구</summary>
+            <nav>
+              {["행사·자동방", ...tabs.slice(5)].map((t) => (
+                <button
+                  key={t}
+                  aria-pressed={tab === t}
+                  onClick={() => setTab(t)}
+                >
+                  {t}
+                </button>
+              ))}
+            </nav>
+          </details>
+        </aside>
+        <div className="hub-admin-workspace space-y-4">
+          <div className="hub-admin-context">
+            <h3>{tab}</h3>
+            <p>
+              {event
+                ? `${eventDateLabel(event)} · ${event.title}`
+                : "모든 행사"}
             </p>
-          </HubCard>
-          {s.events.map((e) => (
-            <HubCard key={e.id}>
-              <h3>
-                {e.date} {e.title}
-              </h3>
-              <Audit rows={e.history} />
+          </div>
+          <div
+            className="hub-admin-date-tabs flex flex-wrap gap-2"
+            aria-label="행사 날짜 선택"
+          >
+            <button
+              className={`rounded-xl px-4 py-3 font-bold ${!selected ? "bg-teal-700 text-white" : "border bg-white"}`}
+              onClick={() => {
+                setSelected("");
+                setNewEvent(false);
+              }}
+            >
+              전체
+            </button>
+            {s.events
+              .filter((e) => e.campaign?.kind.startsWith("halloween"))
+              .sort(
+                (a, b) =>
+                  Number(!!b.campaign) - Number(!!a.campaign) ||
+                  a.date.localeCompare(b.date),
+              )
+              .map((e) => (
+                <button
+                  key={e.id}
+                  aria-pressed={selected === e.id}
+                  className={`rounded-xl px-4 py-3 font-bold ${selected === e.id ? "bg-teal-700 text-white" : "border bg-white"}`}
+                  onClick={() => {
+                    setSelected(e.id);
+                    setNewEvent(false);
+                  }}
+                >
+                  {e.date.slice(5).replace("-", "/")}{" "}
+                  {new Date(e.date + "T12:00:00+09:00").getUTCDay() === 5
+                    ? "금요일"
+                    : "토요일"}
+                </button>
+              ))}
+          </div>
+          <HubFeedback status={hub.status} error={hub.error} />
+          <HubField label="관리할 행사">
+            <select
+              className={inputClass}
+              value={selected}
+              onChange={(e) => {
+                setSelected(e.target.value);
+                setNewEvent(false);
+              }}
+            >
+              <option value="">전체 행사</option>
+              {s.events.map((e) => (
+                <option key={e.id} value={e.id}>
+                  {e.date} · {e.title} · {eventStatus(e)}
+                </option>
+              ))}
+            </select>
+          </HubField>
+          {tab === "전체 운영" && (
+            <OperationsOverview
+              state={s}
+              selected={selected}
+              onOpen={(id, section) => {
+                setSelected(id);
+                setTab(section);
+              }}
+            />
+          )}
+          {tab === "공지·장소" && !event && (
+            <HubCard>
+              <p>사진과 장소를 수정할 날짜를 위에서 선택하세요.</p>
+              {s.events.map((e) => (
+                <button
+                  key={e.id}
+                  className="block border rounded-xl p-3 my-2"
+                  onClick={() => setSelected(e.id)}
+                >
+                  {e.date} · {e.title}
+                </button>
+              ))}
             </HubCard>
-          ))}
-        </>
-      )}
-      {tab === "🧪 선착순 시험실" && (
-        <EventLaboratory key={event?.id ?? "default"} event={event} />
-      )}
+          )}
+          {tab === "행사·자동방" && (
+            <>
+              <CampaignSetup hub={hub} />
+              <HubButton
+                onClick={() => {
+                  setNewEvent(true);
+                  setSelected("");
+                }}
+              >
+                + 술번개 만들기
+              </HubButton>
+              {(newEvent || event) && (
+                <EventEditor
+                  key={event?.id ?? "new"}
+                  event={event}
+                  hub={hub}
+                  places={s.settings?.places ?? []}
+                  onSaved={(id) => {
+                    setSelected(id);
+                    setNewEvent(false);
+                  }}
+                />
+              )}
+              {event && (
+                <VenueLogoSettings
+                  key={"logo:" + event.id}
+                  event={event}
+                  hub={hub}
+                />
+              )}
+              {event && (
+                <RecruitmentSchedule
+                  key={event.id + ":" + event.revision}
+                  event={event}
+                  hub={hub}
+                />
+              )}
+              {s.settings && (
+                <AutoSettings
+                  value={s.settings}
+                  preview={s.nextSaturday ?? ""}
+                  hub={hub}
+                />
+              )}
+            </>
+          )}
+          {event && (
+            <div hidden={tab !== "공지·장소"}>
+              <NoticeEditor
+                key={event.id}
+                event={event}
+                hub={hub}
+                drafts={noticeDrafts.current}
+              />
+            </div>
+          )}
+          {tab === "운영 점검" && (
+            <OperationalReadiness
+              hub={hub}
+              event={event}
+              onLaboratory={() => setTab("🧪 선착순 시험실")}
+            />
+          )}
+          {tab === "경품·상금·할인 결과" && <BenefitResults hub={hub} />}
+          {tab === "신청·입금" && (
+            <>
+              {event && <CampaignOperations event={event} hub={hub} />}
+              <p className="text-sm">
+                실제 은행 거래를 직접 대조한 뒤 승인하세요. ‘입금했어요’는
+                신고일 뿐입니다.
+              </p>
+              <ApplicationRoster
+                key={selected + ":payments"}
+                applications={s.applications.filter(
+                  (a) => !selected || a.eventId === selected,
+                )}
+                hub={hub}
+              />
+            </>
+          )}
+          <div hidden={tab !== "관리자 문의"}>
+            <AdminThreads
+              hub={hub}
+              state={
+                selected
+                  ? {
+                      ...s,
+                      applications: s.applications.filter(
+                        (a) => a.eventId === selected,
+                      ),
+                      threads: s.threads.filter((t) =>
+                        s.applications.some(
+                          (a) => a.eventId === selected && a.owner === t.id,
+                        ),
+                      ),
+                    }
+                  : s
+              }
+            />
+          </div>
+          {tab === "현장·상품" && (
+            <>
+              <PrizeOverview state={s} selected={selected} />
+              {event && !event.campaign && (
+                <details>
+                  <summary>일반 행사 재고 추가·예산 검토</summary>
+                  <StockForm eventId={event.id} hub={hub} />
+                  <BudgetPreview hub={hub} />
+                </details>
+              )}
+              <ApplicationRoster
+                key={selected + ":onsite"}
+                applications={s.applications.filter(
+                  (a) => !selected || a.eventId === selected,
+                )}
+                hub={hub}
+                onsite
+              />
+            </>
+          )}
+          {tab === "이력·개인정보" && (
+            <>
+              <NotificationReadiness event={event} />
+              <PrivacyManagement hub={hub} />
+              <MemberManagement hub={hub} state={s} />
+              <HubCard>
+                <h3 className="font-black">현장·운영·재사용 기록 분리</h3>
+                <p className="text-sm">
+                  현장 프로필·하트·채팅은 기존 17시 초기화 대상입니다.
+                  신청·입금·문의·경품은 별도 원장으로 보존합니다. 재사용
+                  비밀번호는 해시로만 보관하며 관리자에게 표시하지 않습니다.
+                  개인정보 삭제·제한 정책의 운영 적용은 별도 검토가 필요합니다.
+                </p>
+              </HubCard>
+              {s.events.map((e) => (
+                <HubCard key={e.id}>
+                  <h3>
+                    {e.date} {e.title}
+                  </h3>
+                  <Audit rows={e.history} />
+                </HubCard>
+              ))}
+            </>
+          )}
+          {tab === "🧪 선착순 시험실" && (
+            <EventLaboratory key={event?.id ?? "default"} event={event} />
+          )}
+        </div>
+      </div>
     </div>
   );
 }
@@ -382,11 +433,18 @@ function OperationsOverview({
   selected: string;
   onOpen: (id: string, section: string) => void;
 }) {
+  const [visible, setVisible] = useState(6);
+  useEffect(() => setVisible(6), [selected]);
   return (
-    <div className="grid lg:grid-cols-2 gap-4">
+    <div className="hub-operations-list">
       {state.events
         .filter((e) => !selected || e.id === selected)
-        .sort((a, b) => a.date.localeCompare(b.date))
+        .sort(
+          (a, b) =>
+            Number(!!b.campaign) - Number(!!a.campaign) ||
+            a.date.localeCompare(b.date),
+        )
+        .slice(0, visible)
         .map((e) => {
           const apps = state.applications.filter((a) => a.eventId === e.id),
             owners = new Set(apps.map((a) => a.owner));
@@ -398,74 +456,84 @@ function OperationsOverview({
               ),
           ).length;
           return (
-            <HubCard key={e.id}>
-              <div className="flex flex-wrap justify-between gap-2">
-                <h3 className="font-black text-lg">
-                  {e.date} · {e.title}
-                </h3>
-                <span className="text-sm text-teal-700">{eventStatus(e)}</span>
+            <div className="hub-operation-row" key={e.id}>
+              <EventArtwork event={e} admin />
+              <div className="hub-operation-content">
+                <div className="flex flex-wrap justify-between gap-2">
+                  <h3 className="font-black text-lg">{e.title}</h3>
+                  <span className="text-sm text-teal-700">
+                    {eventStatus(e)}
+                  </span>
+                </div>
+                <p className="text-sm">
+                  {eventDateLabel(e)} · {e.start}~
+                  {e.end <= e.start ? "익일 " : ""}
+                  {e.end} · {e.area || "지역 확인 필요"}
+                </p>
+                <div className="hub-operation-metrics">
+                  {[
+                    [
+                      "입금 확인 대기",
+                      apps.filter(
+                        (a) => a.payment === "reported" || a.payment === "held",
+                      ).length,
+                      "신청·입금",
+                    ],
+                    ["안 읽은 문의", unread, "관리자 문의"],
+                    [
+                      "늦참 확인",
+                      apps.filter(
+                        (a) =>
+                          a.lateArrival &&
+                          ["noted", "review"].includes(a.lateArrival.status),
+                      ).length,
+                      "신청·입금",
+                    ],
+                    [
+                      "미지급 상품",
+                      apps.flatMap((a) =>
+                        a.cards.filter(
+                          (c) =>
+                            state.stocks.some((s) => s.id === c.prize) &&
+                            !a.prizesGiven.includes(c.id),
+                        ),
+                      ).length,
+                      "현장·상품",
+                    ],
+                  ].map(([label, n, section]) => (
+                    <button
+                      key={label}
+                      className="border rounded-xl p-3 text-left hover:bg-teal-50"
+                      onClick={() => onOpen(e.id, String(section))}
+                    >
+                      <span className="block text-xs text-slate-600">
+                        {label}
+                      </span>
+                      <strong className="text-sm">{n}건</strong>
+                    </button>
+                  ))}
+                </div>
+                <div className="flex gap-2 flex-wrap">
+                  {["신청·입금", "공지·장소", "현장·상품"].map((t) => (
+                    <button
+                      key={t}
+                      aria-label={`${e.date} ${t} 열기`}
+                      className="rounded-xl bg-slate-100 px-3 py-2 text-sm font-bold"
+                      onClick={() => onOpen(e.id, t)}
+                    >
+                      {t}
+                    </button>
+                  ))}
+                </div>
               </div>
-              <p className="text-sm">
-                {e.start} 시작 · {e.end} 종료 · {e.area || "지역 확인 필요"}
-              </p>
-              <div className="grid grid-cols-2 gap-2">
-                {[
-                  [
-                    "입금 확인 대기",
-                    apps.filter(
-                      (a) => a.payment === "reported" || a.payment === "held",
-                    ).length,
-                    "신청·입금",
-                  ],
-                  ["안 읽은 문의", unread, "관리자 문의"],
-                  [
-                    "늦참 확인",
-                    apps.filter(
-                      (a) =>
-                        a.lateArrival &&
-                        ["noted", "review"].includes(a.lateArrival.status),
-                    ).length,
-                    "신청·입금",
-                  ],
-                  [
-                    "미지급 상품",
-                    apps.flatMap((a) =>
-                      a.cards.filter(
-                        (c) =>
-                          state.stocks.some((s) => s.id === c.prize) &&
-                          !a.prizesGiven.includes(c.id),
-                      ),
-                    ).length,
-                    "현장·상품",
-                  ],
-                ].map(([label, n, section]) => (
-                  <button
-                    key={label}
-                    className="border rounded-xl p-3 text-left hover:bg-teal-50"
-                    onClick={() => onOpen(e.id, String(section))}
-                  >
-                    <span className="block text-xs text-slate-600">
-                      {label}
-                    </span>
-                    <strong className="text-xl">{n}건</strong>
-                  </button>
-                ))}
-              </div>
-              <div className="flex gap-2 flex-wrap">
-                {["신청·입금", "공지·장소", "현장·상품"].map((t) => (
-                  <button
-                    key={t}
-                    aria-label={`${e.date} ${t} 열기`}
-                    className="rounded-xl bg-slate-100 px-3 py-2 text-sm font-bold"
-                    onClick={() => onOpen(e.id, t)}
-                  >
-                    {t}
-                  </button>
-                ))}
-              </div>
-            </HubCard>
+            </div>
           );
         })}
+      {!selected && state.events.length > visible && (
+        <button className="hub-more" onClick={() => setVisible((n) => n + 6)}>
+          행사 더 보기 ({state.events.length - visible}개 남음)
+        </button>
+      )}
       {!state.events.length && (
         <HubCard>등록된 행사가 없습니다. 행사 설정에서 준비해 주세요.</HubCard>
       )}
@@ -479,16 +547,34 @@ function PrizeOverview({
   state: HubState;
   selected: string;
 }) {
+  const [showEmpty, setShowEmpty] = useState(false);
   return (
     <>
       <p className="text-sm text-slate-600">
         날짜를 바꿔도 재고와 당첨·지급 기록은 그대로 유지됩니다. 아래 수량은
         저장된 실제 기록입니다.
       </p>
+      {!selected && (
+        <HubCheck
+          label="상품이 없는 행사도 보기"
+          checked={showEmpty}
+          onChange={setShowEmpty}
+        />
+      )}
       <div className="grid lg:grid-cols-2 gap-4">
         {state.events
-          .filter((e) => !selected || e.id === selected)
-          .sort((a, b) => a.date.localeCompare(b.date))
+          .filter((e) =>
+            selected
+              ? e.id === selected
+              : showEmpty ||
+                state.stocks.some((s) => s.eventId === e.id) ||
+                e.campaign?.kind.startsWith("halloween"),
+          )
+          .sort(
+            (a, b) =>
+              Number(!!b.campaign) - Number(!!a.campaign) ||
+              a.date.localeCompare(b.date),
+          )
           .map((e) => {
             const stocks = state.stocks.filter((s) => s.eventId === e.id),
               apps = state.applications.filter((a) => a.eventId === e.id);
@@ -1246,6 +1332,94 @@ function AutoSettings({
         자동방 설정 저장
       </HubButton>
     </HubCard>
+  );
+}
+function ApplicationRoster({
+  applications,
+  hub,
+  onsite = false,
+}: {
+  applications: PrivateApplication[];
+  hub: Hub;
+  onsite?: boolean;
+}) {
+  const [query, setQuery] = useState("");
+  const [selectedId, setSelectedId] = useState("");
+  const [visible, setVisible] = useState(10);
+  const matched = applications.filter((a) =>
+    `${a.basic.nickname} ${a.id} ${a.rank}`
+      .toLowerCase()
+      .includes(query.toLowerCase().trim()),
+  );
+  const current = applications.find(
+    (a) =>
+      a.id ===
+      (selectedId || (applications.length === 1 ? applications[0].id : "")),
+  );
+  return (
+    <div className="space-y-3">
+      <HubCard>
+        <h3 className="font-black">
+          {onsite ? "참가자별 당첨·지급 처리" : "신청자 목록"}{" "}
+          <span className="text-sm text-slate-500">
+            {applications.length}명
+          </span>
+        </h3>
+        <HubField label="닉네임·신청번호로 찾기">
+          <input
+            className={inputClass}
+            placeholder="확인할 참가자를 검색하세요"
+            value={query}
+            onChange={(e) => {
+              setQuery(e.target.value);
+              setVisible(10);
+            }}
+          />
+        </HubField>
+        <div className="hub-applicant-list">
+          {matched.slice(0, visible).map((a) => (
+            <button
+              key={a.id}
+              type="button"
+              aria-pressed={current?.id === a.id}
+              onClick={() => setSelectedId(a.id)}
+            >
+              <span>
+                <strong>{a.basic.nickname}</strong>
+                <small>접수 {a.rank}번</small>
+              </span>
+              <span>
+                {applicationListStatus(a)} <span aria-hidden="true">›</span>
+              </span>
+            </button>
+          ))}
+        </div>
+        {!matched.length && (
+          <p className="text-sm text-slate-500">해당하는 신청자가 없습니다.</p>
+        )}
+        {matched.length > visible && (
+          <button
+            className="hub-more"
+            onClick={() => setVisible((n) => n + 10)}
+          >
+            신청자 더 보기 ({matched.length - visible}명)
+          </button>
+        )}
+        {!current && !!applications.length && (
+          <p className="text-xs text-slate-500">
+            참가자를 선택하면 승인·문의·지급 처리 내용을 볼 수 있습니다.
+          </p>
+        )}
+      </HubCard>
+      {current && (
+        <ApplicationAdmin
+          key={current.id}
+          app={current}
+          hub={hub}
+          onsite={onsite}
+        />
+      )}
+    </div>
   );
 }
 export function ApplicationAdmin({
