@@ -31,7 +31,9 @@ import {
 import { PrivacyManagement, OwnerRecoveryControls } from "./PrivacyManagement";
 import { NoticeHistory } from "./NoticeHistory";
 import { NotificationReadiness } from "./NotificationReadiness";
-import { EventLaboratory } from "./EventLaboratory";
+import { ManagedEventLaboratory } from "./ManagedEventLaboratory";
+import { TestModePanel } from "./TestModePanel";
+import { useTestMode } from "./test-mode-client";
 import {
   formatHubTime,
   HubLoading,
@@ -75,6 +77,7 @@ const initialEvent = {
 };
 export default function EventHubAdmin({ active = true }: { active?: boolean }) {
   const hub = useEventHub(true);
+  const testMode = useTestMode();
   const [tab, changeTab] = useState("전체 운영"),
     [selected, changeSelected] = useState(""),
     [newEvent, setNewEvent] = useState(false);
@@ -173,6 +176,7 @@ export default function EventHubAdmin({ active = true }: { active?: boolean }) {
           </details>
         </aside>
         <div className="hub-admin-workspace space-y-4">
+          <TestModePanel controller={testMode} />
           <div className="hub-admin-context">
             <h3>{tab}</h3>
             <p>
@@ -405,7 +409,7 @@ export default function EventHubAdmin({ active = true }: { active?: boolean }) {
             </>
           )}
           {tab === "🧪 선착순 시험실" && (
-            <EventLaboratory key={event?.id ?? "default"} event={event} />
+            <ManagedEventLaboratory key={event?.id ?? "default"} event={event} controller={testMode} />
           )}
         </div>
       </div>

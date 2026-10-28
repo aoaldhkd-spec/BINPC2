@@ -8,6 +8,7 @@ import { HubStore, HubError } from "../lib/event-hub-store.js";
 import { verifyAdminToken, eventHubProfileCommitted, eventHubChanged } from "./db.js";
 import { issueSessionToken } from "../lib/db-session-tokens.js";
 import { logger } from "../lib/logger.js";
+import { EventTestModeService } from "../lib/event-test-mode.js";
 
 declare module "express-session" {
   interface SessionData {
@@ -20,6 +21,7 @@ export const eventHubService = new EventHubService(
   process.env.SESSION_SECRET!,
 );
 const admin = (req: Request) => verifyAdminToken(req.get("x-admin-token"));
+const eventTestModeService = new EventTestModeService(eventHubService.store);
 // Same-origin JSON mutations + SameSite cookies; no identifiers or recovery codes in URLs.
 router.use((req, res, next) => {
   res.setHeader("Cache-Control", "no-store");
@@ -33,6 +35,18 @@ router.use((req, res, next) => {
   return next();
 });
 router.get("/verification",async(req,res,next)=>{try{if(!admin(req))throw new HubError(403,"ADMIN","관리자 인증이 필요합니다.");res.json(await readVerificationEvidence());}catch(e){next(e);}});
+router.get("/test-mode", async (_req, res, next) => {
+  try { res.json(await eventTestModeService.publicState()); } catch (e) { next(e); }
+});
+router.get("/laboratory", async (req, res, next) => {
+  try { res.json(await eventTestModeService.state(admin(req))); } catch (e) { next(e); }
+});
+router.post("/laboratory", async (req, res, next) => {
+  try {
+    res.json(await eventTestModeService.mutate(admin(req), req.body));
+    eventHubChanged();
+  } catch (e) { next(e); }
+});
 router.get("/state", async (req, res, next) => {
   try {
     res.json({

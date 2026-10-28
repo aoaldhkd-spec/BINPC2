@@ -1,3 +1,4 @@
+import { PublicTestModeBanner } from './PublicTestModeBanner';
 import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import {
   ArrowLeft, Send, MessageCircle, Smile, ImageIcon, Phone,
@@ -896,6 +897,7 @@ function ChatScreen({ chatId, messages, currentUserId, otherProfile, onSend, onS
       )}
 
       <header className="bg-white shadow-sm shrink-0 z-10">
+        <PublicTestModeBanner />
         {/* 행 1: 뒤로가기 + 아바타 + 닉네임 */}
         <div className="max-w-3xl mx-auto px-3 pt-2.5 pb-1 flex items-center gap-2">
           <button onClick={onBack} className="touch-target hover:bg-gray-100 rounded-full transition-colors flex-shrink-0 flex items-center justify-center">

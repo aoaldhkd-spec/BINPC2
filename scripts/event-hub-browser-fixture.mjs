@@ -5,6 +5,7 @@ import { randomBytes } from "node:crypto";
 import { spawn } from "node:child_process";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import { prepareLegacyEventHubFixture } from "./lib/event-hub-legacy-fixture.mjs";
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), ".."),
   require = createRequire(root + "/artifacts/api-server/package.json"),
   { Pool } = require("pg"),
@@ -168,6 +169,11 @@ async function rpc(name, data) {
 const token = await rpc("admin_create_session", {
   p_phone: "01000000000",
   p_admin_password: cfg.BOOTSTRAP_ADMIN_PASSWORD,
+});
+await prepareLegacyEventHubFixture({
+  databaseUrl: cfg.DATABASE_URL,
+  baseUrl: `http://127.0.0.1:${webPort}`,
+  adminToken: token,
 });
 await rpc("admin_update_settings", {
   p_payload: { module_flags: { event_hub: true } },

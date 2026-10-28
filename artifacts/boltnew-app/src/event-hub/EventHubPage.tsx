@@ -8,7 +8,7 @@ import {
 import { AdminInquiry } from "./AdminInquiry";
 import { VenueLogo, GoraeThanks } from "./VenueLogos";
 import { ParticipantOperations, ScheduledOpening } from "./EventOperations";
-import { eventEnded } from "../../../../lib/api-zod/src/event-hub-modules";
+import { eventExpired } from "../../../../lib/api-zod/src/event-hub-modules";
 import { ApplicationGuide, ScreeningPhoto } from "./CampaignParticipant";
 import { HalloweenRecognitionNotice } from "./HalloweenRecognition";
 import {
@@ -22,6 +22,7 @@ import {
 } from "../lib/event-hub-browser-storage";
 import "./event-hub.css";
 import { NoticeHistory } from "./NoticeHistory";
+import { TEST_MODE_BANNER, testModeBlocksParticipation } from "../lib/public-test-mode";
 import { EventMedia } from "./EventMedia";
 import { useEffect, useState } from "react";
 import {
@@ -126,7 +127,8 @@ function EventHubContent({ path, hub }: { path: string; hub: Hub }) {
         <HubFeedback status={hub.status} error={hub.error} />
       </main>
     );
-  if (editing && app) {
+  const testMode = testModeBlocksParticipation(s);
+  if (editing && app && !testMode) {
     return (
       <EventProfileEditor
         app={app}
@@ -162,11 +164,12 @@ function EventHubContent({ path, hub }: { path: string; hub: Hub }) {
         </header>
         <div className="max-w-2xl mx-auto p-4 space-y-4">
           <HubFeedback status={hub.status} error={hub.error} />
+          {testMode && <HubCard><p role="status" className="font-bold text-amber-800">{TEST_MODE_BANNER}</p></HubCard>}
           {(event || path === "/events") && (
             <ApplicationGuide
               key={event?.id ?? "events"}
               event={event}
-              webOpen={s.enabled && !s.publicationBlocked && (event
+              webOpen={!testMode && s.enabled && !s.publicationBlocked && (event
                 ? event.recruitment
                 : s.events.some((e) => e.recruitment))}
             />
@@ -217,7 +220,7 @@ function EventHubContent({ path, hub }: { path: string; hub: Hub }) {
               {path === "/events/waiting" && s.applications.length === 0 && (
                 <HubCard>
                   <h2 className="font-bold">아직 신청한 술번개가 없습니다</h2>
-                  <HubButton onClick={() => hubNavigate("/events")}>
+                  <HubButton disabled={testMode} onClick={() => hubNavigate("/events")}>
                     술번개 신청
                   </HubButton>
                 </HubCard>
@@ -554,6 +557,8 @@ export function BasicForm({
   const [collection, setCollection] = useState(app?.basic.collection ?? false),
     [returning, setReturning] = useState(!!member),
     [keep, setKeep] = useState(true);
+  if (testModeBlocksParticipation(hub.state))
+    return <HubCard><HubButton disabled>술번개 신청</HubButton><p className="text-sm">행사 공지와 관리자 문의는 계속 확인할 수 있습니다.</p></HubCard>;
   return (
     <HubCard>
       <h2 className="font-black text-lg">기본정보</h2>
@@ -697,6 +702,7 @@ export function ApplicationSteps({
   event: HubState["events"][number];
   hub: Hub;
 }) {
+  const blocked = testModeBlocksParticipation(hub.state);
   const [panelStage, setPanelStage] = useState(app.stage);
   const [c, setC] = useState({
     collection: app.consent?.collection ?? false,
@@ -710,6 +716,7 @@ export function ApplicationSteps({
   const [password, setPassword] = useState(""),
     [confirm, setConfirm] = useState("");
   const submit = async () => {
+    if (blocked) return;
     if (c.reuse && password !== confirm) {
       hub.setError("비밀번호 확인이 일치하지 않습니다.");
       return;
@@ -849,6 +856,7 @@ export function ApplicationSteps({
           </fieldset>
           <HubButton
             disabled={
+              blocked ||
               !c.collection ||
               !c.sharing ||
               !c.notice ||
@@ -889,7 +897,7 @@ export function ApplicationSteps({
             이루어지지 않습니다.
           </p>
           <HubButton
-            disabled={hub.status === "saving"}
+            disabled={testModeBlocksParticipation(hub.state) || hub.status === "saving"}
             onClick={() =>
               hub.mutate({
                 action: "application.confirm",
@@ -919,8 +927,10 @@ export function WaitingRoom({
   onEnter?: (result: Record<string, unknown>) => void;
 }) {
   const currentTheme = useEventTheme(event);
+  const blocked = testModeBlocksParticipation(hub.state);
   const missing = profileMissing(app.profile);
   const enter = async () => {
+    if (blocked) return;
     if (!onEnter && !canStoreHubOnsiteIdentity()) {
       hub.setError(
         "이 브라우저가 입장에 필요한 기기 저장소를 차단했습니다. 신청·입금 기록은 보존됩니다. 저장소를 허용한 브라우저에서 신청을 복구한 뒤 입장해 주세요.",
@@ -978,7 +988,7 @@ export function WaitingRoom({
           </p>
           <p>필수 동의: {app.profile.privacyConsent ? "완료" : "미완료"}</p>
         </div>
-        <HubButton onClick={edit}>
+        <HubButton disabled={blocked} onClick={edit}>
           {!missing.length
             ? "프로필 수정하기"
             : app.profile.lastStep > 1
@@ -993,9 +1003,9 @@ export function WaitingRoom({
       </HubCard>
       <HubCard>
         {event.type === "tour" && <GoraeThanks logo={app.venue?.thanksLogo} />}
-        <ParticipantOperations app={app} event={event} hub={hub} />
+        <fieldset disabled={blocked}><ParticipantOperations app={app} event={event} hub={hub} /></fieldset>
         <HalloweenRecognitionNotice app={app} />
-        {app.eligibility && <ScreeningPhoto app={app} hub={hub} />}
+        {app.eligibility && <fieldset disabled={blocked}><ScreeningPhoto app={app} hub={hub} /></fieldset>}
         <h2 className="font-black">{event.title}</h2>
         <p>
           {event.date} {event.start}~{event.end}
@@ -1046,7 +1056,7 @@ export function WaitingRoom({
           app.payment === "held" ||
           app.payment === "mismatch") ? (
           <HubButton
-            disabled={hub.status === "saving"}
+            disabled={testModeBlocksParticipation(hub.state) || hub.status === "saving"}
             onClick={() =>
               hub.mutate({
                 action: "application.report",
@@ -1129,7 +1139,7 @@ export function WaitingRoom({
         </details>
         <NoticeHistory history={event.noticeHistory} />
         {app.consent?.noticeVersion !== event.noticeVersion && (
-          <HubButton
+          <HubButton disabled={blocked}
             onClick={() =>
               hub.mutate({
                 action: "application.notice",
@@ -1142,7 +1152,7 @@ export function WaitingRoom({
           </HubButton>
         )}
         <HubButton
-          disabled={hub.status === "saving"}
+          disabled={testModeBlocksParticipation(hub.state) || hub.status === "saving"}
           onClick={missing.length ? edit : enter}
         >
           {missing.length ? "남은 프로필 설정 완료하기" : "술번개 입장하기"}
@@ -1185,9 +1195,10 @@ export function WaitingRoom({
           </div>
           <HubButton
             disabled={
+              blocked ||
               !app.profileId ||
               !event.cardsEnabled ||
-              eventEnded(event, new Date()) ||
+              eventExpired(event, new Date(hub.state?.serverNow ?? Date.now())) ||
               app.cards.length >= campaignCardLimit(event) ||
               hub.status === "saving"
             }
@@ -1228,6 +1239,8 @@ export function EventProfileEditor({
   hub: Hub;
   onClose: () => void;
 }) {
+  if (testModeBlocksParticipation(hub.state))
+    return <HubCard><p role="status">{TEST_MODE_BANNER}</p><HubButton onClick={onClose}>신청 기록으로 돌아가기</HubButton></HubCard>;
   const remaining = profileMissing(app.profile);
   const resumeStep = remaining.includes("MBTI")
     ? 1

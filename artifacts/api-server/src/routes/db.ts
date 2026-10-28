@@ -6,6 +6,8 @@ import { persistNpcHeartAtomically } from '../lib/db-npc-heart-atomic.js';
 import { eventCycleUnlocked, eventCycleCanOpenAdmission } from '../lib/db-event-cycle-heart.js';
 import { newParticipantAdmissionReject } from '../lib/db-event-admission.js';
 import { EventAdmissionClosedDuringWrite, persistNewParticipantForCycle } from '../lib/db-event-profile-write.js';
+import { HubError, HubStore } from '../lib/event-hub-store.js';
+import { assertTestModeAllowsPublicMutation } from '../lib/event-test-mode.js';
 import { Router, type Request, type Response } from 'express';
 import pg from 'pg';
 import { VAPID_PUBLIC_KEY, vapidConfigured, sendPush, type PushPayload } from '../lib/push';
@@ -1052,6 +1054,17 @@ const sseAdminClients = new Set<Response>();
 
 // ─── PostgreSQL connection pool ────────────────────────────────────────────────
 import { pgPool as pool } from '../lib/pg-pool.js';
+const registrationModeStore = new HubStore(pool);
+
+async function assertLegacyTesterWriteAllowed() {
+  // The old tester edits operational tables. Its production write controls
+  // are retired; administrator support actions keep their existing routes.
+  if (process.env.NODE_ENV !== 'test') {
+    throw new HubError(423, 'LEGACY_TEST_WRITE_DISABLED',
+      '실제 운영 기록을 변경하는 이전 테스트 기능은 사용할 수 없습니다. 관리자 테스트 실험실에서 가상 체험을 진행해 주세요.');
+  }
+  await registrationModeStore.transaction(assertTestModeAllowsPublicMutation);
+}
 
 // 인스턴스마다 고유 ID — 자신이 보낸 NOTIFY를 수신해도 중복 처리 방지
 const INSTANCE_ID = crypto.randomUUID();
@@ -3059,6 +3072,17 @@ router.post('/op', async (req: Request, res: Response) => {
   let tableData = store[table];
 
   try {
+    if (isTestSession && !isAdmin && op !== 'select') {
+      await assertLegacyTesterWriteAllowed();
+    }
+    if (!isAdmin && table === 'profiles' && (op === 'insert' || op === 'upsert')) {
+      const inputs = Array.isArray(payload) ? payload : [payload];
+      const createsProfile = op === 'insert' || inputs.some((row: Record<string, unknown> | null) =>
+        row != null && !tableData.some(existing => safeConflictCols.length
+          ? safeConflictCols.every(col => String(existing[col]) === String(row[col]) || existing[col] === row[col])
+          : row.id != null && existing.id === row.id));
+      if (createsProfile) await registrationModeStore.transaction(assertTestModeAllowsPublicMutation);
+    }
     // Event applicants may only create a public profile through atomic admission.
     if (!isAdmin && moduleEnabled(getTable('app_settings')[0]?.module_flags, 'event_hub')
       && table === 'profiles' && (op === 'insert' || op === 'upsert')) {
@@ -3855,6 +3879,9 @@ router.post('/op', async (req: Request, res: Response) => {
             if (idx >= 0) tableData.splice(idx, 1);
             const iidx = inserted.findIndex(r => r.id === newRow.id);
             if (iidx >= 0) inserted.splice(iidx, 1);
+            if (e instanceof HubError) {
+              return res.status(e.status).json({ data: null, error: { message: e.message, code: e.code } });
+            }
             if (e instanceof EventAdmissionClosedDuringWrite) {
               return res.status(403).json({ data: null, error: {
                 message: '신규 입장이 마감되어 등록하지 못했습니다. 기존 계정은 고유번호로 복구할 수 있습니다.',
@@ -4184,6 +4211,9 @@ router.post('/op', async (req: Request, res: Response) => {
               const bi = tableData.findIndex(r => r.id === base.id);
               if (bi >= 0) tableData.splice(bi, 1);
               upserted.pop();
+              if (e instanceof HubError) {
+                return res.status(e.status).json({ data: null, error: { message: e.message, code: e.code } });
+              }
               if (e instanceof EventAdmissionClosedDuringWrite) {
                 return res.status(403).json({ data: null, error: {
                   message: '신규 입장이 마감되어 등록하지 못했습니다. 기존 계정은 고유번호로 복구할 수 있습니다.',
@@ -4301,6 +4331,9 @@ router.post('/op', async (req: Request, res: Response) => {
 
     return sendReject(opUnknownOperationReject());
   } catch (e) {
+    if (e instanceof HubError) {
+      return res.status(e.status).json({ data: null, error: { message: e.message, code: e.code } });
+    }
     logger.error({ err: e }, '[db/op] Unexpected error');
     // 내부 오류 문자열을 클라이언트에 직접 노출하지 않음 — 스키마·스택 정보 유출 방지
     return res.status(200).json(opInternalErrorReject().body);
@@ -4531,6 +4564,7 @@ router.post('/rpc/:name', async (req: Request, res: Response) => {
 
       case 'test_clear_hearts': {
         checkTestPassword();
+        await assertLegacyTesterWriteAllowed();
         const allLikes = getTable('likes');
         store['likes'] = [];
         _likesLastInsert.clear();
@@ -4557,6 +4591,7 @@ router.post('/rpc/:name', async (req: Request, res: Response) => {
 
       case 'test_update_settings': {
         checkTestPassword();
+        await assertLegacyTesterWriteAllowed();
         const testPayload = (args.p_payload as Record<string, unknown>) ?? {};
         // 허용 필드 제한 — 테스트 대시보드는 세션·테이블 설정만 변경 가능 (db-app-settings-merge)
         const filteredPayload = filterTestSettingsPayload(testPayload);
@@ -4615,6 +4650,7 @@ router.post('/rpc/:name', async (req: Request, res: Response) => {
 
       case 'test_wipe_all': {
         checkTestPassword();
+        await assertLegacyTesterWriteAllowed();
         const persistDeletes: Promise<void>[] = [];
         for (const t of TEST_WIPE_ALL_TABLES) {
           if (WIPE_PRESERVED_TABLES.has(t)) continue;
@@ -4720,6 +4756,9 @@ router.post('/rpc/:name', async (req: Request, res: Response) => {
         return res.status(404).json({ data: null, error: { message: `Unknown RPC: ${name}` } });
     }
   } catch (e) {
+    if (e instanceof HubError) {
+      return res.status(e.status).json({ data: null, error: { message: e.message, code: e.code } });
+    }
     if (e instanceof RpcAuthError) {
       return res.status(403).json({ data: null, error: { message: e.message } });
     }

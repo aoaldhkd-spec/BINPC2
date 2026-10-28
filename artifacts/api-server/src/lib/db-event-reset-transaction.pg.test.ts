@@ -1,10 +1,12 @@
 import { beforeEach, afterAll, describe, expect, it } from 'vitest';
 import pg from 'pg';
 import { isolatedFixtureDatabase } from './event-hub-isolation.js';
-import { atomicEventReset, type ResetPgPool, type ResetPgClient } from './db-event-reset-transaction.js';
+import { atomicEventReset, EVENT_RESET_LOCK_KEY, type ResetPgPool, type ResetPgClient } from './db-event-reset-transaction.js';
 import { EventAdmissionClosedDuringWrite, persistNewParticipantForCycle } from './db-event-profile-write.js';
 import { persistNpcHeartAtomically } from './db-npc-heart-atomic.js';
 import { planNpcHeartRefill } from './db-npc-heart-recharge.js';
+import { HubStore, HubTx } from './event-hub-store.js';
+import { EventTestModeService, readEventTestMode, TEST_MODE_KIND } from './event-test-mode.js';
 
 const url = process.env.TEST_DATABASE_URL;
 const test = url ? it : it.skip; // GitHub ephemeral PostgreSQL CI supplies this URL; no production credentials.
@@ -65,7 +67,18 @@ describe('real ephemeral PostgreSQL reset and rollback (no production data)', ()
     if (!pool) return;
     isolatedFixtureDatabase(url!, ["binpc2_reset_test","binpc2_reset_test_resume"]);
     await pool.query(SQL);
+    await pool.query(`CREATE TABLE IF NOT EXISTS event_hub_records (
+      kind text NOT NULL, id text NOT NULL, data jsonb NOT NULL,
+      updated_at timestamptz NOT NULL DEFAULT now(), PRIMARY KEY(kind,id)
+    )`);
     await pool.query('TRUNCATE app_kv_rows');
+    await pool.query('TRUNCATE event_hub_records');
+    // Actual-operation regression fixtures explicitly reset and disable mode.
+    const laboratory = new EventTestModeService(new HubStore(pool));
+    const reset = await laboratory.mutate(true, { operation: 'reset', generation: 0, revision: 0 });
+    await laboratory.mutate(true, { operation: 'mode', enabled: false,
+      generation: reset.mode.generation, revision: reset.mode.revision,
+      resetGeneration: reset.mode.generation });
     await insert('app_settings','settings',settings);
     await insert('profiles','npc',npc);
     await insert('profiles','participant',{id:'participant',nickname:'PRIVATE_ALIAS'});
@@ -164,6 +177,44 @@ describe('real ephemeral PostgreSQL reset and rollback (no production data)', ()
       () => new Date('2026-10-13T20:00:00+09:00'));
     expect((await rows('profiles')).map(x => x.id)).toContain('registered');
     expect((await rows('device_secrets')).map(x => x.user_id)).toContain('registered');
+  });
+
+  test('missing mode metadata blocks registration without changing existing operational records', async () => {
+    await pool!.query('DELETE FROM event_hub_records WHERE kind=$1', [TEST_MODE_KIND]);
+    await pool!.query("UPDATE app_kv_rows SET data = jsonb_set(data, '{session_active}', 'true'::jsonb) WHERE table_name = 'app_settings'");
+    const before = await rows('profiles');
+    const likes = await rows('likes');
+    await expect(persistNewParticipantForCycle(adapter(), { id: 'blocked-by-default' }, id,
+      { id: 'blocked-device', user_id: 'blocked-by-default', secret_hash: 'synthetic' },
+      () => new Date('2026-10-13T20:00:00+09:00'))).rejects.toMatchObject({ code: 'TEST_MODE', status: 423 });
+    expect(await rows('profiles')).toEqual(before);
+    expect(await rows('likes')).toEqual(likes);
+    expect(await rows('device_secrets')).toHaveLength(0);
+  });
+
+  test('registration queued behind mode activation reads the committed ON state under the reset lock', async () => {
+    await pool!.query("UPDATE app_kv_rows SET data = jsonb_set(data, '{session_active}', 'true'::jsonb) WHERE table_name = 'app_settings'");
+    const writer = await pool!.connect();
+    const before = await rows('profiles');
+    try {
+      await writer.query('BEGIN');
+      await writer.query('SELECT pg_advisory_xact_lock(hashtext($1))', [EVENT_RESET_LOCK_KEY]);
+      const tx = new HubTx(writer, new HubStore(pool!).key);
+      const mode = await readEventTestMode(tx);
+      await tx.put(TEST_MODE_KIND, 'global', { ...mode, enabled: true, revision: mode.revision + 1 });
+      const pending = persistNewParticipantForCycle(adapter(), { id: 'queued-behind-mode' }, id,
+        { id: 'queued-device', user_id: 'queued-behind-mode', secret_hash: 'synthetic' },
+        () => new Date('2026-10-13T20:00:00+09:00'));
+      const rejected = expect(pending).rejects.toMatchObject({ code: 'TEST_MODE', status: 423 });
+      await new Promise(resolve => setTimeout(resolve, 40));
+      await writer.query('COMMIT');
+      await rejected;
+      expect(await rows('profiles')).toEqual(before);
+      expect(await rows('device_secrets')).toHaveLength(0);
+    } finally {
+      await writer.query('ROLLBACK').catch(() => {});
+      writer.release();
+    }
   });
 
   test('a failed device binding rolls back the new profile as well', async () => {

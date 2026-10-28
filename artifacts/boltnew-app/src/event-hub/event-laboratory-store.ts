@@ -4,6 +4,7 @@ import {
   paymentSatisfied,
   campaignCardLimit,
   tourDrawEligible,
+  halloweenSpecialEligible,
   type CampaignPrize,
 } from "../../../../lib/api-zod/src/event-campaign";
 import {
@@ -53,6 +54,7 @@ export type LabSnapshot = {
     { signature: string; result: Record<string, unknown> }
   >;
   audit: string[];
+  interaction?: { hearts: ("a" | "b")[]; messages: { id: string; sender: "a" | "b"; text: string }[] };
 };
 const KEY = "binpc2_event_lab_v6_complete";
 const full: HubApplication["profile"] = {
@@ -108,7 +110,7 @@ function eventFixture(input?: HubEvent): HubEvent {
           date: input.date,
           start: input.start,
           end: input.end,
-          campaign: input.campaign ? copy(input.campaign) : undefined,
+          campaign: input.campaign ? { ...copy(input.campaign), secondRoundLink: "" } : undefined,
           theme: input.theme,
           themeEnabled: input.themeEnabled,
         }
@@ -128,15 +130,16 @@ export class EventLaboratoryStore {
   constructor(
     event?: HubEvent,
     readonly storage?: Pick<Storage, "getItem" | "setItem" | "removeItem">,
+    initialSnapshot?: unknown,
   ) {
     this.storageKey = event ? `${KEY}:${event.id}` : KEY;
     this.value = this.fresh(event);
     let restored = false;
     try {
-      const raw = storage?.getItem(this.storageKey);
+      const raw = initialSnapshot === undefined ? storage?.getItem(this.storageKey) : JSON.stringify(initialSnapshot);
       if (raw) {
         const parsed = JSON.parse(raw) as LabSnapshot;
-        if (parsed.version === 1 && parsed.event?.id === "lab-event-only") {
+        if (parsed.version === 1 && parsed.event?.id === "lab-event-only" && Array.isArray(parsed.applications) && parsed.applications.every(a => a.id === "lab-application-only" && a.owner === "lab-owner-only" && a.eventId === "lab-event-only") && parsed.thread?.id === "lab-owner-only" && Array.isArray(parsed.audit) && parsed.receipts) {
           this.value = parsed;
           restored = true;
         }
@@ -144,7 +147,7 @@ export class EventLaboratoryStore {
     } catch {
       /* a failed local restore never falls back to a real API */
     }
-    if (!restored) this.jump("회비 확인");
+    if (!restored && initialSnapshot !== null) this.jump("회비 확인");
   }
   private fresh(event?: HubEvent): LabSnapshot {
     return {
@@ -167,6 +170,7 @@ export class EventLaboratoryStore {
       entered: false,
       receipts: {},
       audit: [],
+      interaction: { hearts: [], messages: [] },
     };
   }
   subscribe = (fn: () => void) => {
@@ -179,20 +183,31 @@ export class EventLaboratoryStore {
     try {
       this.storage?.setItem(
         this.storageKey,
-        JSON.stringify({
-          ...this.value,
-          receipts: Object.fromEntries(
-            Object.entries(this.value.receipts).map(([key, r]) => [
-              key,
-              { signature: "", result: r.result },
-            ]),
-          ),
-        }),
+        JSON.stringify(this.snapshot()),
       );
     } catch {
       /* remains usable in memory; UI labels local simulation */
     }
     this.listeners.forEach((fn) => fn());
+  }
+  snapshot(): LabSnapshot {
+    return copy({
+      ...this.value,
+      receipts: Object.fromEntries(Object.entries(this.value.receipts).map(([key, receipt]) => [key, { signature: "", result: receipt.result }])),
+    });
+  }
+  interact(sender: "a" | "b", text?: string) {
+    const interaction = this.value.interaction ??= { hearts: [], messages: [] };
+    if (text === undefined) {
+      if (interaction.hearts.includes(sender)) throw new Error("이미 보낸 가상 하트입니다.");
+      interaction.hearts.push(sender);
+    } else {
+      if (interaction.hearts.length !== 2) throw new Error("가상 상호 하트 확인 후 채팅할 수 있습니다.");
+      if (!text.trim()) throw new Error("가상 메시지를 입력하세요.");
+      interaction.messages.push({ id: crypto.randomUUID(), sender, text: text.trim().slice(0, 500) });
+    }
+    this.value.audit.push(`${stamp()} ${text === undefined ? "가상 하트" : "가상 채팅"} ${sender}`);
+    this.emit();
   }
   reset(event?: HubEvent) {
     this.value = this.fresh(event);
@@ -281,7 +296,7 @@ export class EventLaboratoryStore {
           "현장 입장",
         ].includes(stage)
       ) {
-        if (this.value.event.campaign && a.quote?.fee === 0) {
+        if (this.value.event.campaign?.kind.startsWith("halloween") && a.quote?.fee === 0) {
           a.waivedAt = stamp();
         } else {
           a.payment = "approved";
@@ -318,8 +333,10 @@ export class EventLaboratoryStore {
         delete (publicEvent as unknown as Record<string, unknown>)[k];
     }
     return copy({
+      serverNow: this.value.quoteAt ? simulatedNow.toISOString() : undefined,
       hasSession: true,
       enabled: true,
+      testMode: { enabled: false, banner: "" },
       retentionDays: 180,
       events: [publicEvent],
       applications: admin
@@ -525,6 +542,8 @@ export class EventLaboratoryStore {
             if (
               !e.cardsEnabled ||
               !a.profileId ||
+              !a.checkin ||
+              a.attendance !== "confirmed" ||
               !paymentSatisfied(a) ||
               !this.value.active
             )
@@ -560,8 +579,7 @@ export class EventLaboratoryStore {
                 };
                 a.cards = random(2) ? [win, loss] : [loss, win];
               } else {
-                const special =
-                  a.rank <= (e.campaign.kind === "halloween-friday" ? 10 : 15);
+                const special = halloweenSpecialEligible(e, a);
                 const available = pool.filter(
                   (p) => p.remaining > 0 && (!p.special || special),
                 );

@@ -1,4 +1,6 @@
 import { describe, it, expect } from "vitest";
+import { campaignPresets, campaignInitialStocks } from "../../../../lib/api-zod/src/event-campaign";
+import { HubEventInput } from "../../../../lib/api-zod/src/event-hub";
 import {
   EventLaboratoryStore,
   laboratoryStage,
@@ -194,6 +196,67 @@ describe("complete event laboratory adapter", () => {
 });
 
 describe("laboratory event selection and restored controls", () => {
+  it.each(["tour-2026-11-06", "tour-2026-11-07"])("keeps canned tour approvals as payment records instead of Halloween waivers: %s", (key) => {
+    const preset = campaignPresets().find(p => p.key === key)!;
+    const source = { ...HubEventInput.parse(preset.event), id: key, revision: 1, recruitment: true, nextRank: 0, history: [] };
+    const store = new EventLaboratoryStore(source);
+    for (const stage of ["입금 승인", "무료 참가 승인", "현장 입장"] as const) {
+      store.jump(stage, 1);
+      expect(store.value.applications[0]).toMatchObject({ payment: "approved" });
+      expect(store.value.applications[0].waivedAt).toBeUndefined();
+      expect(store.value.applications[0].approvedAt).toBeTruthy();
+    }
+  });
+  it("stores only synthetic source fields, sanitizes private links and resets partial heart/chat progress", () => {
+    const source = {
+      ...new EventLaboratoryStore().value.event,
+      id: "real-event-id",
+      account: "private-bank", address: "private-address", mapUrl: "https://private-map.test",
+      media: ["https://private-photo.test"],
+      campaign: { kind: "halloween-friday" as const, round: 1 as const, secondRoundLink: "https://old-chat.test" },
+    };
+    const store = new EventLaboratoryStore(source, undefined, null);
+    expect(store.value.applications).toEqual([]);
+    store.interact("a");
+    expect(() => store.interact("a")).toThrow("이미");
+    expect(() => store.interact("a", "pending")).toThrow("상호");
+    store.interact("b");
+    store.interact("a", "가상 메시지");
+    const restored = new EventLaboratoryStore(source, undefined, store.snapshot());
+    expect(restored.value.interaction?.messages[0].text).toBe("가상 메시지");
+    const serialized = JSON.stringify(restored.snapshot());
+    for (const privateValue of ["private-bank", "private-address", "private-map", "private-photo", "old-chat", "real-event-id"])
+      expect(serialized).not.toContain(privateValue);
+    restored.reset(source);
+    expect(restored.value.interaction).toEqual({ hearts: [], messages: [] });
+    expect(restored.value.applications).toEqual([]);
+    expect(restored.value.audit).toEqual([]);
+  });
+  it("runs both Halloween days and tour Friday/Saturday draws with separate pools and shared eligibility", () => {
+    for (const key of ["halloween-2026-10-30", "halloween-2026-10-31", "tour-2026-11-06", "tour-2026-11-07"]) {
+      const preset = campaignPresets().find(p => p.key === key)!;
+      const source = { ...HubEventInput.parse(preset.event), id: key, revision: 1, recruitment: true, nextRank: 0, history: [] };
+      const store = new EventLaboratoryStore(source);
+      store.jump("현장 입장", 3);
+      const poolBefore = campaignInitialStocks(source).reduce((n, prize) => n + prize.remaining, 0);
+      const count = source.campaign?.kind === "tour" ? 1 : 3;
+      for (let i = 0; i < count; i++) command(store, "application.draw");
+      const app = store.value.applications[0];
+      expect(app.cards).toHaveLength(source.campaign?.kind === "tour" ? 2 : 3);
+      expect(() => command(store, "application.draw")).toThrow("3장");
+      const wins = app.cards.filter(card => card.prize !== "다음 기회에");
+      expect(store.value.prizePool!.reduce((n, prize) => n + prize.remaining, 0)).toBe(poolBefore - wins.length);
+      if (source.campaign?.kind === "tour") {
+        expect(wins).toHaveLength(1);
+        expect(wins[0].couponAmount).toBeGreaterThanOrEqual(2000);
+        store.jump("현장 입장", 11);
+        expect(() => command(store, "application.draw")).toThrow("선착순10명");
+      }
+      store.jump("현장 입장", 3);
+      expect(store.value.applications[0].cards).toEqual([]);
+      expect(store.value.prizePool).toEqual(campaignInitialStocks(source));
+    }
+  });
   it("preserves edited synthetic dates, title, address, card flags and fee when switching ranks and stages", () => {
     const store = new EventLaboratoryStore();
     store.configureEvent({

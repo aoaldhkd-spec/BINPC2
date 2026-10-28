@@ -47,22 +47,26 @@ import type { AddressInfo } from 'node:net';
 // vitest がこのブロックをファイル先頭に hoisting するため、
 // pg / web-push は app の import 時に既にモックになっている。
 
-vi.mock('pg', () => {
+vi.mock('pg', async () => {
+  const { createLegacyModeOffQuery } = await import('./support/legacy-mode-off.js');
+  const modeFixture = createLegacyModeOffQuery('in-memory-pg-mock');
+  const query = (sql: string, values: unknown[] = []) =>
+    Promise.resolve(modeFixture(sql, values) ?? { rows: [] });
   const mockClient = {
-    query: () => Promise.resolve({ rows: [] }),
+    query,
     release: () => {},
     on: () => {},
   };
   // アロー関数は new できないため、class を使う
   class MockPool {
     connect = () => Promise.resolve(mockClient);
-    query   = () => Promise.resolve({ rows: [] });
+    query   = query;
     on      = () => {};
     end     = () => Promise.resolve();
   }
   class MockClient {
     connect = () => Promise.resolve();
-    query   = () => Promise.resolve({ rows: [] });
+    query   = query;
     on      = () => {};
     end     = () => Promise.resolve();
   }

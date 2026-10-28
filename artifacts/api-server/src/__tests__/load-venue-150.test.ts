@@ -10,21 +10,25 @@ vi.hoisted(() => {
 });
 
 
-vi.mock('pg', () => {
+vi.mock('pg', async () => {
+  const { createLegacyModeOffQuery } = await import('./support/legacy-mode-off.js');
+  const modeFixture = createLegacyModeOffQuery('in-memory-pg-mock');
+  const query = (sql: string, values: unknown[] = []) =>
+    Promise.resolve(modeFixture(sql, values) ?? { rows: [] });
   const mockClient = {
-    query: () => Promise.resolve({ rows: [] }),
+    query,
     release: () => {},
     on: () => {},
   };
   class MockPool {
     connect = () => Promise.resolve(mockClient);
-    query = () => Promise.resolve({ rows: [] });
+    query = query;
     on = () => {};
     end = () => Promise.resolve();
   }
   class MockClient {
     connect = () => Promise.resolve();
-    query = () => Promise.resolve({ rows: [] });
+    query = query;
     on = () => {};
     end = () => Promise.resolve();
   }

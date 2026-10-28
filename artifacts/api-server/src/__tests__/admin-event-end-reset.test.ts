@@ -14,7 +14,7 @@ void TEST_SSE_SECRET;
 
 vi.mock('pg', async () => {
   const { createMockPg } = await import('./support/mock-pg-kv.js');
-  const { MockPool, MockClient } = createMockPg();
+  const { MockPool, MockClient } = createMockPg({ legacyTestMode: 'off' });
   return { default: { Pool: MockPool, Client: MockClient } };
 });
 

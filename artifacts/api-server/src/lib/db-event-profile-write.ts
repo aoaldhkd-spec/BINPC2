@@ -1,6 +1,9 @@
 import { buildKvUpsertSql } from './db-table-policy.js';
 import { newParticipantAdmissionReject } from './db-event-admission.js';
 import { EVENT_RESET_LOCK_KEY, type ResetPgPool } from './db-event-reset-transaction.js';
+import type { PoolClient } from 'pg';
+import { eventHubEncryptionKey, HubTx } from './event-hub-store.js';
+import { assertTestModeAllowsPublicMutation } from './event-test-mode.js';
 
 /** A new participant must not be written after the event was safely reset. */
 export class EventAdmissionClosedDuringWrite extends Error {
@@ -33,6 +36,9 @@ export async function persistNewParticipantForCycle(
     inTx = true;
     await client.query("SET LOCAL lock_timeout = '5000ms'");
     await client.query('SELECT pg_advisory_xact_lock(hashtext($1))', [EVENT_RESET_LOCK_KEY]);
+    // Mode switches use this same lock. Recheck durable encrypted metadata
+    // before either the profile or its device binding can become visible.
+    await assertTestModeAllowsPublicMutation(new HubTx(client as PoolClient, eventHubEncryptionKey()));
     const settings = (await client.query(
       "SELECT data FROM app_kv_rows WHERE table_name = 'app_settings' ORDER BY updated_at DESC LIMIT 1 FOR UPDATE",
     )).rows[0]?.data as Record<string, unknown> | undefined;

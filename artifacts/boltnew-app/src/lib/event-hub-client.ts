@@ -41,6 +41,7 @@ export type HubThread = {
   history: HubAudit[];
 };
 export type HubState = {
+  testMode?: { enabled: boolean; banner: string };
   serverNow?: string;
   privacyNotice?:{policyVersion:string;controllerName:string;contact:string;notice:string;fingerprint:string;periods:{purpose:string;days:number|null}[]};
   publicationBlocked?:boolean;

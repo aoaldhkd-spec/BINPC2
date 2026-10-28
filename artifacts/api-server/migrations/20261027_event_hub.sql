@@ -22,3 +22,9 @@ CREATE INDEX IF NOT EXISTS event_hub_member_owner ON event_hub_records ((data->>
 CREATE INDEX IF NOT EXISTS event_hub_legacy_nickname ON event_hub_records (kind,id) WHERE kind IN ('application','member') AND NOT(data ? 'nicknameLookup');
 CREATE INDEX IF NOT EXISTS event_hub_legacy_member_owner ON event_hub_records (id) WHERE kind='member' AND NOT(data ? 'owner');
 CREATE INDEX IF NOT EXISTS event_hub_member_nickname_lookup ON event_hub_records ((data->>'nicknameLookup')) WHERE kind='member';
+
+-- Add isolated encrypted laboratory namespaces without modifying existing records or keys.
+-- The test reset only deletes laboratory-workspace; operational reset never owns these kinds.
+ALTER TABLE event_hub_records DROP CONSTRAINT IF EXISTS event_hub_records_kind_check;
+ALTER TABLE event_hub_records ADD CONSTRAINT event_hub_records_kind_check
+  CHECK (kind IN ('owner','member','settings','event','application','request','thread','stock','error','laboratory-mode','laboratory-workspace'));

@@ -5,6 +5,7 @@ import pg from "pg";
 import { readFileSync } from "node:fs";
 import { randomBytes, randomUUID } from "node:crypto";
 import { EventHubService } from "./event-hub-service.js";
+import { EventTestModeService } from "./event-test-mode.js";
 import { atomicEventReset } from "./db-event-reset-transaction.js";
 import { HubStore, digest } from "./event-hub-store.js";
 import {
@@ -195,6 +196,13 @@ suite("event hub V6 — actual isolated PostgreSQL transactions", () => {
       "isolated-test-session-secret",
       now,
     );
+    // These legacy operational fixtures explicitly complete the isolated lab reset gate.
+    const laboratory = new EventTestModeService(service.store, now);
+    const reset = await laboratory.mutate(true, { operation: "reset", generation: 0, revision: 0 });
+    await laboratory.mutate(true, {
+      operation: "mode", enabled: false, generation: reset.mode.generation,
+      revision: reset.mode.revision, resetGeneration: reset.mode.generation,
+    });
     owner = await service.session(randomBytes(32).toString("base64url"), true);
     eventId = String((await call("event.save", "", event, undefined, true)).id);
     await call("event.recruitment", eventId, { enabled: true }, 1, true);

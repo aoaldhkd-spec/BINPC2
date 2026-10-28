@@ -1,6 +1,6 @@
 import {eventExpiryAt} from "../../../../lib/api-zod/src/event-hub-modules";
 import {BenefitResults} from "./EventOperations";
-import { useState, useRef } from "react";
+import { useState, useRef, useEffect } from "react";
 import type {
   HubController,
   HubCommand,
@@ -10,6 +10,7 @@ import {
   EventLaboratoryStore,
   laboratoryStage,
   type LabStage,
+  type LabSnapshot,
 } from "./event-laboratory-store";
 import {
   BasicForm,
@@ -40,14 +41,29 @@ const stages: LabStage[] = [
   "현장 입장",
 ];
 /** The adapter owns only synthetic browser state; no live mutation client is accepted. */
-export function EventLaboratory({ event }: { event?: HubEvent }) {
+export function EventLaboratory({ event, persistence }: { event?: HubEvent; persistence?: {
+  snapshot?: unknown;
+  disabled: boolean;
+  save: (snapshot: LabSnapshot) => Promise<boolean>;
+} }) {
   const [engine] = useState(() => {
     let storage: Storage | undefined;
     try {
-      storage = sessionStorage;
+      if (!persistence) storage = sessionStorage;
     } catch {}
-    return new EventLaboratoryStore(event, storage);
+    return new EventLaboratoryStore(event, storage, persistence ? persistence.snapshot ?? null : undefined);
   });
+  const persist = useRef(persistence?.save);
+  persist.current = persistence?.save;
+  const saving = useRef<Promise<boolean>>(Promise.resolve(true));
+  const mounted = useRef(true);
+  useEffect(() => {
+    mounted.current = true;
+    const unsubscribe = engine.subscribe(() => {
+      if (persist.current) saving.current = persist.current(engine.snapshot());
+    });
+    return () => { mounted.current = false; unsubscribe(); };
+  }, [engine]);
   const [participant, setParticipant] = useState(() => engine.state()),
     [administrator, setAdministrator] = useState(() => engine.state(true));
   const [role, setRole] = useState<"참가자" | "관리자">(
@@ -58,6 +74,7 @@ export function EventLaboratory({ event }: { event?: HubEvent }) {
     [inquiry, setInquiry] = useState(false),
     [draft, setDraft] = useState(""),
     [collection, setCollection] = useState(false);
+  const [chatDraft, setChatDraft] = useState("");
   const [status, setStatus] = useState(""),
     [error, setError] = useState(""),
     [fault, setFault] = useState("none"),
@@ -79,7 +96,7 @@ export function EventLaboratory({ event }: { event?: HubEvent }) {
   };
   const busy = useRef(false);
   const mutate = async (command: HubCommand, admin = false) => {
-    if (busy.current) return null;
+    if (busy.current || persistence?.disabled) return null;
     busy.current = true;
     const signature = JSON.stringify(command);
     const id =
@@ -89,9 +106,11 @@ export function EventLaboratory({ event }: { event?: HubEvent }) {
     setError("");
     try {
       await new Promise((r) => setTimeout(r, delay));
+      if (!mounted.current) return null;
       if (offline || fault === "before")
         throw new Error("가상 저장 실패 · 입력 내용은 그대로입니다.");
       const result = engine.execute({ ...command, requestId: id }, admin);
+      if (!(await saving.current)) throw new Error("테스트 저장을 확인하지 못했습니다. 최신 시험실을 다시 확인하세요.");
       if (fault === "after") {
         setStatus("checking");
         await new Promise((r) => setTimeout(r, delay));
@@ -137,9 +156,9 @@ export function EventLaboratory({ event }: { event?: HubEvent }) {
     sync();
   };
   return (
-    <div className="space-y-4" data-testid="event-laboratory">
+    <fieldset disabled={persistence?.disabled} className="space-y-4 min-w-0" data-testid="event-laboratory">
       <HubCard>
-        <h2 className="font-black">🧪 선착순 시험실</h2>
+        <h2 className="font-black">🧪 선착순 시험실 · 테스트 결과</h2>
         <p className="text-sm text-amber-800">
           가상 화면입니다. 실제 신청·입금·공지·재고·통계에는 저장하지 않습니다.
           실제 개인정보·비밀번호·은행정보를 입력하지 마세요.
@@ -209,7 +228,7 @@ export function EventLaboratory({ event }: { event?: HubEvent }) {
               sync();
             }}
           >
-            시험 데이터만 초기화
+            선택 시험 다시 시작
           </HubButton>
           <HubButton
             onClick={() => {
@@ -280,8 +299,7 @@ export function EventLaboratory({ event }: { event?: HubEvent }) {
         </details>
         <HubFeedback status={status} error={error} />
         <p className="text-xs">
-          상태는 이 브라우저의 시험 저장소에서만 복원됩니다. 운영 DB 검증과
-          구분됩니다.
+          {persistence ? "상태는 관리자 전용 테스트 저장소에서 복원됩니다. 전체 초기화는 위의 ‘테스트 데이터 초기화’를 사용하세요." : "상태는 이 브라우저의 시험 저장소에서만 복원됩니다."} 운영 DB 검증과 구분됩니다.
         </p>
       </HubCard>
       <section aria-label="가상 참가 화면" className="space-y-4">
@@ -393,8 +411,7 @@ export function EventLaboratory({ event }: { event?: HubEvent }) {
                 <HubButton type="submit">가상 행사 설정 저장</HubButton>
                 <p className="text-xs">
                   위의 관리할 행사 선택으로 행사별 시험 상태를 분리해 이어볼 수
-                  있습니다. 새 행사 생성·자동방 예약·전체 모듈 설정은 실제 관리
-                  탭에서 검증하세요.
+                  있습니다. 이 화면의 설정 변경은 가상 행사에만 적용됩니다.
                 </p>
               </form>
             </details>
@@ -520,14 +537,35 @@ export function EventLaboratory({ event }: { event?: HubEvent }) {
           </p>
         ))}
       </HubCard>
+      <HubCard>
+        <h3 className="font-black">테스트 결과 · 하트·채팅 부분 체험</h3>
+        <p className="text-sm">가상 참가자 A·B의 상호 하트와 메시지 표시만 체험합니다. 실제 계정·하트 잔액·푸시·채팅방은 생성하지 않습니다.</p>
+        <div className="flex flex-wrap gap-2">
+          {(["a", "b"] as const).map(sender => <HubButton key={sender}
+            disabled={engine.value.interaction?.hearts.includes(sender)}
+            onClick={() => { engine.interact(sender); sync(); }}>
+            가상 {sender.toUpperCase()} 하트 보내기
+          </HubButton>)}
+        </div>
+        <p>{engine.value.interaction?.hearts.length === 2 ? "테스트 결과: 상호 하트 · 가상 채팅 가능" : "테스트 결과: 상호 하트 대기"}</p>
+        <form onSubmit={e => {
+          e.preventDefault();
+          try { engine.interact("a", chatDraft); setChatDraft(""); setError(""); sync(); }
+          catch (cause) { setError((cause as Error).message); }
+        }}>
+          <HubField label="가상 채팅 메시지"><input className={inputClass} value={chatDraft} maxLength={500} onChange={e => setChatDraft(e.target.value)} /></HubField>
+          <HubButton type="submit" disabled={engine.value.interaction?.hearts.length !== 2 || !chatDraft.trim()}>가상 채팅 전송</HubButton>
+        </form>
+        {engine.value.interaction?.messages.map(message => <p key={message.id}>가상 {message.sender.toUpperCase()}: {message.text}</p>)}
+      </HubCard>
       <details>
-        <summary>가상 처리 이력 ({engine.value.audit.length}건)</summary>
+        <summary>테스트 결과 · 가상 처리 이력 ({engine.value.audit.length}건)</summary>
         <ol className="text-xs space-y-1">
           {engine.value.audit.map((line, i) => (
             <li key={i}>{line}</li>
           ))}
         </ol>
       </details>
-    </div>
+    </fieldset>
   );
 }

@@ -67,6 +67,7 @@ import {
 } from "./avatar-pool.js";
 import { isAdultBirthYear } from "./korean-age.js";
 import { hashDeviceSecret } from "./db-session-tokens.js";
+import { assertTestModeAllowsPublicMutation, publicEventTestMode, readEventTestMode } from "./event-test-mode.js";
 
 type HubEventView = Partial<HubEvent> &
   Pick<
@@ -306,6 +307,7 @@ export class EventHubService {
   }
   async state(owner?: string, admin = false) {
     return this.store.transaction(async (tx) => {
+      const testMode = publicEventTestMode(await readEventTestMode(tx));
       const enabled = await this.enabled(tx);
       const publicationBlocked = await publicationBlockedForTx(tx);
       const account = owner
@@ -315,6 +317,7 @@ export class EventHubService {
         fail("AUTH", "삭제 처리된 신청 세션입니다.", 401);
       if (!enabled && !owner && !admin)
         return {
+          testMode,
           privacyPolicy: undefined,
           privacyCase: undefined,
           marketingPreference: undefined,
@@ -386,10 +389,12 @@ export class EventHubService {
               })),
               recruitment:
                 enabled &&
+                !testMode.enabled &&
                 !publicationBlocked &&
                 recruitmentIsOpen(e, this.now()),
               cardsEnabled:
                 enabled &&
+                !testMode.enabled &&
                 drawModuleEnabled(e, switches) &&
                 !eventExpired(e, this.now()),
             }));
@@ -444,6 +449,7 @@ export class EventHubService {
         : undefined;
       const publicationPolicy=await tx.get<PrivacyPolicy>("settings","privacy-policy");
       return {
+        testMode,
         privacyNotice:publicPolicyNotice(publicationPolicy),
         publicationBlocked:admin?publicationBlocked:undefined,
         retentionDays:
@@ -519,6 +525,8 @@ export class EventHubService {
     const key = digest(`${actor}:${m.requestId}`);
     const hash = digest(JSON.stringify(m));
     return this.store.transaction(async (tx) => {
+      if (["application.basic", "application.consent", "application.confirm", "application.report", "application.enter", "application.draw"].includes(m.action))
+        await assertTestModeAllowsPublicMutation(tx);
       const prior = await tx.get<{
         hash: string;
         result: Record<string, unknown>;
@@ -698,6 +706,7 @@ export class EventHubService {
         const e = await this.event(tx, m.target);
         revision(e.revision);
         const on = z.boolean().parse(m.data.enabled);
+        if (on) await assertTestModeAllowsPublicMutation(tx);
         if (on && eventEnded(e, this.now()))
           fail("EVENT_ENDED", "종료된 행사의 신규 접수는 열 수 없습니다.", 403);
         if (on && publicationBlocked)
@@ -1960,6 +1969,7 @@ export class EventHubService {
   }
   async autoTick() {
     return this.store.transaction(async (tx) => {
+      if ((await readEventTestMode(tx)).enabled) return;
       if (!(await this.enabled(tx))) return;
       await applyScheduledRecruitment(tx,this.now(),true);
       const s =

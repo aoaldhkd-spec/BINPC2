@@ -12,6 +12,7 @@ import {
 import http from "node:http";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import { prepareLegacyEventHubFixture } from "./lib/event-hub-legacy-fixture.mjs";
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), ".."),
   require = createRequire(root + "/artifacts/api-server/package.json"),
   { Pool } = require("pg");
@@ -392,6 +393,18 @@ let result = {
 try {
   start();
   await waitReady();
+  stage = "fixture-activation";
+  const login = must(
+    await req(admin, "/api/db/rpc/admin_create_session", {
+      p_phone: "01000000000",
+      p_admin_password: cfg.BOOTSTRAP_ADMIN_PASSWORD,
+    }),
+    "admin-login",
+  );
+  adminToken = login.data ?? login;
+  result.legacyModeFixture = await prepareLegacyEventHubFixture({
+    databaseUrl: cfg.DATABASE_URL, baseUrl: base, adminToken,
+  });
   if (mode === "baseline") {
     stage = "accumulated-100-sessions";
     result.cohortSizes = [100];
@@ -405,15 +418,6 @@ try {
     );
     result.expectedBaselineProbe = true;
   } else {
-    stage = "fixture-activation";
-    const login = must(
-      await req(admin, "/api/db/rpc/admin_create_session", {
-        p_phone: "01000000000",
-        p_admin_password: cfg.BOOTSTRAP_ADMIN_PASSWORD,
-      }),
-      "admin-login",
-    );
-    adminToken = login.data ?? login;
     if (args.includes("--resume")) {
       clients = JSON.parse(
         await readFile(out + "/cohort-private.json", "utf8"),

@@ -1,4 +1,5 @@
 import { DisplayScaleControls } from './DisplayScaleControls';
+import { PublicTestModeBanner } from './PublicTestModeBanner';
 import { EventScheduleBanner } from './EventScheduleBanner';
 import { useState, useEffect, useRef, useCallback, useMemo, memo, type ReactNode } from 'react';
 /**
@@ -696,6 +697,7 @@ export function MainScreen({
     <div className={`app-viewport h-screen overflow-hidden min-w-0 flex flex-col transition-colors duration-300 ${darkMode ? 'bg-slate-950' : 'bg-gray-50'}`}>
       <NavLayer id="tab:away" open={mainTab !== 'profiles'} onClose={() => onTabChange('profiles')} />
       <header className={`sticky top-0 z-10 shrink-0 transition-colors duration-300 ${darkMode ? 'bg-slate-900 border-b-2 border-slate-700 shadow-slate-950/50' : 'bg-white shadow-sm'}`}>
+        <PublicTestModeBanner />
         <div className="max-w-7xl mx-auto px-3 min-[360px]:px-4 py-2.5 min-[360px]:py-3 grid grid-cols-[auto_minmax(0,1fr)_auto] gap-1 items-center">
           {/* 좌: 튜토리얼 + 다크모드 + 배경음악 */}
           <div className="justify-self-start flex items-center gap-1">

@@ -1,11 +1,17 @@
+import { createLegacyModeOffQuery } from './legacy-mode-off.js';
+
 /** In-memory transactional app_kv_rows test double (never used by production). */
-export function createMockPg() {
+export function createMockPg(options: { legacyTestMode?: 'off' } = {}) {
+  const modeFixture = options.legacyTestMode === 'off'
+    ? createLegacyModeOffQuery('in-memory-pg-mock') : undefined;
   type Table = Map<string, Record<string, unknown>>;
   type State = Map<string, Table>;
   const state: { db: State; snapshot: State | null } = { db: new Map(), snapshot: null };
   const clone = (s: State): State => new Map([...s].map(([t, v]) =>
     [t, new Map([...v].map(([k, row]) => [k, structuredClone(row)]))]));
   const query = async (sql: string, values: unknown[] = []): Promise<{ rows: Record<string, unknown>[] }> => {
+    const mode = modeFixture?.(sql, values);
+    if (mode) return mode;
     const q = sql.replace(/\s+/g, ' ').trim();
     if (q === 'BEGIN') { state.snapshot = clone(state.db); return { rows: [] }; }
     if (q === 'ROLLBACK') { if (state.snapshot) state.db = state.snapshot; state.snapshot = null; return { rows: [] }; }

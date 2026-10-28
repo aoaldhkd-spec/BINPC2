@@ -1,6 +1,7 @@
 import { publicationBlockedForTx } from "./event-hub-publication.js";
 import { z, eventEnded, eventEndAt, quoteFor, HALLOWEEN_RECOGNITION_LABELS, type HubEvent, type HubApplication } from '@workspace/api-zod';
 import { fail, type HubTx } from './event-hub-store.js';
+import { readEventTestMode } from './event-test-mode.js';
 
 export function recruitmentConfigurationIssue(e: HubEvent): string | null {
   if (!e.account || !e.deadline || !e.area || !e.notice) return '계좌·입금기한·지역·공지를 확인하세요.';
@@ -11,6 +12,7 @@ export function recruitmentConfigurationIssue(e: HubEvent): string | null {
 /** Called within the same durable advisory transaction by timer/read/write paths. */
 export async function applyScheduledRecruitment(tx: HubTx, now: Date, enabled: boolean) {
   if (!enabled) return;
+  if ((await readEventTestMode(tx)).enabled) return;
   const blocked = await publicationBlockedForTx(tx);
   const events = await tx.all<HubEvent>('event');
   for (const e of events) {

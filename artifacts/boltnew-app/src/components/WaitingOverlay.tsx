@@ -1,4 +1,5 @@
 import { useLandingHalloween } from '../lib/landing-season';
+import { TEST_MODE_BANNER, usePublicTestMode } from '../lib/public-test-mode';
 import { useState, useRef, useEffect } from 'react';
 import { Users, CheckCircle, Clock, ShieldAlert, Wine, List, DoorOpen, LockKeyhole } from 'lucide-react';
 import { navigateToAppPath, PANEL_PIN_INPUT_PROPS, PIN_DIGIT_INPUT_PROPS, verifyPanelPassword } from '../lib/panel-password';
@@ -13,6 +14,7 @@ export function WaitingOverlay({ landingThemeEnabled = true, sessionActive, even
   onRecover?: (profileId: string, pinCode: string) => void;
 }) {
   const halloween = useLandingHalloween(landingThemeEnabled);
+  const testMode = usePublicTestMode();
   // Default amber contrast (multi-theme light overrides removed)
   const C = {
     panelTitle: '#fde68a',
@@ -34,7 +36,7 @@ export function WaitingOverlay({ landingThemeEnabled = true, sessionActive, even
     const timeout = setTimeout(() => refreshAdmissionBoundary(x => x + 1), delay);
     return () => clearTimeout(timeout);
   }, [closeAt]);
-  const isActive = eventCycleAdmissionOpen({
+  const isActive = !testMode && eventCycleAdmissionOpen({
     sessionActive, startedAt: eventCycleStartedAt,
     resetComplete: eventCycleResetComplete, now: new Date(),
   });
@@ -277,10 +279,13 @@ export function WaitingOverlay({ landingThemeEnabled = true, sessionActive, even
           <span className="season-night-sticker">BOO!<br/>좋은 밤의 시작</span>
         </div>}
 
+        {testMode && <p role="status" className="w-[88%] rounded-xl border border-amber-300/40 bg-amber-950/60 p-3 text-center text-sm font-bold text-amber-100 mb-3">{TEST_MODE_BANNER}</p>}
+
         {/* 피라미드형 버튼 그룹 */}
         <div className="w-full flex flex-col items-center gap-2 mb-2">
           <div className="flex flex-col gap-3 w-[88%] mb-1">
-            <a href="/events" className="min-h-16 flex gap-3 items-center justify-center rounded-xl border border-pink-300/60 bg-gradient-to-br from-pink-500 to-pink-800 px-4 py-4 text-lg font-bold text-white shadow-lg shadow-pink-900/30 hover:brightness-110 active:scale-[.98] transition-all"><Wine size={24} aria-hidden="true"/>술번개 신청</a>
+            {testMode ? <button type="button" disabled className="min-h-16 flex gap-3 items-center justify-center rounded-xl border border-pink-300/40 bg-gradient-to-br from-pink-500 to-pink-800 px-4 py-4 text-lg font-bold text-white opacity-50 cursor-not-allowed"><Wine size={24} aria-hidden="true"/>술번개 신청</button> : <a href="/events" className="min-h-16 flex gap-3 items-center justify-center rounded-xl border border-pink-300/60 bg-gradient-to-br from-pink-500 to-pink-800 px-4 py-4 text-lg font-bold text-white shadow-lg shadow-pink-900/30 hover:brightness-110 active:scale-[.98] transition-all"><Wine size={24} aria-hidden="true"/>술번개 신청</a>}
+            {testMode && <a href="/events" className="text-center text-sm text-amber-100 underline">행사 공지 · 관리자 문의</a>}
             <a href="/events/waiting" className="min-h-16 flex gap-3 items-center justify-center rounded-xl border border-blue-300/60 bg-gradient-to-br from-blue-500 to-blue-800 px-4 py-4 text-lg font-bold text-white shadow-lg shadow-blue-900/30 hover:brightness-110 active:scale-[.98] transition-all"><List size={24} aria-hidden="true"/>신청대기방</a>
           </div>
           <button
@@ -313,7 +318,7 @@ export function WaitingOverlay({ landingThemeEnabled = true, sessionActive, even
         </div>
 
         {/* 개인정보 동의 모달 */}
-        {showConsentModal && (
+        {showConsentModal && !testMode && (
           <div className="fixed inset-0 z-50 flex items-center justify-center p-6 bg-black/75 backdrop-blur-sm">
             <div className="w-full max-w-sm rounded-3xl bg-slate-900 border border-slate-700 overflow-hidden shadow-2xl">
               {/* 헤더 */}
@@ -335,7 +340,8 @@ export function WaitingOverlay({ landingThemeEnabled = true, sessionActive, even
                 </p>
                 <div className="flex flex-col gap-3">
                   <button
-                    onClick={() => { setShowConsentModal(false); onEnter(); }}
+                    onClick={() => { if (!isActive) return; setShowConsentModal(false); onEnter(); }}
+                    disabled={!isActive}
                     className="w-full py-4 bg-gradient-to-r from-teal-500 to-cyan-500 hover:from-teal-400 hover:to-cyan-400 text-white font-black text-base rounded-2xl shadow-lg shadow-teal-500/30 transition-all active:scale-98"
                   >
                     안내 확인 · 프로필 설정

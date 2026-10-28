@@ -5,6 +5,7 @@ import { spawn } from "node:child_process";
 import { randomUUID } from "node:crypto";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import { prepareLegacyEventHubFixture } from "./lib/event-hub-legacy-fixture.mjs";
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), ".."),
   require = createRequire(root + "/artifacts/boltnew-app/package.json"),
   { chromium, expect } = require("@playwright/test"),
@@ -99,6 +100,9 @@ try {
     );
   expect(login.status()).toBe(200);
   const token = (await login.json()).data;
+  await prepareLegacyEventHubFixture({
+    databaseUrl: cfg.DATABASE_URL, baseUrl: base, adminToken: token,
+  });
   await administrator.addInitScript((value) => {
     localStorage.setItem("admin_token_v1", value);
     localStorage.setItem(

@@ -2,6 +2,7 @@
 import { createRequire } from "node:module";
 import { createHmac } from "node:crypto";
 import { readFile, mkdir, writeFile, appendFile } from "node:fs/promises";
+import { prepareLegacyEventHubFixture } from "./lib/event-hub-legacy-fixture.mjs";
 const require = createRequire(
   new URL("../artifacts/api-server/package.json", import.meta.url),
 );
@@ -81,6 +82,9 @@ if (mode === "database") {
   const token = createHmac("sha256", process.env.SESSION_SECRET + password)
     .update("admin-session")
     .digest("hex");
+  await prepareLegacyEventHubFixture({
+    databaseUrl: process.env.DATABASE_URL, baseUrl: base, adminToken: token,
+  });
   for (const [name, args] of [
     [
       "admin_update_settings",

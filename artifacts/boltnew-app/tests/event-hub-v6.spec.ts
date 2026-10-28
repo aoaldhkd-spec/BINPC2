@@ -7,7 +7,10 @@ import {
   request as apiRequest,
 } from "@playwright/test";
 import { randomUUID, randomBytes } from "node:crypto";
-import { readFileSync } from "node:fs";
+import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { resolve } from "node:path";
+import type { EventLaboratoryState } from "../../../lib/api-zod/src/event-test-mode";
+import type { LabSnapshot } from "../src/event-hub/event-laboratory-store";
 const token = process.env.HUB_E2E_ADMIN_TOKEN;
 if (!token)
   throw new Error("Missing isolated local administrator test binding");
@@ -56,6 +59,8 @@ test.beforeEach(async ({ context },testInfo) => {
  }
 });
 test.beforeAll(async ({ request }) => {
+  // The focused maintenance-mode regression must never seed operational events or stock.
+  if (process.env.HUB_E2E_TEST_MODE_ONLY === "1") return;
   const ready=await (await request.get("/api/db/ready")).json();
   const milestones=eventCycleMilestones(String(ready.settings?.event_cycle_started_at??""));
   const date = new Date((milestones?.grantAt.getTime()??Date.now()) + 9 * 3600000).toISOString().slice(0, 10);
@@ -1730,4 +1735,191 @@ test("administrator verification history and immutable logo upload/select/restor
  if(!await logo.getByText(/원본·변경 이력과 이전 버전 복원/).evaluate(el=>(el.parentElement as HTMLDetailsElement).open)) await logo.getByText(/원본·변경 이력과 이전 버전 복원/).click();await page.screenshot({path:testInfo.outputPath('admin-logo-original-restore.png'),fullPage:true});
   if(!await page.getByText("행사 설정·기록·관리 도구",{exact:true}).evaluate(el=>(el.parentElement as HTMLDetailsElement).open)) await page.getByText("행사 설정·기록·관리 도구",{exact:true}).click();
  await page.getByRole('button',{name:'운영 점검',exact:true}).click();await expect(page.getByRole('heading',{name:'코드 버전별 실제 검사결과',exact:true})).toBeVisible();if(history.runs.every((r:{historical:boolean})=>r.historical))await expect(page.getByText(/현재 코드 버전 검사결과: 미실행/)).toBeVisible();else await expect(page.getByText(/현재 코드 내용과 일치/).first()).toBeVisible();await page.getByText(/과거 버전 · github-40532639584/).click();await expect(page.getByText(/물리 기기 미검증/)).toBeVisible();await page.screenshot({path:testInfo.outputPath('admin-verification-real-history.png'),fullPage:true});
+});
+
+test("test mode real browser: isolated campaigns, durable restore, global reset and stale generation", async ({ page, request, browser }, testInfo) => {
+  test.setTimeout(90000);
+  const banner = "현재 테스트 및 점검 중입니다. 테스트 완료 후 신청이 오픈됩니다.";
+  const directory = resolve(process.env.HUB_E2E_TEST_MODE_EVIDENCE_DIR ?? testInfo.outputPath("test-mode-evidence"));
+  mkdirSync(directory, { recursive: true });
+  const screenshots: { file: string; description: string }[] = [];
+  const readLaboratory = async (): Promise<EventLaboratoryState> => {
+    const response = await request.get("/api/event-hub/laboratory", { headers: adminHeaders });
+    expect(response.status()).toBe(200);
+    return response.json();
+  };
+  const writeLaboratory = async (operation: Record<string, unknown>) => {
+    const current = await readLaboratory();
+    const response = await request.post("/api/event-hub/laboratory", {
+      headers: adminHeaders,
+      data: { ...operation, generation: current.mode.generation, revision: current.mode.revision },
+    });
+    expect(response.status()).toBe(200);
+    return response.json() as Promise<EventLaboratoryState>;
+  };
+  const operationalRecords = async () => {
+    const response = await request.get("/api/event-hub/admin", { headers: adminHeaders });
+    expect(response.status()).toBe(200);
+    const state = await response.json();
+    const byId = (a: { id: string }, b: { id: string }) => a.id.localeCompare(b.id);
+    return {
+      applications: state.applications.sort(byId),
+      stocks: state.stocks.sort(byId),
+      ranks: state.events.map((event: { id: string; nextRank: number }) => ({ id: event.id, nextRank: event.nextRank })).sort(byId),
+      payments: state.applications.reduce((counts: Record<string, number>, app: { payment: string }) => {
+        counts[app.payment] = (counts[app.payment] ?? 0) + 1;
+        return counts;
+      }, {}),
+    };
+  };
+  const before = await operationalRecords();
+  const adminContext = await browser.newContext({ baseURL: process.env.HUB_E2E_BASE_URL, viewport: { width: 1280, height: 1000 } });
+  await restrictToLocal(adminContext);
+  await adminContext.addInitScript(value => {
+    localStorage.setItem("admin_token_v1", value);
+    localStorage.setItem("admin_session_v1", JSON.stringify({ phone: "01000000000", authedAt: Date.now() }));
+  }, token!);
+  const admin = await adminContext.newPage();
+  const nonLaboratoryWrites: string[] = [];
+  admin.on("request", outgoing => {
+    const path = new URL(outgoing.url()).pathname;
+    // The compatibility database client sends SELECT reads as POST requests.
+    if (path === "/api/db/op" && outgoing.postDataJSON()?.op === "select") return;
+    if (["POST", "PUT", "PATCH", "DELETE"].includes(outgoing.method()) && path !== "/api/event-hub/laboratory")
+      nonLaboratoryWrites.push(path);
+  });
+  const capture = async (target: typeof page, file: string, description: string) => {
+    await target.screenshot({ path: resolve(directory, file), fullPage: true });
+    screenshots.push({ file, description });
+  };
+  const openLaboratory = async () => {
+    await admin.getByRole("button", { name: "🎉 술번개", exact: true }).click();
+    const tools = admin.getByText("행사 설정·기록·관리 도구", { exact: true });
+    if (!await tools.evaluate(element => (element.parentElement as HTMLDetailsElement).open)) await tools.click();
+    await admin.getByRole("button", { name: "🧪 선착순 시험실", exact: true }).click();
+  };
+  const lab = admin.getByTestId("event-laboratory");
+  const savedAction = async (operation: string, action: () => Promise<unknown>) => {
+    const response = admin.waitForResponse(response => response.url().endsWith("/api/event-hub/laboratory") && response.request().method() === "POST" && response.request().postDataJSON().operation === operation);
+    await action();
+    expect((await response).status()).toBe(200);
+    if (operation !== "mode") await expect(lab).toBeEnabled();
+  };
+  const resetLabel = "모든 시험실의 가상 신청·결제·대기방·뽑기·경품·하트·채팅을 삭제하는 것을 확인했습니다.";
+  const acknowledgeLabel = "초기화 완료를 확인했습니다. 테스트 모드 OFF 후에도 개인정보·접수 일정 등 실제 오픈 조건을 별도로 확인합니다.";
+  try {
+    await admin.goto("/admin");
+    await openLaboratory();
+    if (!(await readLaboratory()).mode.enabled)
+      await savedAction("mode", () => admin.getByRole("switch", { name: "테스트 모드 ON", exact: true }).click());
+    await expect(lab).toBeVisible();
+    await admin.getByLabel(resetLabel, { exact: true }).check();
+    await savedAction("reset", () => admin.getByRole("button", { name: "테스트 데이터 초기화", exact: true }).click());
+    await expect(admin.getByRole("switch", { name: "테스트 모드 OFF", exact: true })).toBeDisabled();
+    await page.setViewportSize({ width: 390, height: 844 });
+    await page.goto("/");
+    await expect(page.getByText(banner, { exact: true })).toBeVisible();
+    await expect(page.getByRole("button", { name: "술번개 신청", exact: true })).toBeDisabled();
+    await expect(page.getByRole("link", { name: "행사 공지 · 관리자 문의", exact: true })).toBeVisible();
+    await capture(page, "01-public-test-mode.png", "Public homepage: exact maintenance banner, disabled application, notices and inquiries available.");
+    await capture(admin, "02-admin-test-mode-on.png", "Authenticated administrator: test mode ON and empty isolated workspace.");
+
+    const scenarios = [
+      ["halloween-2026-10-30", "03-halloween-friday.png", "Halloween Friday", 3],
+      ["halloween-2026-10-31", "04-halloween-saturday.png", "Halloween Saturday", 3],
+      ["tour-2026-11-06", "05-tour-friday.png", "Tour Friday first round", 2],
+      ["tour-2026-11-07", "06-tour-saturday.png", "Tour Saturday first round", 2],
+    ] as const;
+    for (const [workspaceId, file, description, cards] of scenarios) {
+      await admin.getByLabel("반복 테스트 시나리오", { exact: true }).selectOption(workspaceId);
+      await savedAction("save", () => lab.getByLabel("가상 진행 상태", { exact: true }).selectOption("현장 입장"));
+      const draw = lab.getByRole("button", { name: cards === 2 ? "추억의 뽑기 두 장 열기" : "카드 한 장 뽑기", exact: true });
+      for (let i = 0; i < (cards === 2 ? 1 : 3); i++)
+        await savedAction("save", () => draw.click());
+      await expect(draw).toBeDisabled();
+      const snapshot = (await readLaboratory()).workspaces[workspaceId] as LabSnapshot;
+      expect(snapshot.applications[0].cards).toHaveLength(cards);
+      if (cards === 2) {
+        expect(snapshot.applications[0].cards.filter(card => card.prize !== "다음 기회에")).toHaveLength(1);
+        expect(snapshot.applications[0].waivedAt).toBeUndefined();
+        expect(snapshot.applications[0].payment).toBe("approved");
+      }
+      await expect(admin.getByRole("switch", { name: "테스트 모드 OFF", exact: true })).toBeDisabled();
+      await capture(admin, file, `${description}: real shared forms and draw rules, ${cards} synthetic results, further draws disabled.`);
+      // Repeat without any operational stock changes; the fresh stage restocks only this synthetic scenario.
+      await savedAction("save", () => lab.getByLabel("가상 진행 상태", { exact: true }).selectOption("프로필 완료"));
+      await savedAction("save", () => lab.getByLabel("가상 진행 상태", { exact: true }).selectOption("현장 입장"));
+      await savedAction("save", () => draw.click());
+      expect(((await readLaboratory()).workspaces[workspaceId] as LabSnapshot).applications[0].cards).toHaveLength(cards === 2 ? 2 : 1);
+      if (workspaceId === "halloween-2026-10-30") {
+        await savedAction("save", () => lab.getByLabel("가상 진행 상태", { exact: true }).selectOption("프로필 완료"));
+        await savedAction("save", () => lab.getByLabel("시험 기준 시각 (한국시간)", { exact: true }).selectOption({ label: "해당 회차17시 직전" }));
+        await lab.getByRole("button", { name: "술번개 입장하기", exact: true }).click();
+        await expect(lab.getByRole("alert")).toContainText("신규 입장 기간이 종료되었습니다.");
+        expect(((await readLaboratory()).workspaces[workspaceId] as LabSnapshot).entered).toBe(false);
+        await savedAction("save", () => lab.getByLabel("가상 진행 상태", { exact: true }).selectOption("현장 입장"));
+        await expect(draw).toBeEnabled();
+        await savedAction("save", () => draw.click());
+        await savedAction("save", () => lab.getByLabel("시험 기준 시각 (한국시간)", { exact: true }).selectOption({ label: "해당 회차17시 만료" }));
+        await expect(draw).toBeDisabled();
+        await savedAction("save", () => lab.getByLabel("시험 기준 시각 (한국시간)", { exact: true }).selectOption({ label: "당일20:59:59" }));
+      }
+    }
+    await savedAction("save", () => lab.getByRole("button", { name: "가상 A 하트 보내기", exact: true }).click());
+    await savedAction("save", () => lab.getByRole("button", { name: "가상 B 하트 보내기", exact: true }).click());
+    await lab.getByLabel("가상 채팅 메시지", { exact: true }).fill("격리 저장·복원 확인용 가상 메시지");
+    await savedAction("save", () => lab.getByRole("button", { name: "가상 채팅 전송", exact: true }).click());
+    const durable = await readLaboratory();
+    expect(Object.keys(durable.workspaces)).toHaveLength(4);
+    await admin.reload();
+    await openLaboratory();
+    await admin.getByLabel("반복 테스트 시나리오", { exact: true }).selectOption("tour-2026-11-07");
+    await expect(lab.getByText("가상 A: 격리 저장·복원 확인용 가상 메시지", { exact: true })).toBeVisible();
+    await expect(lab.getByRole("heading", { name: /추억의 뽑기.*2\/2/ })).toBeVisible();
+    await capture(admin, "07-restored-test-results.png", "Reloaded from isolated PostgreSQL workspace: two draw results and synthetic mutual hearts/chat restored.");
+    await admin.getByLabel(resetLabel, { exact: true }).check();
+    await savedAction("reset", () => admin.getByRole("button", { name: "테스트 데이터 초기화", exact: true }).click());
+    const clean = await readLaboratory();
+    expect(clean.workspaces).toEqual({});
+    expect(clean.mode.generation).toBeGreaterThan(durable.mode.generation);
+    await expect(lab.getByText("가상 A: 격리 저장·복원 확인용 가상 메시지", { exact: true })).toHaveCount(0);
+    await expect(lab.getByLabel("가상 진행 상태", { exact: true })).toHaveValue("기본정보 작성 중");
+    const stale = await request.post("/api/event-hub/laboratory", {
+      headers: adminHeaders,
+      data: { operation: "save", generation: durable.mode.generation, revision: durable.mode.revision,
+        workspaceId: "tour-2026-11-07", snapshot: durable.workspaces["tour-2026-11-07"] },
+    });
+    expect(stale.status()).toBe(409);
+    expect((await stale.json()).code).toBe("STALE_LABORATORY");
+    expect((await readLaboratory()).workspaces).toEqual({});
+    await expect(admin.getByRole("switch", { name: "테스트 모드 OFF", exact: true })).toBeDisabled();
+    await admin.getByLabel(acknowledgeLabel, { exact: true }).check();
+    await expect(admin.getByRole("switch", { name: "테스트 모드 OFF", exact: true })).toBeEnabled();
+    // A second administrator reset must invalidate this tab's previous acknowledgement too.
+    await writeLaboratory({ operation: "reset" });
+    await admin.evaluate(() => window.dispatchEvent(new Event("focus")));
+    await expect(admin.getByLabel(acknowledgeLabel, { exact: true })).not.toBeChecked();
+    await expect(admin.getByRole("switch", { name: "테스트 모드 OFF", exact: true })).toBeDisabled();
+    await capture(admin, "08-global-reset-confirmation.png", "All four workspaces erased; stale generation rejected; a new reset requires a fresh OFF acknowledgement.");
+    await admin.getByLabel(acknowledgeLabel, { exact: true }).check();
+    await savedAction("mode", () => admin.getByRole("switch", { name: "테스트 모드 OFF", exact: true }).click());
+    await expect(admin.getByText("시험실을 사용하려면 테스트 모드를 ON으로 전환하세요.", { exact: true })).toBeVisible();
+    expect((await readLaboratory()).mode.enabled).toBe(false);
+    expect(nonLaboratoryWrites).toEqual([]);
+    expect(await operationalRecords()).toEqual(before);
+    writeFileSync(resolve(directory, "README.md"), [
+      "# Test mode browser evidence", "",
+      "Passed against the isolated localhost React/API/PostgreSQL fixture. No production service was accessed.", "",
+      "Verified public blocking, four campaign scenarios and repeated draws, isolated durable restoration, synthetic heart/chat, global reset, stale-generation rejection, and fresh acknowledgement after another administrator reset.", "",
+      "For Halloween, new entry remains blocked after 01:00; an already admitted participant can draw at 16:59:59, and drawing is disabled at the next 17:00 expiry.", "",
+      "Operational applications, payment states, ranks and stock records were identical before and after. The isolated fixture is restored to OFF after the test; screenshots show ON until the final explicit OFF action.", "",
+      ...screenshots.map(shot => `- [${shot.file}](${shot.file}) — ${shot.description}`), "",
+    ].join("\n"));
+  } finally {
+    // This is the explicitly bound local fixture, whose other CI flows require OFF.
+    const clean = await writeLaboratory({ operation: "reset" });
+    await writeLaboratory({ operation: "mode", enabled: false, resetGeneration: clean.mode.generation });
+    expect(await operationalRecords()).toEqual(before);
+    await adminContext.close();
+  }
 });

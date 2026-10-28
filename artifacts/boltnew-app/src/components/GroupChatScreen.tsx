@@ -11,6 +11,7 @@ import { AppErrorBoundary } from './AppErrorBoundary';
 import type { GroupChat, GroupMessage, GroupParticipant, Profile } from '../types/app';
 import { groupRoomVisual, unreadMemberCount } from '../lib/group-rooms';
 import { GroupRoomIcon } from './GroupRoomIcon';
+import { PublicTestModeBanner } from './PublicTestModeBanner';
 
 import { genAvatar } from '../lib/profile';
 import { NavLayer } from '../hooks/useParticipantNav';
@@ -118,6 +119,7 @@ export function GroupChatScreen({
         }}
       >
         <NavLayer id="group-leave" open={showLeaveConfirm} onClose={() => setShowLeaveConfirm(false)} />
+        <PublicTestModeBanner />
         <div className={`flex items-center gap-3 px-4 py-3 border-b flex-shrink-0 ${
           darkMode ? 'bg-slate-800 border-slate-700' : 'bg-white border-gray-200'
         }`}>

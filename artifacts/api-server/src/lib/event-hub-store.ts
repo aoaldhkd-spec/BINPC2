@@ -218,19 +218,17 @@ export class HubTx {
     );
   }
 }
+export function eventHubEncryptionKey(secret = process.env.SESSION_SECRET): Buffer {
+  if (!secret) throw new Error("SESSION_SECRET is required for the private event ledger");
+  return Buffer.from(hkdfSync("sha256", secret, "binpc2-event-hub-v6", "private-records", 32));
+}
 export class HubStore {
   readonly key: Buffer;
   constructor(
     readonly pool: Pool,
     secret = process.env.SESSION_SECRET,
   ) {
-    if (!secret)
-      throw new Error(
-        "SESSION_SECRET is required for the private event ledger",
-      );
-    this.key = Buffer.from(
-      hkdfSync("sha256", secret, "binpc2-event-hub-v6", "private-records", 32),
-    );
+    this.key = eventHubEncryptionKey(secret);
   }
   async transaction<T>(fn: (tx: HubTx) => Promise<T>): Promise<T> {
     const c = await this.pool.connect();

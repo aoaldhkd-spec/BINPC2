@@ -2,6 +2,10 @@
 import { afterEach, expect, it, vi } from "vitest";
 import { render, screen, cleanup } from "@testing-library/react";
 import { WaitingOverlay } from "./WaitingOverlay";
+vi.mock("../lib/public-test-mode", () => ({
+  TEST_MODE_BANNER: "현재 테스트 및 점검 중입니다. 테스트 완료 후 신청이 오픈됩니다.",
+  usePublicTestMode: () => false, // Existing admission/theme fixtures explicitly use live mode.
+}));
 afterEach(() => {
   cleanup();
   vi.useRealTimers();
