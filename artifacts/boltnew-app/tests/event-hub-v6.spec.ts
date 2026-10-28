@@ -391,7 +391,20 @@ test("actual browser + API + PostgreSQL: saved stages, payment recovery, private
     .click();
   await expect(page).toHaveURL(/127\.0\.0\.1:300[12356]\/?$/);
   expect((await application(request, id)).profileId).toBe(profileId);
-  await expect(page.getByRole("navigation",{name:"참여자 메뉴"})).toBeVisible();
+  // A cold CI navigation can show the midnight guide while the participant shell
+  // loads. Acknowledge the real dialog before asserting the underlying menu,
+  // instead of charging its click handler to the menu's default 5s assertion.
+  // Keep the handler above for later re-entry; never force-click or seed seen state.
+  const rainbowGuide = page.getByRole("dialog", { name: "🌈 무지개하트가 열렸어요", exact: true });
+  await page.removeLocatorHandler(rainbowGuide);
+  if (await rainbowGuide.isVisible()) {
+    await rainbowGuide.getByRole("button", { name: "확인했어요", exact: true }).click({ timeout: 15000 });
+    await expect(rainbowGuide).toBeHidden();
+  }
+  await page.addLocatorHandler(rainbowGuide, async (dialog) => {
+    await dialog.getByRole("button", { name: "확인했어요", exact: true }).click();
+  }, { times: 3 });
+  await expect(page.getByRole("navigation",{name:"참여자 메뉴"})).toBeVisible({ timeout: 15000 });
   if(await page.getByTestId("first-entry-coach").isVisible()) await page.getByTestId("first-entry-coach").getByRole("button",{name:"건너뛰기",exact:true}).click();
   await page.getByRole("button",{name:"하트, 채팅",exact:true}).click();
   await expect(page.getByRole("group",{name:"내 고유번호",exact:true})).toBeVisible();
