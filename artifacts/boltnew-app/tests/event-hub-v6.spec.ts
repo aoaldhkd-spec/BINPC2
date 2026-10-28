@@ -4,6 +4,7 @@ import {
   expect,
   type APIRequestContext,
   type BrowserContext,
+  type Page,
   request as apiRequest,
 } from "@playwright/test";
 import { randomUUID, randomBytes } from "node:crypto";
@@ -37,6 +38,32 @@ async function application(request: APIRequestContext, id: string) {
   });
   expect(r.status()).toBe(200);
   return (await r.json()).applications.find((a: { id: string }) => a.id === id);
+}
+// Only legacy sandbox cases opt into ON; always restore their isolated fixture to clean OFF.
+async function withLegacyLaboratory(request: APIRequestContext, page: Page, run: () => Promise<void>) {
+  const write = async (operation: Record<string, unknown>): Promise<EventLaboratoryState> => {
+    const read = await request.get("/api/event-hub/laboratory", { headers: adminHeaders });
+    expect(read.status()).toBe(200);
+    const current = await read.json() as EventLaboratoryState;
+    const response = await request.post("/api/event-hub/laboratory", {
+      headers: adminHeaders,
+      data: { ...operation, generation: current.mode.generation, revision: current.mode.revision },
+    });
+    expect(response.status()).toBe(200);
+    return response.json();
+  };
+  try {
+    expect((await write({ operation: "mode", enabled: true })).mode.enabled).toBe(true);
+    await run();
+  } finally {
+    // Unmount the laboratory before resetting its snapshot namespace so no delayed UI save races cleanup.
+    await page.goto("/events");
+    const clean = await write({ operation: "reset" });
+    const off = await write({ operation: "mode", enabled: false, resetGeneration: clean.mode.generation });
+    expect(off.mode.enabled).toBe(false);
+    expect(off.mode.dirty).toBe(false);
+    expect(off.workspaces).toEqual({});
+  }
 }
 // Every browser page is denied non-local network access, including popups and media.
 async function restrictToLocal(context: BrowserContext) {
@@ -617,6 +644,7 @@ test("mobile/tablet/desktop layouts and administrator sandbox remain isolated", 
   const before = await (
     await request.get("/api/event-hub/admin", { headers: adminHeaders })
   ).json();
+  await withLegacyLaboratory(request, page, async () => {
   await page.addInitScript((value) => {
     localStorage.setItem("admin_token_v1", value);
     localStorage.setItem(
@@ -630,6 +658,7 @@ test("mobile/tablet/desktop layouts and administrator sandbox remain isolated", 
   await page
     .getByRole("button", { name: "🧪 선착순 시험실", exact: true })
     .click();
+  await page.getByLabel("가상 진행 상태").selectOption("회비 확인");
   await expect(page.getByText("최종 납부 금액 40,000원")).toBeVisible();
   await page.screenshot({
     path: testInfo.outputPath("admin-rank-3-sandbox.png"),
@@ -661,6 +690,7 @@ test("mobile/tablet/desktop layouts and administrator sandbox remain isolated", 
   expect(after.applications).toEqual(before.applications);
   expect(after.stocks).toEqual(before.stocks);
   expect(after.events).toEqual(before.events);
+  });
   const unauthorized = await request.get("/api/event-hub/admin");
   expect(unauthorized.status()).toBe(403);
   const oldEntry = await request.post("/api/db/op", {
@@ -1341,6 +1371,7 @@ test("tour actual API advance and shared-component lab enforce rank ten/eleven w
     path: testInfo.outputPath("campaign-tour-advance-not-final.png"),
     fullPage: true,
   });
+  await withLegacyLaboratory(request, page, async () => {
   await page.addInitScript((value) => {
     localStorage.setItem("admin_token_v1", value);
     localStorage.setItem(
@@ -1385,6 +1416,7 @@ test("tour actual API advance and shared-component lab enforce rank ten/eleven w
   ).json();
   expect(after.stocks).toEqual(before.stocks);
   expect(after.applications).toEqual(before.applications);
+  });
 });
 
 test("private screening photo UI requires explicit consent, administrator review and verified source deletion", async ({
