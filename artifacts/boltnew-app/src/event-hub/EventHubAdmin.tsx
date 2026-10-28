@@ -1334,7 +1334,7 @@ function AutoSettings({
     </HubCard>
   );
 }
-function ApplicationRoster({
+export function ApplicationRoster({
   applications,
   hub,
   onsite = false,
@@ -1343,6 +1343,7 @@ function ApplicationRoster({
   hub: Hub;
   onsite?: boolean;
 }) {
+  const drafts = useRef<Record<string, { note: string; fee: string }>>({});
   const [query, setQuery] = useState("");
   const [selectedId, setSelectedId] = useState("");
   const [visible, setVisible] = useState(10);
@@ -1417,6 +1418,7 @@ function ApplicationRoster({
           app={current}
           hub={hub}
           onsite={onsite}
+          drafts={drafts.current}
         />
       )}
     </div>
@@ -1426,13 +1428,20 @@ export function ApplicationAdmin({
   app,
   hub,
   onsite = false,
+  drafts,
 }: {
   app: PrivateApplication;
   hub: Hub;
   onsite?: boolean;
+  drafts?: Record<string, { note: string; fee: string }>;
 }) {
-  const [note, setNote] = useState(""),
-    [fee, setFee] = useState(String(app.quote?.fee ?? 0));
+  const [note, setNote] = useState(drafts?.[app.id]?.note ?? ""),
+    [fee, setFee] = useState(
+      drafts?.[app.id]?.fee ?? String(app.quote?.fee ?? 0),
+    );
+  useEffect(() => {
+    if (drafts) drafts[app.id] = { note, fee };
+  }, [drafts, app.id, note, fee]);
   const act = (action: string, data: Record<string, unknown> = {}) =>
     hub.mutate({
       action: `admin.application.${action}`,

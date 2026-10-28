@@ -144,7 +144,7 @@ function EventHubContent({ path, hub }: { path: string; hub: Hub }) {
             </a>
             <span className="hub-eyebrow">BINPC2 · EVENT</span>
             <h1 className="mt-2 text-2xl font-black">
-              {path === "/events/waiting"
+              {path === "/events/waiting" || app?.stage === 4
                 ? "신청대기방"
                 : event
                   ? "행사 상세"

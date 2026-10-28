@@ -14,7 +14,7 @@ import {
 } from "@testing-library/react";
 import { NicknameSetupScreen } from "../components/NicknameSetupScreen";
 import { EventLaboratory } from "./EventLaboratory";
-import { AdminThreads, ApplicationAdmin } from "./EventHubAdmin";
+import { AdminThreads, ApplicationAdmin, ApplicationRoster } from "./EventHubAdmin";
 import { NoticeHistory } from "./NoticeHistory";
 import { WaitingRoom } from "./EventHubPage";
 import { EventLaboratoryStore } from "./event-laboratory-store";
@@ -649,4 +649,19 @@ it("never offers Halloween free approval or final-price editing for an advance-o
   expect(
     screen.queryByLabelText("변경할 회비 (기존 금액·사유 보존)"),
   ).toBeNull();
+});
+
+it("keeps unsaved administrator notes with their applicant when switching the compact roster", () => {
+ const state=new EventLaboratoryStore().state(true);const one=state.applications[0];const two={...structuredClone(one),id:"roster-second",basic:{...one.basic,nickname:"두번째"}};
+ const hub={state,error:"",status:"",mutate:vi.fn(),load:vi.fn(),setError:vi.fn()};
+ const v=render(<ApplicationRoster applications={[one,two]} hub={hub}/>);
+ expect(v.container.querySelectorAll("fieldset")).toHaveLength(0);
+ fireEvent.click(v.container.querySelectorAll(".hub-applicant-list > button")[0]);
+ fireEvent.click(screen.getByText("메모·회비 변경·처리 이력"));
+ fireEvent.change(screen.getByLabelText("메모·변경 사유"),{target:{value:"첫 번째 참가자 확인 메모"}});
+ fireEvent.click(v.container.querySelectorAll(".hub-applicant-list > button")[1]);
+ expect((screen.getByLabelText("메모·변경 사유") as HTMLInputElement).value).toBe("");
+ fireEvent.click(v.container.querySelectorAll(".hub-applicant-list > button")[0]);
+ expect((screen.getByLabelText("메모·변경 사유") as HTMLInputElement).value).toBe("첫 번째 참가자 확인 메모");
+ expect(v.container.querySelectorAll("fieldset")).toHaveLength(1);expect(hub.mutate).not.toHaveBeenCalled();
 });
