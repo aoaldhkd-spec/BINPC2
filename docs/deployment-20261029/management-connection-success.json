@@ -1,0 +1,30 @@
+{
+  "checkedAt": "2026-10-28T21:27:12.513439+00:00",
+  "observedRuntimeConfigurationChanged": true,
+  "netlifyAuthenticatedReadHttpStatus": 200,
+  "renderAuthenticatedReadHttpStatus": 200,
+  "secretMetadataBindingFlagWasNotProofOfRuntimeAbsence": true,
+  "netlify": {
+    "siteId": "7c748100-2502-4059-99eb-d6a1810e0768",
+    "url": "https://binpc2.netlify.app",
+    "publishedDeployId": "6addce4910baf80784543dfd",
+    "publishedCommit": "b06a900280404f79c92e17cdbc6af907a0414c30",
+    "productionBranch": "main",
+    "allowedBranches": [
+      "main"
+    ],
+    "stoppedBuilds": false
+  },
+  "render": {
+    "serviceId": "srv-d9v9gme417fc73cf6gq0",
+    "currentDeployId": "dep-dbessi95efls73bbg7qg",
+    "currentDeployStatus": "live",
+    "currentCommit": "b06a900280404f79c92e17cdbc6af907a0414c30",
+    "trackedBranch": "main",
+    "autoDeploy": "yes"
+  },
+  "deploymentExecutedThisTask": false,
+  "productionDatabaseWrites": false,
+  "actualProductionAdmissionGate": "UNKNOWN",
+  "note": "Provider deployment metadata is a pre-deployment baseline, not evidence that V6 has been deployed."
+}

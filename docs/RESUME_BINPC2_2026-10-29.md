@@ -15,9 +15,15 @@
 
 **기존 Netlify·Render 운영 배포 승인은 이미 받았고 유지된다.** 접속·인증 문제를 승인 부족으로 보고하거나 다시 배포 승인을 요구하지 마. 새 사이트·Render 웹/DB·유료 서비스·공개 터널을 만들지 마. main 병합·Push나 키 교체로 막힌 연결을 우회하지 마.
 
-마지막 작업에서는 기존 Netlify 화면·Render health·양쪽 관리 API 모두 현재 Codex 프록시 CONNECT 403으로 막혔다. 원격 서비스 인증 단계까지 도달하지 못했다. 저장된 환경 초안에는 필요한 도메인이 있지만 현재 실행에 적용된 구성 버전을 대조할 수 없어, ‘새 설정이 적용되지 않은 기존 작업’인지 확정하지 못했다. 저장된 관리 인증 연결 메타데이터도 없었다. **사용자가 같은 403 반복 시도를 중단하라고 했다. 새 환경 설정 적용·재연결의 근거를 확인한 뒤에만 영향을 받는 읽기 전용 연결을 재검사하고, 동일하면 반복하지 마.** 비밀값은 보안 환경 설정으로만 받고 채팅·로그·GitHub에 넣지 마.
+2026-10-29 06:26 KST 후속 작업은 원격/로컬 `d3feec9487e12693446e8200033ee1ae3ac52dc0`와 깨끗한 작업 트리에서 시작했다. **Netlify·Render 실제 관리 인증 HTTP200으로 연결 문제가 해결됐다.** 환경 게시 버전과 런타임 인증 존재 변화가 확인된 뒤 접속했으며, 이전403을 같은 상태로 반복하지 않았다. 개인용 인증 메타데이터 `has_saved_binding:false`만으로 인증 미등록이라고 단정하지 마. 기존 두 토큰은 다시 받을 필요가 없다.
 
-연결이 되면 실제 기존 배포 ID·실행 코드·DB/업로드 경로를 확인하고, **운영 DB·업로드·일치하는 기존 SESSION_SECRET의 보호 백업 및 격리 복원부터 검증**해. 소스 ZIP이나 합성 DB 시험을 운영 복원 증거로 바꾸지 마. 현재 운영 백업·격리 복원·배포 ID는 UNKNOWN이며 이번 운영 배포는 미실행이다. 재개 시점에도 환경 초안 revision3와 미등록 관리 인증 연결이 같아 공급자 요청을 반복하지 않았다. 다음 단계는 새 연결 적용 근거 확인이며, 성공한 CI를 불필요하게 다시 만들거나 반복하지 않는다. `backup-checkpoint`/`rotate-*`/`bootstrap-production`을 무작정 실행하지 마.
+현재 기존 서비스는 Netlify 배포 `6addce4910baf80784543dfd`, Render LIVE `dep-dbessi95efls73bbg7qg`, 둘 다 공급자 보고 코드 `b06a900280404f79c92e17cdbc6af907a0414c30`다. Render main 자동배포, Netlify 허용 브랜치 main/stop_builds false를 확인했다. 이 값은 이번 배포 결과가 아니라 배포 전 기준이다. main·서비스 설정·배포는 변경하지 않았다.
+
+운영 설정과 기존 앱 키는 비공개 작업공간에서 AES-256-GCM으로 보존하고 별도 보관한 아카이브 키로 읽어 원본과 일치함을 확인했다. 앱 키는 그대로다. **운영 DB/업로드 백업과 격리 복원은 아직 미완료다.** DB는 Supabase이며 직접 PostgreSQL은 ECONNREFUSED, 프록시 CONNECT200 뒤 PostgreSQL 통신은 닫혔다. 인증서 검증을 꺼서 우회하지 않았다. 같은 통신 시도를 반복하지 마.
+
+다음 연결 항목은 `SUPABASE_ACCESS_TOKEN` → `api.supabase.com`이다. 환경 초안에 요구 항목은 저장됐지만 현재 프로세스 값은 없다. Supabase 공식 HTTPS 관리 API 명세의 백업 목록 GET과 읽기 전용 SQL POST를 확인했다. 보안 입력이 실제 적용되면 먼저 백업 메타데이터·스키마 조회를 수행하고, 완전한 보호 백업과 격리 복원 경로를 검증해. API 명세가 존재하거나 백업 목록을 읽었다는 이유로 덤프 다운로드/복원 완료를 주장하지 마. 비공개 준비 스크립트 `.local/production-readiness-20261029/supabase-readiness.py`는 이 조회만 수행하며 배포·복원·DB 변경을 하지 않는다.
+
+현재 근거는 `docs/deployment-20261029/management-connection-success.json`, `database-backup-readiness.json`과 갱신한 배포 보고서에 있다. 비공개 `.local/production-readiness-20261029`의 원본 공급자 응답·운영 설정·암호화 보존본, `/workspace/.binpc2-private-backup-keys`의 키는 Git/공개 ZIP/로그에 절대 포함하지 마. 작업공간 보존은 외부 재난 복구 보장이 아니다. `backup-checkpoint`/`rotate-*`/`bootstrap-production`을 무작정 실행하지 마.
 
 백업·복원과 필요한 기존 스키마 호환을 확인한 뒤 검증된 동일 소스를 기존 API·화면에 반영해. 최종 상태는 **테스트 모드 ON + publicAdmissionOpen false + 일반 신청 차단**이어야 한다. 실제 참가자·입금·재고를 보호하고 관리자 시험실의 `laboratory-workspace` 기록만 초기화 가능하게 유지해. 내가 테스트를 끝내고 실제 오픈을 별도로 확인하기 전에는 테스트 OFF나 모집 오픈을 대신 실행하지 마. 실제 모집·외부 발송·운영 데이터 삭제·자동 정산/송금은 하지 마.
 
