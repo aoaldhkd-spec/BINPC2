@@ -748,8 +748,10 @@ export function TutorialModal({
   darkMode,
   moduleFlags = DEFAULT_MODULE_FLAGS,
   applicationMode,
+  applicationOpen = true,
 }: {
   applicationMode?: "halloween" | "tour" | "normal";
+  applicationOpen?: boolean;
   page?: number;
   onChangePage?: (p: number) => void;
   onClose: () => void;
@@ -761,12 +763,12 @@ export function TutorialModal({
   const [subView, setSubView] = useState<'tips' | 'video'>('tips');
 
   const topics: Topic[] = applicationMode ? [{id:'application',emoji:'📋',label:'신청 방법',title:'술번개 신청 방법',color:'from-teal-500 to-cyan-600',tips:[
-    {icon:'1',title:'행사 선택·날짜 확인',desc:'할로윈 금·토 양일과 전국투어 1차는 웹 신청 대상입니다. 접수 시작 후 행사·날짜를 선택하세요. 투어 2차는 별도 오픈채팅, 3차는 현장 안내입니다.'},
+    {icon:'1',title:applicationOpen?'행사 선택·날짜 확인':'현재는 접수 전',desc:applicationOpen?'할로윈 금·토 양일과 전국투어 1차는 웹 신청 대상입니다. 접수 시작 후 행사·날짜를 선택하세요. 투어 2차는 별도 오픈채팅, 3차는 현장 안내입니다.':'웹·오픈채팅 모두 신규 신청을 받지 않습니다. 아래 내용은 오픈 후 이용 방법입니다. 운영자 오픈 확인 전에는 신청하거나 송금하지 마세요.'},
     {icon:'2',title:'참가 자격',desc:'1991~2007년생 기본 범위. 이전 출생자는 관리자 사전 문의·개별 검토가 필요합니다.'},
     {icon:'3',title:'개인정보·기본정보',desc:'수집 안내에 동의한 뒤 닉네임·년생·지역·연락처·입금자명을 입력합니다.'},
     {icon:'4',title:'필독 공지·동의',desc:'행사 공지에 동의한 다음 화면에서 처음 금액이 공개됩니다.'},
-    {icon:'5',title:applicationMode==='tour'?'선입금 확인':'개인별 회비 확인',desc:applicationMode==='tour'?'운영자가 입력한 선입금액만 납부합니다. 최종 1/N 정산은 운영자가 직접 안내합니다.':'고정 회비·선착순 혜택을 확인합니다. 1등 무료도 관리자 별도 승인이 필요합니다.'},
-    {icon:'6',title:'신청 접수·입금 신고',desc:'서버 저장 완료를 확인하고 입금 내역을 신고합니다. 이미 이체했다면 다시 보내지 마세요. 신고는 승인이 아닙니다.'},
+    {icon:'5',title:applicationMode==='tour'?'선입금 확인':'개인별 회비 확인',desc:!applicationOpen?'현재 송금은 받지 않습니다. 기존 신청·입금 내역은 관리자 문의로 확인하세요.':applicationMode==='tour'?'운영자가 입력한 선입금액만 납부합니다. 최종 1/N 정산은 운영자가 직접 안내합니다.':'고정 회비·선착순 혜택을 확인합니다. 1등 무료도 관리자 별도 승인이 필요합니다.'},
+    {icon:'6',title:'신청 접수·입금 신고',desc:!applicationOpen?'운영자 오픈 확인 이후 이용할 수 있습니다. 이미 신청·입금한 내역은 보존하며 다시 신청하거나 송금하지 마세요.':'서버 저장 완료를 확인하고 입금 내역을 신고합니다. 이미 이체했다면 다시 보내지 마세요. 신고는 승인이 아닙니다.'},
     {icon:'7',title:'관리자 확인',desc:'은행 대조·승인 후 참가 확정됩니다. 운영자 근무·숙면 중 지연될 수 있습니다.'},
     {icon:'8',title:'대기방·프로필·현장',desc:'신청은 재접속해 이어볼 수 있습니다. 승인 후 장소를 확인하고 필수 프로필·현장 체크인을 완료합니다.'},
     {icon:'9',title:applicationMode==='tour'?'추억의 뽑기':'할로윈 경품 뽑기',desc:applicationMode==='tour'?'금·토 1차 유효 선착순10명만 무료 두 장(할인권1장·꽝1장). 목·일은 없습니다. 할인권 실제 적용은 운영자가 직접 합니다.':applicationMode==='halloween'?'현장 입장 후 무료 카드3장. 추가 유료 뽑기 없음. 하리보는 별도로1개.':'행사별 안내와 관리자 문의를 확인하세요.'},

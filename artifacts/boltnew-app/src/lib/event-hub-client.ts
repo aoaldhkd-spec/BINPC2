@@ -1,5 +1,6 @@
 import { supabase, onSseReconnect, isSseHealthy } from "./supabase";
 import { useState, useEffect, useCallback, useRef } from "react";
+import type { PublicEventTestMode } from "../../../../lib/api-zod/src/event-test-mode";
 import type {
   HubApplication,
   HubEvent,
@@ -41,7 +42,7 @@ export type HubThread = {
   history: HubAudit[];
 };
 export type HubState = {
-  testMode?: { enabled: boolean; banner: string };
+  testMode?: PublicEventTestMode;
   serverNow?: string;
   privacyNotice?:{policyVersion:string;controllerName:string;contact:string;notice:string;fingerprint:string;periods:{purpose:string;days:number|null}[]};
   publicationBlocked?:boolean;

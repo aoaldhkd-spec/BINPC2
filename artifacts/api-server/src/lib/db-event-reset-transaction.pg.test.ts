@@ -1,4 +1,4 @@
-import { beforeEach, afterAll, describe, expect, it } from 'vitest';
+import { beforeEach, afterAll, describe, expect, it, vi } from 'vitest';
 import pg from 'pg';
 import { isolatedFixtureDatabase } from './event-hub-isolation.js';
 import { atomicEventReset, EVENT_RESET_LOCK_KEY, type ResetPgPool, type ResetPgClient } from './db-event-reset-transaction.js';
@@ -7,6 +7,8 @@ import { persistNpcHeartAtomically } from './db-npc-heart-atomic.js';
 import { planNpcHeartRefill } from './db-npc-heart-recharge.js';
 import { HubStore, HubTx } from './event-hub-store.js';
 import { EventTestModeService, readEventTestMode, TEST_MODE_KIND } from './event-test-mode.js';
+import { DEFAULT_PRIVACY_POLICY, type PrivacyPolicy } from '@workspace/api-zod';
+import { policyFingerprint } from './event-hub-publication.js';
 
 const url = process.env.TEST_DATABASE_URL;
 const test = url ? it : it.skip; // GitHub ephemeral PostgreSQL CI supplies this URL; no production credentials.
@@ -76,9 +78,11 @@ describe('real ephemeral PostgreSQL reset and rollback (no production data)', ()
     // Actual-operation regression fixtures explicitly reset and disable mode.
     const laboratory = new EventTestModeService(new HubStore(pool));
     const reset = await laboratory.mutate(true, { operation: 'reset', generation: 0, revision: 0 });
-    await laboratory.mutate(true, { operation: 'mode', enabled: false,
+    const off = await laboratory.mutate(true, { operation: 'mode', enabled: false,
       generation: reset.mode.generation, revision: reset.mode.revision,
       resetGeneration: reset.mode.generation });
+    await laboratory.mutate(true, { operation: 'admission', open: true, confirmOpen: true,
+      generation: off.mode.generation, revision: off.mode.revision });
     await insert('app_settings','settings',settings);
     await insert('profiles','npc',npc);
     await insert('profiles','participant',{id:'participant',nickname:'PRIVATE_ALIAS'});
@@ -192,7 +196,38 @@ describe('real ephemeral PostgreSQL reset and rollback (no production data)', ()
     expect(await rows('device_secrets')).toHaveLength(0);
   });
 
-  test('registration queued behind mode activation reads the committed ON state under the reset lock', async () => {
+  test('a policy revision or draft blocks new legacy registration after explicit opening and preserves existing profiles and bindings', async () => {
+    const store = new HubStore(pool!);
+    const policy: PrivacyPolicy = { ...DEFAULT_PRIVACY_POLICY, status: 'approved', policyVersion: 'isolated-legacy-policy',
+      controllerName: '격리 시험 운영자', contact: 'example.invalid', notice: '합성 고지 원문', backupProcedure: '합성 백업 절차',
+      rules: Object.fromEntries(Object.keys(DEFAULT_PRIVACY_POLICY.rules).map(k => [k, { days: 30, basis: '격리 시험' }])) as PrivacyPolicy['rules'] };
+    await store.transaction(tx => tx.put('settings', 'privacy-policy', policy));
+    await pool!.query("UPDATE app_kv_rows SET data = jsonb_set(data, '{session_active}', 'true'::jsonb) WHERE table_name = 'app_settings'");
+    vi.stubEnv('NODE_ENV', 'production');
+    vi.stubEnv('APP_MODE', '');
+    vi.stubEnv('EVENT_HUB_PRODUCTION_RELEASE', 'approved-v6');
+    vi.stubEnv('EVENT_HUB_RELEASE_POLICY_SHA256', policyFingerprint(policy));
+    try {
+      const laboratory = new EventTestModeService(store);
+      const current = await laboratory.state(true);
+      await laboratory.mutate(true, { operation: 'admission', open: true, confirmOpen: true,
+        generation: current.mode.generation, revision: current.mode.revision });
+      await persistNewParticipantForCycle(adapter(), { id: 'policy-approved-profile', nickname: 'synthetic-existing' }, id,
+        { id: 'policy-approved-binding', user_id: 'policy-approved-profile', secret_hash: 'synthetic-hash' },
+        () => new Date('2026-10-13T20:00:00+09:00'));
+      const before = { profiles: await rows('profiles'), bindings: await rows('device_secrets'), likes: await rows('likes'), messages: await rows('messages') };
+      for (const revised of [{ ...policy, status: 'draft' }, { ...policy, notice: 'changed-after-release' }]) {
+        await store.transaction(tx => tx.put('settings', 'privacy-policy', revised));
+        expect((await laboratory.state(true)).mode.publicAdmissionOpen).toBe(true);
+        await expect(persistNewParticipantForCycle(adapter(), { id: 'policy-must-block-new' }, id,
+          { id: 'policy-must-not-bind', user_id: 'policy-must-block-new', secret_hash: 'synthetic' },
+          () => new Date('2026-10-13T20:00:00+09:00'))).rejects.toMatchObject({ code: 'PRIVACY_POLICY_UNCONFIRMED', status: 403 });
+        expect({ profiles: await rows('profiles'), bindings: await rows('device_secrets'), likes: await rows('likes'), messages: await rows('messages') }).toEqual(before);
+      }
+    } finally { vi.unstubAllEnvs(); }
+  });
+
+  for (const enabled of [true, false]) test(`registration queued behind ${enabled ? 'test mode activation' : 'public admission closure'} reads the committed guard under the reset lock`, async () => {
     await pool!.query("UPDATE app_kv_rows SET data = jsonb_set(data, '{session_active}', 'true'::jsonb) WHERE table_name = 'app_settings'");
     const writer = await pool!.connect();
     const before = await rows('profiles');
@@ -201,11 +236,12 @@ describe('real ephemeral PostgreSQL reset and rollback (no production data)', ()
       await writer.query('SELECT pg_advisory_xact_lock(hashtext($1))', [EVENT_RESET_LOCK_KEY]);
       const tx = new HubTx(writer, new HubStore(pool!).key);
       const mode = await readEventTestMode(tx);
-      await tx.put(TEST_MODE_KIND, 'global', { ...mode, enabled: true, revision: mode.revision + 1 });
+      await tx.put(TEST_MODE_KIND, 'global', { ...mode, enabled,
+        publicAdmissionOpen: false, admissionOpenedAt: null, revision: mode.revision + 1 });
       const pending = persistNewParticipantForCycle(adapter(), { id: 'queued-behind-mode' }, id,
         { id: 'queued-device', user_id: 'queued-behind-mode', secret_hash: 'synthetic' },
         () => new Date('2026-10-13T20:00:00+09:00'));
-      const rejected = expect(pending).rejects.toMatchObject({ code: 'TEST_MODE', status: 423 });
+      const rejected = expect(pending).rejects.toMatchObject({ code: enabled ? 'TEST_MODE' : 'PUBLIC_ADMISSION_CLOSED', status: 423 });
       await new Promise(resolve => setTimeout(resolve, 40));
       await writer.query('COMMIT');
       await rejected;

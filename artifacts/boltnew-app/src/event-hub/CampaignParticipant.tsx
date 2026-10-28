@@ -61,7 +61,7 @@ export function ApplicationGuide({
       <p className="font-bold" role="status">
         {webOpen
           ? "웹 접수 중 · 신청할 행사·날짜를 확인해 주세요"
-          : "신청창 준비 중 · 오픈 후 접수"}
+          : "웹·오픈채팅 모두 접수 전 · 송금하지 마세요"}
       </p>
       <details>
         <summary className="cursor-pointer font-bold">신청 주소·수동 신청 방법 보기</summary>
@@ -73,18 +73,20 @@ export function ApplicationGuide({
             </a>
             . 접수 시작 후 행사·지역·날짜·도착 예정시간을 확인해 주세요.
           </p>
-          <p>오픈채팅 수동 신청은 아래 순서로 진행합니다.</p>
-          <ol className="list-decimal pl-5 space-y-2">
+          {webOpen ? <>
+            <p>오픈채팅 수동 신청은 운영자의 오픈 확인 후 아래 순서로 진행합니다.</p>
+            <ol className="list-decimal pl-5 space-y-2">
             <li>신청방 입장</li>
             <li>오픈채팅 닉네임을 ‘년생 / 사는곳 / 인원’으로 설정</li>
             <li>행사·지역·날짜·차수·도착시각 전달</li>
             <li>회비 안내 확인 후 선입금</li>
             <li>운영자의 실제 입금 확인·참가 승인 확인</li>
-          </ol>
-          <p>이 닉네임 형식은 오픈채팅용입니다. 앱 닉네임은 앱의 기존 규칙을 따릅니다.</p>
+            </ol>
+            <p>이 닉네임 형식은 오픈채팅용입니다. 앱 닉네임은 앱의 기존 규칙을 따릅니다.</p>
+          </> : <p>운영자가 테스트 완료와 오픈을 확인하기 전에는 웹·오픈채팅 모두 신규 신청을 받지 않습니다. 신청이나 송금을 하지 말고 공지·기존 내역·관리자 문의만 확인해 주세요.</p>}
           <HubButton disabled>오픈채팅 신청방 준비 중</HubButton>
           <p>새 신청방 URL이 아직 없어 링크·QR·입장 버튼은 제공하지 않습니다. 새 주소 확인 후 안내합니다.</p>
-          <p>전국투어 2차는 별도 오픈채팅 신청, 3차는 현장 안내입니다. 할로윈은 1차만 진행합니다.</p>
+          <p>전국투어 2차는 별도 오픈채팅 신청, 3차는 현장 안내입니다. 할로윈은 1차만 진행합니다. 모든 신규 신청은 운영자 오픈 확인 후 가능합니다.</p>
           <p>
             수동 신청과 웹 신청은 자동으로 합쳐지지 않습니다. 이미 신청하거나
             입금했다면 다시 신청·입금하지 말고 기존 내역을 관리자 1:1 문의로 확인해 주세요.
@@ -102,6 +104,7 @@ export function ApplicationGuide({
                 ? "halloween"
                 : "normal"
           }
+          applicationOpen={webOpen}
           darkMode={dark}
           onClose={close}
         />

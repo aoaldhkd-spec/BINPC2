@@ -336,7 +336,8 @@ export class EventLaboratoryStore {
       serverNow: this.value.quoteAt ? simulatedNow.toISOString() : undefined,
       hasSession: true,
       enabled: true,
-      testMode: { enabled: false, banner: "" },
+      // The synthetic workspace exercises opened flows without opening production admission.
+      testMode: { enabled: false, publicAdmissionOpen: true, banner: "" },
       retentionDays: 180,
       events: [publicEvent],
       applications: admin

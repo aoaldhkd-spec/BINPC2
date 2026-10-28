@@ -9,7 +9,7 @@ afterEach(() => {
   vi.restoreAllMocks();
 });
 
-it("keeps application and entry disabled until an authoritative OFF response, with notices and inquiry available", async () => {
+it("keeps application and entry disabled until OFF and a separate authoritative admission approval, with notices and inquiry available", async () => {
   let complete!: (response: Response) => void;
   const request = vi.spyOn(globalThis, "fetch").mockImplementation(() => new Promise((resolve) => { complete = resolve; }));
   const enter = vi.fn();
@@ -22,6 +22,13 @@ it("keeps application and entry disabled until an authoritative OFF response, wi
   expect(screen.getByRole("link", { name: "신청대기방" })).toBeTruthy();
   expect(request.mock.calls[0][0]).toBe("/api/event-hub/test-mode");
   await act(async () => complete(new Response(JSON.stringify({ enabled: false, banner: TEST_MODE_BANNER }))));
+  expect((screen.getByRole("button", { name: "술번개 신청" }) as HTMLButtonElement).disabled).toBe(true);
+  expect(screen.getByText(/웹·오픈채팅 모두 접수 전입니다/)).toBeTruthy();
+  fireEvent.focus(window);
+  await act(async () => complete(new Response(JSON.stringify({ enabled: false, publicAdmissionOpen: false, banner: TEST_MODE_BANNER }))));
+  expect((screen.getByRole("button", { name: "술번개 신청" }) as HTMLButtonElement).disabled).toBe(true);
+  fireEvent.focus(window);
+  await act(async () => complete(new Response(JSON.stringify({ enabled: false, publicAdmissionOpen: true, banner: TEST_MODE_BANNER }))));
   expect(screen.queryByText(TEST_MODE_BANNER)).toBeNull();
   expect(screen.getByRole("link", { name: "술번개 신청" })).toBeTruthy();
 });
@@ -33,10 +40,10 @@ it("does not accept a stale OFF response after a newer ON response and fails clo
   expect(result.current).toBe(true);
   fireEvent.focus(window);
   await act(async () => requests[1](new Response(JSON.stringify({ enabled: true }))));
-  await act(async () => requests[0](new Response(JSON.stringify({ enabled: false }))));
+  await act(async () => requests[0](new Response(JSON.stringify({ enabled: false, publicAdmissionOpen: true }))));
   expect(result.current).toBe(true);
   fireEvent.focus(window);
-  await act(async () => requests[2](new Response(JSON.stringify({ enabled: false }))));
+  await act(async () => requests[2](new Response(JSON.stringify({ enabled: false, publicAdmissionOpen: true }))));
   await waitFor(() => expect(result.current).toBe(false));
   fireEvent.focus(window);
   await act(async () => requests[3](new Response("unavailable", { status: 503 })));

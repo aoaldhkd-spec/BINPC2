@@ -1,6 +1,6 @@
 // @vitest-environment happy-dom
 import { afterEach, expect, it, vi } from "vitest";
-import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { ManagedEventLaboratory } from "./ManagedEventLaboratory";
 import { TestModePanel } from "./TestModePanel";
 import { useTestMode, type LaboratoryResponse } from "./test-mode-client";
@@ -26,19 +26,21 @@ function Harness() {
 }
 
 type RequestBody = {
-  operation: "save" | "reset" | "mode";
+  operation: "save" | "reset" | "mode" | "admission";
   generation: number;
   revision: number;
   workspaceId?: string;
   snapshot?: LabSnapshot;
   enabled?: boolean;
   resetGeneration?: number;
+  open?: boolean;
+  confirmOpen?: boolean;
 };
 
 function server() {
   const state: LaboratoryResponse = {
     mode: {
-      enabled: true, banner: EVENT_TEST_MODE_BANNER,
+      enabled: true, publicAdmissionOpen: false, admissionOpenedAt: null, banner: EVENT_TEST_MODE_BANNER,
       generation: 1, revision: 1, dirty: false, resetGeneration: null,
       resetAt: null, changedAt: "2026-10-28T00:00:00Z",
     },
@@ -46,6 +48,7 @@ function server() {
   };
   const requests: { path: string; method: string; token: string | null; body?: RequestBody }[] = [];
   let rejectNextSave = false;
+  let rejectAdmission = false;
   localStorage.setItem("admin_token_v1", "laboratory-admin-token");
   vi.spyOn(globalThis, "fetch").mockImplementation(async (input, init) => {
     const path = String(input);
@@ -71,19 +74,34 @@ function server() {
       state.mode.dirty = false;
       state.mode.resetGeneration = state.mode.generation;
       state.mode.resetAt = "2026-10-28T00:01:00Z";
-    } else {
+      state.mode.publicAdmissionOpen = false;
+      state.mode.admissionOpenedAt = null;
+    } else if (body.operation === "mode") {
       if (body.enabled === false && (state.mode.dirty || body.resetGeneration !== state.mode.generation))
         return Response.json({ code: "TEST_RESET_REQUIRED", error: "초기화 확인이 필요합니다." }, { status: 409 });
       state.mode.enabled = body.enabled!;
+      if (body.enabled) {
+        state.mode.publicAdmissionOpen = false;
+        state.mode.admissionOpenedAt = null;
+      }
+    } else {
+      if (body.open && rejectAdmission)
+        return Response.json({ code: "PRIVACY_POLICY_UNCONFIRMED", error: "운영 개인정보 정책이 아직 초안입니다." }, { status: 409 });
+      if (body.open && (state.mode.enabled || state.mode.dirty || !body.confirmOpen))
+        return Response.json({ code: "PUBLIC_ADMISSION_CONFIRMATION", error: "테스트 완료와 별도 오픈 확인이 필요합니다." }, { status: 409 });
+      state.mode.publicAdmissionOpen = body.open!;
+      state.mode.admissionOpenedAt = body.open ? "2026-10-28T00:02:00Z" : null;
     }
     state.mode.revision++;
     return Response.json(state);
   });
-  return { state, requests, writes: () => requests.filter(r => r.body), staleNextSave: () => { rejectNextSave = true; } };
+  return { state, requests, writes: () => requests.filter(r => r.body), staleNextSave: () => { rejectNextSave = true; }, rejectAdmission: () => { rejectAdmission = true; } };
 }
 
 async function loaded() {
   await screen.findByTestId("event-laboratory");
+  // Flush the newly mounted engine's persistence subscription before interacting.
+  await act(async () => {});
   expect((screen.getByTestId("event-laboratory") as HTMLFieldSetElement).disabled).toBe(false);
 }
 
@@ -144,6 +162,54 @@ it("requires a global reset and fresh acknowledgement before OFF, clearing heart
   await screen.findByText("시험실을 사용하려면 테스트 모드를 ON으로 전환하세요.");
   expect(mock.writes()).toHaveLength(5);
   expect(mock.writes()[4].body).toMatchObject({ operation: "mode", enabled: false, generation: 2, revision: 5, resetGeneration: 2 });
+  expect(mock.state.mode.publicAdmissionOpen).toBe(false);
+  expect(screen.getByText("실제 모집: 차단 · 웹·오픈채팅 모두 접수 전")).toBeTruthy();
+  expect((screen.getByRole("button", { name: "실제 모집 오픈 확인·저장" }) as HTMLButtonElement).disabled).toBe(true);
+});
+
+it("requires a distinct admission acknowledgement after OFF and revokes a stale acknowledgement on another tab's revision", async () => {
+  const mock = server();
+  mock.state.mode = { ...mock.state.mode, enabled: false, resetGeneration: 1, resetAt: "2026-10-28T00:01:00Z" };
+  render(<Harness />);
+  const open = await screen.findByRole("button", { name: "실제 모집 오픈 확인·저장" });
+  const confirmation = "테스트와 운영 준비를 마쳤으며, 웹·오픈채팅의 실제 모집을 오픈하는 것을 확인했습니다.";
+  expect((open as HTMLButtonElement).disabled).toBe(true);
+  fireEvent.click(open);
+  expect(mock.writes()).toHaveLength(0);
+  fireEvent.click(screen.getByLabelText(confirmation));
+  expect((open as HTMLButtonElement).disabled).toBe(false);
+  mock.state.mode = { ...mock.state.mode, revision: 2 };
+  fireEvent.focus(window);
+  await waitFor(() => expect((screen.getByLabelText(confirmation) as HTMLInputElement).checked).toBe(false));
+  expect((open as HTMLButtonElement).disabled).toBe(true);
+  fireEvent.click(screen.getByLabelText(confirmation));
+  fireEvent.click(open);
+  await screen.findByRole("button", { name: "실제 신규 접수 중지" });
+  expect(mock.writes()).toHaveLength(1);
+  expect(mock.writes()[0].body).toEqual({ operation: "admission", open: true, confirmOpen: true, generation: 1, revision: 2 });
+  expect(mock.state.mode.publicAdmissionOpen).toBe(true);
+  fireEvent.click(screen.getByRole("button", { name: "실제 신규 접수 중지" }));
+  await screen.findByText("실제 모집: 차단 · 웹·오픈채팅 모두 접수 전");
+  expect(mock.writes()[1].body).toEqual({ operation: "admission", open: false, generation: 1, revision: 3 });
+  expect(mock.state.workspaces).toEqual({});
+});
+
+it("keeps admission closed and revokes confirmation when the server refuses an opening", async () => {
+  const mock = server();
+  mock.state.mode = { ...mock.state.mode, enabled: false, resetGeneration: 1, resetAt: "2026-10-28T00:01:00Z" };
+  mock.rejectAdmission();
+  render(<Harness />);
+  const confirmation = "테스트와 운영 준비를 마쳤으며, 웹·오픈채팅의 실제 모집을 오픈하는 것을 확인했습니다.";
+  await screen.findByRole("button", { name: "실제 모집 오픈 확인·저장" });
+  fireEvent.click(screen.getByLabelText(confirmation));
+  fireEvent.click(screen.getByRole("button", { name: "실제 모집 오픈 확인·저장" }));
+  await screen.findByText(/운영 개인정보 정책이 아직 초안입니다/);
+  expect(screen.getByText("실제 모집: 차단 · 웹·오픈채팅 모두 접수 전")).toBeTruthy();
+  expect(mock.state.mode.publicAdmissionOpen).toBe(false);
+  expect((screen.getByLabelText(confirmation) as HTMLInputElement).checked).toBe(false);
+  fireEvent.click(screen.getByLabelText(confirmation));
+  expect((screen.getByRole("button", { name: "실제 모집 오픈 확인·저장" }) as HTMLButtonElement).disabled).toBe(true);
+  expect(mock.writes()).toHaveLength(1);
 });
 
 it("reloads generation two after a stale save and discards old results without automatically retrying the write", async () => {

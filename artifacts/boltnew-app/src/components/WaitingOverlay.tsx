@@ -279,7 +279,7 @@ export function WaitingOverlay({ landingThemeEnabled = true, sessionActive, even
           <span className="season-night-sticker">BOO!<br/>좋은 밤의 시작</span>
         </div>}
 
-        {testMode && <p role="status" className="w-[88%] rounded-xl border border-amber-300/40 bg-amber-950/60 p-3 text-center text-sm font-bold text-amber-100 mb-3">{TEST_MODE_BANNER}</p>}
+        {testMode && <div className="w-[88%] rounded-xl border border-amber-300/40 bg-amber-950/60 p-3 text-center text-sm font-bold text-amber-100 mb-3"><p role="status">{TEST_MODE_BANNER}</p><p className="mt-1 text-xs">웹·오픈채팅 모두 접수 전입니다. 오픈 확인 전에는 신청하거나 송금하지 마세요.</p></div>}
 
         {/* 피라미드형 버튼 그룹 */}
         <div className="w-full flex flex-col items-center gap-2 mb-2">

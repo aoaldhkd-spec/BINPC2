@@ -3,9 +3,10 @@ import { useEffect, useState } from "react";
 export { EVENT_TEST_MODE_BANNER as TEST_MODE_BANNER } from "../../../../lib/api-zod/src/event-test-mode";
 
 export function testModeBlocksParticipation(
-  state: { testMode?: { enabled: boolean } } | null | undefined,
+  state: { testMode?: { enabled: boolean; publicAdmissionOpen?: boolean } } | null | undefined,
 ) {
-  return state?.testMode?.enabled !== false;
+  // OFF only ends the simulation. Missing/older responses never imply approval to recruit.
+  return state?.testMode?.enabled !== false || state.testMode.publicAdmissionOpen !== true;
 }
 
 /** Homepage reads the server flag independently of participant identity. */
@@ -23,8 +24,9 @@ export function usePublicTestMode() {
           signal: AbortSignal.timeout(10000),
         });
         if (!response.ok) throw new Error("Test mode unavailable");
-        const mode = (await response.json()) as { enabled?: boolean };
-        if (active && current === sequence) setEnabled(mode.enabled !== false);
+        const mode = (await response.json()) as { enabled?: boolean; publicAdmissionOpen?: boolean };
+        if (active && current === sequence)
+          setEnabled(mode.enabled !== false || mode.publicAdmissionOpen !== true);
       } catch {
         if (active && current === sequence) setEnabled(true);
       }

@@ -199,10 +199,12 @@ suite("event hub V6 — actual isolated PostgreSQL transactions", () => {
     // These legacy operational fixtures explicitly complete the isolated lab reset gate.
     const laboratory = new EventTestModeService(service.store, now);
     const reset = await laboratory.mutate(true, { operation: "reset", generation: 0, revision: 0 });
-    await laboratory.mutate(true, {
+    const off = await laboratory.mutate(true, {
       operation: "mode", enabled: false, generation: reset.mode.generation,
       revision: reset.mode.revision, resetGeneration: reset.mode.generation,
     });
+    await laboratory.mutate(true, { operation: "admission", open: true, confirmOpen: true,
+      generation: off.mode.generation, revision: off.mode.revision });
     owner = await service.session(randomBytes(32).toString("base64url"), true);
     eventId = String((await call("event.save", "", event, undefined, true)).id);
     await call("event.recruitment", eventId, { enabled: true }, 1, true);

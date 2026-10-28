@@ -2,8 +2,9 @@ import { buildKvUpsertSql } from './db-table-policy.js';
 import { newParticipantAdmissionReject } from './db-event-admission.js';
 import { EVENT_RESET_LOCK_KEY, type ResetPgPool } from './db-event-reset-transaction.js';
 import type { PoolClient } from 'pg';
-import { eventHubEncryptionKey, HubTx } from './event-hub-store.js';
+import { eventHubEncryptionKey, fail, HubTx } from './event-hub-store.js';
 import { assertTestModeAllowsPublicMutation } from './event-test-mode.js';
+import { publicationBlockedForTx } from './event-hub-publication.js';
 
 /** A new participant must not be written after the event was safely reset. */
 export class EventAdmissionClosedDuringWrite extends Error {
@@ -38,7 +39,13 @@ export async function persistNewParticipantForCycle(
     await client.query('SELECT pg_advisory_xact_lock(hashtext($1))', [EVENT_RESET_LOCK_KEY]);
     // Mode switches use this same lock. Recheck durable encrypted metadata
     // before either the profile or its device binding can become visible.
-    await assertTestModeAllowsPublicMutation(new HubTx(client as PoolClient, eventHubEncryptionKey()));
+    const tx = new HubTx(client as PoolClient, eventHubEncryptionKey());
+    await assertTestModeAllowsPublicMutation(tx);
+    // A past opening acknowledgement does not authorize a newly changed or
+    // unapproved policy. Check it again under the same lock before any INSERT.
+    if (await publicationBlockedForTx(tx)) {
+      fail('PRIVACY_POLICY_UNCONFIRMED', '운영 개인정보 정책 확정 전 신규 등록은 차단됩니다. 기존 프로필은 복구할 수 있습니다.', 403);
+    }
     const settings = (await client.query(
       "SELECT data FROM app_kv_rows WHERE table_name = 'app_settings' ORDER BY updated_at DESC LIMIT 1 FOR UPDATE",
     )).rows[0]?.data as Record<string, unknown> | undefined;

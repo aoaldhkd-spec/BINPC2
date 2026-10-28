@@ -5,12 +5,14 @@ export function createLegacyModeOffQuery(storage: 'in-memory-pg-mock') {
   if (process.env.NODE_ENV !== 'test' || storage !== 'in-memory-pg-mock') {
     throw new Error('Legacy mode opt-out requires an isolated in-memory pg test fixture');
   }
-  // This fixture has no laboratory snapshots. Model the state after reset + OFF.
+  // This fixture has no laboratory snapshots. Model reset + OFF + explicit synthetic opening.
   const mode: EventTestModeState = {
     enabled: false,
+    publicAdmissionOpen: true,
+    admissionOpenedAt: '2026-10-28T00:00:00.000Z',
     banner: EVENT_TEST_MODE_BANNER,
     generation: 1,
-    revision: 2,
+    revision: 3,
     dirty: false,
     resetGeneration: 1,
     resetAt: '2026-10-28T00:00:00.000Z',

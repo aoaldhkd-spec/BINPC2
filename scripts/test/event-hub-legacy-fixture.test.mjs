@@ -10,7 +10,8 @@ const fixture = {
 
 function laboratoryMock() {
   const requests = [];
-  let mode = { enabled: true, generation: 7, revision: 11, dirty: true, resetGeneration: null };
+  let mode = { enabled: true, publicAdmissionOpen: false, admissionOpenedAt: null,
+    generation: 7, revision: 11, dirty: true, resetGeneration: null };
   const fetchImpl = async (url, options) => {
     const command = options.body ? JSON.parse(options.body) : undefined;
     requests.push({ url, options, command });
@@ -24,18 +25,24 @@ function laboratoryMock() {
       assert.equal(command.resetGeneration, 8);
       assert.equal(command.enabled, false);
       mode = { ...mode, enabled: false, revision: 13 };
+    } else if (command?.operation === "admission") {
+      assert.equal(command.open, true);
+      assert.equal(command.confirmOpen, true);
+      assert.equal(mode.enabled, false);
+      assert.equal(mode.publicAdmissionOpen, false);
+      mode = { ...mode, publicAdmissionOpen: true, admissionOpenedAt: "2026-10-29T00:00:00Z", revision: 14 };
     }
     return { ok: true, status: 200, json: async () => ({ mode: { ...mode }, workspaces: {} }) };
   };
   return { requests, fetchImpl };
 }
 
-test("legacy fixture authenticates and acknowledges snapshot reset before mode OFF", async () => {
+test("legacy fixture authenticates, resets, disables mode without opening and explicitly opens synthetic admission", async () => {
   const mock = laboratoryMock();
   const result = await prepareLegacyEventHubFixture({ ...fixture, fetchImpl: mock.fetchImpl });
-  assert.deepEqual(result, { enabled: false, generation: 8, revision: 13 });
-  assert.equal(mock.requests.length, 3);
-  assert.deepEqual(mock.requests.map(({ command }) => command?.operation), [undefined, "reset", "mode"]);
+  assert.deepEqual(result, { enabled: false, publicAdmissionOpen: true, generation: 8, revision: 14 });
+  assert.equal(mock.requests.length, 4);
+  assert.deepEqual(mock.requests.map(({ command }) => command?.operation), [undefined, "reset", "mode", "admission"]);
   for (const { url, options } of mock.requests) {
     assert.equal(url, "http://127.0.0.1:3001/api/event-hub/laboratory");
     assert.equal(options.headers["x-admin-token"], fixture.adminToken);
@@ -75,7 +82,7 @@ test("unacknowledged reset cannot disable the guard", async () => {
   const fetchImpl = async (_url, options) => {
     calls.push(options);
     return { ok: true, status: 200, json: async () => ({
-      mode: { enabled: true, generation: 0, revision: 0, dirty: true, resetGeneration: null },
+      mode: { enabled: true, publicAdmissionOpen: false, generation: 0, revision: 0, dirty: true, resetGeneration: null },
     }) };
   };
   await assert.rejects(prepareLegacyEventHubFixture({ ...fixture, fetchImpl }), /reset was not acknowledged/);

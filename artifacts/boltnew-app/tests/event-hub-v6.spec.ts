@@ -39,7 +39,7 @@ async function application(request: APIRequestContext, id: string) {
   expect(r.status()).toBe(200);
   return (await r.json()).applications.find((a: { id: string }) => a.id === id);
 }
-// Only legacy sandbox cases opt into ON; always restore their isolated fixture to clean OFF.
+// Only dedicated loopback fixtures may explicitly reopen after clean OFF for legacy cases.
 async function withLegacyLaboratory(request: APIRequestContext, page: Page, run: () => Promise<void>) {
   const write = async (operation: Record<string, unknown>): Promise<EventLaboratoryState> => {
     const read = await request.get("/api/event-hub/laboratory", { headers: adminHeaders });
@@ -61,8 +61,10 @@ async function withLegacyLaboratory(request: APIRequestContext, page: Page, run:
     const clean = await write({ operation: "reset" });
     const off = await write({ operation: "mode", enabled: false, resetGeneration: clean.mode.generation });
     expect(off.mode.enabled).toBe(false);
+    expect(off.mode.publicAdmissionOpen).toBe(false);
     expect(off.mode.dirty).toBe(false);
     expect(off.workspaces).toEqual({});
+    expect((await write({ operation: "admission", open: true, confirmOpen: true })).mode.publicAdmissionOpen).toBe(true);
   }
 }
 // Every browser page is denied non-local network access, including popups and media.
@@ -1835,7 +1837,7 @@ test("test mode real browser: isolated campaigns, durable restore, global reset 
     const response = admin.waitForResponse(response => response.url().endsWith("/api/event-hub/laboratory") && response.request().method() === "POST" && response.request().postDataJSON().operation === operation);
     await action();
     expect((await response).status()).toBe(200);
-    if (operation !== "mode") await expect(lab).toBeEnabled();
+    if (!["mode", "admission"].includes(operation)) await expect(lab).toBeEnabled();
   };
   const resetLabel = "모든 시험실의 가상 신청·결제·대기방·뽑기·경품·하트·채팅을 삭제하는 것을 확인했습니다.";
   const acknowledgeLabel = "초기화 완료를 확인했습니다. 테스트 모드 OFF 후에도 개인정보·접수 일정 등 실제 오픈 조건을 별도로 확인합니다.";
@@ -1937,20 +1939,52 @@ test("test mode real browser: isolated campaigns, durable restore, global reset 
     await savedAction("mode", () => admin.getByRole("switch", { name: "테스트 모드 OFF", exact: true }).click());
     await expect(admin.getByText("시험실을 사용하려면 테스트 모드를 ON으로 전환하세요.", { exact: true })).toBeVisible();
     expect((await readLaboratory()).mode.enabled).toBe(false);
+    expect((await readLaboratory()).mode.publicAdmissionOpen).toBe(false);
+    await page.reload();
+    await expect(page.getByRole("button", { name: "술번개 신청", exact: true })).toBeDisabled();
+    await page.goto("/events");
+    await expect(page.getByText(/웹·오픈채팅 모두 접수 전/).first()).toBeVisible();
+    const blocked = await request.post("/api/event-hub/mutate", {
+      headers: adminHeaders,
+      data: { action: "application.basic", target: eventId ?? "", data: {}, requestId: randomUUID() },
+    });
+    expect(blocked.status()).toBe(423);
+    expect((await blocked.json()).code).toBe("PUBLIC_ADMISSION_CLOSED");
+    const open = admin.getByRole("button", { name: "실제 모집 오픈 확인·저장", exact: true });
+    await expect(open).toBeDisabled();
+    await capture(admin, "09-test-off-admission-still-closed.png", "Test mode OFF alone keeps both web and open-chat application guidance blocked; separate opening confirmation required.");
+    const openLabel = "테스트와 운영 준비를 마쳤으며, 웹·오픈채팅의 실제 모집을 오픈하는 것을 확인했습니다.";
+    await admin.getByLabel(openLabel, { exact: true }).check();
+    await expect(open).toBeEnabled();
+    // Another administrator revision invalidates this tab's separate opening acknowledgement.
+    await writeLaboratory({ operation: "reset" });
+    await admin.evaluate(() => window.dispatchEvent(new Event("focus")));
+    await expect(admin.getByLabel(openLabel, { exact: true })).not.toBeChecked();
+    await expect(open).toBeDisabled();
+    await admin.getByLabel(openLabel, { exact: true }).check();
+    await savedAction("admission", () => open.click());
+    expect((await readLaboratory()).mode.publicAdmissionOpen).toBe(true);
+    await page.goto("/");
+    await expect(page.getByRole("link", { name: "술번개 신청", exact: true })).toHaveAttribute("href", "/events");
+    await savedAction("admission", () => admin.getByRole("button", { name: "실제 신규 접수 중지", exact: true }).click());
+    expect((await readLaboratory()).mode.publicAdmissionOpen).toBe(false);
+    await page.reload();
+    await expect(page.getByRole("button", { name: "술번개 신청", exact: true })).toBeDisabled();
     expect(nonLaboratoryWrites).toEqual([]);
     expect(await operationalRecords()).toEqual(before);
     writeFileSync(resolve(directory, "README.md"), [
       "# Test mode browser evidence", "",
       "Passed against the isolated localhost React/API/PostgreSQL fixture. No production service was accessed.", "",
-      "Verified public blocking, four campaign scenarios and repeated draws, isolated durable restoration, synthetic heart/chat, global reset, stale-generation rejection, and fresh acknowledgement after another administrator reset.", "",
+      "Verified public blocking, four campaign scenarios and repeated draws, isolated durable restoration, synthetic heart/chat, global reset, stale-generation rejection, and fresh acknowledgement after another administrator reset. OFF remains closed; only a separate authenticated opening confirmation enables admission, and closing immediately blocks it again.", "",
       "For Halloween, new entry remains blocked after 01:00; an already admitted participant can draw at 16:59:59, and drawing is disabled at the next 17:00 expiry.", "",
-      "Operational applications, payment states, ranks and stock records were identical before and after. The isolated fixture is restored to OFF after the test; screenshots show ON until the final explicit OFF action.", "",
+      "Operational applications, payment states, ranks and stock records were identical before and after. Only the explicitly isolated fixture is restored to OFF and separately reopened for following regression tests; no production opening request was sent.", "",
       ...screenshots.map(shot => `- [${shot.file}](${shot.file}) — ${shot.description}`), "",
     ].join("\n"));
   } finally {
     // This is the explicitly bound local fixture, whose other CI flows require OFF.
     const clean = await writeLaboratory({ operation: "reset" });
     await writeLaboratory({ operation: "mode", enabled: false, resetGeneration: clean.mode.generation });
+    await writeLaboratory({ operation: "admission", open: true, confirmOpen: true });
     expect(await operationalRecords()).toEqual(before);
     await adminContext.close();
   }

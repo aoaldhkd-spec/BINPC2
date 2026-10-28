@@ -390,11 +390,13 @@ export class EventHubService {
               recruitment:
                 enabled &&
                 !testMode.enabled &&
+                testMode.publicAdmissionOpen &&
                 !publicationBlocked &&
                 recruitmentIsOpen(e, this.now()),
               cardsEnabled:
                 enabled &&
                 !testMode.enabled &&
+                testMode.publicAdmissionOpen &&
                 drawModuleEnabled(e, switches) &&
                 !eventExpired(e, this.now()),
             }));
@@ -1969,7 +1971,8 @@ export class EventHubService {
   }
   async autoTick() {
     return this.store.transaction(async (tx) => {
-      if ((await readEventTestMode(tx)).enabled) return;
+      const mode = await readEventTestMode(tx);
+      if (mode.enabled || !mode.publicAdmissionOpen) return;
       if (!(await this.enabled(tx))) return;
       await applyScheduledRecruitment(tx,this.now(),true);
       const s =

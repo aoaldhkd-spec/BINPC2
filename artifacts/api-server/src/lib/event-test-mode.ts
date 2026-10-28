@@ -1,17 +1,22 @@
 import {
   EVENT_TEST_MODE_BANNER,
+  PUBLIC_ADMISSION_CLOSED_BANNER,
   z,
   type EventLaboratoryState,
   type EventTestModeState,
   type PublicEventTestMode,
 } from "@workspace/api-zod";
 import { fail, type HubStore, type HubTx } from "./event-hub-store.js";
+import { publicationBlockedForTx } from "./event-hub-publication.js";
 
 export const TEST_MODE_KIND = "laboratory-mode";
 export const TEST_WORKSPACE_KIND = "laboratory-workspace";
 const MODE_ID = "global";
 const storedModeInput = z.object({
   enabled: z.boolean(),
+  // Old persisted OFF states do not implicitly carry a public opening approval.
+  publicAdmissionOpen: z.boolean().default(false),
+  admissionOpenedAt: z.string().datetime().nullable().default(null),
   banner: z.string(),
   generation: z.number().int().nonnegative(),
   revision: z.number().int().nonnegative(),
@@ -19,9 +24,14 @@ const storedModeInput = z.object({
   resetGeneration: z.number().int().nonnegative().nullable(),
   resetAt: z.string().datetime().nullable(),
   changedAt: z.union([z.literal(""), z.string().datetime()]),
-}).refine(mode => mode.enabled || (!mode.dirty && mode.resetGeneration === mode.generation && mode.resetAt !== null));
+}).refine(mode => mode.enabled || (!mode.dirty && mode.resetGeneration === mode.generation && mode.resetAt !== null))
+  .refine(mode => mode.publicAdmissionOpen
+    ? !mode.enabled && mode.admissionOpenedAt !== null
+    : mode.admissionOpenedAt === null);
 const initialMode = (): EventTestModeState => ({
   enabled: true,
+  publicAdmissionOpen: false,
+  admissionOpenedAt: null,
   banner: EVENT_TEST_MODE_BANNER,
   generation: 0,
   revision: 0,
@@ -42,12 +52,19 @@ export async function readEventTestMode(tx: HubTx): Promise<EventTestModeState> 
 }
 
 export function publicEventTestMode(mode: EventTestModeState): PublicEventTestMode {
-  return { enabled: mode.enabled, banner: EVENT_TEST_MODE_BANNER };
+  return {
+    enabled: mode.enabled,
+    publicAdmissionOpen: mode.publicAdmissionOpen,
+    banner: mode.enabled ? EVENT_TEST_MODE_BANNER : mode.publicAdmissionOpen ? "" : PUBLIC_ADMISSION_CLOSED_BANNER,
+  };
 }
 
 export async function assertTestModeAllowsPublicMutation(tx: HubTx) {
-  if ((await readEventTestMode(tx)).enabled)
+  const mode = await readEventTestMode(tx);
+  if (mode.enabled)
     fail("TEST_MODE", EVENT_TEST_MODE_BANNER, 423);
+  if (!mode.publicAdmissionOpen)
+    fail("PUBLIC_ADMISSION_CLOSED", PUBLIC_ADMISSION_CLOSED_BANNER, 423);
 }
 
 const expected = {
@@ -67,6 +84,12 @@ const commandInput = z.discriminatedUnion("operation", [
     operation: z.literal("mode"),
     enabled: z.boolean(),
     resetGeneration: z.number().int().nonnegative().optional(),
+  }).strict(),
+  z.object({
+    ...expected,
+    operation: z.literal("admission"),
+    open: z.boolean(),
+    confirmOpen: z.boolean().optional(),
   }).strict(),
 ]);
 
@@ -122,7 +145,9 @@ export class EventTestModeService {
         mode.dirty = false;
         mode.resetGeneration = mode.generation;
         mode.resetAt = this.now().toISOString();
-      } else {
+        mode.publicAdmissionOpen = false;
+        mode.admissionOpenedAt = null;
+      } else if (command.operation === "mode") {
         if (!command.enabled && (mode.dirty || mode.resetGeneration !== mode.generation
           || command.resetGeneration !== mode.generation))
           fail("TEST_RESET_REQUIRED", "테스트 기록 초기화를 확인한 뒤 테스트 모드를 해제해 주세요.", 409);
@@ -133,6 +158,23 @@ export class EventTestModeService {
           mode.resetAt = null;
         }
         mode.enabled = command.enabled;
+        if (command.enabled) {
+          mode.publicAdmissionOpen = false;
+          mode.admissionOpenedAt = null;
+        }
+      } else {
+        if (command.open) {
+          if (command.confirmOpen !== true)
+            fail("PUBLIC_ADMISSION_CONFIRM_REQUIRED", "실제 모집 오픈을 별도로 확인해 주세요.", 409);
+          if (mode.enabled)
+            fail("TEST_MODE", "테스트 모드가 켜져 있어 실제 모집을 열 수 없습니다.", 423);
+          if (mode.dirty || mode.resetGeneration !== mode.generation || mode.resetAt === null)
+            fail("TEST_RESET_REQUIRED", "현재 테스트 기록 초기화를 확인한 뒤 모집 오픈을 검토해 주세요.", 409);
+          if (await publicationBlockedForTx(tx))
+            fail("PRIVACY_POLICY_UNCONFIRMED", "운영 개인정보 정책과 별도 모집 승인을 확인하기 전 신규 접수는 차단됩니다.", 403);
+        }
+        mode.publicAdmissionOpen = command.open;
+        mode.admissionOpenedAt = command.open ? this.now().toISOString() : null;
       }
       mode.revision++;
       mode.changedAt = this.now().toISOString();

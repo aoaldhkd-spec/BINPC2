@@ -17,7 +17,7 @@ function setup(stage: "회비 확인" | "신청 확정" | "현장 입장" = "신
   const store = new EventLaboratoryStore();
   store.jump(stage);
   const state = store.state();
-  state.testMode = { enabled: true, banner: TEST_MODE_BANNER };
+  state.testMode = { enabled: true, publicAdmissionOpen: false, banner: TEST_MODE_BANNER };
   const hub: HubController = { state, mutate: vi.fn(), load: vi.fn(), setError: vi.fn(), error: "", status: "" };
   return { hub, state, app: state.applications[0], event: state.events[0] };
 }
@@ -59,9 +59,29 @@ it("leaves notices and saved payment details readable while confirmation, report
   expect(hub.mutate).not.toHaveBeenCalled();
 });
 
+it("keeps real forms and external second-round application links closed after test OFF until separate admission approval", () => {
+  const { hub, state, app, event } = setup("현장 입장");
+  state.testMode = { enabled: false, publicAdmissionOpen: false, banner: TEST_MODE_BANNER };
+  event.campaign = { kind: "tour", round: 1, advance: 17000, secondRoundLink: "https://open.kakao.com/o/synthetic-room" };
+  const before = structuredClone(app);
+  const view = render(<WaitingRoom app={app} event={event} hub={hub} edit={vi.fn()} />);
+  expect(screen.queryByRole("link", { name: "2차 오픈채팅 신청 (BINPC2 외부)" })).toBeNull();
+  expect((screen.getByRole("button", { name: "2차 오픈채팅 신청 (접수 전)" }) as HTMLButtonElement).disabled).toBe(true);
+  expect(screen.getByText(/웹·오픈채팅 모두 접수 전입니다/)).toBeTruthy();
+  expect((screen.getByRole("button", { name: "술번개 입장하기" }) as HTMLButtonElement).disabled).toBe(true);
+  view.rerender(<BasicForm eventId={event.id} hub={hub} />);
+  expect(screen.queryByRole("textbox")).toBeNull();
+  expect(app).toEqual(before);
+  expect(hub.mutate).not.toHaveBeenCalled();
+  state.testMode.publicAdmissionOpen = true;
+  view.rerender(<WaitingRoom app={app} event={event} hub={hub} edit={vi.fn()} />);
+  expect(screen.getByRole("link", { name: "2차 오픈채팅 신청 (BINPC2 외부)" }).getAttribute("href")).toBe(event.campaign.secondRoundLink);
+  expect(app).toEqual(before);
+});
+
 it("keeps admitted Halloween draws available after 01:00 until the next-day 17:00 expiry, preserving saved results at expiry", () => {
   const { hub, state, app, event } = setup("현장 입장");
-  state.testMode = { enabled: false, banner: TEST_MODE_BANNER };
+  state.testMode = { enabled: false, publicAdmissionOpen: true, banner: TEST_MODE_BANNER };
   state.serverNow = "2026-10-31T16:59:59+09:00";
   const halloween = { ...event, type: "halloween" as const, date: "2026-10-30", start: "22:30", end: "01:00" };
   app.cards = [{ id: "saved-card", prize: "saved-prize", prizeLabel: "보존 테스트 상품", at: "2026-10-30T23:00:00+09:00" }];

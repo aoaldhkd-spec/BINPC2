@@ -1120,7 +1120,12 @@ export function WaitingRoom({
             {tourSessionHours(event.date)?.third}. BINPC2는 1차만 신청합니다.
           </p>
         )}
-        {event.campaign?.kind === "tour" && event.campaign.secondRoundLink && (
+        {event.campaign?.kind === "tour" && event.campaign.secondRoundLink && (blocked ? (
+          <div>
+            <HubButton disabled>2차 오픈채팅 신청 (접수 전)</HubButton>
+            <p className="text-sm">웹·오픈채팅 모두 접수 전입니다. 오픈 확인 전에는 신청하거나 송금하지 마세요.</p>
+          </div>
+        ) : (
           <a
             className="underline text-teal-700"
             href={event.campaign.secondRoundLink}
@@ -1129,7 +1134,7 @@ export function WaitingRoom({
           >
             2차 오픈채팅 신청 (BINPC2 외부)
           </a>
-        )}
+        ))}
         <EventMedia links={event.media} materials={event.materials} />
         <details>
           <summary>행사 공지</summary>

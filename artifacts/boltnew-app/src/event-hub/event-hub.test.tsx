@@ -479,21 +479,37 @@ it("keeps the first application tutorial open through StrictMode mount probes an
 
 it("keeps the manual room unavailable until its new URL exists and explains the separate application records", () => {
   const view = render(<ApplicationGuide webOpen={false} />);
-  expect(screen.getByText("신청창 준비 중 · 오픈 후 접수")).toBeTruthy();
+  expect(screen.getByText("웹·오픈채팅 모두 접수 전 · 송금하지 마세요")).toBeTruthy();
   expect(screen.getByRole("link", { name: "https://binpc2.netlify.app", hidden: true }).getAttribute("href")).toBe("https://binpc2.netlify.app");
   const room = screen.getByRole("button", { name: "오픈채팅 신청방 준비 중", hidden: true }) as HTMLButtonElement;
   expect(room.disabled).toBe(true);
   expect(view.container.querySelector('a[href=""], a[href="#"], a[href*="open.kakao"], canvas')).toBeNull();
-  expect(view.container.textContent).toContain("‘년생 / 사는곳 / 인원’");
-  expect(view.container.textContent).toContain("이 닉네임 형식은 오픈채팅용입니다");
-  expect(view.container.textContent).toContain("행사·지역·날짜·차수·도착시각 전달");
+  expect(view.container.textContent).not.toContain("회비 안내 확인 후 선입금");
+  expect(view.container.textContent).not.toContain("신청방 입장");
+  expect(view.container.textContent).toContain("신청이나 송금을 하지 말고");
   expect(view.container.textContent).toContain("전국투어 2차는 별도 오픈채팅 신청, 3차는 현장 안내");
   expect(view.container.textContent).toContain("수동 신청과 웹 신청은 자동으로 합쳐지지 않습니다");
   expect(view.container.textContent).toContain("다시 신청·입금하지 말고 기존 내역");
   view.rerender(<ApplicationGuide webOpen />);
-  expect(screen.queryByText("신청창 준비 중 · 오픈 후 접수")).toBeNull();
+  expect(screen.queryByText("웹·오픈채팅 모두 접수 전 · 송금하지 마세요")).toBeNull();
   expect(screen.getByText("웹 접수 중 · 신청할 행사·날짜를 확인해 주세요")).toBeTruthy();
+  expect(view.container.textContent).toContain("‘년생 / 사는곳 / 인원’");
+  expect(view.container.textContent).toContain("이 닉네임 형식은 오픈채팅용입니다");
+  expect(view.container.textContent).toContain("행사·지역·날짜·차수·도착시각 전달");
+  expect(view.container.textContent).toContain("회비 안내 확인 후 선입금");
   expect((screen.getByRole("button", { name: "오픈채팅 신청방 준비 중", hidden: true }) as HTMLButtonElement).disabled).toBe(true);
+});
+
+it("labels the tutorial as future instructions and does not request a transfer while recruitment is closed", async () => {
+  vi.spyOn(window.history, "back").mockImplementation(() => {});
+  const event = new EventLaboratoryStore().value.event;
+  event.campaign = { kind: "tour", round: 1, advance: 17000, secondRoundLink: "" };
+  render(<ApplicationGuide event={event} webOpen={false} />);
+  await screen.findByRole("dialog");
+  expect(screen.getByText(/아래 내용은 오픈 후 이용 방법입니다/)).toBeTruthy();
+  fireEvent.click(screen.getByRole("button", { name: "다음" }));
+  expect(screen.getByText(/현재 송금은 받지 않습니다/)).toBeTruthy();
+  expect(screen.queryByText(/운영자가 입력한 선입금액만 납부합니다/)).toBeNull();
 });
 
 it("does not imply inactive or elapsed schedules have opened recruitment", () => {

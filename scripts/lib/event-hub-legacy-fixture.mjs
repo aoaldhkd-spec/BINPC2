@@ -44,7 +44,7 @@ export async function prepareLegacyEventHubFixture({
     const mode = body?.mode;
     if (!mode || !Number.isSafeInteger(mode.generation) || mode.generation < 0
       || !Number.isSafeInteger(mode.revision) || mode.revision < 0
-      || typeof mode.enabled !== "boolean") {
+      || typeof mode.enabled !== "boolean" || typeof mode.publicAdmissionOpen !== "boolean") {
       throw new Error("Isolated laboratory returned invalid mode metadata");
     }
     return mode;
@@ -63,9 +63,20 @@ export async function prepareLegacyEventHubFixture({
     generation: reset.generation, revision: reset.revision,
     resetGeneration: reset.generation,
   });
-  if (off.enabled || off.dirty !== false || off.generation !== reset.generation
+  if (off.enabled || off.publicAdmissionOpen || off.dirty !== false || off.generation !== reset.generation
     || off.revision !== reset.revision + 1 || off.resetGeneration !== off.generation) {
     throw new Error("Isolated laboratory mode remained enabled");
   }
-  return { enabled: off.enabled, generation: off.generation, revision: off.revision };
+  // Only these allowlisted loopback fixtures explicitly open synthetic admission.
+  // Disabling test mode alone must never perform this transition.
+  const opened = await laboratory({
+    operation: "admission", open: true, confirmOpen: true,
+    generation: off.generation, revision: off.revision,
+  });
+  if (opened.enabled || !opened.publicAdmissionOpen || !opened.admissionOpenedAt
+    || opened.generation !== off.generation || opened.revision !== off.revision + 1) {
+    throw new Error("Isolated fixture admission was not explicitly acknowledged");
+  }
+  return { enabled: opened.enabled, publicAdmissionOpen: opened.publicAdmissionOpen,
+    generation: opened.generation, revision: opened.revision };
 }
