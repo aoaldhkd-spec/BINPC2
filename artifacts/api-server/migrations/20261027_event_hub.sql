@@ -28,3 +28,6 @@ CREATE INDEX IF NOT EXISTS event_hub_member_nickname_lookup ON event_hub_records
 ALTER TABLE event_hub_records DROP CONSTRAINT IF EXISTS event_hub_records_kind_check;
 ALTER TABLE event_hub_records ADD CONSTRAINT event_hub_records_kind_check
   CHECK (kind IN ('owner','member','settings','event','application','request','thread','stock','error','laboratory-mode','laboratory-workspace'));
+
+-- Event-scoped stock lookup; payload authentication and atomic reservation remain mandatory.
+CREATE INDEX IF NOT EXISTS event_hub_stock_event ON event_hub_records ((data->>'eventId')) WHERE kind='stock';

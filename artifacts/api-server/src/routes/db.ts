@@ -1,3 +1,4 @@
+import { assertOnsiteSocialWrite, onsiteWriteActor, ONSITE_SOCIAL_WRITE_TABLES } from '../lib/event-onsite-access.js';
 import '../lib/dns-ipv4-first.js';
 import { atomicEventReset } from '../lib/db-event-reset-transaction.js';
 import { eventActionsAfter } from '../lib/db-event-admin-audit.js';
@@ -1544,6 +1545,14 @@ async function dbPersistRow(tableName: string, row: Record<string, unknown>): Pr
 async function _execDbPersistRow(tableName: string, rowId: string, row: Record<string, unknown>): Promise<void> {
   const sql = buildKvUpsertSql();
   const params = [tableName, rowId, JSON.stringify(row)];
+  const actor = onsiteWriteActor.getStore();
+  if (actor && ONSITE_SOCIAL_WRITE_TABLES.has(tableName)) {
+    await registrationModeStore.transaction(async tx => {
+      await assertOnsiteSocialWrite(tx, actor);
+      await tx.db.query(sql, params);
+    });
+    return;
+  }
   try {
     await pool.query(sql, params);
   } catch {
@@ -3071,7 +3080,19 @@ router.post('/op', async (req: Request, res: Response) => {
   if (!store[table]) store[table] = [];
   let tableData = store[table];
 
+  return onsiteWriteActor.run(isAdmin ? undefined : sessionUserId ?? undefined, async () => {
   try {
+    // Query the durable application, even for an already authenticated cookie or bearer.
+    if (!isAdmin && sessionUserId && op !== 'select' && op !== 'delete' && ONSITE_SOCIAL_WRITE_TABLES.has(table))
+      await registrationModeStore.transaction(tx => assertOnsiteSocialWrite(tx, sessionUserId));
+    if (table === 'profiles' && op !== 'select' && op !== 'delete') {
+      const inputs = Array.isArray(payload) ? payload : [payload];
+      if (inputs.some(row => {
+        if (!row || typeof row !== 'object') return false;
+        const current = getTable('profiles').find(p => p.id === (row.id ?? sessionUserId));
+        return Object.keys(row).some(k => k.startsWith('event_hub_') && (!current || JSON.stringify(row[k]) !== JSON.stringify(current[k])));
+      })) throw new HubError(403, 'EVENT_LINK_PROTECTED', '행사 연결은 입장 절차에서만 변경할 수 있습니다.');
+    }
     if (isTestSession && !isAdmin && op !== 'select') {
       await assertLegacyTesterWriteAllowed();
     }
@@ -4032,6 +4053,7 @@ router.post('/op', async (req: Request, res: Response) => {
               tableData[i] = oldRow; // rollback
               const uidx = updated.findIndex(r => r.id === newRow.id);
               if (uidx >= 0) updated.splice(uidx, 1);
+              if (e instanceof HubError) return res.status(e.status).json({ data: null, error: { code: e.code, message: e.message } });
               logger.error({ err: e, table, rowId: newRow.id }, '[db] critical UPDATE persist failed');
               return sendReject(opPersistFailedReject());
             }
@@ -4145,6 +4167,7 @@ router.post('/op', async (req: Request, res: Response) => {
             } catch (e) {
               tableData[idx] = oldRow;
               upserted.pop();
+              if (e instanceof HubError) return res.status(e.status).json({ data: null, error: { code: e.code, message: e.message } });
               logger.error({ err: e, table, rowId: newRow.id }, '[db] critical UPSERT persist failed');
               return sendReject(opPersistFailedReject());
             }
@@ -4341,6 +4364,7 @@ router.post('/op', async (req: Request, res: Response) => {
     // ─ 동시 요청 슬롯 반환 — try/catch 내부의 어떤 경로로 나가든 반드시 1회 실행
     _activeOpCount--;
   }
+  });
 });
 
 // ─── RPC allowlist: ../lib/db-rpc-allowlist.ts ─────────────────────────────────

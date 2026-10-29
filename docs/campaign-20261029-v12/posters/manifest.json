@@ -17,6 +17,11 @@
       "bytes": 299012
     },
     {
+      "path": "artifacts/boltnew-app/public/event-art/korea-tour-map.svg",
+      "sha256": "3dc1f7d5ea0eafa20ee8be5cb8aaae3b3856e190b57c83f018f663c0f97c07b1",
+      "bytes": 5283
+    },
+    {
       "path": "artifacts/boltnew-app/public/tour-logos-v3/red_hole.png",
       "sha256": "a11302bbdb4fc1eb188b5d04226c30017ea1096fd0f53a212a318d711f7b51b6",
       "bytes": 242707
@@ -89,8 +94,8 @@
     },
     {
       "file": "Tour.png",
-      "bytes": 2674819,
-      "sha256": "f6fdef33b6e9f658ee2aa8c165f6880b55cce7c6f72a236a7a011d2f35b48eed",
+      "bytes": 2611286,
+      "sha256": "d238fc56e594cc3d1f3e6adac787fc5567d2eac927c9814b81cf2114ffef1a02",
       "source": "02_전국투어_모집글.md",
       "sourceSha256": "9df2ea3837f3bdd936f471dd954b50afb855fa4d91c896baa4c28a57d8a95d27",
       "logoCount": 9,
@@ -108,14 +113,14 @@
       "layout": {
         "width": 1240,
         "height": 1754,
-        "bottom": 1423.9375,
+        "bottom": 1450.9375,
         "footer": 1520
       }
     },
     {
       "file": "Combined.png",
-      "bytes": 2589816,
-      "sha256": "c09145a073cb57fa014642254f1db7b6455e2a153401fcad0c2df29bd92b43bc",
+      "bytes": 2622218,
+      "sha256": "c9a3f4a2ceb7c4b70e663a73b19c51e206130b9a7445b382af176316286b2ef5",
       "source": "03_통합_모집글.md",
       "sourceSha256": "11fd0c67e0286ef9c08ff9b16550ac58fa585fd19ec167c60a29a554adb6ec7f",
       "logoCount": 9,
@@ -131,7 +136,7 @@
       "layout": {
         "width": 1240,
         "height": 1754,
-        "bottom": 1341.9375,
+        "bottom": 1448.9375,
         "footer": 1520
       }
     },

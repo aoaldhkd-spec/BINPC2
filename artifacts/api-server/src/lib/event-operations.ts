@@ -10,12 +10,12 @@ export function recruitmentConfigurationIssue(e: HubEvent): string | null {
   return null;
 }
 /** Called within the same durable advisory transaction by timer/read/write paths. */
-export async function applyScheduledRecruitment(tx: HubTx, now: Date, enabled: boolean) {
+export async function applyScheduledRecruitment(tx: HubTx, now: Date, enabled: boolean, loadedEvents?: HubEvent[]) {
   if (!enabled) return;
   const mode = await readEventTestMode(tx);
   if (mode.enabled || !mode.publicAdmissionOpen) return;
   const blocked = await publicationBlockedForTx(tx);
-  const events = await tx.all<HubEvent>('event');
+  const events = loadedEvents ?? await tx.all<HubEvent>('event');
   for (const e of events) {
     if (!e.scheduleEnabled || e.schedulePaused) continue;
     const dueClose = eventEnded(e, now) || Boolean(e.closesAt && Date.parse(e.closesAt) <= now.getTime());

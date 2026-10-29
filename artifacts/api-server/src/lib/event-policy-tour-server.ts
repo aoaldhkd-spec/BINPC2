@@ -22,7 +22,7 @@ export async function drawTour(
     );
   if (a.cards.length)
     fail("CARD_LIMIT", "추억의 뽑기는 두 장 한 번만 사용할 수 있습니다.", 409);
-  const stocks = (await tx.all<CampaignStock>("stock")).filter(
+  const stocks = (await tx.stocksForEvent<CampaignStock>(e.id)).filter(
     (s) => s.eventId === e.id && s.remaining > 0 && s.coupon,
   );
   const pool = stocks.flatMap((s) =>

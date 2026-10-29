@@ -15,7 +15,7 @@ export async function drawHalloween(
   pick: (max: number) => number,
 ) {
   const special = halloweenSpecialEligible(e, a);
-  const stocks = (await tx.all<CampaignStock>("stock")).filter(
+  const stocks = (await tx.stocksForEvent<CampaignStock>(e.id)).filter(
     (s) =>
       s.eventId === e.id &&
       s.remaining > 0 &&

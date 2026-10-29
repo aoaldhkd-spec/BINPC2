@@ -311,6 +311,7 @@ export class EventHubService {
   }
   async state(owner?: string, admin = false) {
     return this.store.transaction(async (tx) => {
+      await tx.prefetch([{kind:'laboratory-mode',id:'global'},{kind:'settings',id:'global'},{kind:'settings',id:'privacy-policy'},...(owner?[{kind:'owner',id:owner},{kind:'thread',id:owner}]:[])]);
       const testMode = publicEventTestMode(await readEventTestMode(tx));
       const enabled = await this.enabled(tx);
       const publicationBlocked = await publicationBlockedForTx(tx);
@@ -345,8 +346,9 @@ export class EventHubService {
       const switches =
         (await tx.get<HubSettings>("settings", "global")) ??
         DEFAULT_HUB_SETTINGS;
-      await applyScheduledRecruitment(tx, this.now(), enabled);
-      const events = (await tx.all<HubEvent>("event")).map(e=>({...e,...effectiveHalloweenHours(e)}));
+      const loadedEvents=await tx.all<HubEvent>('event');
+      await applyScheduledRecruitment(tx, this.now(), enabled, loadedEvents);
+      const events = loadedEvents.map(e=>({...e,...effectiveHalloweenHours(e)}));
       const apps = (
         admin
           ? await tx.all<HubApplication>("application")
@@ -383,6 +385,9 @@ export class EventHubService {
               themeEnabled: effectiveEventTheme(e, this.now()) !== "default",
               replyNotice: e.replyNotice,
               noticeVersion: e.noticeVersion,
+              promotionLogo: e.promotionLogo?.versionId
+                ? (() => { const v=e.logoVersions?.find(v=>v.id===e.promotionLogo?.versionId && v.role==='venue'); return v ? {url:v.url,label:v.label,provenance:v.provenance,width:v.width,height:v.height} : undefined; })()
+                : e.promotionLogo?.builtinId ? {builtinId:e.promotionLogo.builtinId} : undefined,
               media: e.media.filter(url => {
                 const material=e.materials?.find(v=>v.url===url);
                 return !material?.hidden && (material?.purpose==="notice" || apps.some(a=>a.eventId===e.id && paymentSatisfied(a) && !a.erasedAt));
@@ -432,7 +437,7 @@ export class EventHubService {
           DEFAULT_HUB_SETTINGS)
         : undefined;
       const member = owner
-        ? (await tx.all<HubMember>("member")).find((m) => m.owner === owner)
+        ? (await tx.membersForOwner<HubMember>(owner)).find((m) => m.owner === owner)
         : undefined;
       const owners = admin
         ? (await tx.all<HubOwner>("owner")).map(
@@ -533,6 +538,11 @@ export class EventHubService {
     const key = digest(`${actor}:${m.requestId}`);
     const hash = digest(JSON.stringify(m));
     return this.store.transaction(async (tx) => {
+      await tx.prefetch([
+        {kind:"laboratory-mode",id:"global"}, {kind:"settings",id:"global"},
+        {kind:"settings",id:"privacy-policy"}, {kind:"request",id:key},
+        ...(owner ? [{kind:"owner",id:owner}] : []),
+      ]);
       if (["application.basic-draft", "application.basic", "application.consent", "application.confirm", "application.report", "application.enter", "application.draw"].includes(m.action))
         await assertTestModeAllowsPublicMutation(tx);
       const prior = await tx.get<{
@@ -550,7 +560,12 @@ export class EventHubService {
         fail("AUTH", "개인 신청 세션을 먼저 복구해 주세요.", 401);
       const enabled = await this.enabled(tx);
       const publicationBlocked = await publicationBlockedForTx(tx);
-      await applyScheduledRecruitment(tx, this.now(), enabled);
+      // Only opening an application needs the scheduler before this mutation.
+      // State reads and the timer still apply every due open/close under the same
+      // locks. Profile/payment/chat/card writes retain their own expiry checks;
+      // they need not decrypt and traverse every unrelated event's notice/history.
+      if (m.action === "application.basic" || m.action === "application.basic-draft")
+        await applyScheduledRecruitment(tx, this.now(), enabled);
       const requireEnabled = () => {
         if (!enabled)
           fail("MODULE_DISABLED", "술번개 신청 기능이 꺼져 있습니다.", 403);
@@ -589,11 +604,15 @@ export class EventHubService {
       } else if (m.action === "event.logo.select") {
         requireAdmin();
         const e=await this.event(tx,m.target);revision(e.revision);
-        const choice=z.object({versionId:z.string().uuid().nullable(),builtinId:z.enum(["red_hole","fake","jack","m_karaoke","speed","check_in","on_top","black"]).optional(),restore:z.boolean().default(false),area:z.enum(["venue","thanks"]).default("venue")}).parse(m.data);
-        if(choice.versionId){const v=e.logoVersions?.find(v=>v.id===choice.versionId);if(!v||v.role!==choice.area)fail("LOGO","이 행사의 장소용 로고만 연결할 수 있습니다.");}
-        if(choice.area==="thanks")e.thanksLogoVersionId=choice.versionId??undefined;
+        const choice=z.object({versionId:z.string().uuid().nullable(),builtinId:z.enum(["red_hole","fake","jack","m_karaoke","speed","check_in","on_top","black"]).optional(),restore:z.boolean().default(false),area:z.enum(["venue","thanks","promotion"]).default("venue"),publicConfirmed:z.boolean().optional()}).parse(m.data);
+        if(choice.versionId){const v=e.logoVersions?.find(v=>v.id===choice.versionId);if(!v||v.role!==(choice.area==='promotion'?'venue':choice.area))fail("LOGO","이 행사의 해당 용도 로고만 연결할 수 있습니다.");}
+        if(choice.area==='promotion'){
+          if((choice.versionId||choice.builtinId)&&choice.publicConfirmed!==true)fail("LOGO_PUBLIC_CONFIRM","연락처·상세 주소가 없는 공개 홍보용 로고인지 확인해 주세요.");
+          e.promotionLogo=choice.versionId?{versionId:choice.versionId}:choice.builtinId?{builtinId:choice.builtinId}:undefined;
+        }
+        else if(choice.area==="thanks")e.thanksLogoVersionId=choice.versionId??undefined;
         else {e.venueLogoVersionId=choice.versionId??undefined;e.venueLogoId=choice.versionId?undefined:choice.builtinId;}
-        e.revision++;e.history.push(audit(actor,choice.restore?"event.logo.restore":"event.logo.select",now,choice.versionId??choice.builtinId??"text-only"));
+        e.revision++;e.history.push(audit(actor,choice.restore?"event.logo.restore":"event.logo.select",now,`${choice.area}: ${choice.versionId??choice.builtinId??"text-only"}`));
         await tx.put("event",e.id,e);result.id=e.id;
       } else if (m.action === "event.media.upload") {
         requireAdmin();
@@ -647,6 +666,7 @@ export class EventHubService {
           nextRank: old?.nextRank ?? 0,
           history: [...(old?.history ?? []), audit(actor, "event.save", now)],
           logoVersions: old?.logoVersions,
+          promotionLogo: old?.promotionLogo,
           materials: old?.materials,
         };
         if (
@@ -878,7 +898,7 @@ export class EventHubService {
             fail("NICKNAME", "이미 사용 중인 닉네임입니다.", 409);
           const live = (
             await tx.db.query(
-              "SELECT data FROM app_kv_rows WHERE table_name='profiles'",
+              "SELECT jsonb_build_object('nickname',data->'nickname','event_hub_owner',data->'event_hub_owner') AS data FROM app_kv_rows WHERE table_name='profiles'",
             )
           ).rows.map((r) => r.data);
           if (
@@ -969,7 +989,7 @@ export class EventHubService {
             );
           if (c.reuse) {
             const password = z.string().min(10).max(128).parse(m.data.password);
-            const existing = (await tx.all<HubMember>("member")).find(
+            const existing = (await tx.membersForOwner<HubMember>(owner)).find(
               (v) => v.owner === owner,
             );
             const salt = randomUUID();
@@ -1296,9 +1316,9 @@ export class EventHubService {
           } else {
             const profiles = (
               await tx.db.query(
-                "SELECT data FROM app_kv_rows WHERE table_name='profiles'",
+                "SELECT data->>'nickname' AS nickname,data->>'pin_code' AS pin_code,data->>'photo_url' AS photo_url FROM app_kv_rows WHERE table_name='profiles'",
               )
-            ).rows.map((r) => r.data);
+            ).rows;
             if (
               profiles.some(
                 (p) =>
@@ -1439,7 +1459,7 @@ export class EventHubService {
             );
           if (e.campaign) await drawCampaign(tx, e, a, now, this.pick);
           else {
-            const stocks = (await tx.all<HubStock>("stock")).filter(
+            const stocks = (await tx.stocksForEvent<HubStock>(e.id)).filter(
               (s) => s.eventId === e.id && s.remaining > 0,
             );
             const pick = this.pick(stocks.length + 1);
@@ -1959,7 +1979,8 @@ export class EventHubService {
         const e=await this.event(tx,file.eventId);
         const material=e.materials?.find(v=>v.id===id);
         if(material?.hidden || (file.purpose!=="venue-logo" && !e.media.some(url=>HUB_MEDIA_PATH.exec(url)?.[1]===id)))fail("MEDIA","자료에 접근할 수 없습니다.",404);
-        if(file.purpose==="notice" && material?.purpose==="notice" && !material.hidden) {
+        const publicLogo=file.purpose==='venue-logo' && e.promotionLogo?.versionId===id && e.logoVersions?.some(v=>v.id===id&&v.role==='venue');
+        if(publicLogo || (file.purpose==="notice" && material?.purpose==="notice" && !material.hidden)) {
           const own=(await tx.applicationsForOwner<HubApplication>(owner)).some(a=>a.owner===owner&&a.eventId===e.id&&!a.erasedAt);
           if(own || (await this.enabled(tx) && !await publicationBlockedForTx(tx) && (recruitmentIsOpen(e,this.now()) || (e.scheduleEnabled&&!e.schedulePaused&&!eventEnded(e,this.now())))))return file;
         }

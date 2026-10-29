@@ -122,6 +122,8 @@ export const HubEventInput = z.object({
 export type HubLogoVersion = {id:string;url:string;label:string;role:'venue'|'thanks';provenance:'original'|'design';sourceNote:string;mime:string;width:number;height:number;size:number;sha256:string;at:string};
 export type HubMaterial = {id:string;url:string;purpose:"notice"|"map"|"poster"|"video";alt:string;hidden:boolean;at:string};
 export type HubEvent = z.infer<typeof HubEventInput> & {
+  /** Changed only by the explicit logo selection command; general event saves preserve it. */
+  promotionLogo?: { builtinId?: string; versionId?: string; url?: string; label?: string; provenance?: 'original'|'design'; width?: number; height?: number };
   logoVersions?: HubLogoVersion[];
   materials?: HubMaterial[];
   id: string;

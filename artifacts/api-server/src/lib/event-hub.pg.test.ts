@@ -1,3 +1,4 @@
+import { assertOnsiteSocialWrite } from './event-onsite-access.js';
 import { drawCampaign } from "./event-campaign-service.js";
 import { isolatedFixtureDatabase } from "./event-hub-isolation.js";
 import { beforeAll, beforeEach, afterAll, describe, expect, it } from "vitest";
@@ -257,6 +258,42 @@ suite("event hub V6 — actual isolated PostgreSQL transactions", () => {
     expect((await app(id)).approvalRevokedAt).toBeUndefined();
     await expect(call("admin.application.candy", id, { kind: "haribo" }, (await app(id)).revision, true)).rejects.toMatchObject({ code: "CANDY_LIMIT" });
   });
+  it("revoked social writes are checked under the approval lock without deleting history or revoking another application", async () => {
+    const id = await create(); await approved(id);
+    await call("application.profile", id, { profile: fullProfile }, (await app(id)).revision);
+    await activate();
+    const entered = await call("application.enter", id, { deviceSecret: "isolated-social-device" }, (await app(id)).revision);
+    const profile = entered.profile as { id: string; pin_code: string };
+    const write = () => service.store.transaction(async tx => {
+      await assertOnsiteSocialWrite(tx, profile.id);
+      await tx.db.query("INSERT INTO app_kv_rows(table_name,row_id,data) VALUES('messages','preserved-social',$1) ON CONFLICT(table_name,row_id) DO UPDATE SET data=EXCLUDED.data", [JSON.stringify({ id: "preserved-social", sender_id: profile.id, content: "합성 대화" })]);
+    });
+    await write();
+    const before = (await pool.query("SELECT data FROM app_kv_rows WHERE table_name='profiles' AND row_id=$1", [profile.id])).rows[0].data;
+    await call("admin.application.revoke", id, { reason: "합성 취소" }, (await app(id)).revision, true);
+    await expect(write()).rejects.toMatchObject({ code: "EVENT_APPROVAL_REVOKED", status: 403 });
+    expect((await pool.query("SELECT data FROM app_kv_rows WHERE table_name='profiles' AND row_id=$1", [profile.id])).rows[0].data).toEqual(before);
+    expect((await pool.query("SELECT data FROM app_kv_rows WHERE row_id='preserved-social'")).rows).toHaveLength(1);
+    await call("thread.send", "", { text: "취소 후 문의", collection: true });
+    await service.store.transaction(async tx => {
+      const original = await tx.get<HubApplication>("application", id);
+      await tx.put("application", "unrelated-application", { ...original, id: "unrelated-application", eventId: "other-event", profileId: "another-profile", cycleId: "other-cycle" });
+    });
+    await call("admin.application.payment", id, { status: "approved", bankChecked: true }, (await app(id)).revision, true);
+    await expect(write()).resolves.toBeUndefined();
+    // Another process cancelling first must win against a waiting social writer.
+    let release!: () => void; let locked!: () => void;
+    const enteredLock = new Promise<void>(r => { locked = r; });
+    const hold = new Promise<void>(r => { release = r; });
+    const cancel = service.store.transaction(async tx => {
+      const a = (await tx.get<HubApplication>("application", id))!;
+      a.approvalRevokedAt = now().toISOString(); await tx.put("application", id, a);
+      locked(); await hold;
+    });
+    await enteredLock;
+    const waitingWrite = write(); release(); await cancel;
+    await expect(waitingWrite).rejects.toMatchObject({ code: "EVENT_APPROVAL_REVOKED" });
+  });
   it("allows a password once only from an owned legacy application and retains approvals without marketing opt-in", async () => {
     const id = await create("기존회원"); await approved(id); const before = await app(id);
     const data = { reuse: true, version: HUB_CONSENT_VERSION, password: "isolated-v12-password" };
@@ -362,6 +399,34 @@ suite("event hub V6 — actual isolated PostgreSQL transactions", () => {
     const other=await call("event.save","",{...event,title:"다른 행사"},undefined,true);
     await expect(call("event.save",String(other.id),{...event,venueLogoVersionId:a1.versionId},1,true)).rejects.toMatchObject({code:"LOGO"});
   });
+  it("only an explicitly selected promotional logo becomes public; maps, other versions, other events and original history stay protected",async()=>{
+    const base={mime:"image/png",base64:"iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+jD9sAAAAASUVORK5CYII=",label:"공개 가능 합성 로고",role:"venue",provenance:"original"};
+    const current=async()=> (await adminState()).events.find(e=>e.id===eventId)!;
+    const logo=await call('event.logo.upload',eventId,base,(await current()).revision,true);
+    const other=await call('event.logo.upload',eventId,{...base,label:'비공개 시안'},(await current()).revision,true);
+    const map=await call('event.media.upload',eventId,{...base,purpose:'map',alt:'승인자 약도'},(await current()).revision,true);
+    await expect(service.media(String(logo.versionId),'')).rejects.toMatchObject({code:'MEDIA'});
+    const choice={versionId:logo.versionId,area:'promotion'};
+    await expect(call('event.logo.select',eventId,{...choice,publicConfirmed:true},(await current()).revision,false)).rejects.toMatchObject({code:'ADMIN'});
+    await expect(call('event.logo.select',eventId,choice,(await current()).revision,true)).rejects.toMatchObject({code:'LOGO_PUBLIC_CONFIRM'});
+    await call('event.logo.select',eventId,{...choice,publicConfirmed:true},(await current()).revision,true);
+    const e=(await service.state()).events.find(e=>e.id===eventId)!;
+    expect(e.promotionLogo).toMatchObject({url:logo.mediaUrl,label:base.label,width:1,height:1});
+    expect(e.promotionLogo).not.toHaveProperty('versionId');
+    expect(e).not.toHaveProperty('logoVersions');
+    expect((await service.media(String(logo.versionId),'')).base64).toBe(base.base64);
+    await expect(service.media(String(other.versionId),'')).rejects.toMatchObject({code:'MEDIA'});
+    await expect(service.media(String(map.mediaUrl).match(/([a-f0-9-]{36})\./)![1],'')).rejects.toMatchObject({code:'MEDIA'});
+    const otherEvent=await call('event.save','',{...event,title:'다른 행사'},undefined,true);
+    await expect(call('event.logo.select',String(otherEvent.id),{...choice,publicConfirmed:true},1,true)).rejects.toMatchObject({code:'LOGO'});
+    // General saves cannot silently clear or forge public permission.
+    await call('event.save',eventId,{...event,promotionLogo:{versionId:other.versionId}},(await current()).revision,true);
+    expect((await current()).promotionLogo?.versionId).toBe(logo.versionId);
+    await call('event.logo.select',eventId,{versionId:null,area:'promotion'},(await current()).revision,true);
+    await expect(service.media(String(logo.versionId),'')).rejects.toMatchObject({code:'MEDIA'});
+    expect((await current()).logoVersions).toHaveLength(2);
+    expect((await service.media(String(logo.versionId),'',true)).base64).toBe(base.base64);
+  });
   it("policy approval records complete terms but never opens production without the exact separate release",async()=>{
     await expect(call("admin.privacy.policy.approve","",{confirmed:true},0,true)).rejects.toMatchObject({code:"PRIVACY_POLICY"});
     const p={...DEFAULT_PRIVACY_POLICY,policyVersion:"isolated-v1",controllerName:"합성 주체",contact:"example.invalid",notice:"합성 확정 원문",backupProcedure:"합성 백업 만료·보류 절차",rules:Object.fromEntries(Object.keys(DEFAULT_PRIVACY_POLICY.rules).map(k=>[k,{days:30,basis:"격리 검토 근거"}]))};
@@ -381,6 +446,21 @@ suite("event hub V6 — actual isolated PostgreSQL transactions", () => {
       expect((await adminState()).privacyPolicy?.status).toBe("draft");
       await expect(call("event.recruitment",eventId,{enabled:true},3,true)).rejects.toMatchObject({code:"PRIVACY_POLICY_UNCONFIRMED"});
     }finally{process.env.NODE_ENV=saved;delete process.env.EVENT_HUB_PRODUCTION_RELEASE;delete process.env.EVENT_HUB_RELEASE_POLICY_SHA256;}
+  });
+  it("stock lookup authenticates the event boundary and preserves legacy ciphertext during metadata preparation", async () => {
+    const store = new HubStore(pool);
+    await store.transaction(async tx => {
+      await tx.put("stock", "own-stock", { id:"own-stock",eventId,remaining:2,history:[] });
+      await tx.put("stock", "other-stock", { id:"other-stock",eventId:"another-event",remaining:9,history:[] });
+    });
+    await pool.query("UPDATE event_hub_records SET data=data-'eventId' WHERE kind='stock'");
+    const before = (await pool.query("SELECT id,data->'crypto_box' AS cipher,updated_at FROM event_hub_records WHERE kind='stock' ORDER BY id")).rows;
+    const stocks = () => store.transaction(tx => tx.stocksForEvent<{eventId:string;remaining:number}>(eventId));
+    expect(await stocks()).toEqual([expect.objectContaining({eventId,remaining:2})]);
+    expect(await store.transaction(tx=>tx.prepareLookupMetadata())).toBe(2);
+    expect((await pool.query("SELECT id,data->'crypto_box' AS cipher,updated_at FROM event_hub_records WHERE kind='stock' ORDER BY id")).rows).toEqual(before);
+    await pool.query("UPDATE event_hub_records SET data=jsonb_set(data,'{eventId}',to_jsonb($1::text)) WHERE kind='stock' AND id='other-stock'",[eventId]);
+    expect(await stocks()).toEqual([expect.objectContaining({eventId,remaining:2})]);
   });
   it("keyed nickname lookup preserves legacy checks and metadata preparation never changes ciphertext or business state",async()=>{
     const id=await create("중복검사");

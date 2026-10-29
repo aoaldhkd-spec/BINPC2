@@ -771,3 +771,44 @@
   color: #64748b;
   margin-top: 3px;
 }
+
+/* Public tour information and inquiry state reuse the existing event palette. */
+.hub-tour-overview { border: 1px solid #577989; border-radius: 20px; overflow: hidden; background: #102632; color: #f3f7f4; }
+.hub-tour-overview header { padding: 22px 22px 8px; }
+.hub-tour-overview h2 { font-size: clamp(1.25rem, 3.5vw, 1.65rem); font-weight: 900; margin: 6px 0; }
+.hub-tour-overview header p, .hub-tour-footnote { font-size: .8rem; line-height: 1.7; color: #d1e3e7; }
+.hub-tour-route { display: grid; grid-template-columns: minmax(0, .85fr) minmax(0, 1.2fr); align-items: center; gap: 12px; padding: 10px 18px; }
+.hub-korea-map { width: 100%; height: auto; object-fit: contain; }
+.hub-tour-stops { display: grid; gap: 8px; min-width: 0; }
+.hub-tour-stops > button { display: flex; align-items: center; gap: 8px; min-width: 0; padding: 12px 8px; border-radius: 12px; border: 1px solid #456573; text-align: left; color: #edf7f3; background: #1c3d4a; }
+.hub-tour-stops > button:hover:not(:disabled), .hub-tour-stops > button[aria-pressed=true] { border-color: #f5c79d; background: #33525b; }
+.hub-tour-stops > button:disabled { color: #c2cfd3; background: #192e39; }
+.hub-tour-stop-number { color: #f5c79d; font-size: .75rem; }
+.hub-tour-stop-copy { display: grid; gap: 3px; min-width: 0; flex: 1; }
+.hub-tour-stop-copy strong { font-size: 1rem; }
+.hub-tour-stop-copy > span { font-size: .75rem; }
+.hub-tour-stop-copy small { font-size: .7rem; overflow-wrap: anywhere; line-height: 1.5; }
+.hub-tour-stops .hub-event-art { width: 40px; height: 70px; }
+.hub-tour-footnote { padding: 8px 22px 22px; }
+.hub-promotion-preview { border: 1px solid var(--hub-border,#cbd5e1); padding: 12px; border-radius: 12px; }
+.hub-promotion-preview figure img { max-height: 140px; width: 100%; object-fit: contain; }
+.hub-promotion-art { display: grid; place-items: center; }
+.hub-notice-pages[data-notice-theme=halloween] { padding: 16px; border: 1px solid #c38459; border-radius: 14px; background: linear-gradient(145deg,#4d2443,#211b32); color: #fff4eb; }
+.hub-notice-paragraphs { display: grid; gap: 12px; padding: 16px 0; }
+.hub-notice-paragraphs p + p { border-top: 1px solid #a983833d; padding-top: 12px; }
+.hub-inquiry-alert { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px; background: #e5f4ef; color: #164b41; padding: 12px 16px; border-radius: 12px; font-size: .85rem; margin-bottom: 16px; }
+.hub-inquiry-alert button { min-height: 44px; border-radius: 10px; background: #14675c; color: white; padding: 8px 14px; font-weight: 700; }
+.hub-admin-conversation { display: grid; gap: 10px; max-height: min(60dvh,480px); overflow-y: auto; padding: 8px 0; }
+.hub-admin-conversation p { max-width: 90%; background: #edf2f7; color: #1e293b; justify-self: start; }
+.hub-admin-conversation p[data-sender=admin] { background: #d8f2e9; justify-self: end; }
+.hub-admin-conversation small { font-size: .65rem; margin-top: 4px; }
+html[data-seasonal-skin="halloween"] .hub-admin-conversation p { background: #352443; color: #fff4eb; }
+html[data-seasonal-skin="halloween"] .hub-admin-conversation p[data-sender=admin] { background: #214a40; color: #fff4eb; }
+@media (max-width: 480px) {
+  .hub-tour-route { grid-template-columns: minmax(0,1fr); padding: 8px 16px; }
+  .hub-korea-map { max-height: 260px; }
+  .hub-tour-stops > button { padding: 10px 12px; }
+  .hub-tour-stops .hub-event-art { height: 56px; width: 54px; }
+  .hub-tour-stops .hub-tour-logos { flex-direction: row !important; }
+  .hub-tour-stops .hub-event-art .hub-tour-art img { height: 32px; }
+}

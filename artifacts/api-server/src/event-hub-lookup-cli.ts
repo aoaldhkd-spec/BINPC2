@@ -71,7 +71,7 @@ async function main() {
     const count = Number(
       (
         await pool.query(
-          "SELECT count(*) n FROM event_hub_records WHERE (kind='application' AND NOT(data ? 'nicknameLookup')) OR (kind='member' AND (NOT(data ? 'owner') OR NOT(data ? 'nicknameLookup')))",
+          "SELECT count(*) n FROM event_hub_records WHERE (kind='application' AND NOT(data ? 'nicknameLookup')) OR (kind='member' AND (NOT(data ? 'owner') OR NOT(data ? 'nicknameLookup'))) OR (kind='stock' AND NOT(data ? 'eventId'))",
         )
       ).rows[0].n,
     );

@@ -15,8 +15,10 @@ export function NotificationReadiness({ event }: { event?: HubEvent }) {
       <h3 className="font-black">문의·알림 지원 상태 확인</h3>
       <p>현재 브라우저: {status.message}</p>
       <p className="text-sm">
-        웹 문의는 화면이 열려 있을 때 폴링으로 확인합니다. 관리자·행사 안내 외부
-        푸시는 발송하지 않습니다. 기존 참가자 하트·1:1 정책과 분리됩니다.
+        운영 화면에서는 실시간 연결로 새 문의 수와 대화 바로가기를 표시합니다.
+        연결이 끊기면 10초 간격으로 다시 확인합니다. 관리자 답장도 참가자 화면에
+        표시합니다. 화면을 닫았을 때의 관리자 기기 푸시는 아직 연결되지 않았으며,
+        기존 참가자 하트·1:1 알림은 유지됩니다.
       </p>
       <table className="w-full text-sm">
         <thead>

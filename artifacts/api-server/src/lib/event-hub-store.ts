@@ -24,6 +24,9 @@ export function fail(code: string, message: string, status = 400): never {
 export const normalizeHubNickname = (s: string) =>
   s.normalize("NFKC").toLocaleLowerCase("ko-KR").trim();
 export class HubTx {
+  // Only explicitly prefetched rows, scoped to one locked transaction. Never a
+  // cross-request authorization cache. put() invalidates its row immediately.
+  private prefetched = new Map<string, Record<string, unknown> | undefined>();
   constructor(
     readonly db: PoolClient,
     readonly key: Buffer,
@@ -52,6 +55,7 @@ export class HubTx {
             ),
           }
         : {}),
+      ...(kind === "stock" ? { eventId: data.eventId } : {}),
       ...(kind === "owner" ? { recoveryHash: data.recoveryHash } : {}),
       ...(kind === "member"
         ? {
@@ -113,6 +117,11 @@ export class HubTx {
     }
   }
   async get<T>(kind: string, id: string): Promise<T | undefined> {
+    const lookup = JSON.stringify([kind,id]);
+    if (this.prefetched.has(lookup)) {
+      const data = this.prefetched.get(lookup);
+      return data ? this.decode<T>(kind,id,structuredClone(data)) : undefined;
+    }
     const row = (
       await this.db.query(
         "SELECT data FROM event_hub_records WHERE kind=$1 AND id=$2",
@@ -120,6 +129,13 @@ export class HubTx {
       )
     ).rows[0];
     return row ? this.decode<T>(kind, id, row.data) : undefined;
+  }
+  async prefetch(records: {kind: string; id: string}[]) {
+    const rows = (await this.db.query(
+      "SELECT wanted.kind,wanted.id,r.data FROM jsonb_to_recordset($1::jsonb) AS wanted(kind text,id text) LEFT JOIN event_hub_records r ON r.kind=wanted.kind AND r.id=wanted.id",
+      [JSON.stringify(records)],
+    )).rows;
+    for (const row of rows) this.prefetched.set(JSON.stringify([row.kind,row.id]),row.data ?? undefined);
   }
   async all<T>(kind: string): Promise<T[]> {
     return (
@@ -140,6 +156,15 @@ export class HubTx {
         [owner],
       )
     ).rows.map((r) => this.decode<T>("application", r.id, r.data));
+  }
+  /** Filter routing metadata before decryption, then verify the authenticated
+   * eventId too. Legacy records without metadata remain eligible for inspection. */
+  async stocksForEvent<T extends { eventId: string }>(eventId: string): Promise<T[]> {
+    const rows = (await this.db.query(
+      "SELECT id,data FROM event_hub_records WHERE kind='stock' AND (data->>'eventId'=$1 OR NOT(data ? 'eventId')) ORDER BY id",
+      [eventId],
+    )).rows;
+    return rows.map(r => this.decode<T>('stock',r.id,r.data)).filter(s => s.eventId === eventId);
   }
   /** Uses the existing unique recovery-hash index before decrypting a single owner. */
   async ownerForRecoveryHash<T>(hash: string): Promise<T | undefined> {
@@ -179,20 +204,20 @@ export class HubTx {
   async prepareLookupMetadata(limit = 200): Promise<number> {
     const rows = (
       await this.db.query(
-        "SELECT kind,id,data FROM event_hub_records WHERE (kind='application' AND NOT(data ? 'nicknameLookup')) OR (kind='member' AND (NOT(data ? 'owner') OR NOT(data ? 'nicknameLookup'))) ORDER BY kind,id LIMIT $1 FOR UPDATE",
+        "SELECT kind,id,data FROM event_hub_records WHERE (kind='application' AND NOT(data ? 'nicknameLookup')) OR (kind='member' AND (NOT(data ? 'owner') OR NOT(data ? 'nicknameLookup'))) OR (kind='stock' AND NOT(data ? 'eventId')) ORDER BY kind,id LIMIT $1 FOR UPDATE",
         [Math.min(200, Math.max(1, limit))],
       )
     ).rows;
     for (const r of rows) {
       const v = this.decode<Record<string, unknown>>(r.kind, r.id, r.data);
-      if (v.id !== r.id || typeof v.owner !== "string" || !v.owner)
+      if (v.id !== r.id || (r.kind === "stock" ? typeof v.eventId !== "string" || !v.eventId : typeof v.owner !== "string" || !v.owner))
         fail(
           "LOOKUP_METADATA_INTEGRITY",
           "원장 식별자를 먼저 확인하세요.",
           409,
         );
       const metadata =
-        r.kind === "application"
+        r.kind === "stock" ? { eventId: v.eventId } : r.kind === "application"
           ? {
               nicknameLookup: this.nicknameHash(
                 normalizeHubNickname(
@@ -212,6 +237,7 @@ export class HubTx {
     return rows.length;
   }
   async put(kind: string, id: string, data: unknown) {
+    this.prefetched.delete(JSON.stringify([kind,id]));
     await this.db.query(
       "INSERT INTO event_hub_records(kind,id,data) VALUES($1,$2,$3) ON CONFLICT(kind,id) DO UPDATE SET data=EXCLUDED.data,updated_at=now()",
       [kind, id, JSON.stringify(this.encode(kind, id, data))],
@@ -244,15 +270,11 @@ export class HubStore {
     try {
       const c = await this.pool.connect();
       try {
-        await c.query("BEGIN");
-        await c.query("SET LOCAL lock_timeout='10000ms'");
-        // Same order for every write, including admission; never race the 17:00 reset.
-        await c.query("SELECT pg_advisory_xact_lock(hashtext($1))", [
-          EVENT_RESET_LOCK_KEY,
-        ]);
-        await c.query(
-          "SELECT pg_advisory_xact_lock(hashtext('binpc2:event-hub:v6'))",
-        );
+        // One round trip, unchanged transaction/timeout/lock order. Both locks
+        // remain authoritative across processes and the 17:00 reset.
+        await c.query(`BEGIN; SET LOCAL lock_timeout='10000ms';
+          SELECT pg_advisory_xact_lock(hashtext('${EVENT_RESET_LOCK_KEY}'));
+          SELECT pg_advisory_xact_lock(hashtext('binpc2:event-hub:v6'));`);
         const tx = new HubTx(c, this.key);
         await tx.assertLedgerReadable();
         const result = await fn(tx);

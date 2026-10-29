@@ -82,6 +82,7 @@ export default function EventHubAdmin({ active = true }: { active?: boolean }) {
   const [tab, changeTab] = useState("전체 운영"),
     [selected, changeSelected] = useState(""),
     [newEvent, setNewEvent] = useState(false);
+  const [inquiryOwner,setInquiryOwner]=useState('');
   const scroll = useRef<Record<string, number>>({});
   const preserveScroll = () => {
     scroll.current[tab + selected] = window.scrollY;
@@ -115,6 +116,8 @@ export default function EventHubAdmin({ active = true }: { active?: boolean }) {
       </div>
     );
   const event = s.events.find((e) => e.id === selected);
+  const unreadThreads=s.threads.filter(t=>t.messages.some(m=>m.sender==='user'&&m.at>t.readAdminAt))
+    .sort((a,b)=>(b.messages.filter(m=>m.sender==='user').at(-1)?.at??'').localeCompare(a.messages.filter(m=>m.sender==='user').at(-1)?.at??''));
   const tabs = [
     "전체 운영",
     "신청·입금",
@@ -147,6 +150,9 @@ export default function EventHubAdmin({ active = true }: { active?: boolean }) {
           + 새 술번개
         </button>
       </header>
+      <div className="hub-inquiry-alert" role="status" aria-live="polite" aria-atomic="true" data-latest-thread={unreadThreads[0]?.id}>
+        {unreadThreads.length ? <><span>💬 안 읽은 문의 <strong>{unreadThreads.length}건</strong></span><button type="button" onClick={()=>{setInquiryOwner(unreadThreads[0].id);setSelected('');setTab('관리자 문의');}}>새 문의 대화 열기</button></> : <span>💬 새 문의를 기다리고 있어요. 이 운영 화면이 열려 있으면 새 메시지를 알려드려요.</span>}
+      </div>
       <div className="hub-admin-layout">
         <aside className="hub-admin-sidebar">
           <p className="hub-sidebar-label">행사 관리</p>
@@ -347,6 +353,8 @@ export default function EventHubAdmin({ active = true }: { active?: boolean }) {
           )}
           <div hidden={tab !== "관리자 문의"}>
             <AdminThreads
+              initialOwner={inquiryOwner}
+              active={active && tab==='관리자 문의'}
               hub={hub}
               state={
                 selected
@@ -1566,7 +1574,7 @@ export function ApplicationAdmin({
                   void act(free ? "free" : "payment", free ? {} : { status: "approved", bankChecked: true });
               }}>{hub.state?.events.find((e) => e.id === app.eventId)?.campaign?.kind.startsWith("halloween") && app.quote?.fee === 0 ? "무료 참가 승인" : "입금 승인"}</HubButton>
               <HubButton disabled={!paymentSatisfied(app) || !note.trim()} onClick={() => {
-                if (window.confirm("입장을 중지하고 승인만 취소합니다. 입금·당첨·지급 이력은 보존됩니다. 계속할까요?")) void act("revoke", { reason: note });
+                if (window.confirm("이 회차의 입장·뽑기·새 하트·메시지를 중지합니다. 프로필·기존 대화·입금·당첨·지급 이력과 관리자 문의는 유지됩니다. 계속할까요?")) void act("revoke", { reason: note });
               }}>승인 취소</HubButton>
             </div>
             {paymentSatisfied(app) && <HubField label="승인 취소 사유"><input className={inputClass} value={note} onChange={(e) => setNote(e.target.value)} placeholder="취소할 때만 입력" /></HubField>}
@@ -1668,12 +1676,16 @@ function Audit({
     </ol>
   );
 }
-export function AdminThreads({ hub, state }: { hub: Hub; state: HubState }) {
+export function AdminThreads({ hub, state, initialOwner='',active=true }: { hub: Hub; state: HubState; initialOwner?:string; active?:boolean }) {
   const [selected, setSelected] = useState(""),
     [drafts, setDrafts] = useState<Record<string, string>>({});
+  useEffect(()=>{if(initialOwner)setSelected(initialOwner);},[initialOwner]);
   const setDraft = (text: string) =>
     setDrafts((previous) => ({ ...previous, [selected]: text }));
   const t = state.threads.find((v) => v.id === selected);
+  const unread=t?.messages.some(m=>m.sender==='user'&&m.at>t.readAdminAt);
+  const markRead=hub.mutate;
+  useEffect(()=>{if(active&&selected&&unread)void markRead({action:'thread.read',target:selected});},[active,selected,unread,markRead]);
   const owners = [
     ...new Set([
       ...state.threads.map((t) => t.id),
@@ -1722,7 +1734,6 @@ export function AdminThreads({ hub, state }: { hub: Hub; state: HubState }) {
           value={validSelection ? selected : ""}
           onChange={(e) => {
             setSelected(e.target.value);
-            void hub.mutate({ action: "thread.read", target: e.target.value });
           }}
         >
           <option value="">대상 선택</option>
@@ -1745,14 +1756,16 @@ export function AdminThreads({ hub, state }: { hub: Hub; state: HubState }) {
           ))}
         </select>
       </HubField>
-      {t?.messages.map((m) => (
+      <div className="hub-admin-conversation" role="log" aria-label="운영자 1:1 대화" aria-live="polite">{t?.messages.map((m) => (
         <p
-          className="rounded-xl p-3 bg-slate-50 text-sm whitespace-pre-wrap break-words"
+          className="rounded-xl p-3 text-sm whitespace-pre-wrap break-words"
+          data-sender={m.sender}
           key={m.id}
         >
-          {m.sender === "admin" ? "관리자" : "신청자"}: {m.text}
+          <span>{m.sender === "admin" ? "관리자" : "신청자"}: {m.text}</span>
+          <small className="block text-right opacity-70">{new Date(m.at).toLocaleTimeString('ko-KR',{hour:'2-digit',minute:'2-digit',timeZone:'Asia/Seoul'})}{m.sender==='admin'&&t.readUserAt>=m.at?' · 읽음':''}</small>
         </p>
-      ))}
+      ))}</div>
       <HubField label="빠른문구 (입력칸에 채운 뒤 수정·전송)">
         <select
           className={inputClass}

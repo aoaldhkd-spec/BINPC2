@@ -6,6 +6,7 @@ import {
   eventListStatus,
 } from "./EventPresentation";
 import { AdminInquiry } from "./AdminInquiry";
+import { TourOverview, tourWeekFor } from './TourOverview';
 import { VenueLogo, GoraeThanks } from "./VenueLogos";
 import { ParticipantOperations, ScheduledOpening } from "./EventOperations";
 import { eventExpired } from "../../../../lib/api-zod/src/event-hub-modules";
@@ -86,6 +87,7 @@ function EventHubContent({ path, hub }: { path: string; hub: Hub }) {
   }, []);
   const [applying, setApplying] = useState(false);
   const [eventFilter, setEventFilter] = useState("전체");
+  const [tourRegion,setTourRegion]=useState('');
   const [visibleEvents, setVisibleEvents] = useState(6);
   const [waitingFilter, setWaitingFilter] = useState("전체");
   const [editing, setEditing] = useState(false),
@@ -282,7 +284,7 @@ function EventHubContent({ path, hub }: { path: string; hub: Hub }) {
                 </HubCard>
               )}
               {path !== "/events/waiting" && (
-                <HubCard>
+                <><TourOverview events={s.events} selected={tourRegion} onSelect={region=>{setTourRegion(region);setEventFilter('전체');setVisibleEvents(6);}}/><HubCard>
                   <h2 className="font-black">행사·신청 일정</h2>
                   <div className="hub-segmented" aria-label="행사 상태 필터">
                     {["전체", "신청 가능", "접수 예정", "종료"].map((f) => (
@@ -301,6 +303,7 @@ function EventHubContent({ path, hub }: { path: string; hub: Hub }) {
                   </div>
                   <div className="hub-event-list">
                     {[...s.events]
+                      .filter(e=>!tourRegion||tourWeekFor(e)?.region===tourRegion)
                       .sort(
                         (a, b) =>
                           Number(!!b.campaign) - Number(!!a.campaign) ||
@@ -334,11 +337,11 @@ function EventHubContent({ path, hub }: { path: string; hub: Hub }) {
                   </div>
                   {s.events.filter(
                     (e) =>
-                      eventFilter === "전체" ||
+                      (!tourRegion||tourWeekFor(e)?.region===tourRegion) && (eventFilter === "전체" ||
                       eventListStatus(
                         e,
                         new Date(s.serverNow ?? Date.now()),
-                      ) === eventFilter,
+                      ) === eventFilter),
                   ).length > visibleEvents && (
                     <button
                       className="hub-more"
@@ -349,11 +352,11 @@ function EventHubContent({ path, hub }: { path: string; hub: Hub }) {
                   )}
                   {!s.events.some(
                     (e) =>
-                      eventFilter === "전체" ||
+                      (!tourRegion||tourWeekFor(e)?.region===tourRegion) && (eventFilter === "전체" ||
                       eventListStatus(
                         e,
                         new Date(s.serverNow ?? Date.now()),
-                      ) === eventFilter,
+                      ) === eventFilter),
                   ) && (
                     <p className="hub-empty-state">
                       {eventFilter === "전체"
@@ -361,7 +364,7 @@ function EventHubContent({ path, hub }: { path: string; hub: Hub }) {
                         : `${eventFilter} 행사가 없습니다.`}
                     </p>
                   )}
-                </HubCard>
+                </HubCard></>
               )}
               <HubCard>
                 <details>
@@ -673,6 +676,7 @@ export function ApplicationSteps({
   event: HubState["events"][number];
   hub: Hub;
 }) {
+  const noticeTheme=useEventTheme(event);
   const blocked = testModeBlocksParticipation(hub.state);
   const [panelStage, setPanelStage] = useState(app.stage);
   const [c, setC] = useState({
@@ -737,7 +741,7 @@ export function ApplicationSteps({
       </p>
       <p>{event.area}</p>
       <EventMedia links={event.media} materials={event.materials} />
-      {panelStage === 2 && <NoticePages key={event.noticeVersion} notice={event.notice} />}
+      {panelStage === 2 && <NoticePages key={event.noticeVersion} notice={event.notice} halloween={noticeTheme==='halloween'} />}
       <NoticeHistory history={event.noticeHistory} />
       {panelStage === 2 ? (
         <>
@@ -888,6 +892,7 @@ export function WaitingRoom({
   edit: () => void;
   onEnter?: (result: Record<string, unknown>) => void;
 }) {
+  const noticeTheme=useEventTheme(event);
   const blocked = testModeBlocksParticipation(hub.state);
   const missing = profileMissing(app.profile);
   const enter = async () => {
@@ -1096,7 +1101,7 @@ export function WaitingRoom({
         <EventMedia links={event.media} materials={event.materials} />
         <details>
           <summary>행사 공지</summary>
-          <NoticePages key={event.noticeVersion} notice={event.notice} />
+          <NoticePages key={event.noticeVersion} notice={event.notice} halloween={noticeTheme==='halloween'} />
         </details>
         <NoticeHistory history={event.noticeHistory} />
         {app.consent?.noticeVersion !== event.noticeVersion && (

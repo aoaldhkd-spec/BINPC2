@@ -280,7 +280,7 @@ async function req(
     );
     q.setTimeout(30000, () => q.destroy());
     q.on("error", () => resolve({ status: 0, json: { code: "TRANSPORT" } }));
-    if (data !== undefined) q.write(JSON.stringify(data));
+    if (data !== undefined) q.write(JSON.stringify(pathname === "/api/db/op" && client.sessionToken && !role ? {...data,sessionToken:client.sessionToken} : data));
     q.end();
   });
   requests.push({
@@ -351,6 +351,7 @@ async function action(c, name, data = {}, role = false, duplicate = false) {
       ])
     : [await req(sender, "/api/event-hub/mutate", m, role)];
   for (const r of results) must(r, name);
+  if (results[0].json.sessionToken) c.sessionToken = results[0].json.sessionToken;
   c.revision++;
   return results[0].json;
 }
@@ -639,6 +640,21 @@ try {
           c.before = a;
         }),
       );
+      stage = "150-social-hearts-chat";
+      await all(clients.map(async (c, index) => {
+        const peer = clients[(index + 1) % clients.length];
+        const chat = must(await req(c, "/api/db/op", {table:"chats",op:"insert",requesterId:c.profileId,payload:{user1_id:c.profileId,user2_id:peer.profileId},selectAfterWrite:true,single:true}), "social-chat");
+        c.chatId = chat.data.id;
+        const payload={chat_id:c.chatId,sender_id:c.profileId,content:"격리 혼합 대화",client_id:randomUUID()};
+        const message = must(await req(c, "/api/db/op", {table:"messages",op:"insert",requesterId:c.profileId,payload,selectAfterWrite:true,single:true}), "social-message");
+        c.messageId = message.data.id;
+        if(index % 15 === 0){
+          const duplicate=must(await req(c, "/api/db/op", {table:"messages",op:"insert",requesterId:c.profileId,payload,selectAfterWrite:true,single:true}), "social-message-retry");
+          if(duplicate.data.id!==c.messageId)throw Error("Duplicate chat delivery");
+        }
+        must(await req(c, "/api/db/op", {table:"likes",op:"insert",requesterId:c.profileId,payload:{liker_id:c.profileId,liked_id:peer.profileId,heart_type:"red",status:"pending"}}), "social-heart");
+      }));
+      result.actualSocialParticipants = clients.length;
       stage = "duplicate-prize-rejection";
       for (const c of clients.slice(0, 8)) {
         const card = c.before.cards.find((x) => x.prize !== "다음 기회에");
@@ -755,10 +771,15 @@ try {
           recovered.profile?.nickname !== c.actualNickname
         )
           throw Error("Restart lost profile PIN or nickname");
+        if(c.messageId){
+          const old=must(await req(c,"/api/db/op",{table:"messages",op:"select",requesterId:c.profileId,filters:[{type:"eq",col:"chat_id",val:c.chatId},{type:"eq",col:"id",val:c.messageId}]}),"restart-chat-history");
+          if(old.data.length!==1||old.data[0].content!=="격리 혼합 대화")throw Error("Restart lost social history");
+        }
       }),
     );
     result.restartVerified = true;
     result.profilePinAndNicknameRecovered = true;
+    result.socialRecordsSurviveRestart = clients.every(c=>Boolean(c.messageId));
     stage = "sustained-150-mixed";
     const until = performance.now() + minutes * 60000;
     let tick = 0;
@@ -776,6 +797,8 @@ try {
               ).r,
               "soak-inquiry",
             );
+          else if ((c.i + tick) % 5 === 1 && c.chatId)
+            must(await req(c,"/api/db/op",{table:"messages",op:"insert",requesterId:c.profileId,payload:{chat_id:c.chatId,sender_id:c.profileId,content:"격리 장시간 대화 "+tick,client_id:randomUUID()}}),"soak-social-message");
           else {
             const s = await state(c),
               a = s.applications.find((a) => a.id === c.id);
@@ -834,6 +857,7 @@ try {
       requests: list.length,
       p50Ms: times[Math.floor(times.length * 0.5)] ?? null,
       p95Ms: times[Math.floor(times.length * 0.95)] ?? null,
+      p99Ms: times[Math.floor(times.length * 0.99)] ?? null,
       maxMs: times.at(-1) ?? null,
     };
   }

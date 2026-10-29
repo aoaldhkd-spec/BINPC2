@@ -127,6 +127,18 @@ test("V12 Daegu four days use provided BLACK, preserve all 20 tour dates and ren
   expect((await tourCard.boundingBox())!.height).toBeLessThan(240);
   await expect(tourCard.getByAltText("블랙 · BLACK", { exact: true })).toBeVisible();
   await page.screenshot({ path: info.outputPath("v12-tour-list-compact.png"), fullPage: true });
+  for(const width of [320,390,768,1440]){
+    await page.setViewportSize({width,height:900});
+    await expect(page.getByRole('region',{name:'전국투어 지역 안내'})).toBeVisible();
+    expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth+1)).toBe(true);
+    const map=page.getByAltText('대한민국 지도: 인천, 종로, 광주, 신림, 대구 전국투어 지역');
+    expect(await map.evaluate((i:HTMLImageElement)=>i.complete&&i.naturalWidth>0)).toBe(true);
+    await page.screenshot({path:info.outputPath(`v12-korea-tour-map-${width}.png`),fullPage:true});
+  }
+  await page.getByRole('button',{name:/05 대구/}).click();
+  await expect(page.locator('.hub-event-list-card')).toHaveCount(4);
+  for(const card of await page.locator('.hub-event-list-card').all())await expect(card).toContainText('대구 전국투어');
+  await page.getByRole('button',{name:'전체 행사 다시 보기'}).click();
   await page.addInitScript((t) => { localStorage.setItem("admin_token_v1", t); localStorage.setItem("admin_session_v1", JSON.stringify({ phone: "01000000000", authedAt: Date.now() })); }, token!);
   await page.goto("/admin"); await page.getByRole("button", { name: "🎉 술번개", exact: true }).click();
   for (const [date, id] of Object.entries(ids)) {
@@ -156,4 +168,30 @@ test("V12 inquiry consent is once per version, IME Enter does not send, and reop
   await page.getByRole("button", { name: "문의 보내기", exact: true }).click();
   await expect(page.getByText("다음 질문\n줄바꿈 보존", { exact: true })).toBeVisible();
   await page.screenshot({ path: info.outputPath("v12-inquiry-chat-once-consent.png"), fullPage: true });
+});
+
+
+test("V12 accessible navigation survives missing decorations, text zoom and reduced motion", async ({ page, context }, info) => {
+  await page.emulateMedia({ reducedMotion: 'reduce' });
+  await page.setViewportSize({width:320,height:740});
+  let missingAssets = 0;
+  await context.route(/\.(?:png|webp|svg|jpg)(?:\?|$)/,r=>{ missingAssets++; return r.abort('failed'); });
+  await page.goto('/events');
+  await expect(page.getByRole('heading',{name:'술번개 신청',exact:true})).toBeVisible();
+  await page.evaluate(()=>document.documentElement.style.fontSize='20px');
+  expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth+2)).toBe(true);
+  await page.keyboard.press('Tab');
+  const focused=await page.evaluate(()=>({tag:document.activeElement?.tagName,label:document.activeElement?.getAttribute('aria-label')||document.activeElement?.textContent?.trim(),outline:document.activeElement?getComputedStyle(document.activeElement).outlineStyle:''}));
+  expect(['A','BUTTON','INPUT']).toContain(focused.tag); expect(focused.label).toBeTruthy();
+  expect(focused.outline).not.toBe('none');
+  for(const width of [740,320]){
+    await page.setViewportSize({width,height:width===320?740:320});
+    expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth+2)).toBe(true);
+  }
+  expect(missingAssets).toBeGreaterThan(0);
+  await expect(page.locator('.hub-event-list-card').first()).toBeVisible();
+  const animations=await page.locator('.hub-event-list-card').evaluateAll(nodes=>nodes.map(n=>getComputedStyle(n).animationName));
+  expect(animations.every(name=>name==='none')).toBe(true);
+  await page.screenshot({path:info.outputPath('v12-accessible-events-320-textzoom.png'),fullPage:true});
+  await info.attach('keyboard-textzoom-motion',{body:JSON.stringify({focused,widths:[320,740],textSize:20,reducedMotion:true,missingAssets,animations,scope:'Public event list; not all menus or physical screen readers'}),contentType:'application/json'});
 });

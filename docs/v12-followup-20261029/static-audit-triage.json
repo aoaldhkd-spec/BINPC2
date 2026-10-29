@@ -1,0 +1,1777 @@
+{
+  "counts": {
+    "error": 0,
+    "warn": 196,
+    "info": 1050
+  },
+  "trackedWarnings": 100,
+  "ignoredArtifactWarnings": 96,
+  "newTrackedWarningLocations": 0,
+  "note": "Counts include archived local source snapshots. Classification reuses the reviewed V12 finding by file/rule, retaining updated line numbers. Pattern findings are not all security vulnerabilities. No rule or security check was removed.",
+  "warnings": [
+    {
+      "rel": ".local/halloween-skin-20261028/fixture.mjs",
+      "line": 71,
+      "id": "hardcoded_secret",
+      "sev": "warn",
+      "scope": "ignored local verification artifact",
+      "importance": "not in release",
+      "resolution": "Historical source snapshot, synthetic fixture, or generated build. Not added to Git; original failure evidence retained."
+    },
+    {
+      "rel": ".local/preview/build/assets/index-nqdCCGJO.js",
+      "line": 3,
+      "id": "empty_catch",
+      "sev": "warn",
+      "scope": "ignored local verification artifact",
+      "importance": "not in release",
+      "resolution": "Historical source snapshot, synthetic fixture, or generated build. Not added to Git; original failure evidence retained."
+    },
+    {
+      "rel": ".local/v12-perf-before/artifacts/api-server/src/__tests__/admin-event-end-reset.test.ts",
+      "line": 9,
+      "id": "hardcoded_secret",
+      "sev": "warn",
+      "scope": "ignored local verification artifact",
+      "importance": "not in release",
+      "resolution": "Historical source snapshot, synthetic fixture, or generated build. Not added to Git; original failure evidence retained."
+    },
+    {
+      "rel": ".local/v12-perf-before/artifacts/api-server/src/__tests__/broadcast-targets.test.ts",
+      "line": 7,
+      "id": "hardcoded_secret",
+      "sev": "warn",
+      "scope": "ignored local verification artifact",
+      "importance": "not in release",
+      "resolution": "Historical source snapshot, synthetic fixture, or generated build. Not added to Git; original failure evidence retained."
+    },
+    {
+      "rel": ".local/v12-perf-before/artifacts/api-server/src/__tests__/db-security.test.ts",
+      "line": 30,
+      "id": "hardcoded_secret",
+      "sev": "warn",
+      "scope": "ignored local verification artifact",
+      "importance": "not in release",
+      "resolution": "Historical source snapshot, synthetic fixture, or generated build. Not added to Git; original failure evidence retained."
+    },
+    {
+      "rel": ".local/v12-perf-before/artifacts/api-server/src/__tests__/db-security.test.ts",
+      "line": 304,
+      "id": "hardcoded_secret",
+      "sev": "warn",
+      "scope": "ignored local verification artifact",
+      "importance": "not in release",
+      "resolution": "Historical source snapshot, synthetic fixture, or generated build. Not added to Git; original failure evidence retained."
+    },
+    {
+      "rel": ".local/v12-perf-before/artifacts/api-server/src/__tests__/db-security.test.ts",
+      "line": 1018,
+      "id": "hardcoded_secret",
+      "sev": "warn",
+      "scope": "ignored local verification artifact",
+      "importance": "not in release",
+      "resolution": "Historical source snapshot, synthetic fixture, or generated build. Not added to Git; original failure evidence retained."
+    },
+    {
+      "rel": ".local/v12-perf-before/artifacts/api-server/src/__tests__/db-security.test.ts",
+      "line": 1081,
+      "id": "hardcoded_secret",
+      "sev": "warn",
+      "scope": "ignored local verification artifact",
+      "importance": "not in release",
+      "resolution": "Historical source snapshot, synthetic fixture, or generated build. Not added to Git; original failure evidence retained."
+    },
+    {
+      "rel": ".local/v12-perf-before/artifacts/api-server/src/__tests__/db-security.test.ts",
+      "line": 1082,
+      "id": "hardcoded_secret",
+      "sev": "warn",
+      "scope": "ignored local verification artifact",
+      "importance": "not in release",
+      "resolution": "Historical source snapshot, synthetic fixture, or generated build. Not added to Git; original failure evidence retained."
+    },
+    {
+      "rel": ".local/v12-perf-before/artifacts/api-server/src/__tests__/db-security.test.ts",
+      "line": 1083,
+      "id": "hardcoded_secret",
+      "sev": "warn",
+      "scope": "ignored local verification artifact",
+      "importance": "not in release",
+      "resolution": "Historical source snapshot, synthetic fixture, or generated build. Not added to Git; original failure evidence retained."
+    },
+    {
+      "rel": ".local/v12-perf-before/artifacts/api-server/src/__tests__/db-security.test.ts",
+      "line": 1107,
+      "id": "hardcoded_secret",
+      "sev": "warn",
+      "scope": "ignored local verification artifact",
+      "importance": "not in release",
+      "resolution": "Historical source snapshot, synthetic fixture, or generated build. Not added to Git; original failure evidence retained."
+    },
+    {
+      "rel": ".local/v12-perf-before/artifacts/api-server/src/__tests__/db-security.test.ts",
+      "line": 1112,
+      "id": "hardcoded_secret",
+      "sev": "warn",
+      "scope": "ignored local verification artifact",
+      "importance": "not in release",
+      "resolution": "Historical source snapshot, synthetic fixture, or generated build. Not added to Git; original failure evidence retained."
+    },
+    {
+      "rel": ".local/v12-perf-before/artifacts/api-server/src/__tests__/db-security.test.ts",
+      "line": 1117,
+      "id": "hardcoded_secret",
+      "sev": "warn",
+      "scope": "ignored local verification artifact",
+      "importance": "not in release",
+      "resolution": "Historical source snapshot, synthetic fixture, or generated build. Not added to Git; original failure evidence retained."
+    },
+    {
+      "rel": ".local/v12-perf-before/artifacts/api-server/src/__tests__/db-security.test.ts",
+      "line": 1179,
+      "id": "hardcoded_secret",
+      "sev": "warn",
+      "scope": "ignored local verification artifact",
+      "importance": "not in release",
+      "resolution": "Historical source snapshot, synthetic fixture, or generated build. Not added to Git; original failure evidence retained."
+    },
+    {
+      "rel": ".local/v12-perf-before/artifacts/api-server/src/__tests__/db-security.test.ts",
+      "line": 1180,
+      "id": "hardcoded_secret",
+      "sev": "warn",
+      "scope": "ignored local verification artifact",
+      "importance": "not in release",
+      "resolution": "Historical source snapshot, synthetic fixture, or generated build. Not added to Git; original failure evidence retained."
+    },
+    {
+      "rel": ".local/v12-perf-before/artifacts/api-server/src/__tests__/db-security.test.ts",
+      "line": 1184,
+      "id": "hardcoded_secret",
+      "sev": "warn",
+      "scope": "ignored local verification artifact",
+      "importance": "not in release",
+      "resolution": "Historical source snapshot, synthetic fixture, or generated build. Not added to Git; original failure evidence retained."
+    },
+    {
+      "rel": ".local/v12-perf-before/artifacts/api-server/src/__tests__/db-security.test.ts",
+      "line": 1190,
+      "id": "hardcoded_secret",
+      "sev": "warn",
+      "scope": "ignored local verification artifact",
+      "importance": "not in release",
+      "resolution": "Historical source snapshot, synthetic fixture, or generated build. Not added to Git; original failure evidence retained."
+    },
+    {
+      "rel": ".local/v12-perf-before/artifacts/api-server/src/__tests__/db-security.test.ts",
+      "line": 1248,
+      "id": "hardcoded_secret",
+      "sev": "warn",
+      "scope": "ignored local verification artifact",
+      "importance": "not in release",
+      "resolution": "Historical source snapshot, synthetic fixture, or generated build. Not added to Git; original failure evidence retained."
+    },
+    {
+      "rel": ".local/v12-perf-before/artifacts/api-server/src/__tests__/db-security.test.ts",
+      "line": 1256,
+      "id": "hardcoded_secret",
+      "sev": "warn",
+      "scope": "ignored local verification artifact",
+      "importance": "not in release",
+      "resolution": "Historical source snapshot, synthetic fixture, or generated build. Not added to Git; original failure evidence retained."
+    },
+    {
+      "rel": ".local/v12-perf-before/artifacts/api-server/src/__tests__/db-security.test.ts",
+      "line": 1273,
+      "id": "hardcoded_secret",
+      "sev": "warn",
+      "scope": "ignored local verification artifact",
+      "importance": "not in release",
+      "resolution": "Historical source snapshot, synthetic fixture, or generated build. Not added to Git; original failure evidence retained."
+    },
+    {
+      "rel": ".local/v12-perf-before/artifacts/api-server/src/__tests__/db-security.test.ts",
+      "line": 1278,
+      "id": "hardcoded_secret",
+      "sev": "warn",
+      "scope": "ignored local verification artifact",
+      "importance": "not in release",
+      "resolution": "Historical source snapshot, synthetic fixture, or generated build. Not added to Git; original failure evidence retained."
+    },
+    {
+      "rel": ".local/v12-perf-before/artifacts/api-server/src/__tests__/db-security.test.ts",
+      "line": 1295,
+      "id": "hardcoded_secret",
+      "sev": "warn",
+      "scope": "ignored local verification artifact",
+      "importance": "not in release",
+      "resolution": "Historical source snapshot, synthetic fixture, or generated build. Not added to Git; original failure evidence retained."
+    },
+    {
+      "rel": ".local/v12-perf-before/artifacts/api-server/src/__tests__/db-security.test.ts",
+      "line": 1300,
+      "id": "hardcoded_secret",
+      "sev": "warn",
+      "scope": "ignored local verification artifact",
+      "importance": "not in release",
+      "resolution": "Historical source snapshot, synthetic fixture, or generated build. Not added to Git; original failure evidence retained."
+    },
+    {
+      "rel": ".local/v12-perf-before/artifacts/api-server/src/__tests__/db-security.test.ts",
+      "line": 1307,
+      "id": "hardcoded_secret",
+      "sev": "warn",
+      "scope": "ignored local verification artifact",
+      "importance": "not in release",
+      "resolution": "Historical source snapshot, synthetic fixture, or generated build. Not added to Git; original failure evidence retained."
+    },
+    {
+      "rel": ".local/v12-perf-before/artifacts/api-server/src/__tests__/db-security.test.ts",
+      "line": 1337,
+      "id": "hardcoded_secret",
+      "sev": "warn",
+      "scope": "ignored local verification artifact",
+      "importance": "not in release",
+      "resolution": "Historical source snapshot, synthetic fixture, or generated build. Not added to Git; original failure evidence retained."
+    },
+    {
+      "rel": ".local/v12-perf-before/artifacts/api-server/src/__tests__/db-security.test.ts",
+      "line": 1348,
+      "id": "hardcoded_secret",
+      "sev": "warn",
+      "scope": "ignored local verification artifact",
+      "importance": "not in release",
+      "resolution": "Historical source snapshot, synthetic fixture, or generated build. Not added to Git; original failure evidence retained."
+    },
+    {
+      "rel": ".local/v12-perf-before/artifacts/api-server/src/__tests__/db-test-mode.test.ts",
+      "line": 7,
+      "id": "hardcoded_secret",
+      "sev": "warn",
+      "scope": "ignored local verification artifact",
+      "importance": "not in release",
+      "resolution": "Historical source snapshot, synthetic fixture, or generated build. Not added to Git; original failure evidence retained."
+    },
+    {
+      "rel": ".local/v12-perf-before/artifacts/api-server/src/__tests__/db-test-mode.test.ts",
+      "line": 61,
+      "id": "hardcoded_secret",
+      "sev": "warn",
+      "scope": "ignored local verification artifact",
+      "importance": "not in release",
+      "resolution": "Historical source snapshot, synthetic fixture, or generated build. Not added to Git; original failure evidence retained."
+    },
+    {
+      "rel": ".local/v12-perf-before/artifacts/api-server/src/__tests__/db-test-mode.test.ts",
+      "line": 132,
+      "id": "hardcoded_secret",
+      "sev": "warn",
+      "scope": "ignored local verification artifact",
+      "importance": "not in release",
+      "resolution": "Historical source snapshot, synthetic fixture, or generated build. Not added to Git; original failure evidence retained."
+    },
+    {
+      "rel": ".local/v12-perf-before/artifacts/api-server/src/__tests__/db-test-mode.test.ts",
+      "line": 148,
+      "id": "hardcoded_secret",
+      "sev": "warn",
+      "scope": "ignored local verification artifact",
+      "importance": "not in release",
+      "resolution": "Historical source snapshot, synthetic fixture, or generated build. Not added to Git; original failure evidence retained."
+    },
+    {
+      "rel": ".local/v12-perf-before/artifacts/api-server/src/__tests__/hearts-chat-group-invariants.test.ts",
+      "line": 10,
+      "id": "hardcoded_secret",
+      "sev": "warn",
+      "scope": "ignored local verification artifact",
+      "importance": "not in release",
+      "resolution": "Historical source snapshot, synthetic fixture, or generated build. Not added to Git; original failure evidence retained."
+    },
+    {
+      "rel": ".local/v12-perf-before/artifacts/api-server/src/__tests__/load-venue-150.test.ts",
+      "line": 9,
+      "id": "hardcoded_secret",
+      "sev": "warn",
+      "scope": "ignored local verification artifact",
+      "importance": "not in release",
+      "resolution": "Historical source snapshot, synthetic fixture, or generated build. Not added to Git; original failure evidence retained."
+    },
+    {
+      "rel": ".local/v12-perf-before/artifacts/api-server/src/__tests__/push-self-test.test.ts",
+      "line": 6,
+      "id": "hardcoded_secret",
+      "sev": "warn",
+      "scope": "ignored local verification artifact",
+      "importance": "not in release",
+      "resolution": "Historical source snapshot, synthetic fixture, or generated build. Not added to Git; original failure evidence retained."
+    },
+    {
+      "rel": ".local/v12-perf-before/artifacts/api-server/src/__tests__/sulbun-event-reset.test.ts",
+      "line": 9,
+      "id": "hardcoded_secret",
+      "sev": "warn",
+      "scope": "ignored local verification artifact",
+      "importance": "not in release",
+      "resolution": "Historical source snapshot, synthetic fixture, or generated build. Not added to Git; original failure evidence retained."
+    },
+    {
+      "rel": ".local/v12-perf-before/artifacts/api-server/src/lib/db-app-settings-boot.test.ts",
+      "line": 14,
+      "id": "hardcoded_secret",
+      "sev": "warn",
+      "scope": "ignored local verification artifact",
+      "importance": "not in release",
+      "resolution": "Historical source snapshot, synthetic fixture, or generated build. Not added to Git; original failure evidence retained."
+    },
+    {
+      "rel": ".local/v12-perf-before/artifacts/api-server/src/lib/db-app-settings-boot.test.ts",
+      "line": 22,
+      "id": "hardcoded_secret",
+      "sev": "warn",
+      "scope": "ignored local verification artifact",
+      "importance": "not in release",
+      "resolution": "Historical source snapshot, synthetic fixture, or generated build. Not added to Git; original failure evidence retained."
+    },
+    {
+      "rel": ".local/v12-perf-before/artifacts/api-server/src/lib/db-app-settings-boot.test.ts",
+      "line": 23,
+      "id": "hardcoded_secret",
+      "sev": "warn",
+      "scope": "ignored local verification artifact",
+      "importance": "not in release",
+      "resolution": "Historical source snapshot, synthetic fixture, or generated build. Not added to Git; original failure evidence retained."
+    },
+    {
+      "rel": ".local/v12-perf-before/artifacts/api-server/src/lib/db-app-settings-boot.test.ts",
+      "line": 25,
+      "id": "hardcoded_secret",
+      "sev": "warn",
+      "scope": "ignored local verification artifact",
+      "importance": "not in release",
+      "resolution": "Historical source snapshot, synthetic fixture, or generated build. Not added to Git; original failure evidence retained."
+    },
+    {
+      "rel": ".local/v12-perf-before/artifacts/api-server/src/lib/db-app-settings-boot.test.ts",
+      "line": 43,
+      "id": "hardcoded_secret",
+      "sev": "warn",
+      "scope": "ignored local verification artifact",
+      "importance": "not in release",
+      "resolution": "Historical source snapshot, synthetic fixture, or generated build. Not added to Git; original failure evidence retained."
+    },
+    {
+      "rel": ".local/v12-perf-before/artifacts/api-server/src/lib/db-app-settings-boot.test.ts",
+      "line": 51,
+      "id": "hardcoded_secret",
+      "sev": "warn",
+      "scope": "ignored local verification artifact",
+      "importance": "not in release",
+      "resolution": "Historical source snapshot, synthetic fixture, or generated build. Not added to Git; original failure evidence retained."
+    },
+    {
+      "rel": ".local/v12-perf-before/artifacts/api-server/src/lib/db-app-settings-boot.test.ts",
+      "line": 60,
+      "id": "hardcoded_secret",
+      "sev": "warn",
+      "scope": "ignored local verification artifact",
+      "importance": "not in release",
+      "resolution": "Historical source snapshot, synthetic fixture, or generated build. Not added to Git; original failure evidence retained."
+    },
+    {
+      "rel": ".local/v12-perf-before/artifacts/api-server/src/lib/db-app-settings-boot.test.ts",
+      "line": 68,
+      "id": "hardcoded_secret",
+      "sev": "warn",
+      "scope": "ignored local verification artifact",
+      "importance": "not in release",
+      "resolution": "Historical source snapshot, synthetic fixture, or generated build. Not added to Git; original failure evidence retained."
+    },
+    {
+      "rel": ".local/v12-perf-before/artifacts/api-server/src/lib/db-app-settings-boot.test.ts",
+      "line": 69,
+      "id": "hardcoded_secret",
+      "sev": "warn",
+      "scope": "ignored local verification artifact",
+      "importance": "not in release",
+      "resolution": "Historical source snapshot, synthetic fixture, or generated build. Not added to Git; original failure evidence retained."
+    },
+    {
+      "rel": ".local/v12-perf-before/artifacts/api-server/src/lib/db-app-settings-boot.test.ts",
+      "line": 70,
+      "id": "hardcoded_secret",
+      "sev": "warn",
+      "scope": "ignored local verification artifact",
+      "importance": "not in release",
+      "resolution": "Historical source snapshot, synthetic fixture, or generated build. Not added to Git; original failure evidence retained."
+    },
+    {
+      "rel": ".local/v12-perf-before/artifacts/api-server/src/lib/db-app-settings-boot.test.ts",
+      "line": 113,
+      "id": "hardcoded_secret",
+      "sev": "warn",
+      "scope": "ignored local verification artifact",
+      "importance": "not in release",
+      "resolution": "Historical source snapshot, synthetic fixture, or generated build. Not added to Git; original failure evidence retained."
+    },
+    {
+      "rel": ".local/v12-perf-before/artifacts/api-server/src/lib/db-app-settings-boot.test.ts",
+      "line": 114,
+      "id": "hardcoded_secret",
+      "sev": "warn",
+      "scope": "ignored local verification artifact",
+      "importance": "not in release",
+      "resolution": "Historical source snapshot, synthetic fixture, or generated build. Not added to Git; original failure evidence retained."
+    },
+    {
+      "rel": ".local/v12-perf-before/artifacts/api-server/src/lib/db-app-settings-boot.test.ts",
+      "line": 115,
+      "id": "hardcoded_secret",
+      "sev": "warn",
+      "scope": "ignored local verification artifact",
+      "importance": "not in release",
+      "resolution": "Historical source snapshot, synthetic fixture, or generated build. Not added to Git; original failure evidence retained."
+    },
+    {
+      "rel": ".local/v12-perf-before/artifacts/api-server/src/lib/db-app-settings-view.test.ts",
+      "line": 40,
+      "id": "hardcoded_secret",
+      "sev": "warn",
+      "scope": "ignored local verification artifact",
+      "importance": "not in release",
+      "resolution": "Historical source snapshot, synthetic fixture, or generated build. Not added to Git; original failure evidence retained."
+    },
+    {
+      "rel": ".local/v12-perf-before/artifacts/api-server/src/lib/db-app-settings-view.test.ts",
+      "line": 41,
+      "id": "hardcoded_secret",
+      "sev": "warn",
+      "scope": "ignored local verification artifact",
+      "importance": "not in release",
+      "resolution": "Historical source snapshot, synthetic fixture, or generated build. Not added to Git; original failure evidence retained."
+    },
+    {
+      "rel": ".local/v12-perf-before/artifacts/api-server/src/lib/db-app-settings-view.test.ts",
+      "line": 42,
+      "id": "hardcoded_secret",
+      "sev": "warn",
+      "scope": "ignored local verification artifact",
+      "importance": "not in release",
+      "resolution": "Historical source snapshot, synthetic fixture, or generated build. Not added to Git; original failure evidence retained."
+    },
+    {
+      "rel": ".local/v12-perf-before/artifacts/api-server/src/lib/db-app-settings-view.test.ts",
+      "line": 43,
+      "id": "hardcoded_secret",
+      "sev": "warn",
+      "scope": "ignored local verification artifact",
+      "importance": "not in release",
+      "resolution": "Historical source snapshot, synthetic fixture, or generated build. Not added to Git; original failure evidence retained."
+    },
+    {
+      "rel": ".local/v12-perf-before/artifacts/api-server/src/lib/db-app-settings-view.test.ts",
+      "line": 115,
+      "id": "hardcoded_secret",
+      "sev": "warn",
+      "scope": "ignored local verification artifact",
+      "importance": "not in release",
+      "resolution": "Historical source snapshot, synthetic fixture, or generated build. Not added to Git; original failure evidence retained."
+    },
+    {
+      "rel": ".local/v12-perf-before/artifacts/api-server/src/lib/db-session-tokens.test.ts",
+      "line": 21,
+      "id": "hardcoded_secret",
+      "sev": "warn",
+      "scope": "ignored local verification artifact",
+      "importance": "not in release",
+      "resolution": "Historical source snapshot, synthetic fixture, or generated build. Not added to Git; original failure evidence retained."
+    },
+    {
+      "rel": ".local/v12-perf-before/artifacts/api-server/src/lib/event-hub.pg.test.ts",
+      "line": 243,
+      "id": "hardcoded_secret",
+      "sev": "warn",
+      "scope": "ignored local verification artifact",
+      "importance": "not in release",
+      "resolution": "Historical source snapshot, synthetic fixture, or generated build. Not added to Git; original failure evidence retained."
+    },
+    {
+      "rel": ".local/v12-perf-before/artifacts/api-server/src/lib/event-hub.pg.test.ts",
+      "line": 253,
+      "id": "hardcoded_secret",
+      "sev": "warn",
+      "scope": "ignored local verification artifact",
+      "importance": "not in release",
+      "resolution": "Historical source snapshot, synthetic fixture, or generated build. Not added to Git; original failure evidence retained."
+    },
+    {
+      "rel": ".local/v12-perf-before/artifacts/api-server/src/lib/event-hub.pg.test.ts",
+      "line": 262,
+      "id": "hardcoded_secret",
+      "sev": "warn",
+      "scope": "ignored local verification artifact",
+      "importance": "not in release",
+      "resolution": "Historical source snapshot, synthetic fixture, or generated build. Not added to Git; original failure evidence retained."
+    },
+    {
+      "rel": ".local/v12-perf-before/artifacts/api-server/src/lib/event-hub.pg.test.ts",
+      "line": 774,
+      "id": "hardcoded_secret",
+      "sev": "warn",
+      "scope": "ignored local verification artifact",
+      "importance": "not in release",
+      "resolution": "Historical source snapshot, synthetic fixture, or generated build. Not added to Git; original failure evidence retained."
+    },
+    {
+      "rel": ".local/v12-perf-before/artifacts/api-server/src/lib/event-hub.pg.test.ts",
+      "line": 791,
+      "id": "hardcoded_secret",
+      "sev": "warn",
+      "scope": "ignored local verification artifact",
+      "importance": "not in release",
+      "resolution": "Historical source snapshot, synthetic fixture, or generated build. Not added to Git; original failure evidence retained."
+    },
+    {
+      "rel": ".local/v12-perf-before/artifacts/api-server/src/lib/event-hub.pg.test.ts",
+      "line": 801,
+      "id": "hardcoded_secret",
+      "sev": "warn",
+      "scope": "ignored local verification artifact",
+      "importance": "not in release",
+      "resolution": "Historical source snapshot, synthetic fixture, or generated build. Not added to Git; original failure evidence retained."
+    },
+    {
+      "rel": ".local/v12-perf-before/artifacts/api-server/src/lib/event-hub.pg.test.ts",
+      "line": 810,
+      "id": "hardcoded_secret",
+      "sev": "warn",
+      "scope": "ignored local verification artifact",
+      "importance": "not in release",
+      "resolution": "Historical source snapshot, synthetic fixture, or generated build. Not added to Git; original failure evidence retained."
+    },
+    {
+      "rel": ".local/v12-perf-before/artifacts/api-server/src/lib/event-hub.pg.test.ts",
+      "line": 849,
+      "id": "hardcoded_secret",
+      "sev": "warn",
+      "scope": "ignored local verification artifact",
+      "importance": "not in release",
+      "resolution": "Historical source snapshot, synthetic fixture, or generated build. Not added to Git; original failure evidence retained."
+    },
+    {
+      "rel": ".local/v12-perf-before/artifacts/api-server/src/lib/event-hub.pg.test.ts",
+      "line": 862,
+      "id": "hardcoded_secret",
+      "sev": "warn",
+      "scope": "ignored local verification artifact",
+      "importance": "not in release",
+      "resolution": "Historical source snapshot, synthetic fixture, or generated build. Not added to Git; original failure evidence retained."
+    },
+    {
+      "rel": ".local/v12-perf-before/artifacts/api-server/src/lib/event-hub.pg.test.ts",
+      "line": 885,
+      "id": "hardcoded_secret",
+      "sev": "warn",
+      "scope": "ignored local verification artifact",
+      "importance": "not in release",
+      "resolution": "Historical source snapshot, synthetic fixture, or generated build. Not added to Git; original failure evidence retained."
+    },
+    {
+      "rel": ".local/v12-perf-before/artifacts/api-server/src/lib/event-hub.pg.test.ts",
+      "line": 1061,
+      "id": "hardcoded_secret",
+      "sev": "warn",
+      "scope": "ignored local verification artifact",
+      "importance": "not in release",
+      "resolution": "Historical source snapshot, synthetic fixture, or generated build. Not added to Git; original failure evidence retained."
+    },
+    {
+      "rel": ".local/v12-perf-before/artifacts/api-server/src/lib/event-hub.pg.test.ts",
+      "line": 1077,
+      "id": "hardcoded_secret",
+      "sev": "warn",
+      "scope": "ignored local verification artifact",
+      "importance": "not in release",
+      "resolution": "Historical source snapshot, synthetic fixture, or generated build. Not added to Git; original failure evidence retained."
+    },
+    {
+      "rel": ".local/v12-perf-before/artifacts/api-server/src/lib/event-hub.pg.test.ts",
+      "line": 1088,
+      "id": "hardcoded_secret",
+      "sev": "warn",
+      "scope": "ignored local verification artifact",
+      "importance": "not in release",
+      "resolution": "Historical source snapshot, synthetic fixture, or generated build. Not added to Git; original failure evidence retained."
+    },
+    {
+      "rel": ".local/v12-perf-before/artifacts/api-server/src/lib/event-hub.pg.test.ts",
+      "line": 1097,
+      "id": "hardcoded_secret",
+      "sev": "warn",
+      "scope": "ignored local verification artifact",
+      "importance": "not in release",
+      "resolution": "Historical source snapshot, synthetic fixture, or generated build. Not added to Git; original failure evidence retained."
+    },
+    {
+      "rel": ".local/v12-perf-before/artifacts/api-server/src/lib/event-hub.pg.test.ts",
+      "line": 1142,
+      "id": "hardcoded_secret",
+      "sev": "warn",
+      "scope": "ignored local verification artifact",
+      "importance": "not in release",
+      "resolution": "Historical source snapshot, synthetic fixture, or generated build. Not added to Git; original failure evidence retained."
+    },
+    {
+      "rel": ".local/v12-perf-before/artifacts/api-server/src/lib/event-hub.pg.test.ts",
+      "line": 1190,
+      "id": "hardcoded_secret",
+      "sev": "warn",
+      "scope": "ignored local verification artifact",
+      "importance": "not in release",
+      "resolution": "Historical source snapshot, synthetic fixture, or generated build. Not added to Git; original failure evidence retained."
+    },
+    {
+      "rel": ".local/v12-perf-before/artifacts/api-server/src/lib/event-hub.pg.test.ts",
+      "line": 1229,
+      "id": "hardcoded_secret",
+      "sev": "warn",
+      "scope": "ignored local verification artifact",
+      "importance": "not in release",
+      "resolution": "Historical source snapshot, synthetic fixture, or generated build. Not added to Git; original failure evidence retained."
+    },
+    {
+      "rel": ".local/v12-perf-before/artifacts/api-server/src/lib/event-hub.pg.test.ts",
+      "line": 1325,
+      "id": "hardcoded_secret",
+      "sev": "warn",
+      "scope": "ignored local verification artifact",
+      "importance": "not in release",
+      "resolution": "Historical source snapshot, synthetic fixture, or generated build. Not added to Git; original failure evidence retained."
+    },
+    {
+      "rel": ".local/v12-perf-before/artifacts/api-server/src/lib/event-hub.pg.test.ts",
+      "line": 1429,
+      "id": "hardcoded_secret",
+      "sev": "warn",
+      "scope": "ignored local verification artifact",
+      "importance": "not in release",
+      "resolution": "Historical source snapshot, synthetic fixture, or generated build. Not added to Git; original failure evidence retained."
+    },
+    {
+      "rel": ".local/v12-perf-before/artifacts/api-server/src/lib/event-hub.pg.test.ts",
+      "line": 1466,
+      "id": "hardcoded_secret",
+      "sev": "warn",
+      "scope": "ignored local verification artifact",
+      "importance": "not in release",
+      "resolution": "Historical source snapshot, synthetic fixture, or generated build. Not added to Git; original failure evidence retained."
+    },
+    {
+      "rel": ".local/v12-perf-before/artifacts/api-server/src/lib/event-hub.pg.test.ts",
+      "line": 1577,
+      "id": "hardcoded_secret",
+      "sev": "warn",
+      "scope": "ignored local verification artifact",
+      "importance": "not in release",
+      "resolution": "Historical source snapshot, synthetic fixture, or generated build. Not added to Git; original failure evidence retained."
+    },
+    {
+      "rel": ".local/v12-perf-before/artifacts/api-server/src/lib/event-hub.pg.test.ts",
+      "line": 1701,
+      "id": "hardcoded_secret",
+      "sev": "warn",
+      "scope": "ignored local verification artifact",
+      "importance": "not in release",
+      "resolution": "Historical source snapshot, synthetic fixture, or generated build. Not added to Git; original failure evidence retained."
+    },
+    {
+      "rel": ".local/v12-perf-before/artifacts/api-server/src/lib/event-hub.pg.test.ts",
+      "line": 2038,
+      "id": "hardcoded_secret",
+      "sev": "warn",
+      "scope": "ignored local verification artifact",
+      "importance": "not in release",
+      "resolution": "Historical source snapshot, synthetic fixture, or generated build. Not added to Git; original failure evidence retained."
+    },
+    {
+      "rel": ".local/v12-perf-before/artifacts/api-server/src/lib/event-hub.pg.test.ts",
+      "line": 2251,
+      "id": "hardcoded_secret",
+      "sev": "warn",
+      "scope": "ignored local verification artifact",
+      "importance": "not in release",
+      "resolution": "Historical source snapshot, synthetic fixture, or generated build. Not added to Git; original failure evidence retained."
+    },
+    {
+      "rel": ".local/v12-perf-before/artifacts/api-server/src/lib/event-hub.pg.test.ts",
+      "line": 2264,
+      "id": "hardcoded_secret",
+      "sev": "warn",
+      "scope": "ignored local verification artifact",
+      "importance": "not in release",
+      "resolution": "Historical source snapshot, synthetic fixture, or generated build. Not added to Git; original failure evidence retained."
+    },
+    {
+      "rel": ".local/v12-perf-before/artifacts/api-server/src/lib/event-hub.pg.test.ts",
+      "line": 2643,
+      "id": "hardcoded_secret",
+      "sev": "warn",
+      "scope": "ignored local verification artifact",
+      "importance": "not in release",
+      "resolution": "Historical source snapshot, synthetic fixture, or generated build. Not added to Git; original failure evidence retained."
+    },
+    {
+      "rel": ".local/v12-perf-before/artifacts/api-server/src/lib/event-hub.pg.test.ts",
+      "line": 2690,
+      "id": "hardcoded_secret",
+      "sev": "warn",
+      "scope": "ignored local verification artifact",
+      "importance": "not in release",
+      "resolution": "Historical source snapshot, synthetic fixture, or generated build. Not added to Git; original failure evidence retained."
+    },
+    {
+      "rel": ".local/v12-perf-before/artifacts/api-server/src/lib/event-hub.pg.test.ts",
+      "line": 2731,
+      "id": "hardcoded_secret",
+      "sev": "warn",
+      "scope": "ignored local verification artifact",
+      "importance": "not in release",
+      "resolution": "Historical source snapshot, synthetic fixture, or generated build. Not added to Git; original failure evidence retained."
+    },
+    {
+      "rel": ".local/v12-perf-before/artifacts/api-server/src/lib/event-hub.pg.test.ts",
+      "line": 2733,
+      "id": "hardcoded_secret",
+      "sev": "warn",
+      "scope": "ignored local verification artifact",
+      "importance": "not in release",
+      "resolution": "Historical source snapshot, synthetic fixture, or generated build. Not added to Git; original failure evidence retained."
+    },
+    {
+      "rel": ".local/v12-perf-before/artifacts/api-server/src/lib/private-preview.test.ts",
+      "line": 5,
+      "id": "hardcoded_secret",
+      "sev": "warn",
+      "scope": "ignored local verification artifact",
+      "importance": "not in release",
+      "resolution": "Historical source snapshot, synthetic fixture, or generated build. Not added to Git; original failure evidence retained."
+    },
+    {
+      "rel": ".local/v12-perf-before/artifacts/api-server/src/lib/private-preview.test.ts",
+      "line": 6,
+      "id": "hardcoded_secret",
+      "sev": "warn",
+      "scope": "ignored local verification artifact",
+      "importance": "not in release",
+      "resolution": "Historical source snapshot, synthetic fixture, or generated build. Not added to Git; original failure evidence retained."
+    },
+    {
+      "rel": ".local/v12-perf-before/artifacts/api-server/vitest.config.ts",
+      "line": 14,
+      "id": "hardcoded_secret",
+      "sev": "warn",
+      "scope": "ignored local verification artifact",
+      "importance": "not in release",
+      "resolution": "Historical source snapshot, synthetic fixture, or generated build. Not added to Git; original failure evidence retained."
+    },
+    {
+      "rel": ".local/v12-perf-before/scripts/event-hub-browser-fixture.mjs",
+      "line": 72,
+      "id": "hardcoded_secret",
+      "sev": "warn",
+      "scope": "ignored local verification artifact",
+      "importance": "not in release",
+      "resolution": "Historical source snapshot, synthetic fixture, or generated build. Not added to Git; original failure evidence retained."
+    },
+    {
+      "rel": ".local/v12-perf-before/scripts/event-hub-http-soak.mjs",
+      "line": 99,
+      "id": "hardcoded_secret",
+      "sev": "warn",
+      "scope": "ignored local verification artifact",
+      "importance": "not in release",
+      "resolution": "Historical source snapshot, synthetic fixture, or generated build. Not added to Git; original failure evidence retained."
+    },
+    {
+      "rel": ".local/v12-perf-before/scripts/full-code-audit.mjs",
+      "line": 55,
+      "id": "ts_ignore",
+      "sev": "warn",
+      "scope": "ignored local verification artifact",
+      "importance": "not in release",
+      "resolution": "Historical source snapshot, synthetic fixture, or generated build. Not added to Git; original failure evidence retained."
+    },
+    {
+      "rel": ".local/v12-perf-before/scripts/lib/ops-client.mjs",
+      "line": 103,
+      "id": "hardcoded_secret",
+      "sev": "warn",
+      "scope": "ignored local verification artifact",
+      "importance": "not in release",
+      "resolution": "Historical source snapshot, synthetic fixture, or generated build. Not added to Git; original failure evidence retained."
+    },
+    {
+      "rel": ".local/v12-perf-before/scripts/rotate-exposed-secrets.mjs",
+      "line": 9,
+      "id": "hardcoded_secret",
+      "sev": "warn",
+      "scope": "ignored local verification artifact",
+      "importance": "not in release",
+      "resolution": "Historical source snapshot, synthetic fixture, or generated build. Not added to Git; original failure evidence retained."
+    },
+    {
+      "rel": ".local/v12-perf-before/scripts/rotate-exposed-secrets.mjs",
+      "line": 10,
+      "id": "hardcoded_secret",
+      "sev": "warn",
+      "scope": "ignored local verification artifact",
+      "importance": "not in release",
+      "resolution": "Historical source snapshot, synthetic fixture, or generated build. Not added to Git; original failure evidence retained."
+    },
+    {
+      "rel": ".local/v12-perf-before/scripts/test/event-hub-legacy-fixture.test.mjs",
+      "line": 8,
+      "id": "hardcoded_secret",
+      "sev": "warn",
+      "scope": "ignored local verification artifact",
+      "importance": "not in release",
+      "resolution": "Historical source snapshot, synthetic fixture, or generated build. Not added to Git; original failure evidence retained."
+    },
+    {
+      "rel": ".local/v12-perf-before/scripts/test/ops-client.test.mjs",
+      "line": 127,
+      "id": "hardcoded_secret",
+      "sev": "warn",
+      "scope": "ignored local verification artifact",
+      "importance": "not in release",
+      "resolution": "Historical source snapshot, synthetic fixture, or generated build. Not added to Git; original failure evidence retained."
+    },
+    {
+      "rel": ".local/v12-perf-before/scripts/test/ops-client.test.mjs",
+      "line": 128,
+      "id": "hardcoded_secret",
+      "sev": "warn",
+      "scope": "ignored local verification artifact",
+      "importance": "not in release",
+      "resolution": "Historical source snapshot, synthetic fixture, or generated build. Not added to Git; original failure evidence retained."
+    },
+    {
+      "rel": ".local/v6-finish/browser-final-fixture.mjs",
+      "line": 69,
+      "id": "hardcoded_secret",
+      "sev": "warn",
+      "scope": "ignored local verification artifact",
+      "importance": "not in release",
+      "resolution": "Historical source snapshot, synthetic fixture, or generated build. Not added to Git; original failure evidence retained."
+    },
+    {
+      "rel": ".local/v6-finish/legacy-sandbox-fixture.mjs",
+      "line": 73,
+      "id": "hardcoded_secret",
+      "sev": "warn",
+      "scope": "ignored local verification artifact",
+      "importance": "not in release",
+      "resolution": "Historical source snapshot, synthetic fixture, or generated build. Not added to Git; original failure evidence retained."
+    },
+    {
+      "rel": "artifacts/api-server/src/__tests__/admin-event-end-reset.test.ts",
+      "line": 9,
+      "id": "hardcoded_secret",
+      "sev": "warn",
+      "scope": "synthetic test fixture",
+      "importance": "permission/authentication reviewed",
+      "resolution": "Explicit isolated test secret/token literal. Not a production credential; access and payment assertions preserved."
+    },
+    {
+      "rel": "artifacts/api-server/src/__tests__/broadcast-targets.test.ts",
+      "line": 7,
+      "id": "hardcoded_secret",
+      "sev": "warn",
+      "scope": "synthetic test fixture",
+      "importance": "test isolation reviewed",
+      "resolution": "Explicit isolated test secret/token literal. Not a production credential; access and payment assertions preserved."
+    },
+    {
+      "rel": "artifacts/api-server/src/__tests__/db-security.test.ts",
+      "line": 30,
+      "id": "hardcoded_secret",
+      "sev": "warn",
+      "scope": "synthetic test fixture",
+      "importance": "permission/authentication reviewed",
+      "resolution": "Explicit isolated test secret/token literal. Not a production credential; access and payment assertions preserved."
+    },
+    {
+      "rel": "artifacts/api-server/src/__tests__/db-security.test.ts",
+      "line": 304,
+      "id": "hardcoded_secret",
+      "sev": "warn",
+      "scope": "synthetic test fixture",
+      "importance": "permission/authentication reviewed",
+      "resolution": "Explicit isolated test secret/token literal. Not a production credential; access and payment assertions preserved."
+    },
+    {
+      "rel": "artifacts/api-server/src/__tests__/db-security.test.ts",
+      "line": 1018,
+      "id": "hardcoded_secret",
+      "sev": "warn",
+      "scope": "synthetic test fixture",
+      "importance": "permission/authentication reviewed",
+      "resolution": "Explicit isolated test secret/token literal. Not a production credential; access and payment assertions preserved."
+    },
+    {
+      "rel": "artifacts/api-server/src/__tests__/db-security.test.ts",
+      "line": 1081,
+      "id": "hardcoded_secret",
+      "sev": "warn",
+      "scope": "synthetic test fixture",
+      "importance": "permission/authentication reviewed",
+      "resolution": "Explicit isolated test secret/token literal. Not a production credential; access and payment assertions preserved."
+    },
+    {
+      "rel": "artifacts/api-server/src/__tests__/db-security.test.ts",
+      "line": 1082,
+      "id": "hardcoded_secret",
+      "sev": "warn",
+      "scope": "synthetic test fixture",
+      "importance": "permission/authentication reviewed",
+      "resolution": "Explicit isolated test secret/token literal. Not a production credential; access and payment assertions preserved."
+    },
+    {
+      "rel": "artifacts/api-server/src/__tests__/db-security.test.ts",
+      "line": 1083,
+      "id": "hardcoded_secret",
+      "sev": "warn",
+      "scope": "synthetic test fixture",
+      "importance": "permission/authentication reviewed",
+      "resolution": "Explicit isolated test secret/token literal. Not a production credential; access and payment assertions preserved."
+    },
+    {
+      "rel": "artifacts/api-server/src/__tests__/db-security.test.ts",
+      "line": 1107,
+      "id": "hardcoded_secret",
+      "sev": "warn",
+      "scope": "synthetic test fixture",
+      "importance": "permission/authentication reviewed",
+      "resolution": "Explicit isolated test secret/token literal. Not a production credential; access and payment assertions preserved."
+    },
+    {
+      "rel": "artifacts/api-server/src/__tests__/db-security.test.ts",
+      "line": 1112,
+      "id": "hardcoded_secret",
+      "sev": "warn",
+      "scope": "synthetic test fixture",
+      "importance": "permission/authentication reviewed",
+      "resolution": "Explicit isolated test secret/token literal. Not a production credential; access and payment assertions preserved."
+    },
+    {
+      "rel": "artifacts/api-server/src/__tests__/db-security.test.ts",
+      "line": 1117,
+      "id": "hardcoded_secret",
+      "sev": "warn",
+      "scope": "synthetic test fixture",
+      "importance": "permission/authentication reviewed",
+      "resolution": "Explicit isolated test secret/token literal. Not a production credential; access and payment assertions preserved."
+    },
+    {
+      "rel": "artifacts/api-server/src/__tests__/db-security.test.ts",
+      "line": 1179,
+      "id": "hardcoded_secret",
+      "sev": "warn",
+      "scope": "synthetic test fixture",
+      "importance": "permission/authentication reviewed",
+      "resolution": "Explicit isolated test secret/token literal. Not a production credential; access and payment assertions preserved."
+    },
+    {
+      "rel": "artifacts/api-server/src/__tests__/db-security.test.ts",
+      "line": 1180,
+      "id": "hardcoded_secret",
+      "sev": "warn",
+      "scope": "synthetic test fixture",
+      "importance": "permission/authentication reviewed",
+      "resolution": "Explicit isolated test secret/token literal. Not a production credential; access and payment assertions preserved."
+    },
+    {
+      "rel": "artifacts/api-server/src/__tests__/db-security.test.ts",
+      "line": 1184,
+      "id": "hardcoded_secret",
+      "sev": "warn",
+      "scope": "synthetic test fixture",
+      "importance": "permission/authentication reviewed",
+      "resolution": "Explicit isolated test secret/token literal. Not a production credential; access and payment assertions preserved."
+    },
+    {
+      "rel": "artifacts/api-server/src/__tests__/db-security.test.ts",
+      "line": 1190,
+      "id": "hardcoded_secret",
+      "sev": "warn",
+      "scope": "synthetic test fixture",
+      "importance": "permission/authentication reviewed",
+      "resolution": "Explicit isolated test secret/token literal. Not a production credential; access and payment assertions preserved."
+    },
+    {
+      "rel": "artifacts/api-server/src/__tests__/db-security.test.ts",
+      "line": 1248,
+      "id": "hardcoded_secret",
+      "sev": "warn",
+      "scope": "synthetic test fixture",
+      "importance": "permission/authentication reviewed",
+      "resolution": "Explicit isolated test secret/token literal. Not a production credential; access and payment assertions preserved."
+    },
+    {
+      "rel": "artifacts/api-server/src/__tests__/db-security.test.ts",
+      "line": 1256,
+      "id": "hardcoded_secret",
+      "sev": "warn",
+      "scope": "synthetic test fixture",
+      "importance": "permission/authentication reviewed",
+      "resolution": "Explicit isolated test secret/token literal. Not a production credential; access and payment assertions preserved."
+    },
+    {
+      "rel": "artifacts/api-server/src/__tests__/db-security.test.ts",
+      "line": 1273,
+      "id": "hardcoded_secret",
+      "sev": "warn",
+      "scope": "synthetic test fixture",
+      "importance": "permission/authentication reviewed",
+      "resolution": "Explicit isolated test secret/token literal. Not a production credential; access and payment assertions preserved."
+    },
+    {
+      "rel": "artifacts/api-server/src/__tests__/db-security.test.ts",
+      "line": 1278,
+      "id": "hardcoded_secret",
+      "sev": "warn",
+      "scope": "synthetic test fixture",
+      "importance": "permission/authentication reviewed",
+      "resolution": "Explicit isolated test secret/token literal. Not a production credential; access and payment assertions preserved."
+    },
+    {
+      "rel": "artifacts/api-server/src/__tests__/db-security.test.ts",
+      "line": 1295,
+      "id": "hardcoded_secret",
+      "sev": "warn",
+      "scope": "synthetic test fixture",
+      "importance": "permission/authentication reviewed",
+      "resolution": "Explicit isolated test secret/token literal. Not a production credential; access and payment assertions preserved."
+    },
+    {
+      "rel": "artifacts/api-server/src/__tests__/db-security.test.ts",
+      "line": 1300,
+      "id": "hardcoded_secret",
+      "sev": "warn",
+      "scope": "synthetic test fixture",
+      "importance": "permission/authentication reviewed",
+      "resolution": "Explicit isolated test secret/token literal. Not a production credential; access and payment assertions preserved."
+    },
+    {
+      "rel": "artifacts/api-server/src/__tests__/db-security.test.ts",
+      "line": 1307,
+      "id": "hardcoded_secret",
+      "sev": "warn",
+      "scope": "synthetic test fixture",
+      "importance": "permission/authentication reviewed",
+      "resolution": "Explicit isolated test secret/token literal. Not a production credential; access and payment assertions preserved."
+    },
+    {
+      "rel": "artifacts/api-server/src/__tests__/db-security.test.ts",
+      "line": 1337,
+      "id": "hardcoded_secret",
+      "sev": "warn",
+      "scope": "synthetic test fixture",
+      "importance": "permission/authentication reviewed",
+      "resolution": "Explicit isolated test secret/token literal. Not a production credential; access and payment assertions preserved."
+    },
+    {
+      "rel": "artifacts/api-server/src/__tests__/db-security.test.ts",
+      "line": 1348,
+      "id": "hardcoded_secret",
+      "sev": "warn",
+      "scope": "synthetic test fixture",
+      "importance": "permission/authentication reviewed",
+      "resolution": "Explicit isolated test secret/token literal. Not a production credential; access and payment assertions preserved."
+    },
+    {
+      "rel": "artifacts/api-server/src/__tests__/db-test-mode.test.ts",
+      "line": 7,
+      "id": "hardcoded_secret",
+      "sev": "warn",
+      "scope": "synthetic test fixture",
+      "importance": "permission/authentication reviewed",
+      "resolution": "Explicit isolated test secret/token literal. Not a production credential; access and payment assertions preserved."
+    },
+    {
+      "rel": "artifacts/api-server/src/__tests__/db-test-mode.test.ts",
+      "line": 61,
+      "id": "hardcoded_secret",
+      "sev": "warn",
+      "scope": "synthetic test fixture",
+      "importance": "permission/authentication reviewed",
+      "resolution": "Explicit isolated test secret/token literal. Not a production credential; access and payment assertions preserved."
+    },
+    {
+      "rel": "artifacts/api-server/src/__tests__/db-test-mode.test.ts",
+      "line": 132,
+      "id": "hardcoded_secret",
+      "sev": "warn",
+      "scope": "synthetic test fixture",
+      "importance": "permission/authentication reviewed",
+      "resolution": "Explicit isolated test secret/token literal. Not a production credential; access and payment assertions preserved."
+    },
+    {
+      "rel": "artifacts/api-server/src/__tests__/db-test-mode.test.ts",
+      "line": 148,
+      "id": "hardcoded_secret",
+      "sev": "warn",
+      "scope": "synthetic test fixture",
+      "importance": "permission/authentication reviewed",
+      "resolution": "Explicit isolated test secret/token literal. Not a production credential; access and payment assertions preserved."
+    },
+    {
+      "rel": "artifacts/api-server/src/__tests__/hearts-chat-group-invariants.test.ts",
+      "line": 10,
+      "id": "hardcoded_secret",
+      "sev": "warn",
+      "scope": "synthetic test fixture",
+      "importance": "test isolation reviewed",
+      "resolution": "Explicit isolated test secret/token literal. Not a production credential; access and payment assertions preserved."
+    },
+    {
+      "rel": "artifacts/api-server/src/__tests__/load-venue-150.test.ts",
+      "line": 9,
+      "id": "hardcoded_secret",
+      "sev": "warn",
+      "scope": "synthetic test fixture",
+      "importance": "test isolation reviewed",
+      "resolution": "Explicit isolated test secret/token literal. Not a production credential; access and payment assertions preserved."
+    },
+    {
+      "rel": "artifacts/api-server/src/__tests__/push-self-test.test.ts",
+      "line": 6,
+      "id": "hardcoded_secret",
+      "sev": "warn",
+      "scope": "synthetic test fixture",
+      "importance": "test isolation reviewed",
+      "resolution": "Explicit isolated test secret/token literal. Not a production credential; access and payment assertions preserved."
+    },
+    {
+      "rel": "artifacts/api-server/src/__tests__/sulbun-event-reset.test.ts",
+      "line": 9,
+      "id": "hardcoded_secret",
+      "sev": "warn",
+      "scope": "synthetic test fixture",
+      "importance": "test isolation reviewed",
+      "resolution": "Explicit isolated test secret/token literal. Not a production credential; access and payment assertions preserved."
+    },
+    {
+      "rel": "artifacts/api-server/src/lib/db-app-settings-boot.test.ts",
+      "line": 14,
+      "id": "hardcoded_secret",
+      "sev": "warn",
+      "scope": "synthetic test fixture",
+      "importance": "test isolation reviewed",
+      "resolution": "Explicit isolated test secret/token literal. Not a production credential; access and payment assertions preserved."
+    },
+    {
+      "rel": "artifacts/api-server/src/lib/db-app-settings-boot.test.ts",
+      "line": 22,
+      "id": "hardcoded_secret",
+      "sev": "warn",
+      "scope": "synthetic test fixture",
+      "importance": "test isolation reviewed",
+      "resolution": "Explicit isolated test secret/token literal. Not a production credential; access and payment assertions preserved."
+    },
+    {
+      "rel": "artifacts/api-server/src/lib/db-app-settings-boot.test.ts",
+      "line": 23,
+      "id": "hardcoded_secret",
+      "sev": "warn",
+      "scope": "synthetic test fixture",
+      "importance": "test isolation reviewed",
+      "resolution": "Explicit isolated test secret/token literal. Not a production credential; access and payment assertions preserved."
+    },
+    {
+      "rel": "artifacts/api-server/src/lib/db-app-settings-boot.test.ts",
+      "line": 25,
+      "id": "hardcoded_secret",
+      "sev": "warn",
+      "scope": "synthetic test fixture",
+      "importance": "test isolation reviewed",
+      "resolution": "Explicit isolated test secret/token literal. Not a production credential; access and payment assertions preserved."
+    },
+    {
+      "rel": "artifacts/api-server/src/lib/db-app-settings-boot.test.ts",
+      "line": 43,
+      "id": "hardcoded_secret",
+      "sev": "warn",
+      "scope": "synthetic test fixture",
+      "importance": "test isolation reviewed",
+      "resolution": "Explicit isolated test secret/token literal. Not a production credential; access and payment assertions preserved."
+    },
+    {
+      "rel": "artifacts/api-server/src/lib/db-app-settings-boot.test.ts",
+      "line": 51,
+      "id": "hardcoded_secret",
+      "sev": "warn",
+      "scope": "synthetic test fixture",
+      "importance": "test isolation reviewed",
+      "resolution": "Explicit isolated test secret/token literal. Not a production credential; access and payment assertions preserved."
+    },
+    {
+      "rel": "artifacts/api-server/src/lib/db-app-settings-boot.test.ts",
+      "line": 60,
+      "id": "hardcoded_secret",
+      "sev": "warn",
+      "scope": "synthetic test fixture",
+      "importance": "test isolation reviewed",
+      "resolution": "Explicit isolated test secret/token literal. Not a production credential; access and payment assertions preserved."
+    },
+    {
+      "rel": "artifacts/api-server/src/lib/db-app-settings-boot.test.ts",
+      "line": 68,
+      "id": "hardcoded_secret",
+      "sev": "warn",
+      "scope": "synthetic test fixture",
+      "importance": "test isolation reviewed",
+      "resolution": "Explicit isolated test secret/token literal. Not a production credential; access and payment assertions preserved."
+    },
+    {
+      "rel": "artifacts/api-server/src/lib/db-app-settings-boot.test.ts",
+      "line": 69,
+      "id": "hardcoded_secret",
+      "sev": "warn",
+      "scope": "synthetic test fixture",
+      "importance": "test isolation reviewed",
+      "resolution": "Explicit isolated test secret/token literal. Not a production credential; access and payment assertions preserved."
+    },
+    {
+      "rel": "artifacts/api-server/src/lib/db-app-settings-boot.test.ts",
+      "line": 70,
+      "id": "hardcoded_secret",
+      "sev": "warn",
+      "scope": "synthetic test fixture",
+      "importance": "test isolation reviewed",
+      "resolution": "Explicit isolated test secret/token literal. Not a production credential; access and payment assertions preserved."
+    },
+    {
+      "rel": "artifacts/api-server/src/lib/db-app-settings-boot.test.ts",
+      "line": 113,
+      "id": "hardcoded_secret",
+      "sev": "warn",
+      "scope": "synthetic test fixture",
+      "importance": "test isolation reviewed",
+      "resolution": "Explicit isolated test secret/token literal. Not a production credential; access and payment assertions preserved."
+    },
+    {
+      "rel": "artifacts/api-server/src/lib/db-app-settings-boot.test.ts",
+      "line": 114,
+      "id": "hardcoded_secret",
+      "sev": "warn",
+      "scope": "synthetic test fixture",
+      "importance": "test isolation reviewed",
+      "resolution": "Explicit isolated test secret/token literal. Not a production credential; access and payment assertions preserved."
+    },
+    {
+      "rel": "artifacts/api-server/src/lib/db-app-settings-boot.test.ts",
+      "line": 115,
+      "id": "hardcoded_secret",
+      "sev": "warn",
+      "scope": "synthetic test fixture",
+      "importance": "test isolation reviewed",
+      "resolution": "Explicit isolated test secret/token literal. Not a production credential; access and payment assertions preserved."
+    },
+    {
+      "rel": "artifacts/api-server/src/lib/db-app-settings-view.test.ts",
+      "line": 40,
+      "id": "hardcoded_secret",
+      "sev": "warn",
+      "scope": "synthetic test fixture",
+      "importance": "test isolation reviewed",
+      "resolution": "Explicit isolated test secret/token literal. Not a production credential; access and payment assertions preserved."
+    },
+    {
+      "rel": "artifacts/api-server/src/lib/db-app-settings-view.test.ts",
+      "line": 41,
+      "id": "hardcoded_secret",
+      "sev": "warn",
+      "scope": "synthetic test fixture",
+      "importance": "test isolation reviewed",
+      "resolution": "Explicit isolated test secret/token literal. Not a production credential; access and payment assertions preserved."
+    },
+    {
+      "rel": "artifacts/api-server/src/lib/db-app-settings-view.test.ts",
+      "line": 42,
+      "id": "hardcoded_secret",
+      "sev": "warn",
+      "scope": "synthetic test fixture",
+      "importance": "test isolation reviewed",
+      "resolution": "Explicit isolated test secret/token literal. Not a production credential; access and payment assertions preserved."
+    },
+    {
+      "rel": "artifacts/api-server/src/lib/db-app-settings-view.test.ts",
+      "line": 43,
+      "id": "hardcoded_secret",
+      "sev": "warn",
+      "scope": "synthetic test fixture",
+      "importance": "test isolation reviewed",
+      "resolution": "Explicit isolated test secret/token literal. Not a production credential; access and payment assertions preserved."
+    },
+    {
+      "rel": "artifacts/api-server/src/lib/db-app-settings-view.test.ts",
+      "line": 115,
+      "id": "hardcoded_secret",
+      "sev": "warn",
+      "scope": "synthetic test fixture",
+      "importance": "test isolation reviewed",
+      "resolution": "Explicit isolated test secret/token literal. Not a production credential; access and payment assertions preserved."
+    },
+    {
+      "rel": "artifacts/api-server/src/lib/db-session-tokens.test.ts",
+      "line": 21,
+      "id": "hardcoded_secret",
+      "sev": "warn",
+      "scope": "synthetic test fixture",
+      "importance": "permission/authentication reviewed",
+      "resolution": "Explicit isolated test secret/token literal. Not a production credential; access and payment assertions preserved."
+    },
+    {
+      "rel": "artifacts/api-server/src/lib/event-hub.pg.test.ts",
+      "line": 244,
+      "id": "hardcoded_secret",
+      "sev": "warn",
+      "scope": "synthetic test fixture",
+      "importance": "payment/privacy reviewed",
+      "resolution": "Explicit isolated test secret/token literal. Not a production credential; access and payment assertions preserved."
+    },
+    {
+      "rel": "artifacts/api-server/src/lib/event-hub.pg.test.ts",
+      "line": 254,
+      "id": "hardcoded_secret",
+      "sev": "warn",
+      "scope": "synthetic test fixture",
+      "importance": "payment/privacy reviewed",
+      "resolution": "Explicit isolated test secret/token literal. Not a production credential; access and payment assertions preserved."
+    },
+    {
+      "rel": "artifacts/api-server/src/lib/event-hub.pg.test.ts",
+      "line": 265,
+      "id": "hardcoded_secret",
+      "sev": "warn",
+      "scope": "synthetic test fixture",
+      "importance": "payment/privacy reviewed",
+      "resolution": "Explicit isolated test secret/token literal. Not a production credential; access and payment assertions preserved."
+    },
+    {
+      "rel": "artifacts/api-server/src/lib/event-hub.pg.test.ts",
+      "line": 299,
+      "id": "hardcoded_secret",
+      "sev": "warn",
+      "scope": "synthetic test fixture",
+      "importance": "payment/privacy reviewed",
+      "resolution": "Explicit isolated test secret/token literal. Not a production credential; access and payment assertions preserved."
+    },
+    {
+      "rel": "artifacts/api-server/src/lib/event-hub.pg.test.ts",
+      "line": 854,
+      "id": "hardcoded_secret",
+      "sev": "warn",
+      "scope": "synthetic test fixture",
+      "importance": "payment/privacy reviewed",
+      "resolution": "Explicit isolated test secret/token literal. Not a production credential; access and payment assertions preserved."
+    },
+    {
+      "rel": "artifacts/api-server/src/lib/event-hub.pg.test.ts",
+      "line": 871,
+      "id": "hardcoded_secret",
+      "sev": "warn",
+      "scope": "synthetic test fixture",
+      "importance": "payment/privacy reviewed",
+      "resolution": "Explicit isolated test secret/token literal. Not a production credential; access and payment assertions preserved."
+    },
+    {
+      "rel": "artifacts/api-server/src/lib/event-hub.pg.test.ts",
+      "line": 881,
+      "id": "hardcoded_secret",
+      "sev": "warn",
+      "scope": "synthetic test fixture",
+      "importance": "payment/privacy reviewed",
+      "resolution": "Explicit isolated test secret/token literal. Not a production credential; access and payment assertions preserved."
+    },
+    {
+      "rel": "artifacts/api-server/src/lib/event-hub.pg.test.ts",
+      "line": 890,
+      "id": "hardcoded_secret",
+      "sev": "warn",
+      "scope": "synthetic test fixture",
+      "importance": "payment/privacy reviewed",
+      "resolution": "Explicit isolated test secret/token literal. Not a production credential; access and payment assertions preserved."
+    },
+    {
+      "rel": "artifacts/api-server/src/lib/event-hub.pg.test.ts",
+      "line": 929,
+      "id": "hardcoded_secret",
+      "sev": "warn",
+      "scope": "synthetic test fixture",
+      "importance": "payment/privacy reviewed",
+      "resolution": "Explicit isolated test secret/token literal. Not a production credential; access and payment assertions preserved."
+    },
+    {
+      "rel": "artifacts/api-server/src/lib/event-hub.pg.test.ts",
+      "line": 942,
+      "id": "hardcoded_secret",
+      "sev": "warn",
+      "scope": "synthetic test fixture",
+      "importance": "payment/privacy reviewed",
+      "resolution": "Explicit isolated test secret/token literal. Not a production credential; access and payment assertions preserved."
+    },
+    {
+      "rel": "artifacts/api-server/src/lib/event-hub.pg.test.ts",
+      "line": 965,
+      "id": "hardcoded_secret",
+      "sev": "warn",
+      "scope": "synthetic test fixture",
+      "importance": "payment/privacy reviewed",
+      "resolution": "Explicit isolated test secret/token literal. Not a production credential; access and payment assertions preserved."
+    },
+    {
+      "rel": "artifacts/api-server/src/lib/event-hub.pg.test.ts",
+      "line": 1141,
+      "id": "hardcoded_secret",
+      "sev": "warn",
+      "scope": "synthetic test fixture",
+      "importance": "payment/privacy reviewed",
+      "resolution": "Explicit isolated test secret/token literal. Not a production credential; access and payment assertions preserved."
+    },
+    {
+      "rel": "artifacts/api-server/src/lib/event-hub.pg.test.ts",
+      "line": 1157,
+      "id": "hardcoded_secret",
+      "sev": "warn",
+      "scope": "synthetic test fixture",
+      "importance": "payment/privacy reviewed",
+      "resolution": "Explicit isolated test secret/token literal. Not a production credential; access and payment assertions preserved."
+    },
+    {
+      "rel": "artifacts/api-server/src/lib/event-hub.pg.test.ts",
+      "line": 1168,
+      "id": "hardcoded_secret",
+      "sev": "warn",
+      "scope": "synthetic test fixture",
+      "importance": "payment/privacy reviewed",
+      "resolution": "Explicit isolated test secret/token literal. Not a production credential; access and payment assertions preserved."
+    },
+    {
+      "rel": "artifacts/api-server/src/lib/event-hub.pg.test.ts",
+      "line": 1177,
+      "id": "hardcoded_secret",
+      "sev": "warn",
+      "scope": "synthetic test fixture",
+      "importance": "payment/privacy reviewed",
+      "resolution": "Explicit isolated test secret/token literal. Not a production credential; access and payment assertions preserved."
+    },
+    {
+      "rel": "artifacts/api-server/src/lib/event-hub.pg.test.ts",
+      "line": 1222,
+      "id": "hardcoded_secret",
+      "sev": "warn",
+      "scope": "synthetic test fixture",
+      "importance": "payment/privacy reviewed",
+      "resolution": "Explicit isolated test secret/token literal. Not a production credential; access and payment assertions preserved."
+    },
+    {
+      "rel": "artifacts/api-server/src/lib/event-hub.pg.test.ts",
+      "line": 1270,
+      "id": "hardcoded_secret",
+      "sev": "warn",
+      "scope": "synthetic test fixture",
+      "importance": "payment/privacy reviewed",
+      "resolution": "Explicit isolated test secret/token literal. Not a production credential; access and payment assertions preserved."
+    },
+    {
+      "rel": "artifacts/api-server/src/lib/event-hub.pg.test.ts",
+      "line": 1309,
+      "id": "hardcoded_secret",
+      "sev": "warn",
+      "scope": "synthetic test fixture",
+      "importance": "payment/privacy reviewed",
+      "resolution": "Explicit isolated test secret/token literal. Not a production credential; access and payment assertions preserved."
+    },
+    {
+      "rel": "artifacts/api-server/src/lib/event-hub.pg.test.ts",
+      "line": 1405,
+      "id": "hardcoded_secret",
+      "sev": "warn",
+      "scope": "synthetic test fixture",
+      "importance": "payment/privacy reviewed",
+      "resolution": "Explicit isolated test secret/token literal. Not a production credential; access and payment assertions preserved."
+    },
+    {
+      "rel": "artifacts/api-server/src/lib/event-hub.pg.test.ts",
+      "line": 1509,
+      "id": "hardcoded_secret",
+      "sev": "warn",
+      "scope": "synthetic test fixture",
+      "importance": "payment/privacy reviewed",
+      "resolution": "Explicit isolated test secret/token literal. Not a production credential; access and payment assertions preserved."
+    },
+    {
+      "rel": "artifacts/api-server/src/lib/event-hub.pg.test.ts",
+      "line": 1546,
+      "id": "hardcoded_secret",
+      "sev": "warn",
+      "scope": "synthetic test fixture",
+      "importance": "payment/privacy reviewed",
+      "resolution": "Explicit isolated test secret/token literal. Not a production credential; access and payment assertions preserved."
+    },
+    {
+      "rel": "artifacts/api-server/src/lib/event-hub.pg.test.ts",
+      "line": 1657,
+      "id": "hardcoded_secret",
+      "sev": "warn",
+      "scope": "synthetic test fixture",
+      "importance": "payment/privacy reviewed",
+      "resolution": "Explicit isolated test secret/token literal. Not a production credential; access and payment assertions preserved."
+    },
+    {
+      "rel": "artifacts/api-server/src/lib/event-hub.pg.test.ts",
+      "line": 1781,
+      "id": "hardcoded_secret",
+      "sev": "warn",
+      "scope": "synthetic test fixture",
+      "importance": "payment/privacy reviewed",
+      "resolution": "Explicit isolated test secret/token literal. Not a production credential; access and payment assertions preserved."
+    },
+    {
+      "rel": "artifacts/api-server/src/lib/event-hub.pg.test.ts",
+      "line": 2118,
+      "id": "hardcoded_secret",
+      "sev": "warn",
+      "scope": "synthetic test fixture",
+      "importance": "payment/privacy reviewed",
+      "resolution": "Explicit isolated test secret/token literal. Not a production credential; access and payment assertions preserved."
+    },
+    {
+      "rel": "artifacts/api-server/src/lib/event-hub.pg.test.ts",
+      "line": 2331,
+      "id": "hardcoded_secret",
+      "sev": "warn",
+      "scope": "synthetic test fixture",
+      "importance": "payment/privacy reviewed",
+      "resolution": "Explicit isolated test secret/token literal. Not a production credential; access and payment assertions preserved."
+    },
+    {
+      "rel": "artifacts/api-server/src/lib/event-hub.pg.test.ts",
+      "line": 2344,
+      "id": "hardcoded_secret",
+      "sev": "warn",
+      "scope": "synthetic test fixture",
+      "importance": "payment/privacy reviewed",
+      "resolution": "Explicit isolated test secret/token literal. Not a production credential; access and payment assertions preserved."
+    },
+    {
+      "rel": "artifacts/api-server/src/lib/event-hub.pg.test.ts",
+      "line": 2723,
+      "id": "hardcoded_secret",
+      "sev": "warn",
+      "scope": "synthetic test fixture",
+      "importance": "payment/privacy reviewed",
+      "resolution": "Explicit isolated test secret/token literal. Not a production credential; access and payment assertions preserved."
+    },
+    {
+      "rel": "artifacts/api-server/src/lib/event-hub.pg.test.ts",
+      "line": 2770,
+      "id": "hardcoded_secret",
+      "sev": "warn",
+      "scope": "synthetic test fixture",
+      "importance": "payment/privacy reviewed",
+      "resolution": "Explicit isolated test secret/token literal. Not a production credential; access and payment assertions preserved."
+    },
+    {
+      "rel": "artifacts/api-server/src/lib/event-hub.pg.test.ts",
+      "line": 2811,
+      "id": "hardcoded_secret",
+      "sev": "warn",
+      "scope": "synthetic test fixture",
+      "importance": "payment/privacy reviewed",
+      "resolution": "Explicit isolated test secret/token literal. Not a production credential; access and payment assertions preserved."
+    },
+    {
+      "rel": "artifacts/api-server/src/lib/event-hub.pg.test.ts",
+      "line": 2813,
+      "id": "hardcoded_secret",
+      "sev": "warn",
+      "scope": "synthetic test fixture",
+      "importance": "payment/privacy reviewed",
+      "resolution": "Explicit isolated test secret/token literal. Not a production credential; access and payment assertions preserved."
+    },
+    {
+      "rel": "artifacts/api-server/src/lib/private-preview.test.ts",
+      "line": 5,
+      "id": "hardcoded_secret",
+      "sev": "warn",
+      "scope": "synthetic test fixture",
+      "importance": "permission/authentication reviewed",
+      "resolution": "Explicit isolated test secret/token literal. Not a production credential; access and payment assertions preserved."
+    },
+    {
+      "rel": "artifacts/api-server/src/lib/private-preview.test.ts",
+      "line": 6,
+      "id": "hardcoded_secret",
+      "sev": "warn",
+      "scope": "synthetic test fixture",
+      "importance": "permission/authentication reviewed",
+      "resolution": "Explicit isolated test secret/token literal. Not a production credential; access and payment assertions preserved."
+    },
+    {
+      "rel": "artifacts/api-server/vitest.config.ts",
+      "line": 14,
+      "id": "hardcoded_secret",
+      "sev": "warn",
+      "scope": "synthetic test fixture",
+      "importance": "test isolation reviewed",
+      "resolution": "Explicit isolated test secret/token literal. Not a production credential; access and payment assertions preserved."
+    },
+    {
+      "rel": "artifacts/boltnew-app/scripts/check-responsive-preview.mjs",
+      "line": 55,
+      "id": "hardcoded_secret",
+      "sev": "warn",
+      "scope": "synthetic test fixture",
+      "importance": "test isolation reviewed",
+      "resolution": "Explicit isolated test secret/token literal. Not a production credential; access and payment assertions preserved."
+    },
+    {
+      "rel": "artifacts/boltnew-app/src/admin/LoginScreen.test.tsx",
+      "line": 60,
+      "id": "hardcoded_secret",
+      "sev": "warn",
+      "scope": "synthetic test fixture",
+      "importance": "permission/authentication reviewed",
+      "resolution": "Explicit isolated test secret/token literal. Not a production credential; access and payment assertions preserved."
+    },
+    {
+      "rel": "artifacts/boltnew-app/src/event-hub/event-laboratory-store.test.ts",
+      "line": 178,
+      "id": "hardcoded_secret",
+      "sev": "warn",
+      "scope": "synthetic test fixture",
+      "importance": "payment/privacy reviewed",
+      "resolution": "Explicit isolated test secret/token literal. Not a production credential; access and payment assertions preserved."
+    },
+    {
+      "rel": "artifacts/boltnew-app/src/lib/signal-match.test.ts",
+      "line": 152,
+      "id": "hardcoded_secret",
+      "sev": "warn",
+      "scope": "synthetic test fixture",
+      "importance": "test isolation reviewed",
+      "resolution": "Explicit isolated test secret/token literal. Not a production credential; access and payment assertions preserved."
+    },
+    {
+      "rel": "artifacts/boltnew-app/src/lib/signal-match.test.ts",
+      "line": 247,
+      "id": "hardcoded_secret",
+      "sev": "warn",
+      "scope": "synthetic test fixture",
+      "importance": "test isolation reviewed",
+      "resolution": "Explicit isolated test secret/token literal. Not a production credential; access and payment assertions preserved."
+    },
+    {
+      "rel": "artifacts/boltnew-app/tests/event-hub-v6.spec.ts",
+      "line": 304,
+      "id": "hardcoded_secret",
+      "sev": "warn",
+      "scope": "synthetic test fixture",
+      "importance": "payment/privacy reviewed",
+      "resolution": "Explicit isolated test secret/token literal. Not a production credential; access and payment assertions preserved."
+    },
+    {
+      "rel": "artifacts/boltnew-app/tests/event-hub-v6.spec.ts",
+      "line": 419,
+      "id": "hardcoded_secret",
+      "sev": "warn",
+      "scope": "synthetic test fixture",
+      "importance": "payment/privacy reviewed",
+      "resolution": "Explicit isolated test secret/token literal. Not a production credential; access and payment assertions preserved."
+    },
+    {
+      "rel": "scripts/event-hub-browser-fixture.mjs",
+      "line": 72,
+      "id": "hardcoded_secret",
+      "sev": "warn",
+      "scope": "synthetic test fixture",
+      "importance": "payment/privacy reviewed",
+      "resolution": "Explicit isolated test secret/token literal. Not a production credential; access and payment assertions preserved."
+    },
+    {
+      "rel": "scripts/event-hub-http-soak.mjs",
+      "line": 99,
+      "id": "hardcoded_secret",
+      "sev": "warn",
+      "scope": "synthetic test fixture",
+      "importance": "payment/privacy reviewed",
+      "resolution": "Explicit isolated test secret/token literal. Not a production credential; access and payment assertions preserved."
+    },
+    {
+      "rel": "scripts/full-code-audit.mjs",
+      "line": 55,
+      "id": "ts_ignore",
+      "sev": "warn",
+      "scope": "audit-rule-source",
+      "importance": "false positive",
+      "resolution": "Rule matches its own detection expression; no product suppression added."
+    },
+    {
+      "rel": "scripts/lib/ops-client.mjs",
+      "line": 103,
+      "id": "hardcoded_secret",
+      "sev": "warn",
+      "scope": "redaction",
+      "importance": "security reviewed",
+      "resolution": "Assignment is the literal [REDACTED], not an authentication value. Redaction tests retained."
+    },
+    {
+      "rel": "scripts/rotate-exposed-secrets.mjs",
+      "line": 9,
+      "id": "hardcoded_secret",
+      "sev": "warn",
+      "scope": "documentation placeholder",
+      "importance": "security reviewed",
+      "resolution": "Comment uses rnd_NEW... / nfp_NEW... placeholders. Script not executed; no key rotation authorized."
+    },
+    {
+      "rel": "scripts/rotate-exposed-secrets.mjs",
+      "line": 10,
+      "id": "hardcoded_secret",
+      "sev": "warn",
+      "scope": "documentation placeholder",
+      "importance": "security reviewed",
+      "resolution": "Comment uses rnd_NEW... / nfp_NEW... placeholders. Script not executed; no key rotation authorized."
+    },
+    {
+      "rel": "scripts/test/event-hub-legacy-fixture.test.mjs",
+      "line": 8,
+      "id": "hardcoded_secret",
+      "sev": "warn",
+      "scope": "synthetic test fixture",
+      "importance": "payment/privacy reviewed",
+      "resolution": "Explicit isolated test secret/token literal. Not a production credential; access and payment assertions preserved."
+    },
+    {
+      "rel": "scripts/test/ops-client.test.mjs",
+      "line": 127,
+      "id": "hardcoded_secret",
+      "sev": "warn",
+      "scope": "synthetic test fixture",
+      "importance": "test isolation reviewed",
+      "resolution": "Explicit isolated test secret/token literal. Not a production credential; access and payment assertions preserved."
+    },
+    {
+      "rel": "scripts/test/ops-client.test.mjs",
+      "line": 128,
+      "id": "hardcoded_secret",
+      "sev": "warn",
+      "scope": "synthetic test fixture",
+      "importance": "test isolation reviewed",
+      "resolution": "Explicit isolated test secret/token literal. Not a production credential; access and payment assertions preserved."
+    }
+  ]
+}

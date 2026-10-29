@@ -470,13 +470,35 @@ test("actual browser + API + PostgreSQL: saved stages, payment recovery, private
   const originalIdentity=await page.evaluate(()=>localStorage.getItem("matching_app_user_id"));
   // Real isolated social records: normal participant writes still pass the real ownership guards.
   const peerId=randomUUID();let chatId='';const profileRow={...(await lookup.json()).data[0],id:peerId,nickname:`복구${suffix.slice(-3)}`,phone:'01000009998',pin_code:'9999'};
-  delete profileRow.event_hub_owner;delete profileRow.event_hub_application;delete profileRow.event_hub_cycle;
+  for (const key of Object.keys(profileRow)) if (key.startsWith("event_hub_")) delete profileRow[key];
   const peerSeed=await request.post('/api/db/op',{data:{table:'profiles',op:'insert',payload:profileRow,adminToken:token,selectAfterWrite:true}});expect(peerSeed.status()).toBe(200);expect((await peerSeed.json()).error).toBeFalsy();
   const socialWrite=await page.evaluate(async({me,peer,chat})=>{const {supabase}=await import('/src/lib/supabase.ts');const sent=await supabase.from('likes').insert({liker_id:me,liked_id:peer,status:'pending',heart_type:'red'});return {error:sent.error?.message};},{me:profileId,peer:peerId,chat:chatId});expect(socialWrite.error).toBeFalsy();
   const chatSeed=await page.evaluate(async({me,peer})=>{const {supabase}=await import('/src/lib/supabase.ts');const r=await supabase.from('chats').insert({user1_id:me,user2_id:peer}).select().single();return {id:r.data?.id,error:r.error?.message};},{me:profileId,peer:peerId});expect(chatSeed.error).toBeFalsy();chatId=String(chatSeed.id);
   const messageWrite=await page.evaluate(async({me,chat})=>{const {supabase}=await import('/src/lib/supabase.ts');const r=await supabase.from('messages').insert({chat_id:chat,sender_id:me,content:'같은 주기 복구 검증 대화'});return {error:r.error?.message};},{me:profileId,chat:chatId});expect(messageWrite.error).toBeFalsy();
   async function socialSnapshot(){const result=[];for(const [table,col,val] of [['likes','liker_id',profileId],['messages','chat_id',chatId]]){const r=await request.post('/api/db/op',{data:{table,op:'select',filters:[{col,op:'eq',val}],adminToken:token}});expect(r.status()).toBe(200);const body=await r.json();expect(body.error).toBeFalsy();result.push((body.data??[]).map((v:{id:string})=>v.id).sort());}return result;}
   const socialBefore=await socialSnapshot();expect(socialBefore.every(ids=>ids.length>0)).toBe(true);
+
+  // Same cookie/bearer remains valid; revoke only new social actions of this application.
+  const cancelAt = performance.now();
+  await command(request, 'admin.application.revoke', id, { reason: '격리 권한회수 검사' }, (await application(request,id)).revision);
+  const cancelledSocial = await page.evaluate(async ({ me, peer, chat }) => {
+    const {supabase}=await import('/src/lib/supabase.ts');
+    const message=await supabase.from('messages').insert({chat_id:chat,sender_id:me,content:'취소 후 차단되어야 함'});
+    const heart=await supabase.from('likes').insert({liker_id:me,liked_id:peer,status:'pending',heart_type:'blue'});
+    const old=await supabase.from('messages').select('*').eq('chat_id',chat);
+    const tamper=await supabase.from('profiles').update({event_hub_application:null}).eq('id',me);
+    return {message:message.error?.code,heart:heart.error?.code,old:old.data?.length,tamper:tamper.error?.code};
+  },{me:profileId,peer:peerId,chat:chatId});
+  expect(cancelledSocial).toMatchObject({message:'EVENT_APPROVAL_REVOKED',heart:'EVENT_APPROVAL_REVOKED',tamper:'EVENT_LINK_PROTECTED'});
+  expect(cancelledSocial.old).toBeGreaterThan(0);
+  expect(await socialSnapshot()).toEqual(socialBefore);
+  expect(await page.evaluate(()=>localStorage.getItem('matching_app_user_id'))).toBe(originalIdentity);
+  await page.screenshot({path:testInfo.outputPath('v12-revoked-session-records-preserved.png'),fullPage:true});
+  await testInfo.attach('approval-cancellation-same-session', { body:JSON.stringify({blocked:cancelledSocial,elapsedMs:Math.round(performance.now()-cancelAt),profilePreserved:true,recordsUnchanged:true}),contentType:'application/json'});
+  await command(request,'admin.application.payment',id,{status:'approved',bankChecked:true},(await application(request,id)).revision);
+  const resumed=await page.evaluate(async({me,chat})=>{const {supabase}=await import('/src/lib/supabase.ts');const r=await supabase.from('messages').insert({chat_id:chat,sender_id:me,content:'재승인 후 같은 세션'});return r.error?.message;},{me:profileId,chat:chatId});
+  expect(resumed).toBeFalsy();
+  const socialAfterReapproval=await socialSnapshot();
 
   let profileReadMode="empty";
   const partialProfileRead=async (route: import("@playwright/test").Route)=>{
@@ -514,7 +536,7 @@ test("actual browser + API + PostgreSQL: saved stages, payment recovery, private
   await page.context().setOffline(false);await page.reload();
   await expect(page.getByRole('navigation',{name:'참여자 메뉴'})).toBeVisible();
   expect(await page.evaluate(()=>localStorage.getItem('matching_app_user_id'))).toBe(originalIdentity);
-  expect(await socialSnapshot()).toEqual(socialBefore);
+  expect(await socialSnapshot()).toEqual(socialAfterReapproval);
   expect((await application(request,id)).profileId).toBe(profileId);
   await page.goto(`/events/a/${id}`);
   await expect(page.getByRole("button", { name: "카드 한 장 뽑기", exact: true })).toHaveCount(0);
@@ -789,6 +811,25 @@ test("inquiry drafts, participant messages and administrator replies survive reo
   await admin.getByRole("button", { name: "🎉 술번개", exact: true }).click();
   await admin.getByRole("button", { name: "관리자 문의", exact: true }).click();
   await admin.getByLabel("문의 대상").selectOption(owner);
+  await admin.getByRole('button',{name:'전체 운영',exact:true}).click();
+  await page.getByRole('button',{name:/💬 관리자 문의/}).click();
+  const followup=`알림 확인 ${suffix}`;
+  await page.getByLabel('문의 내용',{exact:true}).fill(followup);
+  const adminAlertStarted=performance.now();
+  await page.getByRole('button',{name:'문의 보내기',exact:true}).click();
+  await expect(admin.locator('.hub-inquiry-alert').getByRole('button',{name:'새 문의 대화 열기'})).toBeVisible({timeout:15000});
+  await expect(admin.locator('.hub-inquiry-alert')).toHaveAttribute('data-latest-thread',owner,{timeout:15000});
+  await expect.poll(async()=>{const s=await(await request.get('/api/event-hub/admin',{headers:adminHeaders})).json();const t=s.threads.find((v:{id:string})=>v.id===owner);return t.messages.at(-1).text===followup&&t.messages.at(-1).at>t.readAdminAt;}).toBe(true);
+  await admin.locator('.hub-inquiry-alert').getByRole('button',{name:'새 문의 대화 열기'}).click();
+  await expect(admin.getByLabel('문의 대상')).toHaveValue(owner);
+  await expect(admin.getByText(`신청자: ${followup}`,{exact:true})).toBeVisible();
+  const contrast=await admin.locator('.hub-admin-conversation p').last().evaluate(el=>{
+    const c=getComputedStyle(el);const luminance=(rgb:string)=>{const v=rgb.match(/[\d.]+/g)!.slice(0,3).map(Number).map(n=>{const s=n/255;return s<=.04045?s/12.92:((s+.055)/1.055)**2.4;});return .2126*v[0]+.7152*v[1]+.0722*v[2];};const a=luminance(c.color),b=luminance(c.backgroundColor);return (Math.max(a,b)+.05)/(Math.min(a,b)+.05);
+  });
+  expect(contrast).toBeGreaterThanOrEqual(4.5);
+  const adminAlertMs=Math.round(performance.now()-adminAlertStarted);
+  await admin.screenshot({path:testInfo.outputPath('v12-admin-new-inquiry-chat.png'),fullPage:true});
+  await page.keyboard.press('Escape');
   const reply = `관리자 격리 답장 ${suffix}`;
   await admin.getByLabel("빠른문구").selectOption({ index: 1 });
   await expect(
@@ -799,7 +840,7 @@ test("inquiry drafts, participant messages and administrator replies survive reo
   ).json();
   expect(
     afterQuick.threads.find((t: { id: string }) => t.id === owner).messages,
-  ).toHaveLength(1);
+  ).toHaveLength(2);
   await admin
     .getByRole("textbox", { name: "관리자 답장", exact: true })
     .fill(reply);
@@ -818,7 +859,7 @@ test("inquiry drafts, participant messages and administrator replies survive reo
   await expect(
     page.getByText(reply, { exact: true }),
   ).toBeVisible();
-  const timing = { environment: "two Chromium contexts, loopback React/Express/PostgreSQL, no reload before notification", action: "administrator reply click to participant unread banner", milliseconds: replyVisibleMs, targetMs: 2000, targetMet: replyVisibleMs <= 2000 };
+  const timing = { environment: "two Chromium contexts, loopback React/Express/PostgreSQL, no reload before notification", action: "administrator reply click to participant unread banner", milliseconds: replyVisibleMs, participantMessageToAdminConversationMs:adminAlertMs, targetMs: 2000, targetMet: replyVisibleMs <= 2000 };
   writeFileSync(testInfo.outputPath("v12-inquiry-visible-timing.json"), JSON.stringify(timing, null, 2));
   console.log("V12_INQUIRY_VISIBLE_TIMING", JSON.stringify(timing));
   await page
@@ -1747,14 +1788,14 @@ test("V3 actual app: phone-only reward record, late-arrival review and eight rec
  await page.screenshot({path:testInfo.outputPath("v3-participant-late-arrival-phone.png"),fullPage:true});
 });
 
-test("administrator verification history and immutable logo upload/select/restore use the actual app and DB",async({page,request},testInfo)=>{
+test("administrator verification history and immutable logo upload/select/restore use the actual app and DB",async({page,request,browser},testInfo)=>{
  expect((await request.get('/api/event-hub/verification')).status()).toBe(403);
  const evidence=await request.get('/api/event-hub/verification',{headers:adminHeaders});expect(evidence.status()).toBe(200);const history=await evidence.json();expect(history.runs.some((r:{historical:boolean})=>r.historical)).toBe(true);
  await page.addInitScript(value=>{localStorage.setItem('admin_token_v1',value);localStorage.setItem('admin_session_v1',JSON.stringify({phone:'01000000000',authedAt:Date.now()}));},token!);
  await page.goto('/admin');await page.getByRole('button',{name:'🎉 술번개',exact:true}).click();await page.getByRole('combobox',{name:'관리할 행사',exact:true}).selectOption(eventId);
   if(!await page.getByText("행사 설정·기록·관리 도구",{exact:true}).evaluate(el=>(el.parentElement as HTMLDetailsElement).open)) await page.getByText("행사 설정·기록·관리 도구",{exact:true}).click();
  await page.getByRole('button',{name:'행사·자동방',exact:true}).click();
- const logo=page.locator('section').filter({has:page.getByRole('heading',{name:'행사 장소 로고 (승인 후 공개)',exact:true})});
+ const logo=page.locator('section').filter({has:page.getByRole('heading',{name:'행사 로고 선택·업로드',exact:true})});
  if(!await logo.getByText('새 원본 업로드 · 미리보기 후 저장',{exact:true}).evaluate(el=>(el.parentElement as HTMLDetailsElement).open)) await logo.getByText('새 원본 업로드 · 미리보기 후 저장',{exact:true}).click();
  const original=readFileSync(new URL('../public/tour-logos-v3/on_top.png',import.meta.url));
  await logo.getByLabel('새 로고 원본 파일').setInputFiles({name:'provided-on-top.png',mimeType:'image/png',buffer:original});
@@ -1771,6 +1812,29 @@ test("administrator verification history and immutable logo upload/select/restor
  if(!await logo.getByText(/원본·변경 이력과 이전 버전 복원/).evaluate(el=>(el.parentElement as HTMLDetailsElement).open)) await logo.getByText(/원본·변경 이력과 이전 버전 복원/).click();const row=logo.locator('article').filter({hasText:'격리 ON TOP 원본 A'});await row.getByRole('button',{name:'이 버전으로 복원',exact:true}).click();
  await expect.poll(async()=>{const s=await(await request.get('/api/event-hub/admin',{headers:adminHeaders})).json();return s.events.find((e:{id:string})=>e.id===eventId).venueLogoVersionId;}).toBe(a.id);
  const bytes=await request.get(a.url,{headers:adminHeaders});expect(bytes.status()).toBe(200);expect(await bytes.body()).toEqual(original);
+ const guest=await browser.newContext({baseURL:process.env.HUB_E2E_BASE_URL});await restrictToLocal(guest);
+ try{
+   expect((await guest.request.get(a.url)).status()).toBe(404);
+   await logo.getByLabel('저장한 장소용 로고 버전').selectOption(a.id);
+   await expect(logo.getByRole('button',{name:'목록·상세의 공개 홍보 로고로 저장',exact:true})).toBeDisabled();
+   await logo.getByLabel('선택한 로고에 연락처·상세 주소·개인정보가 없으며').check();
+   await logo.getByRole('button',{name:'목록·상세의 공개 홍보 로고로 저장',exact:true}).click();
+   await expect.poll(async()=>{const s=await(await request.get('/api/event-hub/admin',{headers:adminHeaders})).json();return s.events.find((e:{id:string})=>e.id===eventId).promotionLogo?.versionId;}).toBe(a.id);
+   expect((await guest.request.get(a.url)).status()).toBe(200);expect((await guest.request.get(b.url)).status()).toBe(404);
+   const visitor=await guest.newPage();await visitor.goto(`/events/e/${eventId}`);
+   await expect(visitor.getByAltText('격리 ON TOP 원본 A',{exact:true})).toBeVisible();
+   await visitor.reload();await expect(visitor.getByAltText('격리 ON TOP 원본 A',{exact:true})).toBeVisible();
+   await visitor.screenshot({path:testInfo.outputPath('public-selected-logo-detail.png'),fullPage:true});
+   await visitor.goto('/events');
+   await expect(visitor.locator('.hub-event-list-card').first()).toBeVisible();
+   const savedLogo=visitor.locator(`.hub-event-list-card img[src="${a.url}"]`);
+   while(!await savedLogo.count() && await visitor.getByRole('button',{name:'행사 더 보기',exact:true}).count())await visitor.getByRole('button',{name:'행사 더 보기',exact:true}).click();
+   await expect(savedLogo).toHaveAttribute('alt','격리 ON TOP 원본 A');
+   await expect(savedLogo).toBeVisible();
+   await logo.getByRole('button',{name:'공개 홍보 로고를 지역 기본값으로 복원',exact:true}).click();
+   await expect.poll(async()=>(await guest.request.get(a.url)).status()).toBe(404);
+   expect((await request.get(a.url,{headers:adminHeaders})).status()).toBe(200);
+ }finally{await guest.close();}
  if(!await logo.getByText(/원본·변경 이력과 이전 버전 복원/).evaluate(el=>(el.parentElement as HTMLDetailsElement).open)) await logo.getByText(/원본·변경 이력과 이전 버전 복원/).click();await page.screenshot({path:testInfo.outputPath('admin-logo-original-restore.png'),fullPage:true});
   if(!await page.getByText("행사 설정·기록·관리 도구",{exact:true}).evaluate(el=>(el.parentElement as HTMLDetailsElement).open)) await page.getByText("행사 설정·기록·관리 도구",{exact:true}).click();
  await page.getByRole('button',{name:'운영 점검',exact:true}).click();await expect(page.getByRole('heading',{name:'코드 버전별 실제 검사결과',exact:true})).toBeVisible();if(history.runs.every((r:{historical:boolean})=>r.historical))await expect(page.getByText(/현재 코드 버전 검사결과: 미실행/)).toBeVisible();else await expect(page.getByText(/현재 코드 내용과 일치/).first()).toBeVisible();await page.getByText(/과거 버전 · github-40532639584/).click();await expect(page.getByText(/물리 기기 미검증/)).toBeVisible();await page.screenshot({path:testInfo.outputPath('admin-verification-real-history.png'),fullPage:true});
