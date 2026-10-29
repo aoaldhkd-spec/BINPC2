@@ -26,9 +26,11 @@ export function eventDateLabel(event: HubEvent) {
 export function EventArtwork({
   event,
   admin = false,
+  compact = false,
 }: {
   event: HubEvent;
   admin?: boolean;
+  compact?: boolean;
 }) {
   const theme = useEventTheme(event);
   // Only explicitly public notices can become a list thumbnail. Never use a map,
@@ -37,7 +39,7 @@ export function EventArtwork({
     (m) => m.purpose === "notice" && !m.hidden && event.media.includes(m.url),
   );
   return (
-    <div className="hub-event-art" data-art-theme={theme ?? "normal"}>
+    <div className="hub-event-art" data-art-theme={theme ?? "normal"} data-art-compact={compact || undefined}>
       {cover ? (
         <Preview
           interactive={false}
@@ -50,10 +52,9 @@ export function EventArtwork({
           {TOUR_WEEKS.filter((w) => event.date >= w.start && event.date <= new Date(Date.parse(w.start + "T00:00:00Z") + 3 * 86400000).toISOString().slice(0, 10)).map((w) => (
             <div key={w.region}>
               <strong>{w.region} · 전국투어</strong>
-              <div className="flex items-center justify-center gap-3 flex-wrap">
+              <div className="hub-tour-logos">
                 {w.logoIds.map((id) => <VenueLogo key={id} id={id} />)}
               </div>
-              <small>참여 매장 · 배정 장소와 상세 지도는 승인 후 안내</small>
             </div>
           ))}
         </div>
@@ -104,9 +105,11 @@ export function EventListCard({
   now: Date;
 }) {
   const status = app ? applicationListStatus(app) : eventListStatus(event, now);
+  const publicTourVenues = event.type === "tour" ? TOUR_WEEKS.find((w) =>
+    event.date >= w.start && event.date <= new Date(Date.parse(w.start + "T00:00:00Z") + 3 * 86400000).toISOString().slice(0, 10))?.venues : undefined;
   return (
     <button type="button" className="hub-event-list-card" onClick={onOpen}>
-      <EventArtwork event={event} />
+      <EventArtwork event={event} compact />
       <span className="hub-event-card-copy">
         <span className="hub-event-card-title">
           <strong>{event.title}</strong>
@@ -130,6 +133,7 @@ export function EventListCard({
           <MapPin size={13} aria-hidden="true" />
           {event.area || "지역 안내 예정"}
         </span>
+        {publicTourVenues && <span className="hub-event-meta">{publicTourVenues.join(" · ")}</span>}
         <span className="hub-card-next">
           {app ? "내 신청 이어보기" : "행사 자세히 보기"}
           <ChevronRight size={14} aria-hidden="true" />
@@ -243,7 +247,7 @@ export function WaitingSummary({
   return (
     <section className="hub-waiting-summary">
       <div className="hub-waiting-title">
-        <EventArtwork event={event} />
+        <EventArtwork event={event} compact />
         <div>
           <span className="hub-eyebrow">MY APPLICATION</span>
           <h2>{event.title}</h2>

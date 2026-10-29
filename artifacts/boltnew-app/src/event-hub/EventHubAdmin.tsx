@@ -463,7 +463,7 @@ function OperationsOverview({
           ).length;
           return (
             <div className="hub-operation-row" key={e.id}>
-              <EventArtwork event={e} admin />
+              <EventArtwork event={e} admin compact />
               <div className="hub-operation-content">
                 <div className="flex flex-wrap justify-between gap-2">
                   <h3 className="font-black text-lg">{e.title}</h3>

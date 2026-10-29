@@ -120,6 +120,13 @@ test("V12 Daegu four days use provided BLACK, preserve all 20 tour dates and ren
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1)).toBe(true);
     await page.screenshot({ path: info.outputPath(`v12-daegu-${width}.png`), fullPage: true });
   }
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto("/events");
+  const tourCard = page.locator(".hub-event-list-card").filter({ hasText: "대구 전국투어" }).first();
+  await expect(tourCard).toBeVisible();
+  expect((await tourCard.boundingBox())!.height).toBeLessThan(240);
+  await expect(tourCard.getByAltText("블랙 · BLACK", { exact: true })).toBeVisible();
+  await page.screenshot({ path: info.outputPath("v12-tour-list-compact.png"), fullPage: true });
   await page.addInitScript((t) => { localStorage.setItem("admin_token_v1", t); localStorage.setItem("admin_session_v1", JSON.stringify({ phone: "01000000000", authedAt: Date.now() })); }, token!);
   await page.goto("/admin"); await page.getByRole("button", { name: "🎉 술번개", exact: true }).click();
   for (const [date, id] of Object.entries(ids)) {
