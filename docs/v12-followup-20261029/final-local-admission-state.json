@@ -1,0 +1,8 @@
+{
+  "environment": "isolated loopback React/Express/PostgreSQL; NOT production",
+  "checkedAtUtc": "2026-10-29T03:44:12.537759+00:00",
+  "enabled": true,
+  "publicAdmissionOpen": false,
+  "action": "Returned only local synthetic app to test ON + publicAdmissionOpen=false. No reset or deletion operation executed.",
+  "productionState": "Unchanged; existing deployed main is not the new V12 application."
+}

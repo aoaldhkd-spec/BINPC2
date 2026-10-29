@@ -1,0 +1,193 @@
+{
+  "conclusion": "success",
+  "headSha": "1977fb9202232233a25371e21a503fcbd921be38",
+  "jobs": [
+    {
+      "completedAt": "2026-10-29T03:44:26Z",
+      "conclusion": "success",
+      "databaseId": 123247590570,
+      "name": "event-hub",
+      "startedAt": "2026-10-29T03:35:55Z",
+      "status": "completed",
+      "steps": [
+        {
+          "conclusion": "success",
+          "name": "Set up job",
+          "number": 1,
+          "status": "completed"
+        },
+        {
+          "conclusion": "success",
+          "name": "Initialize containers",
+          "number": 2,
+          "status": "completed"
+        },
+        {
+          "conclusion": "success",
+          "name": "Run actions/checkout@v4",
+          "number": 3,
+          "status": "completed"
+        },
+        {
+          "conclusion": "success",
+          "name": "Run pnpm/action-setup@v4",
+          "number": 4,
+          "status": "completed"
+        },
+        {
+          "conclusion": "success",
+          "name": "Run actions/setup-node@v4",
+          "number": 5,
+          "status": "completed"
+        },
+        {
+          "conclusion": "success",
+          "name": "Run corepack enable",
+          "number": 6,
+          "status": "completed"
+        },
+        {
+          "conclusion": "success",
+          "name": "Run pnpm install --frozen-lockfile",
+          "number": 7,
+          "status": "completed"
+        },
+        {
+          "conclusion": "success",
+          "name": "Run node scripts/prepare-event-hub-e2e.mjs database",
+          "number": 8,
+          "status": "completed"
+        },
+        {
+          "conclusion": "success",
+          "name": "Run pnpm run build",
+          "number": 9,
+          "status": "completed"
+        },
+        {
+          "conclusion": "success",
+          "name": "Existing API unit regression checks",
+          "number": 10,
+          "status": "completed"
+        },
+        {
+          "conclusion": "success",
+          "name": "Existing UI unit regression checks",
+          "number": 11,
+          "status": "completed"
+        },
+        {
+          "conclusion": "success",
+          "name": "Existing core-protection guards",
+          "number": 12,
+          "status": "completed"
+        },
+        {
+          "conclusion": "success",
+          "name": "Current documentation checks",
+          "number": 13,
+          "status": "completed"
+        },
+        {
+          "conclusion": "success",
+          "name": "Production-entry guards and redaction",
+          "number": 14,
+          "status": "completed"
+        },
+        {
+          "conclusion": "success",
+          "name": "Actual PostgreSQL invariants and existing reset safety",
+          "number": 15,
+          "status": "completed"
+        },
+        {
+          "conclusion": "success",
+          "name": "Run pnpm --filter @workspace/boltnew-app exec playwright install --with-deps chromium",
+          "number": 16,
+          "status": "completed"
+        },
+        {
+          "conclusion": "success",
+          "name": "Pin an explicit internal business clock for admission and mobile regression",
+          "number": 17,
+          "status": "completed"
+        },
+        {
+          "conclusion": "success",
+          "name": "Start dedicated local API and frontend",
+          "number": 18,
+          "status": "completed"
+        },
+        {
+          "conclusion": "success",
+          "name": "Run node scripts/prepare-event-hub-e2e.mjs activate",
+          "number": 19,
+          "status": "completed"
+        },
+        {
+          "conclusion": "success",
+          "name": "Browser recovery, inquiry, layout and 100-session HTTP tests",
+          "number": 20,
+          "status": "completed"
+        },
+        {
+          "conclusion": "success",
+          "name": "Actual 150-person HTTP/PostgreSQL mixed regression on accumulated records",
+          "number": 21,
+          "status": "completed"
+        },
+        {
+          "conclusion": "success",
+          "name": "Preserve synthetic actual-app screenshots and videos",
+          "number": 22,
+          "status": "completed"
+        },
+        {
+          "conclusion": "success",
+          "name": "Post Run actions/setup-node@v4",
+          "number": 41,
+          "status": "completed"
+        },
+        {
+          "conclusion": "success",
+          "name": "Post Run pnpm/action-setup@v4",
+          "number": 42,
+          "status": "completed"
+        },
+        {
+          "conclusion": "success",
+          "name": "Post Run actions/checkout@v4",
+          "number": 43,
+          "status": "completed"
+        },
+        {
+          "conclusion": "success",
+          "name": "Stop containers",
+          "number": 44,
+          "status": "completed"
+        },
+        {
+          "conclusion": "success",
+          "name": "Complete job",
+          "number": 45,
+          "status": "completed"
+        }
+      ],
+      "url": "https://github.com/aoaldhkd-spec/BINPC2/actions/runs/40813037692/job/123247590570"
+    }
+  ],
+  "status": "completed",
+  "url": "https://github.com/aoaldhkd-spec/BINPC2/actions/runs/40813037692",
+  "rawLogSha256": "f7e9a4f175d584ba67241f5dcc045c9891658d292f36d5c89f97d65a1802a480",
+  "summaryLines": [
+    "event-hub\tExisting API unit regression checks\t2026-10-29T03:37:06.3241836Z  Test Files  86 passed (86)",
+    "event-hub\tExisting API unit regression checks\t2026-10-29T03:37:06.3244606Z       Tests  669 passed (669)",
+    "event-hub\tExisting UI unit regression checks\t2026-10-29T03:37:23.8374501Z  Test Files  121 passed (121)",
+    "event-hub\tExisting UI unit regression checks\t2026-10-29T03:37:23.8378022Z       Tests  898 passed (898)",
+    "event-hub\tActual PostgreSQL invariants and existing reset safety\t2026-10-29T03:37:34.8332943Z  Test Files  3 passed (3)",
+    "event-hub\tActual PostgreSQL invariants and existing reset safety\t2026-10-29T03:37:34.8333555Z       Tests  108 passed (108)",
+    "event-hub\tBrowser recovery, inquiry, layout and 100-session HTTP tests\t2026-10-29T03:42:52.0483693Z   21 passed (4.9m)",
+    "event-hub\tBrowser recovery, inquiry, layout and 100-session HTTP tests\t2026-10-29T03:42:52.0501495Z ##[notice]  21 passed (4.9m)",
+    "event-hub\tActual 150-person HTTP/PostgreSQL mixed regression on accumulated records\t2026-10-29T03:44:08.3871296Z {\"runId\":\"mixed-1793245372398\",\"mode\":\"mixed\",\"durationSeconds\":76,\"requestCount\":4124,\"statusCounts\":{\"200\":4116,\"409\":8},\"failures\":[],\"resultFile\":\"/home/runner/work/BINPC2/BINPC2/.local/v6-finish/mixed-1793245372398-result.json\"}"
+  ]
+}

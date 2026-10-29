@@ -1,0 +1,179 @@
+{
+  "codeCommit": "1977fb9202232233a25371e21a503fcbd921be38",
+  "codeFingerprint": "3cb30d94e69e742f2cb32026c71b36865e4f74d26c3f53d4a04f40f21720f800",
+  "previousHead": "5a9dc6526022c201f1c82a3733d77b46e807f35a",
+  "unit": {
+    "apiWithoutPostgres": 561,
+    "ui": 898,
+    "total": 1459,
+    "status": "PASS"
+  },
+  "postgres": {
+    "tests": 108,
+    "status": "PASS",
+    "includedInApiRun669": true
+  },
+  "browser": {
+    "scenarios": 21,
+    "fullLocalRun": {
+      "passed": 20,
+      "failed": 1
+    },
+    "targetedCorrectedRun": {
+      "passed": 2,
+      "failed": 0
+    },
+    "failure": "Logo lookup test raced initial state load, then matched older retained fixture with identical label. Fixed waiting and exact saved media URL; no data reset or permission guard removed.",
+    "inquiryAdminConversationMs": 1324,
+    "inquiryParticipantBannerMs": 546,
+    "remoteFullRunId": 40813037692,
+    "remoteFullResult": {
+      "runId": 40813037692,
+      "conclusion": "success",
+      "passed": 21,
+      "failed": 0,
+      "duration": "4.9m"
+    },
+    "approvalRefreshFailure": {
+      "failedRunId": 40810995561,
+      "failedCode": "fd6d093cfd9204d8b400026655fa315ced1b5a94",
+      "failedBrowserScenarios": 1,
+      "reason": "Participant busy/inFlight refresh discarded SSE invalidation; approved map remained stale.",
+      "fix": "1977fb9202232233a25371e21a503fcbd921be38",
+      "newUnitCases": 2,
+      "targetedActualBrowserPassed": 1,
+      "guardRemoved": false
+    }
+  },
+  "guards": 598,
+  "nodeSafetyTests": 28,
+  "typecheckAndBuild": "PASS",
+  "physicalGalaxyIphone": "UNKNOWN",
+  "backgroundAdminPush": "NOT_IMPLEMENTED",
+  "operatingDeployed": false,
+  "externalBackupReady": false,
+  "operatingDataInGit": false,
+  "staticAudit": "static-audit-triage.json",
+  "evidence": [
+    {
+      "file": ".local/v12-followup-final-api.log",
+      "sha256": "e9ae19ce98920301308ab5b939e2178a4672133f7d566bdb69036f55f73a3502",
+      "bytes": 668190
+    },
+    {
+      "file": ".local/v12-followup-ui-tests.log",
+      "sha256": "117eec96f254e0d606b8f1d1df613ad59efc489c106863c3676065e0bcd02964",
+      "bytes": 135233
+    },
+    {
+      "file": ".local/v12-followup-browser.log",
+      "sha256": "5f9e0a755881c7b52e5766ea88c8f07ccfa6ff874dac970190a6ecad41f1877a",
+      "bytes": 8694
+    },
+    {
+      "file": ".local/v12-followup-browser-final.log",
+      "sha256": "53b70d652c6467bfae2ccd68b4ba6eb24590a62724584a30db1241f5150495c0",
+      "bytes": 9360
+    },
+    {
+      "file": ".local/v12-followup-browser-fixed.log",
+      "sha256": "1a353997019ac6b3ed171361f9e6e5e7127180162ec2112225fe4a4ca6647f1d",
+      "bytes": 967
+    },
+    {
+      "file": ".local/v12-followup-release-build.log",
+      "sha256": "2b6a55454e6306de7d8998dc57ee76570fb8c89fce808c29bdfd905315bcb670",
+      "bytes": 5418
+    },
+    {
+      "file": ".local/v12-followup-node.log",
+      "sha256": "35c241af29020bf4da9e7cfcc34f5c5dd9e82df135bbcd9bc7787025b370dabf",
+      "bytes": 2696
+    },
+    {
+      "file": ".local/v12-followup-guards.log",
+      "sha256": "98858e263784caf7679edaefb4c46b8e0dd2ebbcabb0b525708a60338064930d",
+      "bytes": 22494
+    },
+    {
+      "file": ".local/v12-followup-records.log",
+      "sha256": "5ba7a7a4ca28eb366bbb439c44d1f5e3ff39756f3848a8d176e2d30f424259ef",
+      "bytes": 75
+    },
+    {
+      "file": ".local/v12-followup-audit-final.log",
+      "sha256": "318b6d9d91b24e98a84c89cb22b926f0833c580cb316ee8dbd2eb30ce38e799c",
+      "bytes": 12356
+    },
+    {
+      "file": ".local/v12-followup-poster-render.log",
+      "sha256": "1613fa166aeaaf14551c543fba319e885c434824d406db99746974c4428a5a76",
+      "bytes": 565
+    },
+    {
+      "file": ".local/v12-followup-poster-retest.log",
+      "sha256": "1b7acf5d2372a818ad2ac15c69699ae230462cd715a791de821f8f692b3af249",
+      "bytes": 329
+    },
+    {
+      "file": ".local/v12-sse-replay-unit.log",
+      "sha256": "a816304464b4e96aeb71cab29713b7dca98f44364cf3b216dd432deb640488ab",
+      "bytes": 4140
+    },
+    {
+      "file": ".local/v12-sse-final-ui.log",
+      "sha256": "ab988fa23c2aa3e8670e75bc908a48f66877fe21687b5814e501d3e99fce97b8",
+      "bytes": 130765
+    },
+    {
+      "file": ".local/v12-sse-final-browser.log",
+      "sha256": "15eccec287359b822b478cd99f7e2f1891e9b0214d7a35aae4122151671f1de8",
+      "bytes": 349
+    },
+    {
+      "file": ".local/v12-sse-final-build.log",
+      "sha256": "bf60cfdd05ea1d3594fc124b45bbd1f104d7f23ea3cdde3f3f627cd69930f146",
+      "bytes": 5418
+    },
+    {
+      "file": ".local/v12-ci-40810995561.log",
+      "sha256": "21ec4904f12cd772bd38524ae59b3a6f8c9a7b7f36093557016151df24f4dfc7",
+      "bytes": 2698338
+    },
+    {
+      "file": ".local/v12-ci-40813037692.log",
+      "sha256": "f7e9a4f175d584ba67241f5dcc045c9891658d292f36d5c89f97d65a1802a480",
+      "bytes": 2704785
+    }
+  ],
+  "remoteCi": {
+    "runId": 40813037692,
+    "url": "https://github.com/aoaldhkd-spec/BINPC2/actions/runs/40813037692",
+    "headSha": "1977fb9202232233a25371e21a503fcbd921be38",
+    "status": "completed",
+    "conclusion": "success",
+    "steps": 27,
+    "allSuccessful": true,
+    "unitApiIncludesPg": 669,
+    "unitUi": 898,
+    "actualPostgres": 108,
+    "browser": 21,
+    "shortMixedActualHttp": {
+      "durationSeconds": 76,
+      "requestCount": 4124,
+      "statusCounts": {
+        "200": 4116,
+        "409": 8
+      },
+      "failures": []
+    },
+    "evidence": "ci-40813037692.json"
+  },
+  "performance": {
+    "longRun": "soak-150-15min.json",
+    "requests": 12089,
+    "durationSeconds": 929,
+    "twoSecondTarget": "NOT_MET for some concentrated stages",
+    "source": "fd6d093c API; final CI1977fb92 also verifies short150-person run"
+  }
+}

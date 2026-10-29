@@ -1,0 +1,12 @@
+{
+  "file": "docs/BINPC2_V12_FOLLOWUP_REVIEW_CURSOR_20261029.zip",
+  "bytes": 45555904,
+  "sha256": "c70cde0b8bb34a0ecc1134fff23300a2637476261ffeaa153f3f01d8c93c446a",
+  "sourceCodeCommit": "1977fb9202232233a25371e21a503fcbd921be38",
+  "sourceCodeFingerprint": "3cb30d94e69e742f2cb32026c71b36865e4f74d26c3f53d4a04f40f21720f800",
+  "files": 1151,
+  "zipIntegrity": "PASS",
+  "operatingDataOrSecretsIncluded": false,
+  "sourceAndReportsOnly": true,
+  "fullGitHistory": "Separate public GitHub branch and private complete Git bundle; ZIP is source snapshot, not Git history or operating-data backup."
+}

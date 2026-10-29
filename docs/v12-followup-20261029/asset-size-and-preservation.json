@@ -1,0 +1,124 @@
+{
+  "codeCommit": "1977fb9202232233a25371e21a503fcbd921be38",
+  "build": "production Vite build; local .local/v12-sse-final-build.log",
+  "totalBytes": 11720422,
+  "fileCount": 440,
+  "selectedJavaScriptChunks": [
+    {
+      "file": "AdminApp-6NnR1MkA.js",
+      "bytes": 63959,
+      "gzipBytes": 18295
+    },
+    {
+      "file": "EventHubAdmin-DhpMyt6N.js",
+      "bytes": 98411,
+      "gzipBytes": 30388
+    },
+    {
+      "file": "EventHubPage-B0OV6d_d.js",
+      "bytes": 84470,
+      "gzipBytes": 25741
+    },
+    {
+      "file": "index-Bk0IOk7_.js",
+      "bytes": 348427,
+      "gzipBytes": 105746
+    }
+  ],
+  "mapSvgBytes": 5283,
+  "originalLogos": [
+    {
+      "path": "artifacts/boltnew-app/public/tour-logos-v3/black.png",
+      "sha256": "f5f0613ebbdbf8bfd7b94d7d4aa2de35826324729af7177dcbb9e7fed1551610",
+      "unchanged": true
+    },
+    {
+      "path": "artifacts/boltnew-app/public/tour-logos-v3/check_in.png",
+      "sha256": "4c90ef692142368adb67ee6830fc209db0fbe7f882f5d5c8b8d5a73d7032727d",
+      "unchanged": true
+    },
+    {
+      "path": "artifacts/boltnew-app/public/tour-logos-v3/fake.png",
+      "sha256": "c999ef3948a9258c26525f7b60e493feea43b652666748e07e922b569cf9217d",
+      "unchanged": true
+    },
+    {
+      "path": "artifacts/boltnew-app/public/tour-logos-v3/gorae.png",
+      "sha256": "66357b5575610113923e968213a6ba69f0447d357fbfe0a9dd956b74545e3f29",
+      "unchanged": true
+    },
+    {
+      "path": "artifacts/boltnew-app/public/tour-logos-v3/jack.png",
+      "sha256": "5b42a89062901fbb0ec9ddf7b59b65ccc0ef0154c62a158652a6c16e8cd68c6e",
+      "unchanged": true
+    },
+    {
+      "path": "artifacts/boltnew-app/public/tour-logos-v3/m_karaoke.png",
+      "sha256": "c7a9e1420097f7ca3fc2e21ca52bab803d03c99ae3a2c7cc0f2b7b68657b73f3",
+      "unchanged": true
+    },
+    {
+      "path": "artifacts/boltnew-app/public/tour-logos-v3/on_top.png",
+      "sha256": "9bb8c93b7f87269903aea33df451126146b7a39da9260a2ca1b2c5c98bd8e330",
+      "unchanged": true
+    },
+    {
+      "path": "artifacts/boltnew-app/public/tour-logos-v3/red_hole.png",
+      "sha256": "a11302bbdb4fc1eb188b5d04226c30017ea1096fd0f53a212a318d711f7b51b6",
+      "unchanged": true
+    },
+    {
+      "path": "artifacts/boltnew-app/public/tour-logos-v3/speed.png",
+      "sha256": "554c2cf489a4cc3a8ae6b0d429255a690d67b0a5f4e8fff641a123d2b34042e7",
+      "unchanged": true
+    }
+  ],
+  "originalsDeleted": 0,
+  "unprovenCodeRemoved": 0,
+  "cleanupDeletedBytes": 0,
+  "cleanupReason": "No further file was proven safely unused. Source, tests, failures, originals, Git history and recovery archives preserved. Build output may be regenerated; no original assets deleted.",
+  "limitations": "Build directory size is not initial network transfer or a mobile loading benchmark. Selected chunks are lazy-loaded where existing app uses dynamic imports.",
+  "archivedBuildLogComparison": {
+    "beforeLog": ".local/v12-build-release.log",
+    "beforeSha256": "5265cca6cad690027233140db6aaeec087c835d4a98ff7037829b52470118840",
+    "afterLog": ".local/v12-sse-final-build.log",
+    "afterSha256": "bf60cfdd05ea1d3594fc124b45bbd1f104d7f23ea3cdde3f3f627cd69930f146",
+    "before": {
+      "AdminApp": {
+        "rawKB": 63.96,
+        "gzipKB": 18.49
+      },
+      "EventHubPage": {
+        "rawKB": 80.08,
+        "gzipKB": 24.74
+      },
+      "EventHubAdmin": {
+        "rawKB": 96.95,
+        "gzipKB": 30.25
+      },
+      "index": {
+        "rawKB": 348.43,
+        "gzipKB": 106.83
+      }
+    },
+    "after": {
+      "AdminApp": {
+        "rawKB": 63.96,
+        "gzipKB": 18.49
+      },
+      "EventHubPage": {
+        "rawKB": 84.47,
+        "gzipKB": 26.06
+      },
+      "EventHubAdmin": {
+        "rawKB": 98.41,
+        "gzipKB": 30.75
+      },
+      "index": {
+        "rawKB": 348.43,
+        "gzipKB": 106.83
+      }
+    },
+    "scope": "Existing V12 release build log from00:11UTC versus followup final build; Vite-reported decimal kB. Archived baseline, not a fresh same-hardware loading measurement."
+  }
+}

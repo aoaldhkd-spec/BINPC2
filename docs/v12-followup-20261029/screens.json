@@ -1,0 +1,212 @@
+[
+  {
+    "file": "screens/v12-korea-tour-map-390.png",
+    "description": "전국투어 대한민국 지도·모바일",
+    "sha256": "25acf54ffb62033c92ad567842374d3092b63738d6bb5b0dec79c559683fbd05",
+    "bytes": 498180,
+    "environment": "isolated React/Express/PostgreSQL + Chromium; synthetic data only, not live operating site"
+  },
+  {
+    "file": "screens/v12-korea-tour-map-768.png",
+    "description": "전국투어 태블릿",
+    "sha256": "1a2fa5585ea037a15e764e6aead66b6417b8535eee5c23403ff13c3dfe1a1431",
+    "bytes": 636471,
+    "environment": "isolated React/Express/PostgreSQL + Chromium; synthetic data only, not live operating site"
+  },
+  {
+    "file": "screens/v12-korea-tour-map-1440.png",
+    "description": "전국투어 PC",
+    "sha256": "8c6b92e4e12c9921d712707db9bdd2971ae89fe8c2d8cafe15bead82eda93bb0",
+    "bytes": 1591606,
+    "environment": "isolated React/Express/PostgreSQL + Chromium; synthetic data only, not live operating site"
+  },
+  {
+    "file": "screens/v12-daegu-320.png",
+    "description": "320px 대구 상세·원본 BLACK",
+    "sha256": "1d12b9ee7ff3294ef1c613a44447c0332e7aaaddeaf618290b5a9b86c97e64f8",
+    "bytes": 323062,
+    "environment": "isolated React/Express/PostgreSQL + Chromium; synthetic data only, not live operating site"
+  },
+  {
+    "file": "screens/v12-daegu-admin-date-selector.png",
+    "description": "대구4일·기존지역 관리자 날짜 선택",
+    "sha256": "ccb0a7019bae6a85a3b2ecc44880745991cc0e3cc6eb2b1af7196ffb72944b37",
+    "bytes": 609890,
+    "environment": "isolated React/Express/PostgreSQL + Chromium; synthetic data only, not live operating site"
+  },
+  {
+    "file": "screens/v12-admin-new-inquiry-chat.png",
+    "description": "관리자 새 문의 알림·대화 바로가기·할로윈 말풍선",
+    "sha256": "c7c3fbcabef25d814389438fab4fb32ed11b521d173013a380e488aee2964482",
+    "bytes": 628969,
+    "environment": "isolated React/Express/PostgreSQL + Chromium; synthetic data only, not live operating site"
+  },
+  {
+    "file": "screens/actual-inquiry-drawer.png",
+    "description": "참가자 1:1 채팅·초안 이어쓰기",
+    "sha256": "12cd3d6de3f4aa90387cbafb042f326555f3a347c57c18c37b893849e0b0fc26",
+    "bytes": 1262483,
+    "environment": "isolated React/Express/PostgreSQL + Chromium; synthetic data only, not live operating site"
+  },
+  {
+    "file": "screens/admin-logo-original-restore.png",
+    "description": "관리자 원본 업로드·이전 버전 복원",
+    "sha256": "a87ea4fb61be66aac0f2a2f28118578db6e796bea0c687070f4ab539a37372dd",
+    "bytes": 1872375,
+    "environment": "isolated React/Express/PostgreSQL + Chromium; synthetic data only, not live operating site"
+  },
+  {
+    "file": "screens/public-selected-logo-detail.png",
+    "description": "별도 지정한 공개 홍보 로고 상세 표시",
+    "sha256": "b49e923088a3194f38a39301da17966f9c62dbbdc422c5da1286d6a1c5702e20",
+    "bytes": 769320,
+    "environment": "isolated React/Express/PostgreSQL + Chromium; synthetic data only, not live operating site"
+  },
+  {
+    "file": "screens/v4-notice-preview.png",
+    "description": "공개 공지 사진·서버 저장 전 미리보기",
+    "sha256": "65f1f89d6825b9afca7c343367c011a255a001031aeff60f71d3637c3ae13d08",
+    "bytes": 726980,
+    "environment": "isolated React/Express/PostgreSQL + Chromium; synthetic data only, not live operating site"
+  },
+  {
+    "file": "screens/v12-revoked-session-records-preserved.png",
+    "description": "승인 취소 후 프로필·하트·대화 보존/새 전송 차단",
+    "sha256": "39aa93baab2964cd6155fa4b24ecec0964ddb47a7eac533f9bca791a5fee1382",
+    "bytes": 155674,
+    "environment": "isolated React/Express/PostgreSQL + Chromium; synthetic data only, not live operating site"
+  },
+  {
+    "file": "screens/mobile-profile-resume-api-unavailable.png",
+    "description": "일시적인 API 오류에서 기존 현장 프로필 보존",
+    "sha256": "300ef072741115036fe77743bb2ab9901570fa20248f7ec9cf01e8c9d93da826",
+    "bytes": 223310,
+    "environment": "isolated React/Express/PostgreSQL + Chromium; synthetic data only, not live operating site"
+  },
+  {
+    "file": "screens/01-save-failure-input-retained.png",
+    "description": "저장 실패 후 입력 보존",
+    "sha256": "c9b8424000d4e3c90ee3bf3492c2e4723975003ac49ecf41fd6662b33d87fed0",
+    "bytes": 870437,
+    "environment": "isolated React/Express/PostgreSQL + Chromium; synthetic data only, not live operating site"
+  },
+  {
+    "file": "screens/01-actual-admin-payment-approved.png",
+    "description": "실제 관리자 승인 흐름·합성 신청",
+    "sha256": "9a2779f99bc2ca5d6e5c1f779e92b6f2f2ad30833a09b88e4aec0ec7f4e400f2",
+    "bytes": 698589,
+    "environment": "isolated React/Express/PostgreSQL + Chromium; synthetic data only, not live operating site"
+  },
+  {
+    "file": "screens/02-approved-complete-waiting-room.png",
+    "description": "프로필 완료 대기방",
+    "sha256": "79328ef27e2df299a93b5e50a16c00932c355487e16bc7d35b9a7d5dd2a4dce4",
+    "bytes": 1150150,
+    "environment": "isolated React/Express/PostgreSQL + Chromium; synthetic data only, not live operating site"
+  },
+  {
+    "file": "screens/02-actual-incomplete-entry-blocked.png",
+    "description": "프로필 미완료 입장 차단",
+    "sha256": "2a5305dd375d5372104a6b303bf8cd3e43d51a370a3c9a80e8e7b9040c46b721",
+    "bytes": 1019975,
+    "environment": "isolated React/Express/PostgreSQL + Chromium; synthetic data only, not live operating site"
+  },
+  {
+    "file": "screens/v12-password-restored-same-application.png",
+    "description": "닉네임·비밀번호 로그인 후 같은 신청 복구",
+    "sha256": "e26c6f2a4e01ee0210b6301a5e669cd4de3ae76fd01518f18c64154bc2b333b7",
+    "bytes": 844739,
+    "environment": "isolated React/Express/PostgreSQL + Chromium; synthetic data only, not live operating site"
+  },
+  {
+    "file": "screens/halloween-before-1700.png",
+    "description": "회차17시 이전 테마",
+    "sha256": "b495d19ab78be321c9eb23f3f9346fec943efb0f0f0dc2f042266c96ceed4c44",
+    "bytes": 1386401,
+    "environment": "isolated React/Express/PostgreSQL + Chromium; synthetic data only, not live operating site"
+  },
+  {
+    "file": "screens/halloween-at-1700-restored.png",
+    "description": "회차17시 자동 해제·일반 화면 복귀",
+    "sha256": "931b1f7d2f67f721f0909fd1961928f9c3e76949a5070768d6940536d8b0aca6",
+    "bytes": 1376482,
+    "environment": "isolated React/Express/PostgreSQL + Chromium; synthetic data only, not live operating site"
+  },
+  {
+    "file": "screens/v12-accessible-events-320-textzoom.png",
+    "description": "이미지 누락·320px/글자125%·키보드·동작줄이기",
+    "sha256": "140e3d8de1f724f99f7f6a1af39ca1874fef4b532a859b7a91287bf10134dde2",
+    "bytes": 354421,
+    "environment": "isolated React/Express/PostgreSQL + Chromium; synthetic data only, not live operating site"
+  },
+  {
+    "file": "screens/09-test-off-admission-still-closed.png",
+    "description": "테스트OFF여도 실제 모집 차단",
+    "sha256": "abfb4508b0610baa7dd687675b2bec440bd298a1d58748f84c3b8f68d0044615",
+    "bytes": 493554,
+    "environment": "isolated React/Express/PostgreSQL + Chromium; synthetic data only, not live operating site"
+  },
+  {
+    "file": "screens/03-halloween-friday.png",
+    "description": "관리자 금요일 합성 시험실",
+    "sha256": "e55972031d943f390c9385b74eebfcaaf0e5a09dd9cc93c2a7fe6308a6568c24",
+    "bytes": 1340794,
+    "environment": "isolated React/Express/PostgreSQL + Chromium; synthetic data only, not live operating site"
+  },
+  {
+    "file": "screens/before-list-390.png",
+    "description": "이번 후속UI 변경 전 실제 개발앱",
+    "sha256": "7bc6449eeb160770e8e14eabf8dc03ef947d6da6c1bbde08edf4b7278481f506",
+    "bytes": 366096,
+    "environment": "isolated synthetic application"
+  },
+  {
+    "file": "screens/before-tour-detail-390.png",
+    "description": "이번 후속UI 변경 전 실제 개발앱",
+    "sha256": "9617e46f29b5000c099f27aa5fac68e05d9af6f6c7d2c34fc7cf6994729e5a5a",
+    "bytes": 382619,
+    "environment": "isolated synthetic application"
+  },
+  {
+    "file": "screens/v4-approved-map-waiting.png",
+    "description": "가상 지도 파일: 입금 승인 후 본인 대기방에서 표시",
+    "sha256": "465df5470dffdb9952b38385ad3067e9be135c12d9e4fdaf2fdb4df2f06a0719",
+    "bytes": 1464916,
+    "environment": "isolated real React/Express/PostgreSQL; synthetic fixtures, no operating data"
+  },
+  {
+    "file": "screens/v4-home-before-start.png",
+    "description": "기존 메인: 실제 시작 전 입장 비활성",
+    "sha256": "f54d5b563d0d44b22742f15ed864e49c357120990c2328fb89be98c4f05e333b",
+    "bytes": 286629,
+    "environment": "isolated real React/Express/PostgreSQL; synthetic fixtures, no operating data"
+  },
+  {
+    "file": "screens/v4-home-after-start.png",
+    "description": "격리 서버 회식 시작 후 입장 활성",
+    "sha256": "dff77d6a217eb2046bb46c031c5efcf65088b5e8d32d9c11a7cc3f0f1cac06e9",
+    "bytes": 286314,
+    "environment": "isolated real React/Express/PostgreSQL; synthetic fixtures, no operating data"
+  },
+  {
+    "file": "screens/v4-both-day-products.png",
+    "description": "금23/토49 상품 보기 전환: 재고/기록 불변",
+    "sha256": "7728abd95c5cf1cfe9378922cbc5bd5d7c8175927921d38c3e277e59a36aabbd",
+    "bytes": 2027096,
+    "environment": "isolated real React/Express/PostgreSQL; synthetic fixtures, no operating data"
+  },
+  {
+    "file": "screens/v4-admin-overview.png",
+    "description": "기존 관리자 대시보드의 통합 운영",
+    "sha256": "bccb20822136374015b41b54ab0d570cd5aa0b607aef057904f76358adbc4595",
+    "bytes": 1124760,
+    "environment": "isolated real React/Express/PostgreSQL; synthetic fixtures, no operating data"
+  },
+  {
+    "file": "screens/admin-final-ci-evidence.png",
+    "description": "실제 관리자 화면: 최신CI27단계 성공과 현재코드 일치, 실물기기UNKNOWN",
+    "sha256": "926bd6c531f62ee110317cbd276149dadee6341a5bfc2a5afe711350515e3cd5",
+    "bytes": 86462,
+    "environment": "isolated React/Express/PostgreSQL + Chromium; synthetic data only, not live operating site"
+  }
+]

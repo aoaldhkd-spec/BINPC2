@@ -1,0 +1,9 @@
+{
+  "codeCommit": "1977fb9202232233a25371e21a503fcbd921be38",
+  "privateLocalFullBundle": "BINPC2-V12-code-1977fb92.bundle",
+  "bytes": 871228061,
+  "sha256": "e1eb1d84015bdce8891c77d150a075ee432a9a53bd763e87e72c82052e272228",
+  "verified": true,
+  "scope": "Full Git refs and history of code/documents committed at creation; no ignored operating backups/keys/DB/upload snapshot. This is not operating data recovery.",
+  "laterEvidence": "Final documentation and public review ZIP are separate Git commits; source code fingerprint must match verified code commit."
+}

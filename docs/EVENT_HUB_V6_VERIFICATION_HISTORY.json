@@ -1331,6 +1331,148 @@
           "reason": "물리 휴대폰 검증 없음. Chromium 결과로 대체하지 않음."
         }
       ]
+    },
+    {
+      "id": "mixed-1793243666053",
+      "sourceVersion": "fd6d093cfd9204d8b400026655fa315ced1b5a94",
+      "codeFingerprint": "bd2583ebbef3b55a3ee78d3ec1d7024f3a22bb6676d0eba7ab7a57d6e02d19b1",
+      "environment": "real HTTP -> compiled Express -> actual PostgreSQL16; loopback only; development mode with normal rate limits and PG-backed sessions; business clock offset fixture only",
+      "startedAt": "2026-10-29T03:14:26.058Z",
+      "finishedAt": "2026-10-29T03:29:54.701Z",
+      "reportUrl": "https://github.com/aoaldhkd-spec/BINPC2/blob/feat/event-hub-v6-20261027/docs/V12_FOLLOWUP_2026-10-29.md",
+      "checks": [
+        {
+          "id": "mixed-http-postgres",
+          "title": "150명 실제 HTTP/PostgreSQL 정합성 · 929초",
+          "kind": "mixed-http-postgres",
+          "status": "PASS",
+          "count": 12089,
+          "reason": "12089요청. 재시작 복구=true. 기존 누적 소유자8544건. 실제 벽시계929초, 행사 시각만 격리 fixture로 이동. 기간을5시간/실기기로 확대 해석하지 않음."
+        },
+        {
+          "id": "physical",
+          "title": "물리 Galaxy/iPhone",
+          "kind": "physical-device",
+          "status": "UNKNOWN",
+          "reason": "내부 HTTP/Chromium 결과이며 실제 기기를 사용하지 않았음."
+        },
+        {
+          "id": "two-second-target",
+          "title": "집중 구간 P95 2초 목표",
+          "kind": "mixed-http-postgres",
+          "status": "FAIL",
+          "reason": "100명 신청2652.8ms,150명 신청/동의2062.1ms,입장/카드3061.7ms. 재고·인증·잠금 보호는 유지. 15분 정합성 PASS와 성능 목표 미달을 구분."
+        }
+      ]
+    },
+    {
+      "id": "github-40810995561",
+      "sourceVersion": "fd6d093cfd9204d8b400026655fa315ced1b5a94",
+      "codeFingerprint": "bd2583ebbef3b55a3ee78d3ec1d7024f3a22bb6676d0eba7ab7a57d6e02d19b1",
+      "environment": "GitHub Actions Ubuntu24.04 · 실제 React/Express · PostgreSQL16 · Chromium",
+      "startedAt": "2026-10-29T03:14:20Z",
+      "finishedAt": "2026-10-29T03:23:14Z",
+      "reportUrl": "https://github.com/aoaldhkd-spec/BINPC2/actions/runs/40810995561",
+      "checks": [
+        {
+          "id": "build",
+          "title": "실제 앱 빌드",
+          "kind": "build",
+          "status": "PASS"
+        },
+        {
+          "id": "unit",
+          "title": "API·React 단위 회귀검사",
+          "kind": "unit",
+          "status": "PASS"
+        },
+        {
+          "id": "postgres",
+          "title": "실제 격리 PostgreSQL·초기화 보호",
+          "kind": "postgres",
+          "status": "PASS"
+        },
+        {
+          "id": "browser",
+          "title": "실제 React/API/DB 브라우저",
+          "kind": "browser",
+          "status": "FAIL",
+          "reason": "21개 중20PASS/1FAIL. 저장/조회 중 SSE 승인 갱신 유실로 참가자 지도 미표시.1977fb92에서 dirty 재조회 및 두 재현 검사 추가. 이전 실패 증거 보존."
+        },
+        {
+          "id": "mixed",
+          "title": "150명 실제 HTTP/PostgreSQL 혼합 검사",
+          "kind": "mixed-http-postgres",
+          "status": "NOT_RUN"
+        },
+        {
+          "id": "guard",
+          "title": "기존 기능 보호검사",
+          "kind": "guard",
+          "status": "PASS"
+        },
+        {
+          "id": "physical",
+          "title": "물리 Galaxy/iPhone",
+          "kind": "physical-device",
+          "status": "UNKNOWN",
+          "reason": "실기기 검사 이력 없음. Chromium을 실기기 성적으로 바꾸지 않음."
+        }
+      ]
+    },
+    {
+      "id": "github-40813037692",
+      "sourceVersion": "1977fb9202232233a25371e21a503fcbd921be38",
+      "codeFingerprint": "3cb30d94e69e742f2cb32026c71b36865e4f74d26c3f53d4a04f40f21720f800",
+      "environment": "GitHub Actions Ubuntu24.04 · 실제 React/Express · PostgreSQL16 · Chromium",
+      "startedAt": "2026-10-29T03:35:55Z",
+      "finishedAt": "2026-10-29T03:44:26Z",
+      "reportUrl": "https://github.com/aoaldhkd-spec/BINPC2/actions/runs/40813037692",
+      "checks": [
+        {
+          "id": "build",
+          "title": "실제 앱 빌드",
+          "kind": "build",
+          "status": "PASS"
+        },
+        {
+          "id": "unit",
+          "title": "API·React 단위 회귀검사",
+          "kind": "unit",
+          "status": "PASS"
+        },
+        {
+          "id": "postgres",
+          "title": "실제 격리 PostgreSQL·초기화 보호",
+          "kind": "postgres",
+          "status": "PASS"
+        },
+        {
+          "id": "browser",
+          "title": "실제 React/API/DB 브라우저",
+          "kind": "browser",
+          "status": "PASS"
+        },
+        {
+          "id": "mixed",
+          "title": "150명 실제 HTTP/PostgreSQL 혼합 검사",
+          "kind": "mixed-http-postgres",
+          "status": "PASS"
+        },
+        {
+          "id": "guard",
+          "title": "기존 기능 보호검사",
+          "kind": "guard",
+          "status": "PASS"
+        },
+        {
+          "id": "physical",
+          "title": "물리 Galaxy/iPhone",
+          "kind": "physical-device",
+          "status": "UNKNOWN",
+          "reason": "실기기 검사 이력 없음. Chromium을 실기기 성적으로 바꾸지 않음."
+        }
+      ]
     }
   ]
 }

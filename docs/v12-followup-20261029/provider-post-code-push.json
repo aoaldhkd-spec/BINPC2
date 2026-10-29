@@ -1,0 +1,29 @@
+{
+  "checkedAtUtc": "2026-10-29T03:49:54.068606+00:00",
+  "actions": "read only; no changes, deployments, key rotation or public admission writes",
+  "netlifySite": {
+    "httpStatus": 200,
+    "siteId": "7c748100-2502-4059-99eb-d6a1810e0768",
+    "url": "https://binpc2.netlify.app",
+    "trackedBranch": "main",
+    "allowedBranches": [
+      "main"
+    ],
+    "buildsStopped": false,
+    "publishedDeployId": "6addce4910baf80784543dfd",
+    "publishedCommit": "b06a900280404f79c92e17cdbc6af907a0414c30"
+  },
+  "renderService": {
+    "httpStatus": 200,
+    "serviceId": "srv-d9v9gme417fc73cf6gq0",
+    "branch": "main",
+    "autoDeploy": "yes",
+    "type": "web_service"
+  },
+  "renderLatestDeployment": {
+    "httpStatus": 200,
+    "deployId": "dep-dbessi95efls73bbg7qg",
+    "status": "live",
+    "commit": "b06a900280404f79c92e17cdbc6af907a0414c30"
+  }
+}

@@ -1,0 +1,20 @@
+{
+  "checkedAt": "2026-10-29T03:08:48.424474+00:00",
+  "productionWrites": false,
+  "netlify": {
+    "httpStatus": 200,
+    "trackedBranch": "main",
+    "allowedBranches": [
+      "main"
+    ],
+    "liveCommit": "b06a900280404f79c92e17cdbc6af907a0414c30",
+    "liveDeploy": "6addce4910baf80784543dfd",
+    "branchPushAllowed": true
+  },
+  "render": {
+    "httpStatus": 200,
+    "trackedBranch": "main",
+    "autoDeploy": "yes",
+    "featureBranchAutoDeploy": false
+  }
+}

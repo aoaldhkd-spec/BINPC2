@@ -1,0 +1,228 @@
+{
+  "runId": "mixed-1793243666053",
+  "mode": "mixed",
+  "environment": "real HTTP -> compiled Express -> actual PostgreSQL16; loopback only; development mode with normal rate limits and PG-backed sessions; business clock offset fixture only",
+  "sourceSha": "fd6d093cfd9204d8b400026655fa315ced1b5a94",
+  "builtIdentity": {
+    "sourceVersion": "fd6d093cfd9204d8b400026655fa315ced1b5a94",
+    "codeFingerprint": "bd2583ebbef3b55a3ee78d3ec1d7024f3a22bb6676d0eba7ab7a57d6e02d19b1",
+    "builtAt": "2026-10-29T03:14:25.468Z"
+  },
+  "preexistingOwnerRows": 8544,
+  "recordsBefore": 64233,
+  "recordsAfter": 68525,
+  "startedAt": "2026-10-29T03:14:26.058Z",
+  "finishedAt": "2026-10-29T03:29:54.701Z",
+  "cohortSizes": [
+    100,
+    150
+  ],
+  "actualSocialParticipants": 150,
+  "durationSeconds": 929,
+  "sustainedMinutes": 15,
+  "soakCycles": 57,
+  "requestCount": 12089,
+  "statusCounts": {
+    "200": 12082,
+    "409": 7
+  },
+  "failures": [],
+  "lostResponseReplay": true,
+  "restartVerified": true,
+  "profilePinAndNicknameRecovered": true,
+  "socialRecordsSurviveRestart": true,
+  "requestLatencyByStage": {
+    "fixture-activation": {
+      "requests": 6,
+      "p50Ms": 11.7,
+      "p95Ms": 14.6,
+      "p99Ms": 14.6,
+      "maxMs": 14.6
+    },
+    "150-real-sessions": {
+      "requests": 150,
+      "p50Ms": 371.6,
+      "p95Ms": 581.1,
+      "p99Ms": 598.4,
+      "maxMs": 601.8
+    },
+    "100-concurrent-applications": {
+      "requests": 100,
+      "p50Ms": 1410.2,
+      "p95Ms": 2652.8,
+      "p99Ms": 2757.9,
+      "maxMs": 2757.9
+    },
+    "150-mixed-applications-and-consent": {
+      "requests": 510,
+      "p50Ms": 962,
+      "p95Ms": 2062.1,
+      "p99Ms": 2070.4,
+      "maxMs": 2143.1
+    },
+    "150-profile-payment-inquiry": {
+      "requests": 760,
+      "p50Ms": 761.1,
+      "p95Ms": 890.1,
+      "p99Ms": 897.6,
+      "maxMs": 923.5
+    },
+    "150-enter-and-three-cards": {
+      "requests": 910,
+      "p50Ms": 1467.8,
+      "p95Ms": 3061.7,
+      "p99Ms": 3222,
+      "maxMs": 3328.6
+    },
+    "150-social-hearts-chat": {
+      "requests": 460,
+      "p50Ms": 765.9,
+      "p95Ms": 901.4,
+      "p99Ms": 952.6,
+      "maxMs": 962.8
+    },
+    "duplicate-prize-rejection": {
+      "requests": 21,
+      "p50Ms": 6.4,
+      "p95Ms": 12,
+      "p99Ms": 12,
+      "maxMs": 12
+    },
+    "stored-response-lost-replay": {
+      "requests": 3,
+      "p50Ms": 3.5,
+      "p95Ms": 10.1,
+      "p99Ms": 10.1,
+      "maxMs": 10.1
+    },
+    "restart": {
+      "requests": 600,
+      "p50Ms": 533.1,
+      "p95Ms": 1268,
+      "p99Ms": 1327.5,
+      "maxMs": 1340.2
+    },
+    "sustained-150-mixed": {
+      "requests": 8569,
+      "p50Ms": 580.4,
+      "p95Ms": 1045,
+      "p99Ms": 2893.1,
+      "maxMs": 3366.1
+    }
+  },
+  "rawEvidence": {
+    "path": ".local/v6-finish/mixed-1793243666053-result.json",
+    "sha256": "b271ab25a3d8f27ad5a49e31eb5e1ebd544c2748298a4d33cb260e6537d71a37",
+    "bytes": 2246794,
+    "publicCopy": "aggregate only; no operating participants or keys"
+  },
+  "resources": {
+    "intervalSeconds": 5,
+    "samples": 184,
+    "rssPeakMiB": 284.54,
+    "heapPeakMiB": 92.63,
+    "cpuPeakPercentSingleCore": 65.24,
+    "cpuMeanPercentSingleCore": 5.56,
+    "first10AfterRestart": {
+      "samples": 10,
+      "rssMeanMiB": 232.25,
+      "heapMeanMiB": 34.98
+    },
+    "last10": {
+      "samples": 10,
+      "rssMeanMiB": 276.09,
+      "heapMeanMiB": 40.54
+    }
+  },
+  "database": {
+    "sampleIntervalSeconds": 1,
+    "samples": 928,
+    "peakConnectionsIncludingObserver": 13,
+    "sampledLockWaitersMax": 0,
+    "sampledActiveMax": 6,
+    "sampledTransactionAgeMaxSeconds": 0.768589,
+    "finalConnectionsBeforeServerStop": 12,
+    "caveat": "Sampled pg_stat_activity does not measure the application queue or prove zero subsecond lock wait."
+  },
+  "previous15minReference": {
+    "runId": "mixed-1793231598141",
+    "sourceSha": "3942e785b4eafd5636b9d5dc84dcb1b13b762ec8",
+    "recordsBefore": 29431,
+    "requests": 11031,
+    "durationSeconds": 947,
+    "statusCounts": {
+      "200": 11023,
+      "409": 8
+    },
+    "requestLatencyByStage": {
+      "fixture-activation": {
+        "requests": 6,
+        "p50Ms": 20.4,
+        "p95Ms": 27.5,
+        "maxMs": 27.5
+      },
+      "150-real-sessions": {
+        "requests": 150,
+        "p50Ms": 632.8,
+        "p95Ms": 1002.8,
+        "maxMs": 1042.3
+      },
+      "100-concurrent-applications": {
+        "requests": 100,
+        "p50Ms": 1005.7,
+        "p95Ms": 1919.4,
+        "maxMs": 1994.5
+      },
+      "150-mixed-applications-and-consent": {
+        "requests": 510,
+        "p50Ms": 2289.8,
+        "p95Ms": 3021.5,
+        "maxMs": 3171.7
+      },
+      "150-profile-payment-inquiry": {
+        "requests": 760,
+        "p50Ms": 2061.8,
+        "p95Ms": 2383.7,
+        "maxMs": 2464.7
+      },
+      "150-enter-and-three-cards": {
+        "requests": 910,
+        "p50Ms": 3404.6,
+        "p95Ms": 4504.9,
+        "maxMs": 4570.5
+      },
+      "duplicate-prize-rejection": {
+        "requests": 24,
+        "p50Ms": 12.3,
+        "p95Ms": 20.3,
+        "maxMs": 20.3
+      },
+      "stored-response-lost-replay": {
+        "requests": 3,
+        "p50Ms": 4.9,
+        "p95Ms": 10.9,
+        "maxMs": 10.9
+      },
+      "restart": {
+        "requests": 450,
+        "p50Ms": 1217.3,
+        "p95Ms": 2098.6,
+        "maxMs": 2179.1
+      },
+      "sustained-150-mixed": {
+        "requests": 8118,
+        "p50Ms": 856.4,
+        "p95Ms": 2747.7,
+        "maxMs": 6084.9
+      }
+    },
+    "caveat": "Same workspace, different accumulated row counts and social workload. Observed values, not a controlled production capacity comparison."
+  },
+  "limitations": [
+    "2-second p95 target is still unmet: 100 applications 2652.8ms, 150 applications/consent 2062.1ms, entry/three cards 3061.7ms.",
+    "15 minutes is not a multiday endurance guarantee; RSS warmup increases, so no general leak-free claim.",
+    "Backend is fd6d093c; subsequent1977fb92 changes only client invalidation and its tests. The full fingerprint correctly labels this historical evidence for the new UI.",
+    "All fixture users, payments, chat, requests and clock offsets are isolated synthetic data. No operating DB calls or real external notifications.",
+    "Expected409 conflicts are duplicate/revision guards, not hidden500/503 errors."
+  ]
+}
