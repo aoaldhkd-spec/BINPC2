@@ -265,16 +265,24 @@ export function useEventHub(admin = false) {
   }, [admin, load]);
   useEffect(() => {
     let timer: ReturnType<typeof setTimeout> | undefined;
-    let active = true, inFlight = false;
-    const refresh = () => {
-      if (!active || document.visibilityState !== "visible" || timer || busy.current || inFlight) return;
-      timer = setTimeout(() => {
+    let active = true, inFlight = false, dirty = false;
+    // An approval can arrive while the participant's own save/read is pending.
+    // Preserve that invalidation until a fresh read can run; a healthy SSE
+    // connection alone does not mean the last response contains the update.
+    const schedule = (delay = 350) => {
+      if (!active || !dirty || document.visibilityState !== "visible" || timer || inFlight) return;
+      timer = setTimeout(async () => {
         timer = undefined;
-        if (!active || busy.current) return;
-        inFlight=true;
-        void load().catch(()=>{}).finally(()=>{inFlight=false;});
-      }, 350);
+        if (!active || document.visibilityState !== 'visible') return;
+        if (busy.current) { schedule(); return; }
+        dirty=false;inFlight=true;
+        let retryDelay=350;
+        try { await load(); }
+        catch { dirty=true;retryDelay=10000; }
+        finally { inFlight=false;schedule(retryDelay); }
+      }, delay);
     };
+    const refresh = () => { dirty=true;schedule(); };
     const channel=supabase.channel("event-hub-invalidation").on("postgres_changes",
       {event:"UPDATE",schema:"public",table:"event_hub_updates"},refresh).subscribe();
     const reconnect=onSseReconnect(refresh);

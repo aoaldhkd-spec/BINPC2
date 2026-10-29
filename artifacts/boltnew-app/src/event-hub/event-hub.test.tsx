@@ -25,8 +25,9 @@ import {
   profileMissing,
   quoteFor,
 } from "../../../../lib/api-zod/src/event-hub";
+const hubInvalidation=vi.hoisted(()=>({callback:undefined as (()=>void)|undefined}));
 vi.mock("../lib/supabase", () => ({
- supabase: {from:vi.fn(),channel:()=>({on(){return this;},subscribe(){return this;}}),removeChannel:vi.fn()},
+ supabase: {from:vi.fn(),channel:()=>({on(_event:unknown,_filter:unknown,callback:()=>void){hubInvalidation.callback=callback;return this;},subscribe(){return this;}}),removeChannel:vi.fn()},
  onSseReconnect:()=>()=>{},isSseHealthy:()=>true,
 }));
 vi.mock("../lib/webPush", () => ({
@@ -38,6 +39,7 @@ afterEach(() => {
   vi.restoreAllMocks();
   localStorage.clear();
   sessionStorage.clear();
+  hubInvalidation.callback=undefined;
 });
 describe("event hub profile draft persistence and sandbox", () => {
   it("keeps the existing MBTI screen until the actual server save resolves, then skips already-known birth year/location", async () => {
@@ -141,6 +143,25 @@ describe("client uncertain saves", () => {
     threads: [],
     stocks: [],
   };
+  it.each(['save','refresh'])("replays an approval invalidation arriving during a pending %s without waiting for a broken SSE connection",async(mode)=>{
+    let reads=0,release!: (response:Response)=>void;
+    vi.spyOn(globalThis,'fetch').mockImplementation(async url=>{
+      if(String(url).endsWith('/mutate'))return new Response(JSON.stringify({saved:true}));
+      reads++;
+      if(reads===2)return new Promise<Response>(r=>{release=r;});
+      return new Response(JSON.stringify({...empty,applications:[{id:'same-application',payment:reads>=3?'approved':'reported'}]}));
+    });
+    const {result}=renderHook(()=>useEventHub(true));
+    await waitFor(()=>expect(result.current.state?.applications[0].payment).toBe('reported'));
+    let saved:Promise<unknown>|undefined;
+    act(()=>{if(mode==='save')saved=result.current.mutate({action:'application.report',target:'same-application',revision:2});else hubInvalidation.callback!();});
+    await waitFor(()=>expect(reads).toBe(2));
+    act(()=>hubInvalidation.callback!());
+    await act(async()=>{release(new Response(JSON.stringify({...empty,applications:[{id:'same-application',payment:'reported'}]})));if(saved)await saved;});
+    await waitFor(()=>expect(result.current.state?.applications[0].payment).toBe('approved'),{timeout:2000});
+    expect(reads).toBe(3);
+    expect(result.current.state?.applications[0].id).toBe('same-application');
+  });
   it("acknowledges a lost response only after reading its durable receipt", async () => {
     let writes = 0;
     vi.spyOn(globalThis, "fetch").mockImplementation(async (url, _options) => {
