@@ -1,4 +1,5 @@
 import { useLandingHalloween } from '../lib/landing-season';
+import { useBossTestAccess } from './BossAccessBoundary';
 import { TEST_MODE_BANNER, usePublicTestMode } from '../lib/public-test-mode';
 import { useState, useRef, useEffect } from 'react';
 import { Users, CheckCircle, Clock, ShieldAlert, Wine, List, DoorOpen, LockKeyhole } from 'lucide-react';
@@ -15,6 +16,7 @@ export function WaitingOverlay({ landingThemeEnabled = true, sessionActive, even
 }) {
   const halloween = useLandingHalloween(landingThemeEnabled);
   const testMode = usePublicTestMode();
+  const bossTest = useBossTestAccess();
   // Default amber contrast (multi-theme light overrides removed)
   const C = {
     panelTitle: '#fde68a',
@@ -284,16 +286,16 @@ export function WaitingOverlay({ landingThemeEnabled = true, sessionActive, even
         {/* 피라미드형 버튼 그룹 */}
         <div className="w-full flex flex-col items-center gap-2 mb-2">
           <div className="flex flex-col gap-3 w-[88%] mb-1">
-            {testMode ? <button type="button" disabled className="min-h-16 flex gap-3 items-center justify-center rounded-xl border border-pink-300/40 bg-gradient-to-br from-pink-500 to-pink-800 px-4 py-4 text-lg font-bold text-white opacity-50 cursor-not-allowed"><Wine size={24} aria-hidden="true"/>술번개 신청</button> : <a href="/events" className="min-h-16 flex gap-3 items-center justify-center rounded-xl border border-pink-300/60 bg-gradient-to-br from-pink-500 to-pink-800 px-4 py-4 text-lg font-bold text-white shadow-lg shadow-pink-900/30 hover:brightness-110 active:scale-[.98] transition-all"><Wine size={24} aria-hidden="true"/>술번개 신청</a>}
+            {testMode && !bossTest ? <button type="button" disabled className="min-h-16 flex gap-3 items-center justify-center rounded-xl border border-pink-300/40 bg-gradient-to-br from-pink-500 to-pink-800 px-4 py-4 text-lg font-bold text-white opacity-50 cursor-not-allowed"><Wine size={24} aria-hidden="true"/>술번개 신청</button> : <a href={"/events"} className="min-h-16 flex gap-3 items-center justify-center rounded-xl border border-pink-300/60 bg-gradient-to-br from-pink-500 to-pink-800 px-4 py-4 text-lg font-bold text-white shadow-lg shadow-pink-900/30 hover:brightness-110 active:scale-[.98] transition-all"><Wine size={24} aria-hidden="true"/>술번개 신청</a>}
             {testMode && <a href="/events" className="text-center text-sm text-amber-100 underline">행사 공지 · 관리자 문의</a>}
-            <a href="/events/waiting" className="min-h-16 flex gap-3 items-center justify-center rounded-xl border border-blue-300/60 bg-gradient-to-br from-blue-500 to-blue-800 px-4 py-4 text-lg font-bold text-white shadow-lg shadow-blue-900/30 hover:brightness-110 active:scale-[.98] transition-all"><List size={24} aria-hidden="true"/>신청대기방</a>
+            <a href={"/events/waiting"} className="min-h-16 flex gap-3 items-center justify-center rounded-xl border border-blue-300/60 bg-gradient-to-br from-blue-500 to-blue-800 px-4 py-4 text-lg font-bold text-white shadow-lg shadow-blue-900/30 hover:brightness-110 active:scale-[.98] transition-all"><List size={24} aria-hidden="true"/>신청대기방</a>
           </div>
           <button
-            onClick={() => setShowConsentModal(true)}
-            disabled={!isActive}
+            onClick={() => { if (bossTest) { window.history.pushState({}, '', '/events/waiting'); window.dispatchEvent(new PopStateEvent('popstate')); } else setShowConsentModal(true); }}
+            disabled={!bossTest && !isActive}
             className="w-[88%] min-h-16 flex items-center justify-center gap-3 py-4 border border-amber-200/70 bg-gradient-to-b from-stone-800 to-stone-950 text-amber-100 disabled:border-slate-600 disabled:bg-slate-800 disabled:text-slate-400 disabled:cursor-not-allowed font-black text-lg rounded-xl shadow-lg transition-all active:scale-[.98] disabled:active:scale-100"
-          >{isActive ? <DoorOpen size={24} aria-hidden="true"/> : <LockKeyhole size={22} aria-hidden="true"/>}입장하기</button>
-          <p role="status" className="text-xs text-slate-400 my-1">{sessionActive === null ? '시작 여부를 확인하고 있습니다…' : isActive ? '입장 버튼을 눌러 참여하세요' : !eventCycleResetComplete && closeAt && Date.now() >= closeAt && Date.now() < closeAt + 16*3600000 ? '신규 입장이 종료되었습니다. 기존 참가자는 프로필을 복구하세요.' : '술번개 시작 후 입장할 수 있습니다'}</p>
+          >{bossTest || isActive ? <DoorOpen size={24} aria-hidden="true"/> : <LockKeyhole size={22} aria-hidden="true"/>}입장하기</button>
+          <p role="status" className="text-xs text-slate-400 my-1">{bossTest ? '보스 전용 신청·승인·입장 흐름을 시험할 수 있습니다' : sessionActive === null ? '시작 여부를 확인하고 있습니다…' : isActive ? '입장 버튼을 눌러 참여하세요' : !eventCycleResetComplete && closeAt && Date.now() >= closeAt && Date.now() < closeAt + 16*3600000 ? '신규 입장이 종료되었습니다. 기존 참가자는 프로필을 복구하세요.' : '술번개 시작 후 입장할 수 있습니다'}</p>
           {/* 2단: 프로필 복구 — 65% 너비 */}
           <button
             onClick={() => { setShowPinRecovery(true); setPinDigits(['','','','']); setPinError(''); setPinStep('pin'); }}
@@ -341,7 +343,7 @@ export function WaitingOverlay({ landingThemeEnabled = true, sessionActive, even
                 <div className="flex flex-col gap-3">
                   <button
                     onClick={() => { if (!isActive) return; setShowConsentModal(false); onEnter(); }}
-                    disabled={!isActive}
+                    disabled={!bossTest && !isActive}
                     className="w-full py-4 bg-gradient-to-r from-teal-500 to-cyan-500 hover:from-teal-400 hover:to-cyan-400 text-white font-black text-base rounded-2xl shadow-lg shadow-teal-500/30 transition-all active:scale-98"
                   >
                     안내 확인 · 프로필 설정

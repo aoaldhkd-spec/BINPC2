@@ -45,7 +45,10 @@ export async function privacySnapshot(
   );
   return {
     owner,
-    basicDrafts: Object.entries(own.basicDrafts ?? {}).map(([id, d]) => ({ id, revision: d.revision, updatedAt: d.updatedAt })),
+    basicDrafts: [
+      ...Object.entries(own.basicDrafts ?? {}).map(([id, d]) => ({ id, revision: d.revision, updatedAt: d.updatedAt })),
+      ...Object.entries(own.companionDrafts ?? {}).map(([id,g])=>({id:`companion:${id}`,revision:g.revision,updatedAt:g.items.map(d=>d.changedAt).sort().at(-1)??own.createdAt})),
+    ],
     caseRevision: own.privacyCase?.revision ?? 0,
     hold: own.privacyHold,
     applications: await Promise.all(
@@ -175,8 +178,13 @@ export async function executePrivacyPlanForIsolatedTest(
         continue;
       if (item.kind === "basic-draft") {
         const draftOwner = await tx.get<HubOwner>("owner", owner);
-        if (draftOwner?.basicDrafts && item.action === "erase") {
-          delete draftOwner.basicDrafts[item.id];
+        if (draftOwner && item.action === "erase") {
+          if(item.id.startsWith('companion:')){
+            const eventId=item.id.slice('companion:'.length);
+            if(draftOwner.companionDrafts)delete draftOwner.companionDrafts[eventId];
+            const invitations=await tx.db.query("SELECT id FROM event_hub_records WHERE kind='settings' AND id LIKE 'companion-invite:%'");
+            for(const row of invitations.rows){const invitation=await tx.get<{sponsorOwner:string;eventId:string}>('settings',row.id);if(invitation?.sponsorOwner===owner&&invitation.eventId===eventId)await tx.db.query("DELETE FROM event_hub_records WHERE kind='settings' AND id=$1",[row.id]);}
+          }else if(draftOwner.basicDrafts)delete draftOwner.basicDrafts[item.id];
           await tx.put("owner", owner, draftOwner);
         }
       } else if (item.kind === "application") {
@@ -237,6 +245,8 @@ export async function executePrivacyPlanForIsolatedTest(
       );
       if (!retained) {
         own.basicDrafts = undefined;
+        own.companionDrafts = undefined;
+        own.companionOrigins = undefined;
         own.erasedAt = now.toISOString();
         // A unique, unissued tombstone cannot collide with another erased owner.
         own.recoveryHash = digest(randomBytes(32).toString("base64url"));

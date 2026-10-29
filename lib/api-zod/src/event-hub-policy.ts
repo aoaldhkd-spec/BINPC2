@@ -39,6 +39,7 @@ export function participantApplication(a: HubApplication, e: HubEvent) {
   const {
     rank,
     owner,
+    sponsorOwner: _sponsorOwner,
     quote,
     history,
     manualResults,

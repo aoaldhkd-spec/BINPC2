@@ -45,6 +45,8 @@ export type HubThread = {
   history: HubAudit[];
 };
 export type HubState = {
+  companionDrafts?: Record<string,{revision:number;items:{id:string;basic:Pick<import('../../../../lib/api-zod/src/event-hub').HubBasicDraft['basic'],'nickname'|'birthYear'|'location'|'residence'>;claimedAt?:string;removedAt?:string}[]}>;
+  bossParticipationAllowed?: boolean;
   venueDirectory?: import("../../../../lib/api-zod/src/event-venue-directory").VenueDirectory;
   basicDrafts?: Record<string, import("../../../../lib/api-zod/src/event-hub").HubBasicDraft>;
   testMode?: PublicEventTestMode;

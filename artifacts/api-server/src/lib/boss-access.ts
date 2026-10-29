@@ -4,6 +4,7 @@ import type { Request, Response, RequestHandler } from 'express';
 import session, { type SessionData } from 'express-session';
 import { deriveAdminToken } from './db-panel-tokens.js';
 import { isDefaultPanelPassword } from './db-panel-secrets.js';
+import { withVerifiedBossParticipation } from './boss-participation.js';
 
 type Grant = { fingerprint: string; expires: number; nonce: string };
 declare module 'express-session' { interface SessionData { bossAccessId?: string; bossGrant?: Grant } }
@@ -119,7 +120,7 @@ export const bossAccessGate: RequestHandler = async (req, res, next) => {
     } else if (await grantValid(req, req.session?.bossAccessId)) {
       if (path === '/api/db/push/self-test' || path === '/api/db/push/notify')
         return void res.status(423).json({ error: { code: 'BOSS_PUSH_PAUSED', message: '테스트 기간에는 외부 푸시 발송을 중지합니다.' } });
-      return next();
+      return withVerifiedBossParticipation(next);
     }
     res.status(423).json({ data: null, error: { code: 'BOSS_ONLY', message } });
   } catch { res.status(503).json({ data: null, error: { code: 'ACCESS_CHECK_UNAVAILABLE', message: '접근 권한 확인 중입니다. 잠시 후 다시 시도해 주세요.' } }); }

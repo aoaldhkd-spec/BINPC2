@@ -1,0 +1,17 @@
+{
+  "counts": {
+    "tracked": {
+      "info": 567,
+      "warn": 104
+    },
+    "publicCandidates": {
+      "info": 570,
+      "warn": 104
+    },
+    "changed": {
+      "info": 3,
+      "warn": 31
+    }
+  },
+  "warningsOnChangedLines": []
+}

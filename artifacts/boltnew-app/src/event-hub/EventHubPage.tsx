@@ -1,6 +1,7 @@
 import { halloweenPrizeLabel } from "../../../../lib/api-zod/src/event-policy-halloween";
 import { eventEnded } from "../../../../lib/api-zod/src/event-hub-modules";
 import { ResidenceInput } from "./ResidenceInput";
+import { CompanionCards, CompanionClaimForm } from './CompanionCards';
 import { PaymentAccounts } from "./PaymentAccounts";
 import { halloweenCardTimes, cardSlotAvailable } from "../../../../lib/api-zod/src/event-card-clock";
 import {
@@ -34,13 +35,13 @@ import { EventMedia } from "./EventMedia";
 import { useEffect, useState } from "react";
 import {
   useEventHub,
+  hubFetch,
   clearOnsiteBrowserIdentity,
   HUB_CONSENT_VERSION,
   profileMissing,
   savedRecoveryCode,
   rememberRecoveryCode,
   recoverHub,
-  hubFetch,
   type PrivateApplication,
   type HubState,
   type HubController,
@@ -169,7 +170,13 @@ function EventHubContent({ path, hub }: { path: string; hub: Hub }) {
         </header>
         <div className="max-w-2xl mx-auto p-4 space-y-4">
           <HubFeedback status={hub.status} error={hub.error} />
+          {s.bossParticipationAllowed && !event && <HubCard><p>일반 참가자와 같은 신청·입장 화면입니다. 보스 확인용 행사의 신청·재고로 저장되며 실제 송금은 하지 않습니다.</p><HubButton disabled={hub.status==='saving'} onClick={async()=>{try{await hubFetch('/boss-participant-events',{});await hub.load();}catch(e){hub.setError((e as Error).message);}}}>금요일·토요일 신청 열기 / 이어하기</HubButton></HubCard>}
           {testMode && <HubCard><p role="status" className="font-bold text-amber-800">{TEST_MODE_BANNER}</p></HubCard>}
+          {event && <details className="rounded-2xl border p-3"><summary className="font-bold cursor-pointer">친구와 함께 신청 · 본인/친구 따로 관리</summary>
+            {app && <p className="my-3">본인: {app.basic.nickname} · {app.basic.birthYear}년생 · {app.basic.location}</p>}
+            <CompanionCards key={event.id} eventId={event.id} group={s.companionDrafts?.[event.id]} mutate={hub.mutate} busy={hub.status==='saving'} blocked={testMode||!event.recruitment} onOwn={()=>setApplying(true)} privacyPolicyFingerprint={s.privacyNotice?.fingerprint}/>
+            {!app && <CompanionClaimForm eventId={event.id} mutate={hub.mutate} busy={hub.status==='saving'} blocked={testMode||!event.recruitment} onClaimed={()=>setApplying(true)} privacyPolicyFingerprint={s.privacyNotice?.fingerprint} privacyNotice={<p className="whitespace-pre-line text-sm my-3">{s.privacyNotice?.notice??'이번 행사 신청·입금 확인·연락을 위한 닉네임·출생연도·지역을 수집합니다. 필수 수집을 거부하면 신청할 수 없습니다. 운영 개인정보 보관기간은 검토 중이며 일반 모집은 별도 확정 후 열립니다.'}</p>}/>}
+          </details>}
           {(event || path === "/events") && (
             <ApplicationGuide
               key={event?.id ?? "events"}

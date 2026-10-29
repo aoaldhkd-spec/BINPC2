@@ -1577,8 +1577,8 @@ export function ApplicationAdmin({
             <div className="flex gap-2 flex-wrap">
               <HubButton disabled={paymentSatisfied(app) || !app.confirmedAt} onClick={() => {
                 const free = !!hub.state?.events.find((e) => e.id === app.eventId)?.campaign?.kind.startsWith("halloween") && app.quote?.fee === 0;
-                if (window.confirm(free ? "무료 참가 자격을 확인했습니까? 은행 입금으로 기록하지 않습니다." : "실제 은행 거래의 입금자명·금액·시간을 대조했습니까?"))
-                  void act(free ? "free" : "payment", free ? {} : { status: "approved", bankChecked: true });
+                if (window.confirm(app.bossTestOnly ? "보스 확인용 신청을 가상 승인합니까? 실제 은행 입금으로 처리하지 않습니다." : free ? "무료 참가 자격을 확인했습니까? 은행 입금으로 기록하지 않습니다." : "실제 은행 거래의 입금자명·금액·시간을 대조했습니까?"))
+                  void act(free ? "free" : "payment", free ? {} : { status: "approved", bankChecked: !app.bossTestOnly, testChecked: app.bossTestOnly===true });
               }}>{hub.state?.events.find((e) => e.id === app.eventId)?.campaign?.kind.startsWith("halloween") && app.quote?.fee === 0 ? "무료 참가 승인" : "입금 승인"}</HubButton>
               <HubButton disabled={!paymentSatisfied(app) || !note.trim()} onClick={() => {
                 if (window.confirm("이 회차의 입장·뽑기·새 하트·메시지를 중지합니다. 프로필·기존 대화·입금·당첨·지급 이력과 관리자 문의는 유지됩니다. 계속할까요?")) void act("revoke", { reason: note });

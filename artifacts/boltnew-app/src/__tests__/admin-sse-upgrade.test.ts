@@ -1,3 +1,4 @@
+// @vitest-environment happy-dom
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { readFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
@@ -40,6 +41,7 @@ class FakeEventSource {
 describe('[Admin] SSE adminToken upgrade for hearts/chats', () => {
   beforeEach(() => {
     vi.resetModules();
+    window.history.replaceState({}, '', '/admin');
     vi.useFakeTimers();
     FakeEventSource.instances = [];
     vi.stubGlobal('localStorage', new MemoryStorage());
@@ -48,6 +50,7 @@ describe('[Admin] SSE adminToken upgrade for hearts/chats', () => {
   });
 
   afterEach(() => {
+    window.history.replaceState({}, '', '/');
     vi.clearAllTimers();
     vi.useRealTimers();
     vi.unstubAllGlobals();
@@ -110,5 +113,20 @@ describe('[Admin] SSE adminToken upgrade for hearts/chats', () => {
 
     const open = FakeEventSource.instances.filter((es) => es.readyState === FakeEventSource.OPEN);
     expect(open.some((es) => es.url.includes('adminToken='))).toBe(true);
+  });
+
+  it('leaving admin immediately closes privileged delivery and keeps login available', async () => {
+    localStorage.setItem('admin_token_v1', 'scope-test-admin');
+    const mod = await import('../lib/localdb');
+    const channel = mod.supabase.channel('scope-change')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'messages' }, () => {}).subscribe();
+    const admin = FakeEventSource.instances.at(-1)!;
+    expect(admin.url).toContain('adminToken=');
+    window.history.replaceState({}, '', '/events');
+    mod.refreshSseAccessScope();
+    expect(admin.readyState).toBe(FakeEventSource.CLOSED);
+    expect(FakeEventSource.instances.at(-1)!.url).not.toContain('adminToken=');
+    expect(localStorage.getItem('admin_token_v1')).toBe('scope-test-admin');
+    channel.unsubscribe();
   });
 });

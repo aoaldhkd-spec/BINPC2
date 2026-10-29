@@ -2,6 +2,7 @@ import { useState, useEffect, useRef } from 'react';
 import type { HubController,HubEvent } from '../lib/event-hub-client';
 import { HubCard,HubField,HubButton,HubCheck,inputClass } from './HubUi';
 import { Preview } from './MediaManager';
+import { TOUR_WEEKS } from '../../../../lib/api-zod/src/event-policy-tour';
 export const VENUE_LOGOS = [
  ['red_hole','레드홀 · RED HOLE'],['fake','페이크 · FAKE'],['jack','자크 · JACK'],
  ['m_karaoke','M가라오케 · M KARAOKE (기존 제작 시안)'],['speed','스피드 · SPEED'],
@@ -14,8 +15,13 @@ export function VenueLogo({id}:{id?:string}){
  return <figure><img src={`/tour-logos-v3/${item[0]}.${item[0] === 'black' ? 'webp' : 'png'}`} alt={item[1]} width={160} height={140} loading="lazy" className="max-w-full h-36 object-contain bg-white rounded-xl"/><figcaption className="text-xs">{item[1]}</figcaption></figure>;
 }
 /** Only the explicitly public selection is used for list/detail/admin artwork. */
+export function publicLogoChoices(event:HubEvent): NonNullable<HubEvent["promotionLogo"]>[]{
+ return event.promotionLogos ?? (event.promotionLogo ? [event.promotionLogo] : event.type==='tour' ? (TOUR_WEEKS.find(w=>event.date>=w.start&&event.date<=new Date(Date.parse(w.start+'T00:00:00Z')+3*86400000).toISOString().slice(0,10))?.logoIds??[]).map(builtinId=>({builtinId})) : []);
+}
 export function PromotionLogo({event,admin=false}:{event:HubEvent;admin?:boolean}){
- const choice=event.promotionLogo;
+ return <>{publicLogoChoices(event).map((choice,i)=><SinglePromotionLogo key={choice.versionId??choice.builtinId??choice.url??i} event={event} choice={choice} admin={admin}/>)}</>;
+}
+function SinglePromotionLogo({event,choice,admin}:{event:HubEvent;choice:NonNullable<HubEvent['promotionLogo']>;admin:boolean}){
  if(!choice)return null;
  if(choice.builtinId)return <VenueLogo id={choice.builtinId}/>;
  const version=admin?event.logoVersions?.find(v=>v.id===choice.versionId&&v.role==='venue'):undefined;
@@ -42,6 +48,8 @@ export function VenueLogoSettings({event:e,hub}:{event:HubEvent;hub:HubControlle
  useEffect(()=>{if(!file){setPreview('');return;}const url=URL.createObjectURL(file);setPreview(url);return()=>URL.revokeObjectURL(url);},[file]);
  const versions=e.logoVersions??[];const selected=versions.find(v=>v.id===versionId);
  const busy=hub.status==='saving'||reading;
+ const publicChoices=publicLogoChoices(e);
+ const saveOrder=(items:typeof publicChoices|null,confirmed=false)=>hub.mutate({action:'event.logo.order',target:e.id,revision:e.revision,data:{items:items?.map(v=>({builtinId:v.builtinId,versionId:v.versionId}))??null,publicConfirmed:confirmed}});
  async function upload(){if(!file||!label.trim())return;setReading(true);try{
    if(!['image/png','image/jpeg','image/webp'].includes(file.type)||file.size>2*1024*1024)throw Error('PNG·JPEG·WebP 2MB 이하만 가능합니다.');
    const image=await createImageBitmap(file);const valid=image.width>0&&image.height>0&&image.width<=8192&&image.height<=8192&&image.width*image.height<=24000000;image.close();if(!valid)throw Error('원본 크기를 확인하세요. 가로·세로8192px 및2400만 화소 이하만 가능합니다.');
@@ -50,7 +58,8 @@ export function VenueLogoSettings({event:e,hub}:{event:HubEvent;hub:HubControlle
   }catch(err){hub.setError(err instanceof Error?err.message:'원본을 읽지 못했습니다.');}finally{setReading(false);}}
  return <HubCard><h3 className="font-black">행사 로고 선택·업로드</h3>
  <p>자크는 최신 지퍼 로고, M가라오케는 기존 제작 시안, 고래는 감사 전용입니다. 로고와 실제 장소·차수는 자동 배정하지 않습니다.</p>
- <div className="hub-promotion-preview"><strong>목록·상세에 표시하는 공개 홍보 로고</strong>{e.promotionLogo?<PromotionLogo event={e} admin/>:<p className="text-sm">전국투어는 해당 지역의 제공 로고를 기본으로 표시합니다.</p>}</div>
+ <div className="hub-promotion-preview"><strong>목록·상세·대기방에 표시하는 공개 홍보 로고</strong><div className="hub-tour-logos"><PromotionLogo event={e} admin/></div>{!publicChoices.length&&<p>공개 로고 연결 없음 · 행사명은 그대로 표시합니다.</p>}</div>
+ <ol className="space-y-2">{publicChoices.map((choice,index)=><li key={choice.builtinId??choice.versionId} className="flex flex-wrap items-center gap-2"><span>{index+1}. {VENUE_LOGOS.find(v=>v[0]===choice.builtinId)?.[1]??versions.find(v=>v.id===choice.versionId)?.label??'저장한 로고'}</span><HubButton disabled={busy||index===0} onClick={()=>{const next=[...publicChoices];[next[index-1],next[index]]=[next[index],next[index-1]];void saveOrder(next,true);}}>위로</HubButton><HubButton disabled={busy||index===publicChoices.length-1} onClick={()=>{const next=[...publicChoices];[next[index+1],next[index]]=[next[index],next[index+1]];void saveOrder(next,true);}}>아래로</HubButton><HubButton disabled={busy} onClick={()=>void saveOrder(publicChoices.filter((_,i)=>i!==index),true)}>연결 해제</HubButton></li>)}</ol>
  <HubField label="장소 로고"><select className={inputClass} value={versionId?'custom':id} onChange={x=>{setVersionId('');setId(x.target.value);}}><option value="">문자 안내만 / 미지정</option>{VENUE_LOGOS.map(([key,name])=><option key={key} value={key}>{name}</option>)}{versionId&&<option value="custom">저장한 원본 선택됨</option>}</select></HubField>
  <VenueLogo id={versionId?undefined:id}/>
  <HubField label="저장한 장소용 로고 버전"><select className={inputClass} value={versionId} onChange={x=>{setVersionId(x.target.value);if(x.target.value)setId('');}}><option value="">제공 로고 / 문자 안내</option>{versions.filter(v=>v.role==='venue').map((v,i)=><option key={v.id} value={v.id}>{i+1}. {v.label} · {v.provenance==='design'?'제작 시안':'제공 원본'} · {v.at}</option>)}</select></HubField>
@@ -59,6 +68,8 @@ export function VenueLogoSettings({event:e,hub}:{event:HubEvent;hub:HubControlle
  <p className="text-xs">위 버튼은 승인자용 장소 로고를 바꿉니다. 목록·상세에 공개하려면 아래에서 별도로 저장하세요.</p>
  <HubCheck label="선택한 로고에 연락처·상세 주소·개인정보가 없으며 공개 홍보에 사용해도 됩니다" checked={publicConfirmed} onChange={setPublicConfirmed}/>
  <HubButton disabled={busy||!publicConfirmed||(!id&&!versionId)} onClick={()=>hub.mutate({action:'event.logo.select',target:e.id,revision:e.revision,data:{versionId:versionId||null,builtinId:id||undefined,area:'promotion',publicConfirmed:true}})}>목록·상세의 공개 홍보 로고로 저장</HubButton>
+ <HubButton disabled={busy||!publicConfirmed||(!id&&!versionId)||publicChoices.length>=9} onClick={()=>void saveOrder([...publicChoices.filter(v=>versionId?v.versionId!==versionId:v.builtinId!==id),versionId?{versionId}:{builtinId:id}],true)}>공개 로고 목록 맨 뒤에 추가</HubButton>
+ {e.promotionLogos!==undefined&&<HubButton disabled={busy} onClick={()=>void saveOrder(null)}>공개 로고를 지역 기본값으로 복원</HubButton>}
  {e.promotionLogo&&<HubButton disabled={busy} onClick={()=>hub.mutate({action:'event.logo.select',target:e.id,revision:e.revision,data:{versionId:null,area:'promotion'}})}>공개 홍보 로고를 지역 기본값으로 복원</HubButton>}
  <details><summary>새 원본 업로드 · 미리보기 후 저장</summary><div className="space-y-3 mt-3">
   <p className="text-xs">PNG·JPEG·WebP 2MB 이하. 원본 비율과 바이트를 보존합니다. 저장과 행사 연결은 각각 확인합니다. 연락처·계좌·얼굴이 없는 로고만 올리세요.</p>

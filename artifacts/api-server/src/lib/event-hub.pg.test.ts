@@ -1,4 +1,5 @@
-import { assertOnsiteSocialWrite } from './event-onsite-access.js';
+import { withVerifiedBossParticipation } from './boss-participation.js';
+import { assertBossTestSocialScope, assertOnsiteSocialWrite } from './event-onsite-access.js';
 import { drawCampaign } from "./event-campaign-service.js";
 import { isolatedFixtureDatabase } from "./event-hub-isolation.js";
 import { beforeAll, beforeEach, afterAll, describe, expect, it } from "vitest";
@@ -2959,6 +2960,103 @@ suite("event hub V6 — actual isolated PostgreSQL transactions", () => {
     // Existing receipts remain readable after the draw window, without another stock deduction.
     expect((await service.receipt(owner,false,lastRequest!.requestId as string)).saved).toBe(true);
   });
+  it("companion drafts and one-time claims keep self/friend identities and permissions separate", async () => {
+    const friend=await service.session('C'.repeat(64),true),other=await service.session('D'.repeat(64),true),draftId=randomUUID();
+    const selfBefore=await service.store.transaction(tx=>tx.get('owner',owner));
+    await call('companion.draft.save','',{eventId,id:draftId,basic:{nickname:'친구한명',birthYear:1995,location:'파주'},permissionToProvide:true},0);
+    const own=await service.store.transaction(tx=>tx.get<import('./event-hub-service').HubOwner>('owner',owner));
+    expect(own?.basicDrafts).toEqual((selfBefore as import('./event-hub-service').HubOwner).basicDrafts);
+    expect((await service.state(owner)).applications).toHaveLength(0);
+    const requestId=randomUUID();
+    const invitation=await call('companion.invite',draftId,{eventId},1,false,owner,requestId);
+    expect(typeof invitation.invitationToken).toBe('string');
+    expect(JSON.stringify(await service.state(owner))).not.toContain('inviteHash');
+    expect(await service.receipt(owner,false,requestId)).not.toHaveProperty('invitationToken');
+    await expect(call('companion.claim','',{eventId,invitationToken:invitation.invitationToken,collection:true,version:HUB_CONSENT_VERSION})).rejects.toMatchObject({code:'COMPANION_SELF'});
+    const outcomes=await Promise.allSettled([friend,other].map(who=>call('companion.claim','',{eventId,invitationToken:invitation.invitationToken,collection:true,version:HUB_CONSENT_VERSION},undefined,false,who)));
+    expect(outcomes.filter(x=>x.status==='fulfilled')).toHaveLength(1);
+    const winner=outcomes[0].status==='fulfilled'?friend:other;
+    const friendState=await service.state(winner);
+    expect(friendState.basicDrafts?.[eventId].basic.nickname).toBe('친구한명');
+    const id=await create('친구한명',winner);
+    expect((await app(id,winner)).owner).toBe(winner);
+    expect((await app(id,winner)).sponsorOwner).toBe(owner);
+    expect((await service.state(owner)).applications).toHaveLength(0);
+    await expect(call('application.profile',id,{profile:fullProfile},(await app(id,winner)).revision)).rejects.toMatchObject({code:'APPLICATION'});
+    await expect(call('application.enter',id,{deviceSecret:randomUUID()},(await app(id,winner)).revision)).rejects.toMatchObject({code:'APPLICATION'});
+    await expect(call('application.draw',id,{},(await app(id,winner)).revision)).rejects.toMatchObject({code:'APPLICATION'});
+    expect((await service.state(owner)).companionDrafts?.[eventId].items[0].claimedAt).toBeTruthy();
+    expect(JSON.stringify((await service.state(winner)).applications)).not.toContain(owner);
+  });
+  it("resumes own saved application without decrypting an unrelated broken legacy nickname candidate",async()=>{
+    const id=await create();
+    await pool.query("INSERT INTO event_hub_records(kind,id,data) VALUES('application','zz-legacy-candidate',$1)",[JSON.stringify({id:'zz-legacy-candidate',owner:'unrelated-owner',eventId,rank:999,crypto_box:{v:1,iv:'invalid',tag:'invalid',ciphertext:'invalid'}})]);
+    expect(await create()).toBe(id);
+    expect((await service.store.transaction(tx=>tx.get<HubApplication>('application',id)))?.basic.nickname).toBe('테스터');
+  });
+  it("account changes before confirmation require re-selection without changing a confirmed payment", async () => {
+    const account={id:randomUUID(),bank:"합성은행",number:"0000-0000-0042"};
+    let e=(await adminState()).events.find(e=>e.id===eventId)!;
+    await call("event.save",eventId,{...e,accounts:[account]},e.revision,true);
+    const id=await create();
+    await call("application.consent",id,{consent},(await app(id)).revision);
+    await call("application.account",id,{accountId:account.id},(await app(id)).revision);
+    e=(await adminState()).events.find(e=>e.id===eventId)!;
+    await call("event.save",eventId,{...e,accounts:[{...account,number:"0000-0000-0043"}]},e.revision,true);
+    await expect(call("application.confirm",id,{},(await app(id)).revision)).rejects.toMatchObject({code:"ACCOUNT_CHANGED"});
+    expect((await app(id)).confirmedAt).toBeUndefined();
+    await call("application.account",id,{accountId:account.id},(await app(id)).revision);
+    await call("application.confirm",id,{},(await app(id)).revision);
+    expect((await app(id)).paymentAccount?.number).toBe("0000-0000-0043");
+  });
+  it("ordered logo links persist across saves, explicit empty differs from defaults, originals remain", async () => {
+    const current=async()=>(await adminState()).events.find(e=>e.id===eventId)!;
+    await expect(call("event.logo.order",eventId,{items:[{builtinId:"jack"}]},(await current()).revision)).rejects.toMatchObject({code:"ADMIN"});
+    await expect(call("event.logo.order",eventId,{items:[{builtinId:"jack"}]},(await current()).revision,true)).rejects.toMatchObject({code:"LOGO_PUBLIC_CONFIRM"});
+    await call("event.logo.order",eventId,{items:[{builtinId:"jack"},{builtinId:"on_top"}],publicConfirmed:true},(await current()).revision,true);
+    await call("event.logo.order",eventId,{items:[{builtinId:"on_top"},{builtinId:"jack"}]},(await current()).revision,true);
+    let e=await current();await call("event.save",eventId,{...e,promotionLogos:[]},e.revision,true);
+    expect((await current()).promotionLogos?.map(v=>v.builtinId)).toEqual(["on_top","jack"]);
+    await call("event.logo.order",eventId,{items:[]},(await current()).revision,true);
+    expect((await service.state(owner)).events.find(e=>e.id===eventId)?.promotionLogos).toEqual([]);
+    await call("event.logo.order",eventId,{items:null},(await current()).revision,true);
+    expect((await current()).promotionLogos).toBeUndefined();
+  });
+  it("verified boss uses actual participant API only for tagged events; approval, identity and global locks remain", async () => {
+    service=new EventHubService(new HubStore(pool),"isolated-test-session-secret",()=>new Date("2026-10-29T10:00:00Z"));
+    const modeService=new EventTestModeService(service.store);
+    const mode=(await modeService.state(true)).mode;
+    await service.store.transaction(tx=>tx.put("laboratory-mode","global",{...mode,enabled:true,publicAdmissionOpen:false,admissionOpenedAt:null}));
+    const settingsBefore=(await pool.query("SELECT data FROM app_kv_rows WHERE table_name='app_settings'")).rows;
+    await expect(service.prepareBossParticipantEvents()).rejects.toMatchObject({code:"BOSS_AUTH"});
+    const ids=await withVerifiedBossParticipation(()=>service.prepareBossParticipantEvents());
+    expect((await withVerifiedBossParticipation(()=>service.prepareBossParticipantEvents())).ids).toEqual(ids.ids);
+    expect((await service.state(owner)).events.some(e=>e.bossTestOnly)).toBe(false);
+    const run=<T,>(fn:()=>T)=>withVerifiedBossParticipation(fn);
+    await expect(run(()=>create())).rejects.toMatchObject({code:"TEST_MODE"});
+    const id=String((await run(()=>call("application.basic","",{eventId:ids.ids[1],basic:basic("보스시험")}))).id);
+    expect((await app(id)).bossTestOnly).toBe(true);
+    await expect(call("application.consent",id,{consent},(await app(id)).revision)).rejects.toMatchObject({code:"BOSS_AUTH"});
+    await run(()=>complete(id));
+    await expect(run(()=>call("application.enter",id,{deviceSecret:randomUUID()},1))).rejects.toMatchObject({code:"REVISION"});
+    await run(async()=>{await call("admin.application.free",id,{},(await app(id)).revision,true);});
+    await expect(run(async()=>call("application.enter",id,{deviceSecret:randomUUID()},(await app(id)).revision))).rejects.toMatchObject({code:"PROFILE_INCOMPLETE"});
+    await run(async()=>call("application.profile",id,{profile:fullProfile},(await app(id)).revision));
+    const result=await run(async()=>call("application.enter",id,{deviceSecret:randomUUID()},(await app(id)).revision));
+    expect(result.profile).toMatchObject({event_hub_application:id,boss_test_event:ids.ids[1]});
+    const entered=await app(id);
+    expect(entered.cycleId).toBe(`boss-test:${ids.ids[1]}`);
+    await expect(run(()=>service.store.transaction(tx=>assertOnsiteSocialWrite(tx,entered.profileId!)))).resolves.toBeUndefined();
+    const normal=randomUUID();await pool.query("INSERT INTO app_kv_rows(table_name,row_id,data) VALUES('profiles',$1,$2)",[normal,JSON.stringify({id:normal,nickname:"일반보존"})]);
+    await expect(service.store.transaction(tx=>assertBossTestSocialScope(tx,"likes",{liker_id:entered.profileId,liked_id:normal}))).rejects.toMatchObject({code:"BOSS_TEST_SCOPE"});
+    await expect(service.store.transaction(tx=>assertBossTestSocialScope(tx,"profile_views",{viewer_id:entered.profileId,viewed_id:normal}))).rejects.toMatchObject({code:"BOSS_TEST_SCOPE"});
+    await expect(service.store.transaction(tx=>assertBossTestSocialScope(tx,"group_chats",{id:randomUUID(),name:"운영 자동방"},entered.profileId))).rejects.toMatchObject({code:"BOSS_TEST_SCOPE"});
+    await run(async()=>call("admin.application.revoke",id,{reason:"격리 취소검사"},(await app(id)).revision,true));
+    await expect(run(()=>service.store.transaction(tx=>assertOnsiteSocialWrite(tx,entered.profileId!)))).rejects.toMatchObject({code:"EVENT_APPROVAL_REVOKED"});
+    expect((await pool.query("SELECT data FROM app_kv_rows WHERE table_name='app_settings'")).rows).toEqual(settingsBefore);
+    expect((await modeService.state(true)).mode).toMatchObject({enabled:true,publicAdmissionOpen:false});
+    expect((await app(id)).profileId).toBe(entered.profileId);
+  });
 
 });
 
@@ -2972,5 +3070,6 @@ suite('private PostgreSQL roles and RLS compatibility',()=>{
    expect(row.relrowsecurity).toBe(true);
   }finally{await pool.end();}
  });
+
 
 });

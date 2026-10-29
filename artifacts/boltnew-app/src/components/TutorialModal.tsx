@@ -900,6 +900,7 @@ export function TutorialModal({
       >
         <button
           onClick={onClose}
+          aria-label={applicationMode ? '신청 안내 닫기' : '이용 안내 닫기'}
           className="touch-target absolute top-2.5 right-2.5 z-10 flex items-center justify-center w-8 h-8 rounded-full bg-black/25 hover:bg-black/45 text-white backdrop-blur-md ring-1 ring-white/25 shadow-sm transition-all active:scale-95"
         >
           <X className="w-4 h-4" />

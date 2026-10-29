@@ -1,3 +1,4 @@
+import { PROFILE_CONSENT_VERSION } from '../../../lib/api-zod/src/event-hub';
 import { test, expect } from '@playwright/test';
 const password=process.env.HUB_E2E_BOSS_PASSWORD;
 if(!password)throw Error('Explicit isolated owner credential required');
@@ -31,6 +32,63 @@ test('actual React/API/PG: boss-only login, private laboratory persistence, logo
   expect((await page.request.get('/api/event-hub/admin')).status()).toBe(423);
   await page.reload();
   await expect(page.getByRole('heading',{name:'현재 테스트 중입니다'})).toBeVisible();
+});
+test('boss uses the ordinary application UI and actual admission API while public access and operating cycle remain closed',async({page,request,context},info)=>{
+  await context.route('**/*',r=>new URL(r.request().url()).origin===process.env.HUB_E2E_BASE_URL?r.continue():r.abort());
+  await page.setViewportSize({width:390,height:844});
+  await page.goto('/events');await page.getByRole('button',{name:'운영자 로그인'}).click();
+  await page.getByLabel('전화번호',{exact:true}).fill('010-0000-0000');await page.getByLabel('비밀번호',{exact:true}).fill(password!);
+  await page.getByRole('button',{name:'로그인',exact:true}).click();
+  await page.getByRole('button',{name:'금요일·토요일 신청 열기 / 이어하기'}).click();
+  await page.getByRole('button',{name:/보스 확인용.*10월 30/}).click();
+  await page.getByRole('button',{name:'신청 안내 닫기',exact:true}).click();
+  await page.getByText('친구와 함께 신청 · 본인/친구 따로 관리',{exact:true}).click();
+  await page.getByRole('button',{name:'친구 추가',exact:true}).click();
+  await page.getByLabel('친구 닉네임',{exact:true}).fill('동반시험');
+  await page.getByLabel('친구 출생연도 (네 자리)',{exact:true}).fill('1998');
+  await page.getByLabel(/친구에게 이번 행사/).check();
+  await page.getByRole('button',{name:'친구 정보 저장',exact:true}).click();
+  await expect(page.getByRole('heading',{name:'친구 1 · 동반시험'})).toBeVisible();
+  await page.reload();
+  await page.getByText('친구와 함께 신청 · 본인/친구 따로 관리',{exact:true}).click();
+  await expect(page.getByRole('heading',{name:'친구 1 · 동반시험'})).toBeVisible();
+  await page.getByRole('button',{name:'신청하기',exact:true}).click();
+  await page.getByLabel('[필수] 위 개인정보').check();await page.getByRole('button',{name:'다음',exact:true}).click();
+  const nickname='실앱'+String(Date.now()).slice(-3);
+  for(const [label,value] of [['닉네임',nickname],['태어난 년도','1995'],['사는 지역','서울'],['연락용 전화번호 (문자 인증 없음)','01000000000'],['실제 은행 입금 시 보내는 분 이름','가상확인']]){
+    await page.getByLabel(label,{exact:true}).fill(value);await page.getByRole('button',{name:'다음',exact:true}).click();
+  }
+  await page.getByLabel('필수 안내를 모두 확인하고 동의합니다',{exact:true}).check();
+  await page.getByRole('button',{name:'동의하고 다음'}).click();
+  await page.getByRole('button',{name:'금액 확인 후 신청 확정'}).click();
+  await expect(page.getByRole('heading',{name:'👤 내 프로필'})).toBeVisible();
+  await page.reload();await expect(page.getByRole('heading',{name:'👤 내 프로필'})).toBeVisible();
+  const api=async(path:string,body?:unknown,admin=false)=>page.evaluate(async({path,body,admin})=>{const r=await fetch('/api/event-hub'+path,{method:body===undefined?'GET':'POST',headers:{'content-type':'application/json',...(admin?{'x-admin-token':localStorage.getItem('admin_token_v1')!}:{})},...(body===undefined?{}:{body:JSON.stringify(body)})});return {status:r.status,body:await r.json()};},{path,body,admin});
+  const state=await api('/state');let app=state.body.applications.find((a:any)=>a.basic.nickname===nickname);
+  expect(app.bossTestOnly).toBe(true);expect(state.body.testMode).toMatchObject({enabled:true,publicAdmissionOpen:false});
+  const command=async(action:string,data:unknown,admin=false)=>{const s=await api('/state');app=s.body.applications.find((a:any)=>a.id===app.id);return api('/mutate',{action,target:app.id,revision:app.revision,data,requestId:crypto.randomUUID()},admin);};
+  expect((await command('application.enter',{deviceSecret:crypto.randomUUID()})).status).toBe(403);
+  const approved=await command(app.quote.fee===0?'admin.application.free':'admin.application.payment',app.quote.fee===0?{}:{status:'approved',testChecked:true},true);expect(approved.status).toBe(200);
+  expect((await command('application.profile',{profile:{mbti:'INTJ',interests:['여행','음악'],personalityScore:50,privacyConsent:{collection:true,sharing:true,version:PROFILE_CONSENT_VERSION},pushDecision:'skip',lastStep:6}})).status).toBe(200);
+  await page.reload();await page.getByRole('button',{name:'술번개 입장하기',exact:true}).click();
+  await expect.poll(()=>page.evaluate(()=>localStorage.getItem('matching_app_user_id'))).toBeTruthy();
+  const profileId=await page.evaluate(()=>localStorage.getItem('matching_app_user_id'));
+  await page.reload();await expect.poll(()=>page.evaluate(()=>localStorage.getItem('matching_app_user_id'))).toBe(profileId);
+  await expect(page.getByText('오늘 하트는 이렇게 써요',{exact:true}).or(page.getByRole('navigation',{name:'참여자 메뉴'})).first()).toBeVisible({timeout:20000});
+  if(await page.getByRole('button',{name:'건너뛰기',exact:true}).isVisible()) await page.getByRole('button',{name:'건너뛰기',exact:true}).click();
+  await expect(page.getByRole('navigation',{name:'참여자 메뉴'})).toBeVisible({timeout:20000});
+  const markerProtection = await page.evaluate(async()=>{
+    const {supabase}=await import('/src/lib/localdb.ts');
+    const id=localStorage.getItem('matching_app_user_id');
+    const changed=await supabase.from('profiles').update({boss_test_event:null}).eq('id',id);
+    const profiles=await supabase.from('profiles').select('*');
+    return {code:changed.error?.code, profiles:profiles.data};
+  });
+  expect(markerProtection.code).toBe('EVENT_LINK_PROTECTED');
+  expect(markerProtection.profiles?.every((p:any)=>p.boss_test_event===app.eventId)).toBe(true);
+  await page.screenshot({path:info.outputPath('boss-ordinary-participant-entered.png'),fullPage:true});
+  expect((await request.get('/api/event-hub/state')).status()).toBe(423);
+  expect((await api('/state')).body.testMode).toMatchObject({enabled:true,publicAdmissionOpen:false});
 });
 test('actual HTTP: boss password limit cannot be evaded with invented requester IDs',async({request})=>{
  const statuses=[];

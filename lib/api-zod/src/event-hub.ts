@@ -125,10 +125,15 @@ export const HubEventInput = z.object({
 });
 export type HubLogoVersion = {id:string;url:string;label:string;role:'venue'|'thanks';provenance:'original'|'design';sourceNote:string;mime:string;width:number;height:number;size:number;sha256:string;at:string};
 export type HubMaterial = {id:string;url:string;purpose:"notice"|"map"|"poster"|"video";alt:string;hidden:boolean;at:string};
+export type HubPromotionLogo = { builtinId?: string; versionId?: string; url?: string; label?: string; provenance?: 'original'|'design'; width?: number; height?: number };
 export type HubEvent = z.infer<typeof HubEventInput> & {
+  /** Server-created real API test event; never eligible for public admission. */
+  bossTestOnly?: boolean;
   /** Changed only by the explicit logo selection command; general event saves preserve it. */
   addressRecord?: VenueAddress;
-  promotionLogo?: { builtinId?: string; versionId?: string; url?: string; label?: string; provenance?: 'original'|'design'; width?: number; height?: number };
+  promotionLogo?: HubPromotionLogo;
+  /** undefined keeps legacy/default artwork; [] explicitly unlinks all public logos. */
+  promotionLogos?: HubPromotionLogo[];
   logoVersions?: HubLogoVersion[];
   materials?: HubMaterial[];
   id: string;
@@ -153,6 +158,9 @@ export type HubAudit = {
   reason?: string;
 };
 export type HubApplication = {
+  bossTestOnly?: boolean;
+  sponsorOwner?: string;
+  companionDraftId?: string;
   privacyPolicyConsent?:{version:string;fingerprint:string;at:string};
   erasedAt?: string;
   id: string;

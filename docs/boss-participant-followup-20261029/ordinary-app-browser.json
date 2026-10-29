@@ -1,0 +1,27 @@
+{
+  "at": "2026-10-29T10:40:07.357701+00:00",
+  "environment": "React + Express + isolated PostgreSQL; loopback only",
+  "viewport": {
+    "width": 390,
+    "height": 844
+  },
+  "browser": {
+    "passed": 3,
+    "failed": 0,
+    "seconds": 30.6
+  },
+  "checks": [
+    "boss login and existing laboratory persistence; no operating reset",
+    "ordinary application, companion draft save/reopen, consent and confirmation",
+    "manual virtual approval, mandatory profile, actual admission",
+    "reload same profile and actual participant navigation visible",
+    "server-owned test marker cannot be changed through profile update",
+    "participant list contains same test event only",
+    "anonymous old-token API/SSE blocked",
+    "password limit cannot be evaded by requester ID"
+  ],
+  "physicalPhones": "UNKNOWN",
+  "publicAdmissionOpen": false,
+  "testMode": true,
+  "previousFailuresRetained": true
+}

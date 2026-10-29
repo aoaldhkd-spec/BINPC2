@@ -1,3 +1,4 @@
+import { adminRequestScope } from './admin-request-scope';
 import { bossSseTicket } from "./boss-access-client";
 import { ls } from './storage';
 /**
@@ -386,7 +387,7 @@ class QueryBuilder {
       // 세션 쿠키가 없을 때 requesterId를 보내면 서버가 401 — 프로필 목록 등 SELECT는 null로 공개 조회
       requesterId: (_sessionReady && _currentUserId) ? _currentUserId : null,
       sessionToken: (_sessionReady && _sessionBearerToken) ? _sessionBearerToken : undefined,
-      adminToken: localStorage.getItem('admin_token_v1') ?? undefined, // admin bypass: included when logged in as admin
+      adminToken: readAdminTokenFromStorage() ?? undefined,
       testToken: localStorage.getItem('test_token_v1') ?? undefined,
     }) as Promise<DbResult<unknown>>;
   }
@@ -676,6 +677,7 @@ function fetchSseToken(userId: string): void {
 /** 사용자 로그인/로그아웃 시 호출 — SSE를 userId 식별 연결로 재연결 */
 function readAdminTokenFromStorage(): string | null {
   try {
+    if (!adminRequestScope(window.location.pathname, import.meta.env.BASE_URL)) return null;
     const t = localStorage.getItem('admin_token_v1');
     return t && t.length > 0 ? t : null;
   } catch {
@@ -689,6 +691,16 @@ function sseConnectionHasAdminToken(es: EventSource | null): boolean {
     return /[?&]adminToken=/.test(es.url);
   } catch {
     return false;
+  }
+}
+
+/** Drop administrator delivery before participant screens mount, without logging out. */
+export function refreshSseAccessScope(): void {
+  if (_es && sseConnectionHasAdminToken(_es) && !readAdminTokenFromStorage()) {
+    closeSse('participant-sse-scope');
+    _lastEventId = '';
+    try { sessionStorage.removeItem('sse_last_event_id'); } catch { /* optional storage */ }
+    if (_sseListeners.size > 0) ensureSse();
   }
 }
 
@@ -917,6 +929,11 @@ function closeSse(reason = 'close') {
 }
 
 function ensureSse() {
+  if (_es && sseConnectionHasAdminToken(_es) && !readAdminTokenFromStorage()) {
+    closeSse('participant-sse-scope');
+    _lastEventId = '';
+    try { sessionStorage.removeItem('sse_last_event_id'); } catch { /* optional storage */ }
+  }
   // 로그인 사용자는 토큰이 생기기 전 익명 SSE에 붙지 않습니다.
   // 익명 연결은 채팅·하트 같은 비공개 이벤트를 받지 못해 메시지 누락의 주원인입니다.
   // 만료된 토큰도 마찬가지로 사용하지 않습니다 — 서버가 401 로 끊고 EventSource 가

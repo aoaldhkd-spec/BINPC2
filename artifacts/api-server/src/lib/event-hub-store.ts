@@ -179,6 +179,30 @@ export class HubTx {
   private nicknameHash(normalized: string) {
     return createHmac("sha256", this.key).update(normalized).digest("hex");
   }
+  /** One round trip for independent basic-form reads; ciphertext and owner checks
+   * are still verified after decoding. Legacy lookup-free records are included. */
+  async basicInputs<A, M>(owner: string, normalized: string) {
+    const rows = (await this.db.query(
+      `SELECT DISTINCT ON (kind,id) kind,id,data FROM (
+        SELECT kind,id,data FROM event_hub_records WHERE kind='application' AND data->>'owner'=$1
+        UNION ALL SELECT kind,id,data FROM event_hub_records WHERE kind='member' AND data->>'owner'=$1
+        UNION ALL SELECT kind,id,data FROM event_hub_records WHERE kind='application' AND data->>'nicknameLookup'=$2
+        UNION ALL SELECT kind,id,data FROM event_hub_records WHERE kind='member' AND data->>'nicknameLookup'=$2
+        UNION ALL SELECT kind,id,data FROM event_hub_records WHERE kind='application' AND NOT(data ? 'nicknameLookup')
+        UNION ALL SELECT kind,id,data FROM event_hub_records WHERE kind='member' AND NOT(data ? 'nicknameLookup')
+        UNION ALL SELECT kind,id,data FROM event_hub_records WHERE kind='member' AND NOT(data ? 'owner')
+      ) candidates
+      UNION ALL SELECT 'live-profile' AS kind,row_id AS id,jsonb_build_object('nickname',data->'nickname','event_hub_owner',data->'event_hub_owner') AS data FROM app_kv_rows WHERE table_name='profiles'`,
+      [owner, this.nicknameHash(normalized)],
+    )).rows;
+    return {
+      applications: rows.filter(r=>r.kind==='application' && r.data.owner===owner).map(r=>this.decode<A>('application',r.id,r.data)),
+      members: rows.filter(r=>r.kind==='member' && (r.data.owner===owner || !Object.hasOwn(r.data,'owner'))).map(r=>this.decode<M>('member',r.id,r.data)),
+      nicknameApplications: () => rows.filter(r=>r.kind==='application').map(r=>this.decode<A>('application',r.id,r.data)),
+      nicknameMembers: () => rows.filter(r=>r.kind==='member').map(r=>this.decode<M>('member',r.id,r.data)),
+      profiles: rows.filter(r=>r.kind==='live-profile').map(r=>r.data as {nickname?:string;event_hub_owner?:string}),
+    };
+  }
   async nicknameCandidates<T>(
     kind: "application" | "member",
     normalized: string,

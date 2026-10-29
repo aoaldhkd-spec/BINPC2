@@ -17,6 +17,7 @@ export function VenueDirectoryEditor({hub,event}:{hub:ReturnType<typeof useEvent
     {([['label','자료 이름'],['roadOriginal','도로명 원문'],['parcelOriginal','지번 원문'],['floor','층'],['source','제공 출처']] as const).map(([key,label])=><HubField label={label} key={key}><input className={inputClass} value={value[key]} onChange={e=>setValue({...value,[key]:e.target.value})}/></HubField>)}
     <HubButton disabled={hub.status==='saving'} onClick={async()=>{const result=await hub.mutate({action:'venue.address.save',revision:baseRevision,data:value});if(result){setConfirmed(false);setBaseRevision(baseRevision+1);}}}>매장 주소 저장</HubButton>
     {event&&<>{dirty&&<p>변경한 주소를 먼저 저장한 뒤 1차 배정을 확인해 주세요.</p>}<p>연결할 행사: {event.date} · {event.title}</p><label className="block"><input type="checkbox" checked={confirmed} onChange={e=>setConfirmed(e.target.checked)}/> 이 매장의 해당 날짜 1차 배정을 확인했습니다</label><HubButton disabled={dirty||!confirmed||!value.venueId||!directory.items.some(v=>v.id===value.id)||hub.status==='saving'} onClick={()=>hub.mutate({action:'event.address.select',target:event.id,revision:event.revision,data:{addressId:value.id,confirmedFirstRound:true}})}>이 행사 1차 장소로 연결</HubButton></>}
+    {event?.venueAddressId&&<HubButton disabled={hub.status==='saving'} onClick={()=>hub.mutate({action:'event.address.select',target:event.id,revision:event.revision,data:{addressId:null}})}>이 행사 주소 연결 해제 (원문·이력 보존)</HubButton>}
     <p className="text-xs">이전 원문과 변경 이력은 보존됩니다. 외부 지도 검증을 대신하지 않습니다.</p>
   </details></HubCard>;
 }

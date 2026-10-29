@@ -1,8 +1,10 @@
-import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react';
+import { createContext, useContext, useCallback, useEffect, useRef, useState, type ReactNode } from 'react';
 import { LoginScreen } from '../admin/LoginScreen';
 import { setBossSseTicket, logoutBossAccess } from '../lib/boss-access-client';
 
 type Status = { locked: boolean; authorized: boolean; sseTicket?: string };
+const BossTestContext = createContext(false);
+export const useBossTestAccess = () => useContext(BossTestContext);
 export function BossAccessBoundary({ children }: { children: ReactNode }) {
   const [status, setStatus] = useState<Status | null>(null), [failed, setFailed] = useState(false), [login, setLogin] = useState(false);
   const request = useRef(0);
@@ -39,8 +41,9 @@ export function BossAccessBoundary({ children }: { children: ReactNode }) {
     : null;
   // A transient access lookup must hide, not destroy, the already mounted profile/chat draft.
   // A confirmed unauthenticated result unmounts service screens; saved records stay untouched.
-  return <>{overlay}<div hidden={!!overlay}>{mayMount && <>
+  return <BossTestContext.Provider value={status?.locked === true && status.authorized === true}>{overlay}<div hidden={!!overlay}>{mayMount && <>
     {status?.locked && <div className="bg-slate-900 text-white text-sm flex flex-wrap items-center justify-center gap-3 px-3 py-2"><span>보스 테스트 중 · 일반 이용은 잠겨 있습니다</span><a className="underline" href="/admin">관리자</a><button className="underline" onClick={() => void logoutBossAccess().then(check).catch(() => setFailed(true))}>테스트 로그아웃</button>{failed && <span role="alert">로그아웃을 확인하지 못했습니다. 다시 시도해 주세요.</span>}</div>}
+    {status?.locked && status.authorized && <nav className="bg-slate-900 px-3 pb-2 text-center text-sm text-white"><a className="underline" href="/events">일반 화면에서 신청·입장</a></nav>}
     {children}
-  </>}</div></>;
+  </>}</div></BossTestContext.Provider>;
 }

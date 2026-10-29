@@ -1,0 +1,117 @@
+{
+  "runId": "mixed-1793269215607",
+  "durationSeconds": 127,
+  "requestCount": 4274,
+  "statusCounts": {
+    "200": 4266,
+    "409": 8
+  },
+  "failures": [],
+  "recordsBefore": 74111,
+  "recordsAfter": 76826,
+  "cohorts": [
+    100,
+    150
+  ],
+  "restartVerified": true,
+  "lostResponseReplay": true,
+  "profileRecovery": true,
+  "socialRecovery": true,
+  "latency": {
+    "fixture-activation": {
+      "requests": 6,
+      "p50Ms": 22.5,
+      "p95Ms": 33.8,
+      "p99Ms": 33.8,
+      "maxMs": 33.8
+    },
+    "150-real-sessions": {
+      "requests": 150,
+      "p50Ms": 1001.2,
+      "p95Ms": 1635.5,
+      "p99Ms": 1708.4,
+      "maxMs": 1731
+    },
+    "100-concurrent-applications": {
+      "requests": 100,
+      "p50Ms": 3203.9,
+      "p95Ms": 5914.1,
+      "p99Ms": 6124.2,
+      "maxMs": 6124.2
+    },
+    "150-mixed-applications-and-consent": {
+      "requests": 510,
+      "p50Ms": 2809.2,
+      "p95Ms": 6163.9,
+      "p99Ms": 6252,
+      "maxMs": 6293.3
+    },
+    "150-profile-payment-inquiry": {
+      "requests": 760,
+      "p50Ms": 1606,
+      "p95Ms": 1736.2,
+      "p99Ms": 1756.9,
+      "maxMs": 1833.7
+    },
+    "150-enter-and-three-cards": {
+      "requests": 910,
+      "p50Ms": 3445.1,
+      "p95Ms": 6498.9,
+      "p99Ms": 6752.2,
+      "maxMs": 6950
+    },
+    "150-social-hearts-chat": {
+      "requests": 460,
+      "p50Ms": 1828.3,
+      "p95Ms": 3671.7,
+      "p99Ms": 3776.7,
+      "maxMs": 3800.5
+    },
+    "duplicate-prize-rejection": {
+      "requests": 24,
+      "p50Ms": 12.2,
+      "p95Ms": 21.2,
+      "p99Ms": 21.2,
+      "maxMs": 21.2
+    },
+    "stored-response-lost-replay": {
+      "requests": 3,
+      "p50Ms": 16.4,
+      "p95Ms": 19.8,
+      "p99Ms": 19.8,
+      "maxMs": 19.8
+    },
+    "restart": {
+      "requests": 600,
+      "p50Ms": 1149.2,
+      "p95Ms": 2454.7,
+      "p99Ms": 2546.7,
+      "maxMs": 2572
+    },
+    "sustained-150-mixed": {
+      "requests": 751,
+      "p50Ms": 1092,
+      "p95Ms": 2211.3,
+      "p99Ms": 2541.3,
+      "maxMs": 2595.9
+    }
+  },
+  "memory": {
+    "rssMinMB": 151.2734375,
+    "rssMaxMB": 299.6484375,
+    "heapMinMB": 19.070533752441406,
+    "heapMaxMB": 114.38121032714844,
+    "samples": 24
+  },
+  "db": {
+    "samples": 127,
+    "maxConnections": 13,
+    "maxLockWaiters": 0,
+    "maxTransactionSeconds": 0.277155
+  },
+  "twoSecondGoal": "FAIL",
+  "physicalDevices": "UNKNOWN",
+  "operatingDatabaseUsed": false,
+  "no503InThisRun": true,
+  "notLongDurationCompletion": true
+}

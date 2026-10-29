@@ -9,6 +9,7 @@ import { verifyAdminToken, eventHubProfileCommitted, eventHubChanged } from "./d
 import { issueSessionToken } from "../lib/db-session-tokens.js";
 import { logger } from "../lib/logger.js";
 import { EventTestModeService } from "../lib/event-test-mode.js";
+import { bossParticipationAllowed } from '../lib/boss-participation.js';
 
 declare module "express-session" {
   interface SessionData {
@@ -36,7 +37,10 @@ router.use((req, res, next) => {
 });
 router.get("/verification",async(req,res,next)=>{try{if(!admin(req))throw new HubError(403,"ADMIN","관리자 인증이 필요합니다.");res.json(await readVerificationEvidence());}catch(e){next(e);}});
 router.get("/test-mode", async (_req, res, next) => {
-  try { res.json(await eventTestModeService.publicState()); } catch (e) { next(e); }
+  try { res.json({...await eventTestModeService.publicState(), bossParticipationAllowed:bossParticipationAllowed()}); } catch (e) { next(e); }
+});
+router.post('/boss-participant-events',async(_req,res,next)=>{
+  try { res.json(await eventHubService.prepareBossParticipantEvents()); eventHubChanged(); } catch(e){next(e);}
 });
 router.get("/laboratory", async (req, res, next) => {
   try { res.json(await eventTestModeService.state(admin(req))); } catch (e) { next(e); }

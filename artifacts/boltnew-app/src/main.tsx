@@ -10,6 +10,7 @@ import { clearLegacyThemeArtifacts } from './lib/theme';
 import { AppErrorBoundary } from './components/AppErrorBoundary';
 import { TestGate } from './components/TestGate';
 import { clientNavigationHref, resolveClientNavigation } from './lib/client-navigation';
+import { refreshSseAccessScope } from './lib/localdb';
 
 const UnsubscribePage = lazy(() => import('./event-hub/NotificationReadiness').then(m=>({default:m.UnsubscribePage})));
 const EventHubPage = lazy(() => import('./event-hub/EventHubPage'));
@@ -33,7 +34,10 @@ function Root() {
   const base = import.meta.env.BASE_URL.replace(/\/$/, '');
 
   useEffect(() => {
-    const syncPath = () => startTransition(() => setPath(window.location.pathname));
+    const syncPath = () => {
+      refreshSseAccessScope();
+      startTransition(() => setPath(window.location.pathname));
+    };
     const onClick = (event: MouseEvent) => {
       if (
         event.defaultPrevented

@@ -1,4 +1,7 @@
 import { VenueAddressInput, type VenueDirectory } from "../../../../lib/api-zod/src/event-venue-directory.js";
+import { bossParticipationAllowed } from './boss-participation.js';
+import { companionCommand, companionDraftViews, type CompanionGroup } from './companion-records.js';
+import { campaignPresets } from '@workspace/api-zod';
 import { cardSlotAvailable } from "../../../../lib/api-zod/src/event-card-clock.js";
 import { validateLogoOriginal } from "./event-hub-logo.js";
 import { HubBasicDraftInput, type HubBasicDraft } from "@workspace/api-zod";
@@ -100,6 +103,8 @@ export type HubOwner = {
   recoveryHash: string;
   createdAt: string;
   basicDrafts?: Record<string, HubBasicDraft>;
+  companionDrafts?: Record<string, CompanionGroup>;
+  companionOrigins?: Record<string,{sponsorOwner:string;companionDraftId:string;claimedAt:string}>;
   memberId?: string;
   restricted?: { active: boolean; reason: string; at: string };
   history?: HubAudit[];
@@ -307,12 +312,24 @@ export class EventHubService {
   }
   private async app(tx: HubTx, id: string, owner: string, admin: boolean) {
     const a = await tx.get<HubApplication>("application", id);
-    if (!a || (!admin && (a.owner !== owner || a.erasedAt)))
+    if (!a || (!admin && (a.owner !== owner || a.erasedAt || (a.bossTestOnly && !bossParticipationAllowed()))))
       fail("APPLICATION", "신청정보에 접근할 수 없습니다.", 404);
     return a;
   }
+  async prepareBossParticipantEvents() {
+    if (!bossParticipationAllowed()) fail("BOSS_AUTH", "보스 로그인 후 사용할 수 있습니다.", 403);
+    return this.store.transaction(async tx => {
+      const ids: string[] = [];
+      for (const preset of campaignPresets().filter(p => p.event.campaign.kind.startsWith('halloween'))) {
+        const result = await campaignAction(tx, {action:'campaign.prepare',target:preset.key,data:{}}, true, this.now().toISOString(), true);
+        ids.push(String(result.id));
+      }
+      return { ids };
+    });
+  }
   async state(owner?: string, admin = false) {
     return this.store.transaction(async (tx) => {
+      const boss = bossParticipationAllowed();
       await tx.prefetch([{kind:'laboratory-mode',id:'global'},{kind:'settings',id:'global'},{kind:'settings',id:'privacy-policy'},...(owner?[{kind:'owner',id:owner},{kind:'thread',id:owner}]:[])]);
       const testMode = publicEventTestMode(await readEventTestMode(tx));
       const enabled = await this.enabled(tx);
@@ -322,10 +339,12 @@ export class EventHubService {
         : undefined;
       if (account?.erasedAt && !admin)
         fail("AUTH", "삭제 처리된 신청 세션입니다.", 401);
-      if (!enabled && !owner && !admin)
+      if (!enabled && !owner && !admin && !boss)
         return {
           testMode,
           basicDrafts: undefined,
+          companionDrafts: undefined,
+          bossParticipationAllowed: false,
           venueDirectory: undefined,
           privacyPolicy: undefined,
           privacyCase: undefined,
@@ -356,19 +375,20 @@ export class EventHubService {
         admin
           ? await tx.all<HubApplication>("application")
           : await tx.applicationsForOwner<HubApplication>(owner ?? "")
-      ).filter((a) => admin || a.owner === owner);
+      ).filter((a) => admin || (a.owner === owner && (!a.bossTestOnly || boss)));
       const safeEvents: HubEventView[] = admin
         ? events
         : events
             .filter(
-              (e) =>
-                (enabled &&
+              (e) => (!e.bossTestOnly || boss) && (
+                (e.bossTestOnly && boss) || (enabled &&
                   !publicationBlocked &&
                   (recruitmentIsOpen(e, this.now()) || (e.scheduleEnabled && !e.schedulePaused && !eventEnded(e,this.now())))) ||
-                apps.some((a) => a.eventId === e.id),
+                apps.some((a) => a.eventId === e.id)),
             )
             .map((e) => ({
               id: e.id,
+              bossTestOnly: e.bossTestOnly,
               title: e.title,
               type: e.type,
               date: e.date,
@@ -391,6 +411,11 @@ export class EventHubService {
               promotionLogo: e.promotionLogo?.versionId
                 ? (() => { const v=e.logoVersions?.find(v=>v.id===e.promotionLogo?.versionId && v.role==='venue'); return v ? {url:v.url,label:v.label,provenance:v.provenance,width:v.width,height:v.height} : undefined; })()
                 : e.promotionLogo?.builtinId ? {builtinId:e.promotionLogo.builtinId} : undefined,
+              promotionLogos: e.promotionLogos?.flatMap<NonNullable<HubEvent["promotionLogo"]>>(choice => {
+                if (choice.builtinId) return [{builtinId:choice.builtinId}];
+                const v = e.logoVersions?.find(v => v.id === choice.versionId && v.role === 'venue');
+                return v ? [{url:v.url,label:v.label,provenance:v.provenance,width:v.width,height:v.height}] : [];
+              }),
               media: e.media.filter(url => {
                 const material=e.materials?.find(v=>v.url===url);
                 return !material?.hidden && (material?.purpose==="notice" || apps.some(a=>a.eventId===e.id && paymentSatisfied(a) && !a.erasedAt));
@@ -401,15 +426,13 @@ export class EventHubService {
                 notice: v.notice,
               })),
               recruitment:
-                enabled &&
+                (boss && e.bossTestOnly && !eventEnded(e,this.now())) || (enabled &&
                 !testMode.enabled &&
                 testMode.publicAdmissionOpen &&
                 !publicationBlocked &&
-                recruitmentIsOpen(e, this.now()),
+                recruitmentIsOpen(e, this.now())),
               cardsEnabled:
-                enabled &&
-                !testMode.enabled &&
-                testMode.publicAdmissionOpen &&
+                ((boss && e.bossTestOnly) || (enabled && !testMode.enabled && testMode.publicAdmissionOpen)) &&
                 drawModuleEnabled(e, switches) &&
                 !eventEnded(e, this.now()),
             }));
@@ -465,8 +488,10 @@ export class EventHubService {
       const publicationPolicy=await tx.get<PrivacyPolicy>("settings","privacy-policy");
       return {
         testMode,
+        bossParticipationAllowed: boss,
         venueDirectory: admin ? (await tx.get<VenueDirectory>("settings","venue-directory") ?? {revision:0,items:[],history:[]}) : undefined,
         basicDrafts: !admin && !account?.erasedAt ? account?.basicDrafts ?? {} : undefined,
+        companionDrafts: !admin && !account?.erasedAt ? companionDraftViews(account) : undefined,
         privacyNotice:publicPolicyNotice(publicationPolicy),
         publicationBlocked:admin?publicationBlocked:undefined,
         retentionDays:
@@ -499,7 +524,7 @@ export class EventHubService {
         members,
         serverNow: this.now().toISOString(),
         errors,
-        enabled,
+        enabled: enabled || boss,
         events: safeEvents,
         applications: safeApps,
         readiness: admin
@@ -548,7 +573,14 @@ export class EventHubService {
         ...(owner ? [{kind:"owner",id:owner}] : []),
         ...((m.action.startsWith("application.") || m.action.startsWith("admin.application.")) && !["application.basic", "application.basic-draft"].includes(m.action) ? [{kind:"application",id:m.target}] : []),
       ]);
-      if (["application.basic-draft", "application.basic", "application.consent", "application.confirm", "application.report", "application.enter", "application.draw"].includes(m.action))
+      const targetApp = m.action.startsWith('application.') && !['application.basic','application.basic-draft'].includes(m.action) ? await tx.get<HubApplication>('application',m.target) : undefined;
+      const targetEventId = targetApp?.eventId ?? (typeof m.data.eventId === 'string' ? m.data.eventId : '');
+      const targetEvent = targetEventId ? await tx.get<HubEvent>('event',targetEventId) : undefined;
+      const bossTestRequest = bossParticipationAllowed() && targetEvent?.bossTestOnly === true && (!targetApp || targetApp.owner === owner);
+      if (targetEvent?.bossTestOnly && !bossTestRequest && !admin) fail('BOSS_AUTH','보스 확인용 행사입니다.',403);
+      if (bossTestRequest && targetEvent && eventEnded(targetEvent,this.now()) && (['application.basic','application.basic-draft','application.confirm'].includes(m.action)||m.action.startsWith('companion.')))
+        fail('EVENT_ENDED','행사 접수가 종료되었습니다. 기존 기록은 보존됩니다.',403);
+      if (!bossTestRequest && (m.action.startsWith('companion.') || ["application.basic-draft", "application.basic", "application.consent", "application.confirm", "application.report", "application.enter", "application.draw"].includes(m.action)))
         await assertTestModeAllowsPublicMutation(tx);
       const prior = await tx.get<{
         hash: string;
@@ -572,7 +604,7 @@ export class EventHubService {
       if (m.action === "application.basic" || m.action === "application.basic-draft")
         await applyScheduledRecruitment(tx, this.now(), enabled);
       const requireEnabled = () => {
-        if (!enabled)
+        if (!enabled && !bossTestRequest)
           fail("MODULE_DISABLED", "술번개 신청 기능이 꺼져 있습니다.", 403);
       };
       const requireAdmin = () => {
@@ -590,7 +622,17 @@ export class EventHubService {
         saved: true,
         requestId: m.requestId,
       };
-      if (m.action === "venue.address.save") {
+      if (m.action.startsWith('companion.')) {
+        requireEnabled();
+        const e=await this.event(tx,text(m.data.eventId));
+        if(!bossTestRequest && publicationBlocked)fail('PRIVACY_POLICY_UNCONFIRMED','개인정보 정책 확정 전 신규 신청은 차단됩니다.',403);
+        if(!bossTestRequest && !recruitmentIsOpen(e,this.now()))fail('CLOSED','현재 신청 접수 중이 아닙니다.',403);
+        const policy=await tx.get<PrivacyPolicy>('settings','privacy-policy');
+        if(process.env.NODE_ENV==='production' && publicPolicyNotice(policy) && m.data.privacyPolicyFingerprint!==policyFingerprint(policy!))fail('PRIVACY_NOTICE_CHANGED','최신 개인정보 안내를 확인해 주세요.',409);
+        const year=(m.data.basic as {birthYear?:unknown}|undefined)?.birthYear;
+        if(typeof year==='number'&&!isAdultBirthYear(year,this.now()))fail('ADULT','성인 참가 조건을 확인해 주세요.');
+        Object.assign(result,await companionCommand(tx,{owner,eventId:e.id,now,command:m,maxDrafts:20,invitationTtlMs:24*3600000}));
+      } else if (m.action === "venue.address.save") {
         requireAdmin();
         const directory = await tx.get<VenueDirectory>("settings","venue-directory") ?? {revision:0,items:[],history:[]};
         revision(directory.revision);
@@ -603,6 +645,11 @@ export class EventHubService {
         await tx.put("settings","venue-directory",directory);
       } else if (m.action === "event.address.select") {
         requireAdmin(); const e=await this.event(tx,m.target); revision(e.revision);
+        if (m.data.addressId === null) {
+          e.versions=[...(e.versions??[]),{at:now,notice:e.notice,address:e.address,fee:e.fee,account:e.account}];
+          e.addressRecord=undefined; e.venueAddressId=null; e.address="";
+          e.revision++;e.history.push(audit(actor,"event.address.unlink",now));await tx.put("event",e.id,e);
+        } else {
         const directory=await tx.get<VenueDirectory>("settings","venue-directory");
         const value=directory?.items.find(v=>v.id===m.data.addressId);
         if(!value?.venueId || m.data.confirmedFirstRound!==true || (e.campaign && e.campaign.round!==1)) fail("VENUE_ASSIGNMENT","확인된 1차 장소만 연결할 수 있습니다.",409);
@@ -610,6 +657,7 @@ export class EventHubService {
         e.addressRecord=value; e.venueAddressId=value!.id;e.venueLogoId=value!.venueId!;e.venueLogoVersionId=undefined;
         e.address=[value!.roadOriginal,value!.parcelOriginal].filter(Boolean).join(" / ");
         e.revision++;e.history.push(audit(actor,"event.address.select",now));await tx.put("event",e.id,e);
+        }
       } else if (m.action.startsWith("campaign.")) {
         Object.assign(result, await campaignAction(tx, m, admin, now));
       } else if (m.action === "event.logo.upload") {
@@ -626,6 +674,18 @@ export class EventHubService {
           e.revision++;e.history.push(audit(actor,"event.logo.upload",now,id));await tx.put("event",e.id,e);
           result.versionId=id;result.mediaUrl=url;
         }
+      } else if (m.action === "event.logo.order") {
+        requireAdmin(); const e=await this.event(tx,m.target);revision(e.revision);
+        const choices=z.array(z.object({builtinId:z.enum(["red_hole","fake","jack","m_karaoke","speed","check_in","on_top","black"]).optional(),versionId:z.string().uuid().optional()}).refine(v=>Boolean(v.builtinId)!==Boolean(v.versionId))).max(9).nullable().parse(m.data.items);
+        if(choices){
+          const keys=choices.map(v=>v.builtinId??v.versionId);
+          if(new Set(keys).size!==keys.length)fail("LOGO","같은 로고를 중복 연결할 수 없습니다.");
+          for(const c of choices)if(c.versionId&&!e.logoVersions?.some(v=>v.id===c.versionId&&v.role==='venue'))fail("LOGO","이 행사의 장소용 원본만 연결할 수 있습니다.");
+          const old=e.promotionLogos??(e.promotionLogo?[e.promotionLogo]:[]);
+          if(choices.some(c=>!old.some(v=>v.builtinId===c.builtinId&&v.versionId===c.versionId))&&m.data.publicConfirmed!==true)fail("LOGO_PUBLIC_CONFIRM","연락처·상세 주소가 없는 공개 홍보용 로고인지 확인해 주세요.");
+        }
+        e.promotionLogos=choices??undefined; e.promotionLogo=undefined;
+        e.revision++;e.history.push(audit(actor,"event.logo.order",now,choices===null?"지역 기본값 복원":JSON.stringify(choices)));await tx.put("event",e.id,e);result.id=e.id;
       } else if (m.action === "event.logo.select") {
         requireAdmin();
         const e=await this.event(tx,m.target);revision(e.revision);
@@ -634,6 +694,7 @@ export class EventHubService {
         if(choice.area==='promotion'){
           if((choice.versionId||choice.builtinId)&&choice.publicConfirmed!==true)fail("LOGO_PUBLIC_CONFIRM","연락처·상세 주소가 없는 공개 홍보용 로고인지 확인해 주세요.");
           e.promotionLogo=choice.versionId?{versionId:choice.versionId}:choice.builtinId?{builtinId:choice.builtinId}:undefined;
+          e.promotionLogos=undefined;
         }
         else if(choice.area==="thanks")e.thanksLogoVersionId=choice.versionId??undefined;
         else {e.venueLogoVersionId=choice.versionId??undefined;e.venueLogoId=choice.versionId?undefined:choice.builtinId;}
@@ -685,6 +746,7 @@ export class EventHubService {
         if (old) revision(old.revision);
         const e: HubEvent = {
           ...validateEvent(m.data),
+          bossTestOnly: old?.bossTestOnly,
           id: old?.id ?? randomUUID(),
           revision: (old?.revision ?? 0) + 1,
           recruitment: old?.recruitment ?? false,
@@ -692,6 +754,7 @@ export class EventHubService {
           history: [...(old?.history ?? []), audit(actor, "event.save", now)],
           logoVersions: old?.logoVersions,
           promotionLogo: old?.promotionLogo,
+          promotionLogos: old?.promotionLogos,
           addressRecord: old?.addressRecord,
           materials: old?.materials,
         };
@@ -845,9 +908,9 @@ export class EventHubService {
         });
       } else if (m.action === "application.basic-draft") {
         requireEnabled();
-        if (publicationBlocked) fail("PRIVACY_POLICY_UNCONFIRMED", "운영 개인정보 정책 확정 전 신규 신청은 차단됩니다.", 403);
+        if (publicationBlocked && !bossTestRequest) fail("PRIVACY_POLICY_UNCONFIRMED", "운영 개인정보 정책 확정 전 신규 신청은 차단됩니다.", 403);
         const e = await this.event(tx, text(m.data.eventId));
-        if (!recruitmentIsOpen(e, this.now())) fail("CLOSED", "현재 신청 접수 중이 아닙니다.", 403);
+        if (!bossTestRequest && !recruitmentIsOpen(e, this.now())) fail("CLOSED", "현재 신청 접수 중이 아닙니다.", 403);
         const own = await tx.get<HubOwner>("owner", owner);
         if (!own) fail("AUTH", "개인 신청 세션을 복구해 주세요.", 401);
         if (own.restricted?.active) fail("RESTRICTED", "관리자 확인이 필요한 신청입니다.", 403);
@@ -864,14 +927,14 @@ export class EventHubService {
         result.draft = own.basicDrafts[e.id];
       } else if (m.action === "application.basic") {
         requireEnabled();
-        if (publicationBlocked)
+        if (publicationBlocked && !bossTestRequest)
           fail(
             "PRIVACY_POLICY_UNCONFIRMED",
             "운영 개인정보 정책 확정 전 신규 신청은 차단됩니다.",
             403,
           );
         const e = await this.event(tx, text(m.data.eventId));
-        if (!recruitmentIsOpen(e, this.now()))
+        if (!bossTestRequest && !recruitmentIsOpen(e, this.now()))
           fail("CLOSED", "현재 신청 접수 중이 아닙니다.", 403);
         const own = await tx.get<HubOwner>("owner", owner);
         if (!own) fail("AUTH", "개인 신청 세션을 복구해 주세요.", 401);
@@ -899,8 +962,9 @@ export class EventHubService {
           /관리자|범일NPC|admin|운영자/i.test(basic.nickname)
         )
           fail("NICKNAME", "사용할 수 없는 닉네임입니다.");
-        const apps = (await tx.applicationsForOwner<HubApplication>(owner)).filter(a=>a.owner===owner);
-        const member = (await tx.membersForOwner<HubMember>(owner)).find(v=>v.owner===owner);
+        const inputs = await tx.basicInputs<HubApplication,HubMember>(owner,nickKey(basic.nickname));
+        const apps = inputs.applications.filter(a=>a.owner===owner);
+        const member = inputs.members.find(v=>v.owner===owner);
         if (
           member &&
           member.nicknameKey !== nickKey(basic.nickname) &&
@@ -915,8 +979,8 @@ export class EventHubService {
         if (old && m.data.edit !== true) {
           result.id = old.id;
         } else {
-          const candidates=await tx.nicknameCandidates<HubApplication>("application",nickKey(basic.nickname));
-          const members = await tx.nicknameCandidates<HubMember>("member",nickKey(basic.nickname));
+          const candidates=inputs.nicknameApplications();
+          const members = inputs.nicknameMembers();
           if (
             candidates.some(
               (a) =>
@@ -929,11 +993,7 @@ export class EventHubService {
             )
           )
             fail("NICKNAME", "이미 사용 중인 닉네임입니다.", 409);
-          const live = (
-            await tx.db.query(
-              "SELECT jsonb_build_object('nickname',data->'nickname','event_hub_owner',data->'event_hub_owner') AS data FROM app_kv_rows WHERE table_name='profiles'",
-            )
-          ).rows.map((r) => r.data);
+          const live = inputs.profiles;
           if (
             live.some(
               (p) =>
@@ -966,6 +1026,8 @@ export class EventHubService {
             e.nextRank++;
             await tx.put("event", e.id, e);
             const a: HubApplication = {
+              bossTestOnly: e.bossTestOnly,
+              ...(own.companionOrigins?.[e.id] ?? {}),
               id: randomUUID(),
               eventId: e.id,
               owner,
@@ -1079,7 +1141,7 @@ export class EventHubService {
           a.consent.acceptedAt = now;
         } else if (m.action === "application.confirm") {
           requireEnabled();
-          if (!recruitmentIsOpen(e, this.now()))
+          if (!bossTestRequest && !recruitmentIsOpen(e, this.now()))
             fail(
               "CLOSED",
               "행사 접수 또는 신청 확정 기간이 종료되었습니다. 기존 기록은 보존됩니다.",
@@ -1092,6 +1154,11 @@ export class EventHubService {
           )
             fail("STAGE", "최신 공지와 회비를 확인해 주세요.");
           if ((a.quote?.fee??0)>0 && (e.accounts?.length??0)>0 && !a.paymentAccount) fail("ACCOUNT","입금할 계좌 하나를 먼저 선택해 주세요.");
+          if (a.paymentAccount && !a.confirmedAt) {
+            const currentAccount = e.accounts?.find(v => v.id === a.paymentAccount!.id);
+            if (!currentAccount || currentAccount.bank !== a.paymentAccount.bank || currentAccount.number !== a.paymentAccount.number || (currentAccount.holder ?? "") !== (a.paymentAccount.holder ?? ""))
+              fail("ACCOUNT_CHANGED", "안내 계좌가 변경되었습니다. 현재 계좌를 다시 선택해 주세요. 아직 송금하지 마세요.", 409);
+          }
           a.stage = 4;
           a.confirmedAt = now;
         } else if (m.action === "application.report") {
@@ -1210,7 +1277,7 @@ export class EventHubService {
             .parse(m.data.status);
           if (!a.confirmedAt)
             fail("STAGE", "아직 최종 신청을 확정하지 않았습니다.");
-          if (status === "approved" && m.data.bankChecked !== true)
+          if (status === "approved" && !(a.bossTestOnly && bossParticipationAllowed() && m.data.testChecked === true) && m.data.bankChecked !== true)
             fail("BANK", "은행 내역을 직접 대조한 뒤 확인해 주세요.");
           if (paymentSatisfied(a) && status !== "approved")
             fail(
@@ -1288,17 +1355,18 @@ export class EventHubService {
             );
           const issue = applicationAdmissionIssue(a, e);
           if (issue) fail(issue.code, issue.message, 403);
-          const settings = (
+          let settings = (
             await tx.db.query(
               "SELECT data FROM app_kv_rows WHERE table_name='app_settings' ORDER BY updated_at DESC LIMIT 1 FOR UPDATE",
             )
           ).rows[0]?.data;
+          if (bossTestRequest) settings = { ...settings, session_active: true, event_cycle_reset_complete: false, event_cycle_started_at: `${e.date}T${e.start}:00+09:00`, event_cycle_archive_id: `boss-test:${e.id}` };
           const cycleTimes=settings?.event_cycle_started_at ? eventCycleMilestones(String(settings.event_cycle_started_at)) : null;
           const mayResume=Boolean(a.profileId && cycleTimes && !settings.event_cycle_reset_complete
             && a.cycleId===settings.event_cycle_archive_id && this.now().getTime()<cycleTimes.resetAt.getTime());
           if (
             !settings ||
-            (!mayResume && newParticipantAdmissionReject(
+            (!bossTestRequest && !mayResume && newParticipantAdmissionReject(
               settings,
               { isAdmin: false, isTestRuntime: false },
               this.now(),
@@ -1317,7 +1385,7 @@ export class EventHubService {
             .slice(0, 10);
           if (date !== e.date)
             fail("EVENT_MISMATCH", "다른 날짜 행사로 입장할 수 없습니다.", 403);
-          if (!a.profileId && this.now().getTime() < Date.parse(`${e.date}T${e.start}:00+09:00`))
+          if (!bossTestRequest && !a.profileId && this.now().getTime() < Date.parse(`${e.date}T${e.start}:00+09:00`))
             fail("EVENT_NOT_STARTED", "해당 술번개 시작 시각 이후 입장할 수 있습니다.", 403);
           if (a.profileId) {
             const exists = (
@@ -1405,6 +1473,7 @@ export class EventHubService {
               event_hub_application: a.id,
               event_hub_owner: owner,
               event_hub_complete: true,
+              ...(bossTestRequest ? { boss_test_event: e.id } : {}),
               contact_private: true,
               phone_number: null,
             };
@@ -1414,14 +1483,10 @@ export class EventHubService {
               secret_hash: hashDeviceSecret(deviceSecret, this.secret),
               created_at: now,
             };
-            for (const [kind, row] of [
+            const onsiteRows: Array<[string, Record<string, unknown>]> = [
               ["profiles", profile],
               ["device_secrets", binding],
-            ] as const)
-              await tx.db.query(
-                "INSERT INTO app_kv_rows(table_name,row_id,data,updated_at) VALUES($1,$2,$3,now())",
-                [kind, row.id, JSON.stringify(row)],
-              );
+            ];
             if (a.profile.idealMsg || a.profile.featureMsg) {
               const signal = {
                 id: randomUUID(),
@@ -1431,12 +1496,13 @@ export class EventHubService {
                 feature_msg: a.profile.featureMsg ?? null,
                 updated_at: now,
               };
-              await tx.db.query(
-                "INSERT INTO app_kv_rows(table_name,row_id,data,updated_at) VALUES('user_signals',$1,$2,now())",
-                [signal.id, JSON.stringify(signal)],
-              );
+              onsiteRows.push(["user_signals", signal]);
               result.signal = signal;
             }
+            await tx.db.query(
+              "INSERT INTO app_kv_rows(table_name,row_id,data,updated_at) SELECT r.kind,r.id,r.data,now() FROM jsonb_to_recordset($1::jsonb) AS r(kind text,id text,data jsonb)",
+              [JSON.stringify(onsiteRows.map(([kind, row]) => ({ kind, id: row.id, data: row })))],
+            );
             a.profileId = id;
             a.cycleId = String(settings.event_cycle_archive_id);
             result.profile = profile;
@@ -1854,7 +1920,7 @@ export class EventHubService {
         await tx.put("thread", id, t);
       } else fail("ACTION", "지원하지 않는 동작입니다.");
       // Recovery codes are one-time responses, never durable receipt payloads.
-      const { recoveryCode: _recoveryCode, ...receiptResult } = result;
+      const { recoveryCode: _recoveryCode, invitationToken: _invitationToken, ...receiptResult } = result;
       if (!prior) await tx.put("request", key, {
         hash,
         result: receiptResult,
@@ -2015,7 +2081,7 @@ export class EventHubService {
         const e=await this.event(tx,file.eventId);
         const material=e.materials?.find(v=>v.id===id);
         if(material?.hidden || (file.purpose!=="venue-logo" && !e.media.some(url=>HUB_MEDIA_PATH.exec(url)?.[1]===id)))fail("MEDIA","자료에 접근할 수 없습니다.",404);
-        const publicLogo=file.purpose==='venue-logo' && e.promotionLogo?.versionId===id && e.logoVersions?.some(v=>v.id===id&&v.role==='venue');
+        const publicLogo=file.purpose==='venue-logo' && (e.promotionLogos??(e.promotionLogo?[e.promotionLogo]:[])).some(v=>v.versionId===id) && e.logoVersions?.some(v=>v.id===id&&v.role==='venue');
         if(publicLogo || (file.purpose==="notice" && material?.purpose==="notice" && !material.hidden)) {
           const own=(await tx.applicationsForOwner<HubApplication>(owner)).some(a=>a.owner===owner&&a.eventId===e.id&&!a.erasedAt);
           if(own || (await this.enabled(tx) && !await publicationBlockedForTx(tx) && (recruitmentIsOpen(e,this.now()) || (e.scheduleEnabled&&!e.schedulePaused&&!eventEnded(e,this.now())))))return file;

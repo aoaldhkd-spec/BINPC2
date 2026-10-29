@@ -10,6 +10,7 @@ export function PaymentAccounts({app,hub,blocked}:{app:PrivateApplication;hub:Re
   if (['reported','held','mismatch'].includes(app.payment)) return <p>입금 신고가 접수되었습니다. 운영자 확인을 기다려 주세요. 다시 송금하지 마세요.</p>;
   if (app.quote?.fee===0) return <p>무료 참가 대상입니다. 운영자의 무료 승인을 기다려 주세요. 입금하지 마세요.</p>;
   if (blocked) return <p>테스트 중에는 실제 송금하지 마세요. 관리자 시험은 가상 입금만 사용합니다.</p>;
+  if (app.bossTestOnly) return <p className="font-bold">보스 확인용 신청입니다. 실제 송금 없이 ‘입금 신고’ 후 관리자에서 가상 승인해 주세요.</p>;
   const accounts=app.billing?.accounts??[];
   return <div className="space-y-2">
     <p>간보기 방지와 참여 인원 확정을 위해 전원 선입금을 받고 있습니다.</p>

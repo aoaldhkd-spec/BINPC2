@@ -35,7 +35,7 @@ export function EventArtwork({
   const theme = useEventTheme(event);
   // Only explicitly public notices can become a list thumbnail. Never use a map,
   // protected poster, venue logo or a legacy media URL as a pre-approval cover.
-  const cover = !event.promotionLogo && event.materials?.find(
+  const cover = event.promotionLogos === undefined && !event.promotionLogo && event.materials?.find(
     (m) => m.purpose === "notice" && !m.hidden && event.media.includes(m.url),
   );
   return (
@@ -47,7 +47,7 @@ export function EventArtwork({
           alt={`${cover.alt || "행사 공지 이미지"} · 미리보기`}
           secured={admin && cover.url.startsWith("/api/event-hub/media/")}
         />
-      ) : event.promotionLogo ? (
+      ) : event.promotionLogos !== undefined || event.promotionLogo ? (
         <div className="hub-tour-art hub-promotion-art"><div className="hub-tour-logos"><PromotionLogo event={event} admin={admin}/></div></div>
       ) : event.type === "tour" && TOUR_WEEKS.some((w) => event.date >= w.start && event.date <= new Date(Date.parse(w.start + "T00:00:00Z") + 3 * 86400000).toISOString().slice(0, 10)) ? (
         <div className="hub-tour-art">

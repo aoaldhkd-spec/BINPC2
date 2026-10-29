@@ -28,14 +28,15 @@ export async function campaignAction(
   },
   admin: boolean,
   now: string,
+  bossTestOnly = false,
 ) {
   if (!admin) fail("ADMIN", "관리자만 처리할 수 있습니다.", 403);
   if (m.action === "campaign.prepare") {
     const preset = campaignPresets().find((p) => p.key === m.target);
     if (!preset) fail("CAMPAIGN", "행사 초안을 선택해 주세요.");
-    const id = `campaign-${preset.key}`;
+    const id = `${bossTestOnly ? 'boss-test' : 'campaign'}-${preset.key}`;
     const existing = await tx.get<HubEvent>("event", id);
-    const others = await tx.all<HubEvent>("event");
+    const others = (await tx.all<HubEvent>("event")).filter(e => Boolean(e.bossTestOnly) === bossTestOnly);
     const daegu = preset.event.campaign.kind === "tour" && preset.event.area === "대구";
     const candidates = others.filter((e) => e.campaign?.kind === "tour" && e.date === preset.event.date && /대구|BLACK/i.test(e.area + " " + e.title));
     if (daegu && (existing || candidates.length)) {
@@ -75,6 +76,7 @@ export async function campaignAction(
       );
     const e: HubEvent = {
       ...HubEventInput.parse(preset.event),
+      ...(bossTestOnly ? { bossTestOnly: true, title: `${preset.event.title} · 보스 확인용`, account: "실제 송금 없이 입금 신고·승인 흐름만 확인하세요.", accounts: [], scheduleEnabled: false } : {}),
       id,
       revision: 1,
       recruitment: false,

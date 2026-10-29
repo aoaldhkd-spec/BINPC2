@@ -1,5 +1,5 @@
 import { configureBossAccess, bossProtectedSseWrite, bossOnlyLocked } from "../lib/boss-access.js";
-import { assertOnsiteSocialWrite, onsiteWriteActor, ONSITE_SOCIAL_WRITE_TABLES } from '../lib/event-onsite-access.js';
+import { assertBossTestSocialScope, assertOnsiteSocialWrite, onsiteWriteActor, ONSITE_SOCIAL_WRITE_TABLES, BOSS_SCOPED_WRITE_TABLES } from '../lib/event-onsite-access.js';
 import '../lib/dns-ipv4-first.js';
 import { atomicEventReset } from '../lib/db-event-reset-transaction.js';
 import { eventActionsAfter } from '../lib/db-event-admin-audit.js';
@@ -1549,9 +1549,10 @@ async function _execDbPersistRow(tableName: string, rowId: string, row: Record<s
   const sql = buildKvUpsertSql();
   const params = [tableName, rowId, JSON.stringify(row)];
   const actor = onsiteWriteActor.getStore();
-  if (actor && ONSITE_SOCIAL_WRITE_TABLES.has(tableName)) {
+  if (BOSS_SCOPED_WRITE_TABLES.has(tableName)) {
     await registrationModeStore.transaction(async tx => {
-      await assertOnsiteSocialWrite(tx, actor);
+      if (actor && ONSITE_SOCIAL_WRITE_TABLES.has(tableName)) await assertOnsiteSocialWrite(tx, actor);
+      await assertBossTestSocialScope(tx, tableName, row, actor);
       await tx.db.query(sql, params);
     });
     return;
@@ -1693,7 +1694,7 @@ async function loadRemainingTablesFromDb(): Promise<void> {
   try {
     const { rows } = await pool.query(
       buildLoadRemainingKvTablesSql(),
-      [HOT_TABLES],
+      [[...HOT_TABLES, ...BOOT_GROUP_TABLES]],
     );
     mergeKvRowsIntoStore(rows);
     seedLikesLastInsertFromStore();
@@ -1701,6 +1702,8 @@ async function loadRemainingTablesFromDb(): Promise<void> {
     logger.error({ err: e }, '[db] Failed to load remaining tables from DB');
   }
 }
+
+const BOOT_GROUP_TABLES = ['group_chats', 'group_participants', 'group_messages', 'group_opt_outs'];
 
 // ─── Seed data (only if DB is empty) ─────────────────────────────────────────
 /** Thin wrapper — pure builder lives in db-app-settings-boot. */
@@ -1832,6 +1835,10 @@ async function seedIfNeeded(): Promise<void> {
     await dbPersistRow('app_settings', settings);
   }
   await ensureAdminProfile();
+  // Fixed rooms must be hydrated with their relationships before any seeding/merge.
+  // A failed read is not an empty database: let dbReady fail instead of overwriting it.
+  const existingGroups = await pool.query(buildLoadHotKvTablesSql(), [BOOT_GROUP_TABLES]);
+  mergeKvRowsIntoStore(existingGroups.rows);
   await ensureOptInGroupRooms();
   if (process.env.NODE_ENV === 'test') {
     // Unrelated API/security/load tests must not depend on the wall clock.
@@ -2329,6 +2336,7 @@ async function autoMatchGroupChat(userId: string, profile: Record<string, unknow
 }
 
 async function autoMatchGroupChatGuarded(userId: string, profile: Record<string, unknown>): Promise<void> {
+  if (profile.boss_test_event) return; // Preserve operating rooms while testing ordinary screens.
   const running = autoMatchInFlight.get(userId);
   if (running) {
     await running;
@@ -2727,6 +2735,14 @@ const SSE_BROADCAST_CHUNK = Number(process.env.SSE_BROADCAST_CHUNK ?? 100);
 
 /** 모든 클라이언트에게 전송 (공개 이벤트: profiles, app_settings, games 등) */
 function broadcastAll(event: Record<string, unknown>) {
+  if (event.table === 'profiles' || event.table === 'user_signals') {
+    const row = (event.newRow ?? event.oldRow) as Record<string, unknown> | undefined;
+    const profile = event.table === 'profiles' ? row : getTable('profiles').find(p => p.id === row?.user_id);
+    if (profile?.boss_test_event) {
+      broadcastToUsers(getTable('profiles').filter(p => p.boss_test_event === profile.boss_test_event).map(p => String(p.id)), event);
+      return;
+    }
+  }
   const json = JSON.stringify(event);
   const seq = _ringAdd(json, 'all');
   const payload = `id: ${seq}\ndata: ${json}\n\n`;
@@ -3093,7 +3109,7 @@ router.post('/op', async (req: Request, res: Response) => {
       if (inputs.some(row => {
         if (!row || typeof row !== 'object') return false;
         const current = getTable('profiles').find(p => p.id === (row.id ?? sessionUserId));
-        return Object.keys(row).some(k => k.startsWith('event_hub_') && (!current || JSON.stringify(row[k]) !== JSON.stringify(current[k])));
+        return Object.keys(row).some(k => (k.startsWith('event_hub_') || k === 'boss_test_event') && (!current || JSON.stringify(row[k]) !== JSON.stringify(current[k])));
       })) throw new HubError(403, 'EVENT_LINK_PROTECTED', '행사 연결은 입장 절차에서만 변경할 수 있습니다.');
     }
     if (isTestSession && !isAdmin && op !== 'select') {
@@ -3136,6 +3152,10 @@ router.post('/op', async (req: Request, res: Response) => {
     }
     // ── SELECT ──────────────────────────────────────────────────────────────
     if (op === 'select') {
+      const scopeCatalog = table === 'profiles' || table === 'group_chats' || table === 'user_signals';
+      const bossReadEvent = !isAdmin && scopeCatalog && requesterId
+        ? (await pool.query("SELECT data->>'boss_test_event' AS event FROM app_kv_rows WHERE table_name='profiles' AND row_id=$1", [requesterId])).rows[0]?.event
+        : undefined;
       if (REALTIME_MERGE_TABLES.has(table)) {
         await mergeTableFromDbIfStale(table);
         tableData = store[table];
@@ -3362,14 +3382,22 @@ router.post('/op', async (req: Request, res: Response) => {
       }
 
       if (table === 'group_chats') {
-        await ensureOptInGroupRooms();
-        if (requesterId) {
+        if (!bossReadEvent) await ensureOptInGroupRooms();
+        if (requesterId && !bossReadEvent) {
           const me = getTable('profiles').find(p => String(p.id) === String(requesterId));
           if (me) await autoMatchGroupChatGuarded(String(requesterId), me);
         }
         tableData = store['group_chats'];
       }
       let result = applyFilters(tableData, normalizedFilters);
+      if (!isAdmin && (table === 'profiles' || table === 'group_chats')) {
+        result = result.filter(row => bossReadEvent ? row.boss_test_event === bossReadEvent : !row.boss_test_event);
+      }
+      if (!isAdmin && table === 'user_signals') {
+        const markers = (await pool.query("SELECT row_id,data->>'boss_test_event' AS event FROM app_kv_rows WHERE table_name='profiles' AND data->>'boss_test_event' IS NOT NULL")).rows;
+        const scopes = new Map(markers.map(p => [p.row_id, p.event]));
+        result = result.filter(row => bossReadEvent ? scopes.get(row.user_id) === bossReadEvent : !scopes.has(row.user_id));
+      }
       sortRowsByOrders(result, safeOrders);
       if (limit != null) result = result.slice(0, limit);
       // 카탈로그 목록용 인원 수 — user_id 없이 숫자만 첨부
