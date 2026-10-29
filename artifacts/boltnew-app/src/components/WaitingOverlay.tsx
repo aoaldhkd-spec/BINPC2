@@ -2,7 +2,8 @@ import { useLandingHalloween } from '../lib/landing-season';
 import { useBossTestAccess } from './BossAccessBoundary';
 import { TEST_MODE_BANNER, usePublicTestMode } from '../lib/public-test-mode';
 import { useState, useRef, useEffect } from 'react';
-import { Users, CheckCircle, Clock, ShieldAlert, Wine, List, DoorOpen, LockKeyhole } from 'lucide-react';
+import { Users, Settings, ShieldAlert, Wine, List, DoorOpen, LockKeyhole, KeyRound } from 'lucide-react';
+import './WaitingOverlay.css';
 import { navigateToAppPath, PANEL_PIN_INPUT_PROPS, PIN_DIGIT_INPUT_PROPS, verifyPanelPassword } from '../lib/panel-password';
 import { eventCycleAdmissionOpen, eventCycleMilestones } from '../lib/event-cycle-heart';
 
@@ -17,14 +18,6 @@ export function WaitingOverlay({ landingThemeEnabled = true, sessionActive, even
   const halloween = useLandingHalloween(landingThemeEnabled);
   const testMode = usePublicTestMode();
   const bossTest = useBossTestAccess();
-  // Default amber contrast (multi-theme light overrides removed)
-  const C = {
-    panelTitle: '#fde68a',
-    panelBody:  'rgba(252,211,77,0.8)',
-    panelHigh:  '#fde68a',
-    checkLabel: '#fde68a',
-    checkItem:  '#fef3c7',
-  } as const;
   // Use a single boundary timer rather than polling: stale session_active
   // must not leave the new-entry button enabled after the exact 01:00 cutoff.
   const [, refreshAdmissionBoundary] = useState(0);
@@ -229,7 +222,6 @@ export function WaitingOverlay({ landingThemeEnabled = true, sessionActive, even
 
   return (
     <div data-landing-season={halloween ? 'halloween' : 'normal'} className="season-home min-h-screen bg-gradient-to-br from-slate-950 via-slate-900 to-black flex flex-col items-center justify-center px-5 py-4 relative overflow-hidden">
-      {halloween && <div className="season-home-backdrop absolute inset-0 pointer-events-none" aria-hidden="true"><img src="/event-art/halloween-lounge.webp" alt="" className="w-full h-full object-cover object-[90%_center]"/><div className="absolute inset-0 bg-gradient-to-b from-[#090413]/35 via-[#100616]/70 to-[#080411]/95"/><div className="absolute inset-0 bg-gradient-to-r from-[#190d24]/60 via-transparent to-[#35150e]/15"/></div>}
       <div className="absolute inset-0 overflow-hidden pointer-events-none" hidden={halloween}>
         <div className="absolute -top-40 -right-40 w-96 h-96 bg-cyan-500/20 rounded-full blur-3xl" />
         <div className="absolute -bottom-40 -left-40 w-96 h-96 bg-teal-500/20 rounded-full blur-3xl" />
@@ -246,46 +238,38 @@ export function WaitingOverlay({ landingThemeEnabled = true, sessionActive, even
           aria-label="테스터"
           className="season-home-logo-gate relative inline-flex items-center justify-center mb-5 active:scale-95 transition-transform"
         >
-          <div className={`w-14 h-14 rounded-2xl bg-gradient-to-br flex items-center justify-center shadow-2xl ${halloween ? "from-amber-400 to-orange-700 shadow-orange-500/30" : "from-cyan-500 to-teal-600 shadow-cyan-500/30"}`}>
-            <Users className="w-7 h-7 text-white" />
-          </div>
-          <div className={`absolute -top-2 -right-2 w-7 h-7 rounded-full flex items-center justify-center shadow-lg ${isActive ? 'bg-teal-400' : 'bg-amber-400'}`}>
-            {isActive ? <CheckCircle className="w-3.5 h-3.5 text-teal-900" /> : <Clock className="w-3.5 h-3.5 text-amber-900" />}
-          </div>
+          <Users size={18} aria-hidden="true" />
         </button>
         <div className="season-home-heading mb-3 text-center">
           {halloween && <p className="text-[10px] font-bold tracking-[.25em] text-orange-200 mb-3">HALLOWEEN 2026</p>}
           <button
             type="button"
             data-gate="npc-admin"
-            onClick={() => { setAdminPw(''); setAdminErr(''); setAdminOpen(true); }}
+            onClick={() => { if (bossTest) { navigateToAppPath('admin'); return; } setAdminPw(''); setAdminErr(''); setAdminOpen(true); }}
             title="관리자"
+            aria-label="관리자"
             className="season-home-admin block mx-auto"
           >
-            <p className="text-[12px] font-bold tracking-[0.3em] uppercase mb-2"
-               style={{ color: '#cffafe' }}>
-              범일NPC
-            </p>
+            <Settings size={19} aria-hidden="true" />
           </button>
           <h1
             data-gate="sulbun-none"
+            aria-label="범일NPC 술번개"
             className="season-home-brand text-5xl font-black italic tracking-tight leading-tight"
             style={{ color: '#f6dfab' }}
-          >BINPC2</h1>
-          <p className="season-home-caption text-sm text-slate-300 mt-3 mb-5 tracking-wide">좋은 사람들과, 특별한 밤</p>
+          ><span>범일NPC</span><span>술번개</span></h1>
         </div>
 
         {halloween && <div className="season-home-hero" aria-hidden="true">
           <span className="season-date-sticker">10.30 FRI<br/>10.31 SAT</span>
           <img src="/event-art/halloween-party.webp" alt="" width="1200" height="900"/>
-          <span className="season-night-sticker">BOO!<br/>좋은 밤의 시작</span>
         </div>}
 
         {testMode && <div className="w-[88%] rounded-xl border border-amber-300/40 bg-amber-950/60 p-3 text-center text-sm font-bold text-amber-100 mb-3"><p role="status">{TEST_MODE_BANNER}</p><p className="mt-1 text-xs">웹·오픈채팅 모두 접수 전입니다. 오픈 확인 전에는 신청하거나 송금하지 마세요.</p></div>}
 
         {/* 피라미드형 버튼 그룹 */}
-        <div className="w-full flex flex-col items-center gap-2 mb-2">
-          <div className="flex flex-col gap-3 w-[88%] mb-1">
+        <div className="season-home-actions w-full flex flex-col items-center gap-2 mb-2">
+          <div className="season-home-apply-links flex flex-col gap-3 w-[88%] mb-1">
             {testMode && !bossTest ? <button type="button" disabled className="min-h-16 flex gap-3 items-center justify-center rounded-xl border border-pink-300/40 bg-gradient-to-br from-pink-500 to-pink-800 px-4 py-4 text-lg font-bold text-white opacity-50 cursor-not-allowed"><Wine size={24} aria-hidden="true"/>술번개 신청</button> : <a href={"/events"} className="min-h-16 flex gap-3 items-center justify-center rounded-xl border border-pink-300/60 bg-gradient-to-br from-pink-500 to-pink-800 px-4 py-4 text-lg font-bold text-white shadow-lg shadow-pink-900/30 hover:brightness-110 active:scale-[.98] transition-all"><Wine size={24} aria-hidden="true"/>술번개 신청</a>}
             {testMode && <a href="/events" className="text-center text-sm text-amber-100 underline">행사 공지 · 관리자 문의</a>}
             <a href={"/events/waiting"} className="min-h-16 flex gap-3 items-center justify-center rounded-xl border border-blue-300/60 bg-gradient-to-br from-blue-500 to-blue-800 px-4 py-4 text-lg font-bold text-white shadow-lg shadow-blue-900/30 hover:brightness-110 active:scale-[.98] transition-all"><List size={24} aria-hidden="true"/>신청대기방</a>
@@ -295,28 +279,12 @@ export function WaitingOverlay({ landingThemeEnabled = true, sessionActive, even
             disabled={!bossTest && !isActive}
             className="w-[88%] min-h-16 flex items-center justify-center gap-3 py-4 border border-amber-200/70 bg-gradient-to-b from-stone-800 to-stone-950 text-amber-100 disabled:border-slate-600 disabled:bg-slate-800 disabled:text-slate-400 disabled:cursor-not-allowed font-black text-lg rounded-xl shadow-lg transition-all active:scale-[.98] disabled:active:scale-100"
           >{bossTest || isActive ? <DoorOpen size={24} aria-hidden="true"/> : <LockKeyhole size={22} aria-hidden="true"/>}입장하기</button>
-          <p role="status" className="text-xs text-slate-400 my-1">{bossTest ? '보스 전용 신청·승인·입장 흐름을 시험할 수 있습니다' : sessionActive === null ? '시작 여부를 확인하고 있습니다…' : isActive ? '입장 버튼을 눌러 참여하세요' : !eventCycleResetComplete && closeAt && Date.now() >= closeAt && Date.now() < closeAt + 16*3600000 ? '신규 입장이 종료되었습니다. 기존 참가자는 프로필을 복구하세요.' : '술번개 시작 후 입장할 수 있습니다'}</p>
+          {!bossTest && !isActive && <p role="status" className="text-xs text-slate-400 my-1">{sessionActive === null ? '시작 여부 확인 중…' : !eventCycleResetComplete && closeAt && Date.now() >= closeAt && Date.now() < closeAt + 16*3600000 ? '신규 입장 마감 · 기존 프로필 복구 가능' : '술번개 시작 후 입장할 수 있습니다'}</p>}
           {/* 2단: 프로필 복구 — 65% 너비 */}
           <button
             onClick={() => { setShowPinRecovery(true); setPinDigits(['','','','']); setPinError(''); setPinStep('pin'); }}
-            className="w-[88%] py-3.5 mt-3 bg-white/5 border border-white/15 hover:bg-white/10 text-slate-200 font-bold text-sm rounded-xl transition-all active:scale-[.98]"
-          >🔑 고유번호로 프로필 복구</button>
-        </div>
-
-        {/* 이미 프로필이 있는 유저 안내 배너 — 복구 버튼 아래 */}
-        <div className="w-[88%] rounded-xl bg-transparent px-2 py-3 mb-2">
-          <div className="flex items-start gap-2.5">
-
-            <div className="min-w-0 text-left">
-              <p className="font-black text-sm leading-snug" style={{ color: C.panelTitle }}>이미 프로필을 만드셨나요?</p>
-              <p className="text-xs mt-1 leading-relaxed" style={{ color: C.panelBody, wordBreak: 'keep-all' }}>
-                <>다시 만들지 마시고 <span className="font-bold" style={{ color: C.panelHigh }}>고유번호(PIN)</span>로 입장해주세요.</>
-              </p>
-              <p className="text-xs leading-relaxed" style={{ color: C.panelBody, wordBreak: 'keep-all' }}>
-                <>고유번호를 모르신다면 <a href="/events#inquiry" className="font-bold underline" style={{ color: C.panelHigh }}>관리자에게 문의</a>해주세요.</>
-              </p>
-            </div>
-          </div>
+            className="season-home-recover w-[88%] py-3.5 mt-3 bg-white/5 border border-white/15 hover:bg-white/10 text-slate-200 font-bold text-sm rounded-xl transition-all active:scale-[.98]"
+          ><KeyRound size={16} aria-hidden="true"/>고유번호로 프로필 복구</button>
         </div>
 
         {/* 개인정보 동의 모달 */}
@@ -379,6 +347,7 @@ export function WaitingOverlay({ landingThemeEnabled = true, sessionActive, even
               </div>
 
               <div className="px-6 py-6 space-y-4">
+                <p className="text-xs text-slate-400">번호가 기억나지 않으면 <a href="/events#inquiry" className="underline">관리자에게 문의</a>해 주세요.</p>
                 {pinStep === 'pin' ? (
                   /* ── 1단계: 핀 입력 ── */
                   <div className="flex gap-3 justify-center" onPaste={handlePinPaste}>

@@ -19,6 +19,11 @@ import { TOUR_WEEKS } from "../../../../lib/api-zod/src/event-policy-tour";
 import { VenueLogo, PromotionLogo } from "./VenueLogos";
 import { NoticePages } from "./NoticePages";
 
+/** Display-only: preserve stored event names, IDs and administrator test labels. */
+export function participantEventTitle(event: HubEvent) {
+  return event.bossTestOnly ? event.title.replace(/\s*·\s*보스 확인용\s*/g, '').trim() : event.title;
+}
+
 export function eventDateLabel(event: HubEvent) {
   const day = new Date(event.date + "T12:00:00+09:00").getUTCDay();
   return `${Number(event.date.slice(5, 7))}월 ${Number(event.date.slice(8))}일 (${["일", "월", "화", "수", "목", "금", "토"][day]})`;
@@ -72,7 +77,7 @@ export function EventArtwork({
           aria-label={event.type === "tour" ? "전국투어 행사" : "술번개 행사"}
         >
           <Sparkles aria-hidden="true" />
-          <span>{event.type === "tour" ? "KOREA TOUR" : "BINPC2"}</span>
+          <span>{event.type === "tour" ? "KOREA TOUR" : "범일NPC 술번개"}</span>
         </div>
       )}
     </div>
@@ -114,7 +119,7 @@ export function EventListCard({
       <EventArtwork event={event} compact />
       <span className="hub-event-card-copy">
         <span className="hub-event-card-title">
-          <strong>{event.title}</strong>
+          <strong>{participantEventTitle(event)}</strong>
           <span
             className="hub-status-pill"
             data-approved={!!app && paymentSatisfied(app)}
@@ -172,7 +177,7 @@ export function EventDetailHeader({
         </span>
       </div>
       <div className="hub-detail-heading">
-        <h2>{event.title}</h2>
+        <h2>{participantEventTitle(event)}</h2>
         <p>
           <CalendarDays size={14} />
           {eventDateLabel(event)} · {event.start}~
@@ -252,7 +257,7 @@ export function WaitingSummary({
         <EventArtwork event={event} compact />
         <div>
           <span className="hub-eyebrow">MY APPLICATION</span>
-          <h2>{event.title}</h2>
+          <h2>{participantEventTitle(event)}</h2>
           <p>
             {eventDateLabel(event)} · {event.start}
           </p>

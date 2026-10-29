@@ -1,0 +1,48 @@
+{
+  "checkedAt": "2026-10-29T12:34:43.485577+00:00",
+  "baseSha": "830a6adbbb81c08810926509295ba434e6e2237a",
+  "uiUnit": {
+    "files": 127,
+    "passed": 915,
+    "failed": 0,
+    "seconds": 40.47
+  },
+  "typecheck": "PASS",
+  "coreGuards": {
+    "passed": 598,
+    "failed": 0
+  },
+  "realReactExpressPostgresBrowsers": {
+    "passed": 4,
+    "failed": 0,
+    "seconds": 54.8
+  },
+  "viewports": [
+    {
+      "width": 320,
+      "height": 568
+    },
+    {
+      "width": 390,
+      "height": 700
+    },
+    {
+      "width": 768,
+      "height": 1024
+    },
+    {
+      "width": 1440,
+      "height": 900
+    }
+  ],
+  "assertions": [
+    "home scrollHeight <= viewport height + 12",
+    "home scrollWidth <= viewport width + 1",
+    "recovery button bottom <= viewport height",
+    "nickname step next bottom <=700 and scrollHeight<=712",
+    "anonymous API remains423",
+    "login throttle remains429"
+  ],
+  "physicalPhones": "UNKNOWN",
+  "operatingDbModified": false
+}

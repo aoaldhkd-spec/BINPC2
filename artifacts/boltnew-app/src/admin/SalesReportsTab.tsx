@@ -8,7 +8,7 @@ function number(value: number): string {
 
 function reportSummary(report: SalesReport): string {
   const m = report.metrics;
-  return `[BINPC2 판매 성과] 참여자 ${number(m.participants)}명 · 하트 ${number(m.hearts)}개 · 채팅 ${number(m.chatMessages)}건 · 단체방 ${number(m.groupMessages)}건 · 실시간 연결 ${number(m.realtime.adminSseConnections)}개 · MBTI ${number(Object.values(m.mbtiDistribution).reduce((a, b) => a + b, 0))}명 · 궁합 ${number(m.compatibilityProfiles)}명 · 운세 ${number(m.fortuneProfiles)}명`;
+  return `[범일NPC 술번개 판매 성과] 참여자 ${number(m.participants)}명 · 하트 ${number(m.hearts)}개 · 채팅 ${number(m.chatMessages)}건 · 단체방 ${number(m.groupMessages)}건 · 실시간 연결 ${number(m.realtime.adminSseConnections)}개 · MBTI ${number(Object.values(m.mbtiDistribution).reduce((a, b) => a + b, 0))}명 · 궁합 ${number(m.compatibilityProfiles)}명 · 운세 ${number(m.fortuneProfiles)}명`;
 }
 
 function reportDate(value: string): string {

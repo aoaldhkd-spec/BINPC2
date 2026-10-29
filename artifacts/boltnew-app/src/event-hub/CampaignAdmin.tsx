@@ -77,7 +77,7 @@ export function CampaignOperations({
     <HubCard>
       <h3 className="font-black">행사 준비상태·선착순 승계</h3>
       <p>
-        {event.campaign ? "BINPC2 1차 전용" : "일반 술번개"} · 확정 {confirmed}
+        {event.campaign ? "범일NPC 술번개 1차 전용" : "일반 술번개"} · 확정 {confirmed}
         명 / 최소5명 ·{" "}
         {confirmed >= 5
           ? "개최 최소 인원 충족"

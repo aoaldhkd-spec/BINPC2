@@ -46,13 +46,13 @@ export function currentPushStatus(): PushSetupStatus {
   const appleMobile = /iPad|iPhone|iPod/.test(navigator.userAgent)
     || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
   if (appleMobile && !isStandaloneWebApp()) {
-    return { code: 'install-required', message: '아이폰·아이패드는 홈 화면에 BINPC2를 추가한 뒤 설치된 아이콘으로 열어 주세요.' };
+    return { code: 'install-required', message: '아이폰·아이패드는 홈 화면에 범일NPC 술번개를 추가한 뒤 설치된 아이콘으로 열어 주세요.' };
   }
   if (!('serviceWorker' in navigator) || !('PushManager' in window) || !('Notification' in window)) {
     return { code: 'unsupported', message: '이 브라우저는 휴대폰 푸시를 지원하지 않아요. 웹 안의 하트·채팅 알림은 계속 표시됩니다.' };
   }
   if (Notification.permission === 'denied') {
-    return { code: 'blocked', message: '휴대폰 또는 BINPC2 앱 설정에서 알림 권한을 허용해 주세요.' };
+    return { code: 'blocked', message: '휴대폰 또는 범일NPC 술번개 앱 설정에서 알림 권한을 허용해 주세요.' };
   }
   if (Notification.permission !== 'granted') {
     return { code: 'permission-required', message: '하트·1:1 채팅 알림을 받으려면 아래 버튼을 눌러 허용해 주세요.' };

@@ -634,10 +634,10 @@ export function NicknameSetupScreen({ onSubmit, loading, registrationError, onRe
                   </p>
                 )}
                 {pushOptIn && (pushStatus?.code === 'install-required' || (!pushStatus && currentPushStatus().code === 'install-required')) && (
-                  <p className="text-[11px] text-amber-700 pl-7 mt-1">아이폰·아이패드는 Safari 공유 → 홈 화면에 추가 후 BINPC2 아이콘으로 열어 주세요. 지원되는 안드로이드 브라우저에서는 웹에서도 알림을 허용할 수 있어요.</p>
+                  <p className="text-[11px] text-amber-700 pl-7 mt-1">아이폰·아이패드는 Safari 공유 → 홈 화면에 추가 후 범일NPC 술번개 아이콘으로 열어 주세요. 지원되는 안드로이드 브라우저에서는 웹에서도 알림을 허용할 수 있어요.</p>
                 )}
                 {pushOptIn && pushStatus?.code === 'blocked' && (
-                  <p className="text-[11px] text-amber-700 pl-7 mt-1">휴대폰 설정에서 BINPC2 알림을 허용해 주세요.</p>
+                  <p className="text-[11px] text-amber-700 pl-7 mt-1">휴대폰 설정에서 범일NPC 술번개 알림을 허용해 주세요.</p>
                 )}
                 {pushOptIn && pushStatus?.code === 'error' && (
                   <p role="alert" className="text-[11px] text-red-700 pl-7 mt-1">{pushStatus.message}</p>

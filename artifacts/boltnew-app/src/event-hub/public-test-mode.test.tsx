@@ -67,7 +67,7 @@ it("keeps real forms and external second-round application links closed after te
   event.campaign = { kind: "tour", round: 1, advance: 17000, secondRoundLink: "https://open.kakao.com/o/synthetic-room" };
   const before = structuredClone(app);
   const view = render(<WaitingRoom app={app} event={event} hub={hub} edit={vi.fn()} />);
-  expect(screen.queryByRole("link", { name: "2차 오픈채팅 신청 (BINPC2 외부)" })).toBeNull();
+  expect(screen.queryByRole("link", { name: "2차 오픈채팅 신청 (범일NPC 술번개 외부)" })).toBeNull();
   expect((screen.getByRole("button", { name: "2차 오픈채팅 신청 (접수 전)" }) as HTMLButtonElement).disabled).toBe(true);
   expect(screen.getByText(/웹·오픈채팅 모두 접수 전입니다/)).toBeTruthy();
   expect((screen.getByRole("button", { name: "술번개 입장하기" }) as HTMLButtonElement).disabled).toBe(true);
@@ -77,7 +77,7 @@ it("keeps real forms and external second-round application links closed after te
   expect(hub.mutate).not.toHaveBeenCalled();
   state.testMode.publicAdmissionOpen = true;
   view.rerender(<WaitingRoom app={app} event={event} hub={hub} edit={vi.fn()} />);
-  expect(screen.getByRole("link", { name: "2차 오픈채팅 신청 (BINPC2 외부)" }).getAttribute("href")).toBe(event.campaign.secondRoundLink);
+  expect(screen.getByRole("link", { name: "2차 오픈채팅 신청 (범일NPC 술번개 외부)" }).getAttribute("href")).toBe(event.campaign.secondRoundLink);
   expect(app).toEqual(before);
 });
 

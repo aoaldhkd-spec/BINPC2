@@ -31,7 +31,7 @@ export function ParticipantOperations({app:a,event:e,hub}:{app:PrivateApplicatio
  return <HubCard><h3 className="font-black">도착 예정 · 혜택 기록</h3>
   <HubButton onClick={()=>setOpen(!open)}>늦게 도착해요 / 도착 예정시간</HubButton>
   {open&&<div className="space-y-2">
-   <p>{e.type==='halloween'?'1차만 진행하며 다음 날 01:00 종료·2차 없음. 늦게 와도 안내된 회비는 같습니다.':'BINPC2는 1차 신청입니다. 다른 차수는 운영자 안내를 확인하세요.'}</p>
+   <p>{e.type==='halloween'?'1차만 진행하며 다음 날 01:00 종료·2차 없음. 늦게 와도 안내된 회비는 같습니다.':'범일NPC 술번개는 1차 신청입니다. 다른 차수는 운영자 안내를 확인하세요.'}</p>
    <HubField label="도착 예정 (한국시간)"><input type="datetime-local" className={inputClass} value={at} onChange={x=>setAt(x.target.value)}/></HubField>
    <HubField label="늦참 사유 (선택)"><input className={inputClass} value={reason} onChange={x=>setReason(x.target.value)}/></HubField>
    <p>종료 {e.end} · 남은 이용 {at?Math.max(0,Math.round((eventEndAt(e)-Date.parse(iso(at)!))/60000)):0}분. 종료 이후는 관리자 확인이 필요합니다.</p>

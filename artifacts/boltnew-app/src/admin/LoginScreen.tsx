@@ -113,7 +113,7 @@ export function LoginScreen({ onLogin, bossOnly = false }: { onLogin: () => void
   return (
     <div
       ref={shellRef}
-      className="mobile-page-center bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 flex items-center justify-center p-3 min-[360px]:p-4"
+      className="brand-auth-screen mobile-page-center bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 flex items-center justify-center p-3 min-[360px]:p-4"
     >
       <div className="w-full max-w-sm">
         <div className="bg-white rounded-2xl shadow-2xl overflow-hidden">
@@ -122,7 +122,6 @@ export function LoginScreen({ onLogin, bossOnly = false }: { onLogin: () => void
               <Shield className="w-7 h-7 text-white" />
             </div>
             <h1 className="text-xl font-bold text-white">관리자 로그인</h1>
-            <p className="text-slate-300 text-sm mt-1">관리자 전용 페이지입니다</p>
           </div>
           <form onSubmit={handleSubmit} className="p-4 min-[360px]:p-6 space-y-4">
             <div>

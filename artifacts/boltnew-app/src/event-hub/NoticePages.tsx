@@ -13,7 +13,8 @@ export function noticePages(notice: string): string[] {
 }
 
 export function NoticePages({ notice, halloween=false }: { notice: string; halloween?:boolean }) {
-  const pages = noticePages(notice);
+  const displayNotice = notice.replace(/(^|[\s(])BINPC2(?=$|[\s),.!?·]|(?:은|는|의|에서|으로|로|에|와|과|을|를)(?:$|\s))/g, '$1범일NPC 술번개');
+  const pages = noticePages(displayNotice);
   const [index, setIndex] = useState(0);
   const page = Math.min(index, pages.length - 1);
   return <section className="hub-notice-pages" data-notice-theme={halloween?'halloween':undefined} aria-label="행사 필독 공지">
@@ -23,6 +24,6 @@ export function NoticePages({ notice, halloween=false }: { notice: string; hallo
       <HubButton disabled={page === 0} onClick={() => setIndex(page - 1)}>← 이전 안내</HubButton>
       <HubButton disabled={page === pages.length - 1} onClick={() => setIndex(page + 1)}>다음 안내 →</HubButton>
     </div>}
-    {pages.length > 1 && <details className="text-xs mt-3"><summary>전체 안내 한 번에 보기</summary><p className="whitespace-pre-wrap leading-6 py-3">{notice}</p></details>}
+    {pages.length > 1 && <details className="text-xs mt-3"><summary>전체 안내 한 번에 보기</summary><p className="whitespace-pre-wrap leading-6 py-3">{displayNotice}</p></details>}
   </section>;
 }

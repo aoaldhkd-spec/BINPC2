@@ -135,7 +135,7 @@ export default function EventHubAdmin({ active = true }: { active?: boolean }) {
     <div className="hub-admin-shell text-slate-900 pb-24">
       <header className="hub-admin-header">
         <div>
-          <span className="hub-eyebrow">BINPC2 · ADMIN</span>
+          <span className="hub-eyebrow">범일NPC 술번개 · ADMIN</span>
           <h2 className="text-xl font-black">술번개 운영</h2>
           <p className="text-sm text-slate-600">
             신청부터 입장까지, 여기서 한 번에 관리하세요.
@@ -736,7 +736,7 @@ function EventEditor({
           <p>
             행사 정책:{" "}
             {v.campaign.kind.startsWith("halloween") ? "할로윈" : "전국투어"} ·
-            BINPC2 1차만 신청
+            범일NPC 술번개 1차만 신청
           </p>
           {v.campaign.kind === "tour" && (
             <HubField label="전국투어 선입금액 (최종 회비 아님)">
@@ -787,7 +787,7 @@ function EventEditor({
               {
                 (
                   {
-                    default: "기본 BINPC2",
+                    default: "기본 범일NPC 술번개",
                     halloween: "할로윈",
                     christmas: "크리스마스",
                     yearend: "연말",
@@ -812,7 +812,7 @@ function EventEditor({
         }}
       >
         테마 미리보기{" "}
-        {v.theme === "halloween" && v.themeEnabled ? "🎃 ✦" : "기본 BINPC2"}
+        {v.theme === "halloween" && v.themeEnabled ? "🎃 ✦" : "기본 범일NPC 술번개"}
       </div>
       <HubButton
         onClick={() => {

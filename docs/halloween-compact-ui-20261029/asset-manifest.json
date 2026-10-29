@@ -1,0 +1,41 @@
+{
+  "generatedBackground": "new decorative background generated for this UI request, no text or logos; supplied originals unchanged",
+  "screenshots": "actual isolated React + Express + PostgreSQL; synthetic accounts; Chromium",
+  "files": [
+    {
+      "file": "compact-application-step.png",
+      "bytes": 277857,
+      "sha256": "dd84ec69dcbd7c4d160aa71af194779baef1c86500311514effe1bdd295e69ae"
+    },
+    {
+      "file": "halloween-night-original.png",
+      "bytes": 2662544,
+      "sha256": "26e3afbc7f52353dd453e4d9370d1772495bcc7afdf4ada394543c84339d3d41"
+    },
+    {
+      "file": "home-1440x900.png",
+      "bytes": 1574511,
+      "sha256": "2725233abe731b3917c240c43e2f406e1943d6eb348028deb69bf4f4f5787ca9"
+    },
+    {
+      "file": "home-320x568.png",
+      "bytes": 296859,
+      "sha256": "793d857d2429ffda440f42f009ddd0283058050dc668b312cf82685c6100d983"
+    },
+    {
+      "file": "home-390x700.png",
+      "bytes": 440146,
+      "sha256": "6ae9717a138187a41db8c86290aaa1a2a6d46230ad1e570b5e146e8e0febb195"
+    },
+    {
+      "file": "home-768x1024.png",
+      "bytes": 1324448,
+      "sha256": "8b18ad00bbe3d6a7468950b88762218013807f2e524d66ad1271338688d04ff8"
+    },
+    {
+      "file": "artifacts/boltnew-app/public/event-art/halloween-night.webp",
+      "bytes": 321912,
+      "sha256": "3f0e35a313f86284dd1a8f2f5709f82b2e984969898b4d7efd2e4961c9d17e61"
+    }
+  ]
+}

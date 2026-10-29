@@ -1,4 +1,5 @@
 import { halloweenPrizeLabel } from "../../../../lib/api-zod/src/event-policy-halloween";
+import { Settings } from 'lucide-react';
 import { eventEnded } from "../../../../lib/api-zod/src/event-hub-modules";
 import { ResidenceInput } from "./ResidenceInput";
 import { CompanionCards, CompanionClaimForm } from './CompanionCards';
@@ -10,6 +11,7 @@ import {
   WaitingSummary,
   applicationListStatus,
   eventListStatus,
+  participantEventTitle,
 } from "./EventPresentation";
 import { AdminInquiry } from "./AdminInquiry";
 import { TourOverview, tourWeekFor } from './TourOverview';
@@ -134,6 +136,7 @@ function EventHubContent({ path, hub }: { path: string; hub: Hub }) {
       </main>
     );
   const testMode = testModeBlocksParticipation(s);
+  const writing = !!event && (applying || (!!app && app.stage < 4));
   if (editing && app && !testMode) {
     return (
       <EventProfileEditor
@@ -144,40 +147,33 @@ function EventHubContent({ path, hub }: { path: string; hub: Hub }) {
     );
   }
   return (
-    <div className="event-hub-theme hub-participant" data-event-dark={dark}>
+    <div className="event-hub-theme hub-participant" data-event-dark={dark} data-hub-writing={writing || undefined}>
       <main className="min-h-screen bg-slate-50 text-slate-900 pb-28">
         <header className="hub-participant-header">
-          <div className="max-w-2xl mx-auto">
+          <div className="max-w-2xl mx-auto relative">
+            {s.bossParticipationAllowed && <a className="hub-admin-shortcut" href="/admin" aria-label="관리자" title="관리자"><Settings size={19} aria-hidden="true"/></a>}
             <a href="/" className="text-sm">
-              ← BINPC2
+              ← 범일NPC 술번개
             </a>
-            <span className="hub-eyebrow">BINPC2 · EVENT</span>
             <h1 className="mt-2 text-2xl font-black">
-              {path.startsWith("/events/cards") ? "MY · 행사 뽑기" : path === "/events/waiting" || app?.stage === 4
+              {writing ? "술번개 신청" : path.startsWith("/events/cards") ? "MY · 행사 뽑기" : path === "/events/waiting" || app?.stage === 4
                 ? "신청대기방"
                 : event
                   ? "행사 상세"
                   : "술번개 신청"}
             </h1>
-            <p className="text-sm text-slate-300 mt-1">
-              {event
-                ? "공지부터 확인하고, 내 신청을 이어가세요"
-                : path === "/events/waiting"
-                  ? "내 신청과 승인 상태를 한눈에 확인하세요"
-                  : "좋은 사람들과, 특별한 밤"}
-            </p>
           </div>
         </header>
         <div className="max-w-2xl mx-auto p-4 space-y-4">
           <HubFeedback status={hub.status} error={hub.error} />
-          {s.bossParticipationAllowed && !event && <HubCard><p>일반 참가자와 같은 신청·입장 화면입니다. 보스 확인용 행사의 신청·재고로 저장되며 실제 송금은 하지 않습니다.</p><HubButton disabled={hub.status==='saving'} onClick={async()=>{try{await hubFetch('/boss-participant-events',{});await hub.load();}catch(e){hub.setError((e as Error).message);}}}>금요일·토요일 신청 열기 / 이어하기</HubButton></HubCard>}
+          {s.bossParticipationAllowed && !event && <HubCard><HubButton disabled={hub.status==='saving'} onClick={async()=>{try{await hubFetch('/boss-participant-events',{});await hub.load();}catch(e){hub.setError((e as Error).message);}}}>금요일·토요일 신청 열기 / 이어하기</HubButton></HubCard>}
           {testMode && <HubCard><p role="status" className="font-bold text-amber-800">{TEST_MODE_BANNER}</p></HubCard>}
-          {event && <details className="rounded-2xl border p-3"><summary className="font-bold cursor-pointer">친구와 함께 신청 · 본인/친구 따로 관리</summary>
+          {event && <details hidden={writing} className="rounded-2xl border p-3"><summary className="font-bold cursor-pointer">친구와 함께 신청 · 본인/친구 따로 관리</summary>
             {app && <p className="my-3">본인: {app.basic.nickname} · {app.basic.birthYear}년생 · {app.basic.location}</p>}
             <CompanionCards key={event.id} eventId={event.id} group={s.companionDrafts?.[event.id]} mutate={hub.mutate} busy={hub.status==='saving'} blocked={testMode||!event.recruitment} onOwn={()=>setApplying(true)} privacyPolicyFingerprint={s.privacyNotice?.fingerprint}/>
             {!app && <CompanionClaimForm eventId={event.id} mutate={hub.mutate} busy={hub.status==='saving'} blocked={testMode||!event.recruitment} onClaimed={()=>setApplying(true)} privacyPolicyFingerprint={s.privacyNotice?.fingerprint} privacyNotice={<p className="whitespace-pre-line text-sm my-3">{s.privacyNotice?.notice??'이번 행사 신청·입금 확인·연락을 위한 닉네임·출생연도·지역을 수집합니다. 필수 수집을 거부하면 신청할 수 없습니다. 운영 개인정보 보관기간은 검토 중이며 일반 모집은 별도 확정 후 열립니다.'}</p>}/>}
           </details>}
-          {(event || path === "/events") && (
+          {event && !writing && (
             <ApplicationGuide
               key={event?.id ?? "events"}
               event={event}
@@ -205,7 +201,7 @@ function EventHubContent({ path, hub }: { path: string; hub: Hub }) {
               {s.applications.filter((a) => a.profileId).length === 0 && <HubCard><p>입장한 술번개가 없습니다. 승인과 필수 프로필을 확인한 뒤 입장해 주세요.</p></HubCard>}
               {s.applications.filter((a) => a.profileId).map((a) => {
                 const e = s.events.find((e) => e.id === a.eventId);
-                return e ? <section key={a.id}><h2 className="font-bold">{e.title}</h2><EventCards app={a} event={e} hub={hub} /></section> : null;
+                return e ? <section key={a.id}><h2 className="font-bold">{participantEventTitle(e)}</h2><EventCards app={a} event={e} hub={hub} /></section> : null;
               })}
             </>
           ) : app && event ? (
@@ -229,7 +225,7 @@ function EventHubContent({ path, hub }: { path: string; hub: Hub }) {
             )
           ) : event ? (
             <>
-              <EventDetailHeader key={event.id} event={event} />
+              {!applying && <EventDetailHeader key={event.id} event={event} />}
               {event.recruitment ? (
                 applying ? <BasicForm key={event.id} eventId={event.id} hub={hub} /> :
                 <HubButton disabled={testMode || !s.enabled || !!s.publicationBlocked} onClick={() => setApplying(true)}>신청하기</HubButton>
@@ -452,6 +448,7 @@ function EventHubContent({ path, hub }: { path: string; hub: Hub }) {
               </HubCard>
             </>
           )}
+          <div hidden={writing} className="space-y-4">
           {!s.member && s.hasSession && (
             <HubCard>
               {s.applications.length > 0 && <MemberSetup hub={hub} />}
@@ -552,6 +549,7 @@ function EventHubContent({ path, hub }: { path: string; hub: Hub }) {
               </button>
             </details>
           </HubCard>
+          </div>
         </div>
       </main>
     </div>
@@ -678,7 +676,7 @@ export function BasicForm({ eventId, hub, app, onSaved }: {
         {step > 0 && <HubButton disabled={advancing || hub.status === "saving"} onClick={() => setStep(step - 1)}>← 이전</HubButton>}
         <HubButton type="submit" disabled={!collection || advancing || hub.status === "saving"}>{hub.status === "saving" ? "저장 중…" : advancing ? "저장되었습니다 ✓" : "다음"}</HubButton>
       </div>
-      <p className="text-xs">다음을 누르면 서버에 저장됩니다. 신청을 마치기 전에는 선착순 순번이 부여되지 않습니다.</p>
+      {step === 0 && <p className="text-xs">기본정보 입력을 마쳐야 신청 순번이 정해집니다.</p>}
     </form>
   </HubCard>;
 }
@@ -752,7 +750,7 @@ export function ApplicationSteps({
             : "회비 확인 및 신청 확정"}
       </h2>
       <p>
-        {event.title} · {event.date} · {event.start}~{event.end}
+        {participantEventTitle(event)} · {event.date} · {event.start}~{event.end}
       </p>
       <p>{event.area}</p>
       <EventMedia links={event.media} materials={event.materials} />
@@ -987,7 +985,7 @@ export function WaitingRoom({
         <fieldset disabled={blocked}><ParticipantOperations app={app} event={event} hub={hub} /></fieldset>
         <HalloweenRecognitionNotice app={app} />
         {app.eligibility && <fieldset disabled={blocked}><ScreeningPhoto app={app} hub={hub} /></fieldset>}
-        <h2 className="font-black">{event.title}</h2>
+        <h2 className="font-black">{participantEventTitle(event)}</h2>
         <p>
           {event.date} {event.start}~{event.end}
         </p>
@@ -1096,7 +1094,7 @@ export function WaitingRoom({
           <p className="text-sm">
             1차 {tourSessionHours(event.date)?.first} · 2차{" "}
             {tourSessionHours(event.date)?.second} · 3차{" "}
-            {tourSessionHours(event.date)?.third}. BINPC2는 1차만 신청합니다.
+            {tourSessionHours(event.date)?.third}. 범일NPC 술번개는 1차만 신청합니다.
           </p>
         )}
         {event.campaign?.kind === "tour" && event.campaign.secondRoundLink && (blocked ? (
@@ -1111,7 +1109,7 @@ export function WaitingRoom({
             target="_blank"
             rel="noreferrer"
           >
-            2차 오픈채팅 신청 (BINPC2 외부)
+            2차 오픈채팅 신청 (범일NPC 술번개 외부)
           </a>
         ))}
         <EventMedia links={event.media} materials={event.materials} />

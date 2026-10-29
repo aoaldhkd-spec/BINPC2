@@ -461,7 +461,7 @@ export function EventLaboratory({ event, persistence }: { event?: HubEvent; pers
                 <HubCard>
                   <h3 className="font-black">가상 현장 입장 완료</h3>
                   <p>
-                    필수 프로필·승인·회식 시작을 확인했습니다. 실제 BINPC2
+                    필수 프로필·승인·회식 시작을 확인했습니다. 실제 범일NPC 술번개
                     계정은 만들지 않았습니다.
                   </p>
                   <HubButton

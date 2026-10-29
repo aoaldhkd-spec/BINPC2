@@ -16,7 +16,7 @@ test('actual React/API/PG: boss-only login, private laboratory persistence, logo
   await page.getByLabel('전화번호',{exact:true}).fill('010-0000-0000');
   await page.getByLabel('비밀번호',{exact:true}).fill(password!);
   await page.getByRole('button',{name:'로그인',exact:true}).click();
-  await expect(page.getByText('보스 테스트 중 · 일반 이용은 잠겨 있습니다')).toBeVisible();
+  await expect(page.locator('[data-boss-access=authorized]')).toBeVisible();
   await page.getByRole('link',{name:'관리자',exact:true}).click();
   await page.getByRole('button',{name:'🎉 술번개',exact:true}).click();
   await expect(page.getByText('현재 상태: ON · 테스트 및 점검 중',{exact:true})).toBeVisible();
@@ -25,9 +25,10 @@ test('actual React/API/PG: boss-only login, private laboratory persistence, logo
   const mode=await page.evaluate(async()=>{const r=await fetch('/api/event-hub/laboratory',{headers:{'x-admin-token':localStorage.getItem('admin_token_v1')!}});return r.json();});
   expect(mode.mode).toMatchObject({enabled:true,publicAdmissionOpen:false});
   await page.reload();
-  await expect(page.getByText('보스 테스트 중 · 일반 이용은 잠겨 있습니다')).toBeVisible();
+  await expect(page.locator('[data-boss-access=authorized]')).toBeVisible();
   expect(await page.evaluate(()=>localStorage.getItem('admin_pw_v1'))).toBeNull();
-  await page.getByRole('button',{name:'테스트 로그아웃',exact:true}).click();
+  await page.getByRole('button',{name:'로그아웃',exact:true}).click();
+  await page.waitForURL(url=>url.pathname==='/');
   await expect(page.getByRole('heading',{name:'현재 테스트 중입니다'})).toBeVisible();
   expect((await page.request.get('/api/event-hub/admin')).status()).toBe(423);
   await page.reload();
@@ -40,7 +41,7 @@ test('boss uses the ordinary application UI and actual admission API while publi
   await page.getByLabel('전화번호',{exact:true}).fill('010-0000-0000');await page.getByLabel('비밀번호',{exact:true}).fill(password!);
   await page.getByRole('button',{name:'로그인',exact:true}).click();
   await page.getByRole('button',{name:'금요일·토요일 신청 열기 / 이어하기'}).click();
-  await page.getByRole('button',{name:/보스 확인용.*10월 30/}).click();
+  await page.getByRole('button',{name:/신청 가능.*10월 30/}).click();
   await page.getByRole('button',{name:'신청 안내 닫기',exact:true}).click();
   await page.getByText('친구와 함께 신청 · 본인/친구 따로 관리',{exact:true}).click();
   await page.getByRole('button',{name:'친구 추가',exact:true}).click();
@@ -89,6 +90,40 @@ test('boss uses the ordinary application UI and actual admission API while publi
   await page.screenshot({path:info.outputPath('boss-ordinary-participant-entered.png'),fullPage:true});
   expect((await request.get('/api/event-hub/state')).status()).toBe(423);
   expect((await api('/state')).body.testMode).toMatchObject({enabled:true,publicAdmissionOpen:false});
+});
+test('compact Halloween home and normal application keep controls visible without developer banners',async({page,context},info)=>{
+  await context.route('**/*',r=>new URL(r.request().url()).origin===process.env.HUB_E2E_BASE_URL?r.continue():r.abort());
+  await page.goto('/');await page.getByRole('button',{name:'운영자 로그인',exact:true}).click();
+  await page.getByLabel('전화번호',{exact:true}).fill('010-0000-0000');await page.getByLabel('비밀번호',{exact:true}).fill(password!);
+  await page.getByRole('button',{name:'로그인',exact:true}).click();
+  await expect(page.getByRole('heading',{name:'범일NPC 술번개'})).toBeVisible();
+  const results=[];
+  for(const size of [{width:320,height:568},{width:390,height:700},{width:768,height:1024},{width:1440,height:900}]){
+    await page.setViewportSize(size);await page.evaluate(()=>document.fonts.ready);
+    await expect(page.getByRole('button',{name:'입장하기',exact:true})).toBeEnabled();
+    expect(await page.getByText('보스 테스트 중 · 일반 이용은 잠겨 있습니다',{exact:true}).count()).toBe(0);
+    expect(await page.getByText('보스 전용 신청·승인·입장 흐름을 시험할 수 있습니다',{exact:true}).count()).toBe(0);
+    const metrics=await page.evaluate(()=>({height:innerHeight,width:innerWidth,scrollHeight:document.documentElement.scrollHeight,scrollWidth:document.documentElement.scrollWidth,background:getComputedStyle(document.querySelector('.season-home')!).backgroundImage}));
+    expect(metrics.scrollWidth).toBeLessThanOrEqual(size.width+1);
+    expect(metrics.scrollHeight).toBeLessThanOrEqual(size.height+12);
+    expect(metrics.background).toContain('halloween-night.webp');
+    const recovery=await page.getByRole('button',{name:'고유번호로 프로필 복구',exact:true}).boundingBox();expect(recovery!.y+recovery!.height).toBeLessThanOrEqual(size.height);
+    await page.screenshot({path:info.outputPath(`home-${size.width}x${size.height}.png`),fullPage:true});results.push({...size,...metrics});
+  }
+  await page.setViewportSize({width:390,height:700});
+  await page.getByRole('link',{name:'술번개 신청',exact:true}).click();
+  await expect(page.getByRole('heading',{name:'술번개 신청',exact:true})).toBeVisible();
+  await page.getByRole('button',{name:'금요일·토요일 신청 열기 / 이어하기'}).click();
+  await page.getByRole('button',{name:/신청 가능.*10월 30/}).click();
+  await page.getByRole('button',{name:'신청 안내 닫기',exact:true}).click();
+  await page.getByRole('button',{name:'신청하기',exact:true}).click();
+  await page.getByLabel('[필수] 위 개인정보').check();await page.getByRole('button',{name:'다음',exact:true}).click();
+  await expect(page.getByLabel('닉네임',{exact:true})).toBeVisible();
+  expect(await page.locator('.hub-detail-cover:visible').count()).toBe(0);
+  await page.screenshot({path:info.outputPath('compact-application-step.png'),fullPage:true});
+  const next=await page.getByRole('button',{name:'다음',exact:true}).boundingBox();expect(next!.y+next!.height).toBeLessThanOrEqual(700);
+  expect(await page.evaluate(()=>document.documentElement.scrollHeight)).toBeLessThanOrEqual(712);
+  await info.attach('responsive-measurements',{body:JSON.stringify(results,null,2),contentType:'application/json'});
 });
 test('actual HTTP: boss password limit cannot be evaded with invented requester IDs',async({request})=>{
  const statuses=[];

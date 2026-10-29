@@ -100,7 +100,7 @@ function eventFixture(input?: HubEvent): HubEvent {
       media: [
         "data:image/svg+xml," +
           encodeURIComponent(
-            '<svg xmlns="http://www.w3.org/2000/svg" width="600" height="240"><rect width="600" height="240" fill="teal"/><text x="30" y="130" fill="white" font-size="38">BINPC2 V6 - TEST ONLY</text></svg>',
+            '<svg xmlns="http://www.w3.org/2000/svg" width="600" height="240"><rect width="600" height="240" fill="teal"/><text x="30" y="130" fill="white" font-size="38">범일NPC 술번개 V6 - TEST ONLY</text></svg>',
           ),
       ],
       cardsEnabled: true,
