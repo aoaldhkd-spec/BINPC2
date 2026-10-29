@@ -1,3 +1,4 @@
+import { PaymentAccount, type VenueAddress } from "./event-venue-directory";
 import { eventEnded } from "./event-hub-modules";
 import { normalQuote } from "./event-policy-normal";
 import { z } from "zod";
@@ -10,6 +11,7 @@ export const HubBasic = z.object({
   nickname: z.string().trim().min(2).max(12),
   birthYear: z.number().int().min(1900).max(2100),
   location: z.string().trim().min(1).max(40),
+  residence: z.object({city:z.string().trim().min(1).max(20),kind:z.enum(["city","district","neighborhood"]),value:z.string().trim().min(1).max(30)}).optional(),
   phone: z.string().regex(/^0[0-9 -]{8,14}$/),
   depositor: z.string().trim().min(1).max(40),
   collection: z.literal(true),
@@ -97,6 +99,8 @@ export const HubEventInput = z.object({
   fee: z.number().int().min(0).max(10000000),
   deposit: z.number().int().min(0).default(0),
   account: z.string().max(200),
+  accounts: z.array(PaymentAccount).max(2).optional(),
+  venueAddressId: z.string().uuid().nullable().optional(),
   deadline: z.string().max(100),
   included: z.string().max(1000).default(""),
   notice: z.string().min(1).max(10000),
@@ -123,6 +127,7 @@ export type HubLogoVersion = {id:string;url:string;label:string;role:'venue'|'th
 export type HubMaterial = {id:string;url:string;purpose:"notice"|"map"|"poster"|"video";alt:string;hidden:boolean;at:string};
 export type HubEvent = z.infer<typeof HubEventInput> & {
   /** Changed only by the explicit logo selection command; general event saves preserve it. */
+  addressRecord?: VenueAddress;
   promotionLogo?: { builtinId?: string; versionId?: string; url?: string; label?: string; provenance?: 'original'|'design'; width?: number; height?: number };
   logoVersions?: HubLogoVersion[];
   materials?: HubMaterial[];
@@ -170,6 +175,7 @@ export type HubApplication = {
   };
   confirmedAt?: string;
   payment: "none" | "reported" | "approved" | "mismatch" | "held";
+  paymentAccount?: z.infer<typeof PaymentAccount>;
   reportedAt?: string;
   approvedAt?: string;
   waivedAt?: string;

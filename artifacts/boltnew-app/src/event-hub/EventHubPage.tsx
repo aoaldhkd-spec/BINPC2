@@ -1,3 +1,7 @@
+import { eventEnded } from "../../../../lib/api-zod/src/event-hub-modules";
+import { ResidenceInput } from "./ResidenceInput";
+import { PaymentAccounts } from "./PaymentAccounts";
+import { halloweenCardTimes, cardSlotAvailable } from "../../../../lib/api-zod/src/event-card-clock";
 import {
   EventListCard,
   EventDetailHeader,
@@ -571,6 +575,7 @@ export function BasicForm({ eventId, hub, app, onSaved }: {
   const draft = hub.state?.basicDrafts?.[eventId];
   const known = app?.basic ?? draft?.basic ?? member?.basic;
   const [v, setV] = useState({ nickname: known?.nickname ?? "", birthYear: String(known?.birthYear ?? ""), location: known?.location ?? "", phone: known?.phone ?? "", depositor: known?.depositor ?? "" });
+  const [residence,setResidence] = useState(known?.residence);
   const [collection, setCollection] = useState(app?.basic.collection ?? draft?.basic.collection ?? false);
   const [step, setStep] = useState(app ? 1 : draft?.nextStep ?? 0);
   const [advancing, setAdvancing] = useState(false);
@@ -586,12 +591,13 @@ export function BasicForm({ eventId, hub, app, onSaved }: {
       for (let i = 0; i < Math.min(step, fields.length); i++) {
         const key = fields[i][0]; basic[key] = key === "birthYear" ? Number(v[key]) : v[key];
       }
+      if(step>=3 && residence) basic.residence=residence;
       const final = step === fields.length;
       const r = await hub.mutate({
         action: app || final ? "application.basic" : "application.basic-draft",
         revision: app?.revision ?? draft?.revision ?? 0,
         data: { eventId, edit: !!app, privacyPolicyFingerprint: hub.state?.privacyNotice?.fingerprint,
-          basic: app || final ? { ...v, birthYear: Number(v.birthYear), collection, version: HUB_CONSENT_VERSION } : basic,
+          basic: app || final ? { ...v, residence, birthYear: Number(v.birthYear), collection, version: HUB_CONSENT_VERSION } : basic,
           nextStep: Math.min(step + 1, fields.length) },
       });
       if (!r) return;
@@ -604,7 +610,8 @@ export function BasicForm({ eventId, hub, app, onSaved }: {
     <div className="flex items-center justify-between gap-2"><h2 className="font-black text-lg">{step === 0 ? "신청 전 개인정보 안내" : field[1]}</h2><small>{step === 0 ? "먼저 확인해 주세요" : `${step} / ${fields.length}`}</small></div>
     {member && step === 1 && <p className="text-sm">기존 프로필의 닉네임을 불러왔습니다. 수정 없이 이어갈 수 있습니다.</p>}
     <form className="space-y-4" onSubmit={(e) => { e.preventDefault(); void next(); }}>
-      {step > 0 && <HubField key={field[0]} label={field[1]}><input required autoFocus className={inputClass} value={v[field[0]]}
+      {step > 0 && field[0]==="location" && <ResidenceInput value={v.location} residence={residence} onChange={(location,value)=>{setV({...v,location});setResidence(value);}}/>}
+      {step > 0 && field[0]!=="location" && <HubField key={field[0]} label={field[1]}><input required autoFocus className={inputClass} value={v[field[0]]}
         autoComplete={field[0] === "phone" ? "tel" : "off"} maxLength={field[0] === "nickname" ? 12 : field[0] === "birthYear" ? 4 : 40}
         inputMode={field[0] === "phone" ? "tel" : field[0] === "birthYear" ? "numeric" : "text"}
         onChange={(e) => setV({ ...v, [field[0]]: e.target.value })} /></HubField>}
@@ -857,7 +864,7 @@ export function ApplicationSteps({
             </p>
           )}
           <p>입금 기한: {app.billing?.deadline}</p>
-          <p className="break-words">계좌·예금주: {app.billing?.account}</p>
+          <PaymentAccounts app={app} hub={hub} blocked={testModeBlocksParticipation(hub.state)}/>
           <p className="text-sm">
             금액을 확인하고 신청을 확정하세요. 이 버튼으로 송금이나 입금 승인이
             이루어지지 않습니다.
@@ -1007,7 +1014,7 @@ export function WaitingRoom({
                 {app.billing.quote.fee.toLocaleString()}원 ·{" "}
                 {app.billing.quote.benefit}
               </p>
-              <p className="break-words">{app.billing.account}</p>
+              <PaymentAccounts app={app} hub={hub} blocked={testModeBlocksParticipation(hub.state)}/>
               <p>기한 {app.billing.deadline}</p>
             </details>
           )}
@@ -1050,6 +1057,7 @@ export function WaitingRoom({
           {app.venue?.address ??
             `${event.area} · 상세 주소는 입금 승인 후 공개`}
         </p>
+        {app.venue?.addressRecord && <dl className="text-sm space-y-1"><dt>도로명</dt><dd>{app.venue.addressRecord.roadOriginal}</dd><dt>지번</dt><dd>{app.venue.addressRecord.parcelOriginal}</dd><dt>층</dt><dd>{app.venue.addressRecord.floor||'운영자에게 확인'}</dd></dl>}
         {app.venue?.logoId && <VenueLogo id={app.venue.logoId} />}
         {app.venue?.logo && (
           <figure>
@@ -1132,12 +1140,23 @@ export function WaitingRoom({
   );
 }
 
-export function EventCards({ app, event, hub }: { app: PrivateApplication; event: HubState["events"][number]; hub: Hub }) {
+export function EventCards({ app, event, hub, fixedClock=false }: { app: PrivateApplication; event: HubState["events"][number]; hub: Hub; fixedClock?:boolean }) {
   const currentTheme = useEventTheme(event);
+  const [clock, setClock] = useState(() => new Date(hub.state?.serverNow ?? Date.now()));
+  useEffect(() => {
+    const server = Date.parse(hub.state?.serverNow ?? new Date().toISOString());
+    const start = performance.now();
+    const tick = () => setClock(new Date(server + (fixedClock ? 0 : performance.now() - start)));
+    tick();
+    if(fixedClock) return;
+    const timer = setInterval(tick, 1000); // Local display only; never poll the API per card.
+    return () => clearInterval(timer);
+  }, [hub.state?.serverNow,fixedClock]);
+  const slots = halloweenCardTimes(event);
   const blocked = testModeBlocksParticipation(hub.state) || !paymentSatisfied(app);
   if (!app.profileId) return <HubCard><p>술번개에 입장한 뒤 MY에서 뽑기를 이용할 수 있습니다.</p></HubCard>;
   return <>
-      {(event.cardsEnabled || app.cards.length > 0) && (
+      {(event.cardsEnabled || slots.length > 0 || app.cards.length > 0) && (
         <HubCard>
           <h2 className="font-black">
             {event.campaign?.kind === "tour"
@@ -1153,8 +1172,12 @@ export function EventCards({ app, event, hub }: { app: PrivateApplication; event
           >
             {Array.from({ length: campaignCardLimit(event) }, (_, i) => i).map(
               (i) => (
-                <div
+                <button
+                  type="button"
                   key={i}
+                  disabled={blocked || !event.cardsEnabled || !!app.cards[i] || i !== app.cards.length || !cardSlotAvailable(event, i, clock) || hub.status === "saving"}
+                  onClick={() => hub.mutate({action:"application.draw",target:app.id,revision:app.revision,data:{slot:i}})}
+                  aria-label={`카드 ${i+1} ${app.cards[i] ? "결과" : eventEnded(event,clock) ? "종료" : slots.length && clock.getTime()<slots[i] ? "잠김" : "열기"}`}
                   className={`aspect-[2/3] rounded-xl grid place-items-center p-2 text-center text-sm transition-transform duration-500 ${app.cards[i] ? "hub-card-revealed bg-teal-50 border border-teal-300" : "bg-slate-800 text-white"}`}
                 >
                   {app.cards[i]
@@ -1163,8 +1186,8 @@ export function EventCards({ app, event, hub }: { app: PrivateApplication; event
                         ? "꽝"
                         : "다음 기회에"
                       : `🎁 ${app.cards[i].prizeLabel ?? "당첨 상품 · 관리자에게 확인해 주세요"}`
-                    : "✦"}
-                </div>
+                    : <span><strong className="block text-2xl">🎃</strong><span className="block">카드 {i+1}</span>{slots.length > 0 && <><span className="block">{["23:00","00:00","00:30"][i]} 해제</span><span className="block">{eventEnded(event,clock) ? "뽑기 종료" : clock.getTime() < slots[i] ? `🔒 ${Math.ceil((slots[i]-clock.getTime())/60000)}분 후` : "열림"}</span></>}</span>}
+                </button>
               ),
             )}
           </div>
@@ -1173,7 +1196,7 @@ export function EventCards({ app, event, hub }: { app: PrivateApplication; event
               blocked ||
               !app.profileId ||
               !event.cardsEnabled ||
-              eventExpired(event, new Date(hub.state?.serverNow ?? Date.now())) ||
+              !cardSlotAvailable(event, app.cards.length, clock) ||
               app.cards.length >= campaignCardLimit(event) ||
               hub.status === "saving"
             }
@@ -1193,6 +1216,7 @@ export function EventCards({ app, event, hub }: { app: PrivateApplication; event
             {!event.cardsEnabled
               ? "신규 뽑기 OFF · 기존 결과는 보존됩니다. "
               : ""}
+            {slots.length > 0 && "23:00 · 00:00 · 00:30 순서로 열립니다. 01:00 이후 새 뽑기는 종료됩니다. "}
             현장 입장 후 최대 {campaignCardLimit(event)}장 · 새로 열어도 결과가
             유지됩니다.{" "}
             {event.campaign?.kind === "tour"

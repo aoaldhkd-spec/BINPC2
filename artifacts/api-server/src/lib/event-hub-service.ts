@@ -1,3 +1,5 @@
+import { VenueAddressInput, type VenueDirectory } from "../../../../lib/api-zod/src/event-venue-directory.js";
+import { cardSlotAvailable } from "../../../../lib/api-zod/src/event-card-clock.js";
 import { validateLogoOriginal } from "./event-hub-logo.js";
 import { HubBasicDraftInput, type HubBasicDraft } from "@workspace/api-zod";
 import { publicationBlockedForTx, photoPublicationBlockedForTx, policyCompletionIssue, policyFingerprint, publicPolicyNotice } from "./event-hub-publication.js";
@@ -324,6 +326,7 @@ export class EventHubService {
         return {
           testMode,
           basicDrafts: undefined,
+          venueDirectory: undefined,
           privacyPolicy: undefined,
           privacyCase: undefined,
           marketingPreference: undefined,
@@ -408,7 +411,7 @@ export class EventHubService {
                 !testMode.enabled &&
                 testMode.publicAdmissionOpen &&
                 drawModuleEnabled(e, switches) &&
-                !eventExpired(e, this.now()),
+                !eventEnded(e, this.now()),
             }));
       const safeApps: HubApplicationView[] = admin
         ? apps.map((a) => ({
@@ -462,6 +465,7 @@ export class EventHubService {
       const publicationPolicy=await tx.get<PrivacyPolicy>("settings","privacy-policy");
       return {
         testMode,
+        venueDirectory: admin ? (await tx.get<VenueDirectory>("settings","venue-directory") ?? {revision:0,items:[],history:[]}) : undefined,
         basicDrafts: !admin && !account?.erasedAt ? account?.basicDrafts ?? {} : undefined,
         privacyNotice:publicPolicyNotice(publicationPolicy),
         publicationBlocked:admin?publicationBlocked:undefined,
@@ -542,6 +546,7 @@ export class EventHubService {
         {kind:"laboratory-mode",id:"global"}, {kind:"settings",id:"global"},
         {kind:"settings",id:"privacy-policy"}, {kind:"request",id:key},
         ...(owner ? [{kind:"owner",id:owner}] : []),
+        ...((m.action.startsWith("application.") || m.action.startsWith("admin.application.")) && !["application.basic", "application.basic-draft"].includes(m.action) ? [{kind:"application",id:m.target}] : []),
       ]);
       if (["application.basic-draft", "application.basic", "application.consent", "application.confirm", "application.report", "application.enter", "application.draw"].includes(m.action))
         await assertTestModeAllowsPublicMutation(tx);
@@ -585,7 +590,27 @@ export class EventHubService {
         saved: true,
         requestId: m.requestId,
       };
-      if (m.action.startsWith("campaign.")) {
+      if (m.action === "venue.address.save") {
+        requireAdmin();
+        const directory = await tx.get<VenueDirectory>("settings","venue-directory") ?? {revision:0,items:[],history:[]};
+        revision(directory.revision);
+        const value = VenueAddressInput.parse(m.data);
+        const previous = directory.items.find(v=>v.id===value.id) ?? null;
+        if(!previous && directory.items.length>=100) fail("LIMIT","매장 주소 등록 한도입니다.");
+        directory.history.push({at:now,actor,id:value.id,previous});
+        directory.items = [...directory.items.filter(v=>v.id!==value.id),value];
+        directory.revision++;
+        await tx.put("settings","venue-directory",directory);
+      } else if (m.action === "event.address.select") {
+        requireAdmin(); const e=await this.event(tx,m.target); revision(e.revision);
+        const directory=await tx.get<VenueDirectory>("settings","venue-directory");
+        const value=directory?.items.find(v=>v.id===m.data.addressId);
+        if(!value?.venueId || m.data.confirmedFirstRound!==true || (e.campaign && e.campaign.round!==1)) fail("VENUE_ASSIGNMENT","확인된 1차 장소만 연결할 수 있습니다.",409);
+        e.versions=[...(e.versions??[]),{at:now,notice:e.notice,address:e.address,fee:e.fee,account:e.account}];
+        e.addressRecord=value; e.venueAddressId=value!.id;e.venueLogoId=value!.venueId!;e.venueLogoVersionId=undefined;
+        e.address=[value!.roadOriginal,value!.parcelOriginal].filter(Boolean).join(" / ");
+        e.revision++;e.history.push(audit(actor,"event.address.select",now));await tx.put("event",e.id,e);
+      } else if (m.action.startsWith("campaign.")) {
         Object.assign(result, await campaignAction(tx, m, admin, now));
       } else if (m.action === "event.logo.upload") {
         requireAdmin();
@@ -667,6 +692,7 @@ export class EventHubService {
           history: [...(old?.history ?? []), audit(actor, "event.save", now)],
           logoVersions: old?.logoVersions,
           promotionLogo: old?.promotionLogo,
+          addressRecord: old?.addressRecord,
           materials: old?.materials,
         };
         if (
@@ -681,6 +707,13 @@ export class EventHubService {
           );
         if (!old && e.campaign)
           fail("CAMPAIGN_PRESET", "전용 행사 초안 준비에서 생성해 주세요.");
+        if (e.venueAddressId) {
+          const directory=await tx.get<VenueDirectory>("settings","venue-directory");
+          const address=directory?.items.find(v=>v.id===e.venueAddressId);
+          if(!address?.venueId || address.venueId!==e.venueLogoId || (e.campaign && e.campaign.round!==1)) fail("VENUE_ASSIGNMENT","매장과 1차 배정을 확인한 주소만 연결해 주세요.",409);
+          e.addressRecord=address;
+          e.address=[address.roadOriginal,address.parcelOriginal].filter(Boolean).join(" / ");
+        } else if (e.venueAddressId===null) { e.addressRecord=undefined; }
         if(e.thanksLogoVersionId && !e.logoVersions?.some(v=>v.id===e.thanksLogoVersionId&&v.role==="thanks"))fail("LOGO","이 행사의 감사용 원본만 연결할 수 있습니다.");
         if(e.venueLogoVersionId && !e.logoVersions?.some(v=>v.id===e.venueLogoVersionId&&v.role==="venue"))fail("LOGO","이 행사에 저장한 장소용 원본만 연결할 수 있습니다.");
         for (const url of e.media) {
@@ -1058,6 +1091,7 @@ export class EventHubService {
             a.consent?.noticeVersion !== e.noticeVersion
           )
             fail("STAGE", "최신 공지와 회비를 확인해 주세요.");
+          if ((a.quote?.fee??0)>0 && (e.accounts?.length??0)>0 && !a.paymentAccount) fail("ACCOUNT","입금할 계좌 하나를 먼저 선택해 주세요.");
           a.stage = 4;
           a.confirmedAt = now;
         } else if (m.action === "application.report") {
@@ -1071,6 +1105,11 @@ export class EventHubService {
             a.payment = "reported";
             a.reportedAt ??= now;
           }
+        } else if (m.action === "application.account") {
+          if(a.stage<3 || a.confirmedAt || a.reportedAt || a.approvedAt || a.waivedAt) fail("PAYMENT_LOCKED","금액 확인 전 계좌만 선택할 수 있습니다.",409);
+          const selected=e.accounts?.find(v=>v.id===m.data.accountId);
+          if(!selected) fail("ACCOUNT","안내된 계좌 중 하나를 선택해 주세요.");
+          a.paymentAccount={...selected!};
         } else if (m.action === "application.profile") {
           if (a.profileId)
             fail(
@@ -1408,10 +1447,10 @@ export class EventHubService {
           a.attendance = "confirmed";
         } else if (m.action === "application.draw") {
           requireEnabled();
-          if (eventExpired(e, this.now()))
+          if (eventEnded(e, this.now()))
             fail(
               "EVENT_ENDED",
-              "행사 뽑기 기간이 종료되었습니다. 기존 결과는 보존됩니다.",
+              "행사 뽑기가 종료되었습니다. 기존 결과는 보존됩니다.",
               403,
             );
           if (
@@ -1434,20 +1473,16 @@ export class EventHubService {
             fail("CARDS", "입장 및 카드 활성화가 필요합니다.", 403);
           if (a.cards.length >= campaignCardLimit(e))
             fail("CARD_LIMIT", `행사별 카드는 ${campaignCardLimit(e)}장까지 뽑을 수 있습니다.`, 409);
-          const currentSettings = (
-            await tx.db.query(
-              "SELECT data FROM app_kv_rows WHERE table_name='app_settings' LIMIT 1",
-            )
-          ).rows[0]?.data;
-          const liveProfile = (
-            await tx.db.query(
-              "SELECT row_id FROM app_kv_rows WHERE table_name='profiles' AND row_id=$1",
-              [a.profileId],
-            )
-          ).rows[0];
+          if (!cardSlotAvailable(e, a.cards.length, this.now())) fail("CARD_LOCKED", "아직 카드 해제 시각이 아닙니다.", 403);
+          const current = (await tx.db.query(
+            "SELECT s.data AS settings, EXISTS(SELECT 1 FROM app_kv_rows p WHERE p.table_name='profiles' AND p.row_id=$1) AS profile_exists FROM (SELECT data FROM app_kv_rows WHERE table_name='app_settings' LIMIT 1) s",
+            [a.profileId],
+          )).rows[0];
+          const currentSettings = current?.settings;
+          const liveProfile = current?.profile_exists;
           if (
             !currentSettings ||
-            (!currentSettings.session_active && e.type!=="halloween") ||
+            !currentSettings.session_active ||
             currentSettings.event_cycle_reset_complete ||
             currentSettings.event_cycle_archive_id !== a.cycleId ||
             !liveProfile
@@ -1457,6 +1492,7 @@ export class EventHubService {
               "현재 현장 행사에서만 카드를 뽑을 수 있습니다.",
               403,
             );
+          if (e.type === "halloween" && m.data.slot !== undefined && m.data.slot !== a.cards.length) fail("CARD_SLOT", "이미 사용했거나 아직 차례가 아닌 카드입니다.", 409);
           if (e.campaign) await drawCampaign(tx, e, a, now, this.pick);
           else {
             const stocks = (await tx.stocksForEvent<HubStock>(e.id)).filter(

@@ -1,0 +1,64 @@
+{
+  "baseline": "9adc8e124a15c36a498e5e72a5d486583f044cef",
+  "finalCodeFingerprint": "82f41ce52520c52e89871adfc40a83b830f3cf59fedc8079786a4cf163e6eb54",
+  "apiUnitAndDatabase": {
+    "passed": 672,
+    "log": ".local/current-api-final.log"
+  },
+  "uiUnit": {
+    "passed": 907,
+    "log": ".local/current-ui-final.log"
+  },
+  "affectedUiFinal": {
+    "passed": 11,
+    "log": ".local/current-ui-retest-final.log"
+  },
+  "currentPgFinal": {
+    "passed": 3,
+    "skippedUnselected": 77,
+    "log": ".local/current-pg-last.log"
+  },
+  "browserFirst": {
+    "passed": 18,
+    "failed": 3,
+    "log": ".local/current-browser-full.log",
+    "failureEvidence": ".local/current-browser-first-evidence"
+  },
+  "browserRetestAndNew": {
+    "passed": 4,
+    "log": ".local/current-browser-retest.log"
+  },
+  "performance": {
+    "runId": "mixed-1793249408086",
+    "builtCodeFingerprint": "2d83629b12d2514598ea4ef01134a6ec9271391ab68d7a40163188787a1dc460",
+    "durationSeconds": 34,
+    "requests": 3520,
+    "http200": 3513,
+    "expected409": 7,
+    "http500": 0,
+    "http503": 0,
+    "cohorts": [
+      100,
+      150
+    ],
+    "p95Ms": {
+      "100Applications": 3101.3,
+      "150Mixed": 2843,
+      "150ProfilePaymentInquiry": 1283.4,
+      "150EntryAndCards": 3722.6,
+      "150HeartChat": 1284.9
+    },
+    "sustainedMinutes": 0,
+    "environmentNote": "Actual isolated PostgreSQL16, retained cumulative data. Browser regression was running concurrently. Not the previous15-minute soak and not a2-second PASS.",
+    "restartRecordsVerified": true
+  },
+  "googleDrive": {
+    "userConnectionLocation": "ChatGPT settings Apps",
+    "currentCodexDriveTools": 0,
+    "uploadPermission": "UNKNOWN",
+    "externalUpload": "NOT_RUN",
+    "downloadHashVerification": "NOT_RUN",
+    "externalCopyRestore": "NOT_RUN"
+  },
+  "deployment": "NOT_RUN"
+}

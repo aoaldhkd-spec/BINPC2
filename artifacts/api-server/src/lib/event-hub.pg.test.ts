@@ -131,6 +131,11 @@ suite("event hub V6 — actual isolated PostgreSQL transactions", () => {
     );
     await call("application.confirm", id, {}, (await app(id)).revision);
   };
+  const clockSlot = async (slot:number) => {
+    const e=(await adminState()).events.find(e=>e.id===eventId)!;
+    const at=Date.parse(e.date+"T00:00:00+09:00")+[23,24,24.5][slot]*3600000;
+    service=new EventHubService(new HubStore(pool),"isolated-test-session-secret",()=>new Date(at));
+  };
   const approved = async (id: string) => {
     await complete(id);
     await call(
@@ -972,8 +977,10 @@ suite("event hub V6 — actual isolated PostgreSQL transactions", () => {
       undefined,
       true,
     );
-    for (let i = 0; i < 3; i++)
-      await call("application.draw", id, {}, (await app(id)).revision);
+    for (let i = 0; i < 3; i++) {
+      await clockSlot(i);
+      await call("application.draw", id, {slot:i}, (await app(id)).revision);
+    }
     await expect(
       call("application.draw", id, {}, (await app(id)).revision),
     ).rejects.toMatchObject({ code: "CARD_LIMIT" });
@@ -2347,8 +2354,10 @@ suite("event hub V6 — actual isolated PostgreSQL transactions", () => {
       expect(
         (await service.state(owner)).applications[0].venue?.address,
       ).toBeDefined();
-      for (let n = 0; n < 3; n++)
-        await call("application.draw", id, {}, (await app(id)).revision);
+      for (let n = 0; n < 3; n++) {
+        await clockSlot(n);
+        await call("application.draw", id, {slot:n}, (await app(id)).revision);
+      }
       await expect(
         call("application.draw", id, {}, (await app(id)).revision),
       ).rejects.toMatchObject({ code: "CARD_LIMIT" });
@@ -2723,7 +2732,8 @@ suite("event hub V6 — actual isolated PostgreSQL transactions", () => {
       { deviceSecret: "module-isolated-fixture" },
       7,
     );
-    await call("application.draw", id, {}, 8);
+    await clockSlot(0);
+    await call("application.draw", id, {slot:0}, 8);
     const original = await app(id);
     await call(
       "settings.save",
@@ -2755,7 +2765,8 @@ suite("event hub V6 — actual isolated PostgreSQL transactions", () => {
       1,
       true,
     );
-    await call("application.draw", id, {}, original.revision);
+    await clockSlot(1);
+    await call("application.draw", id, {slot:1}, original.revision);
     await pool.query(
       "UPDATE app_kv_rows SET data=jsonb_set(data,'{module_flags,event_hub}','false'::jsonb) WHERE table_name='app_settings'",
     );
@@ -2805,8 +2816,8 @@ suite("event hub V6 — actual isolated PostgreSQL transactions", () => {
     ).rejects.toMatchObject({ code: "CLOSED" });
 
     await pool.query("UPDATE app_kv_rows SET data=jsonb_set(data,'{session_active}','false'::jsonb) WHERE table_name='app_settings'");
-    await call("application.draw", id, {}, (await app(id)).revision);
-    expect((await app(id)).cards).toHaveLength(3);
+    await expect(call("application.draw", id, {}, (await app(id)).revision)).rejects.toMatchObject({code:"EVENT_ENDED"});
+    expect((await app(id)).cards).toHaveLength(2);
     expect((await service.state(owner)).events.find(e => e.id === eventId)?.themeEnabled).toBe(true);
     const resumed=await call("application.enter",id,{deviceSecret:"same-device"},(await app(id)).revision);
     expect((resumed.profile as {id:string}).id).toBe((await app(id)).profileId);
@@ -2815,7 +2826,7 @@ suite("event hub V6 — actual isolated PostgreSQL transactions", () => {
     await expect(call("application.draw", id, {}, (await app(id)).revision)).rejects.toMatchObject({code:"EVENT_ENDED"});
     const view = await service.state(owner);
     expect(view.events.find((e) => e.id === eventId)?.themeEnabled).toBe(false);
-    expect(view.applications[0].cards).toHaveLength(3);
+    expect(view.applications[0].cards).toHaveLength(2);
     await atomicEventReset(pool, {
       clearTables: ["profiles", "device_secrets", "likes", "chats", "messages"],
       now: new Date("2026-11-01T08:00:00Z"),
@@ -2831,7 +2842,7 @@ suite("event hub V6 — actual isolated PostgreSQL transactions", () => {
         event_cycle_reset_complete: true,
       }),
     });
-    expect((await app(id)).cards).toHaveLength(3);
+    expect((await app(id)).cards).toHaveLength(2);
     expect((await app(id)).waivedAt).toBeTruthy();
     expect((await app(id)).candy).toBe("haribo");
     expect(
@@ -2871,6 +2882,70 @@ suite("event hub V6 — actual isolated PostgreSQL transactions", () => {
       ),
     ).rejects.toMatchObject({ code: "MODULE_DISABLED" });
   });
+  it("CURRENT addresses keep original fields private and require a confirmed venue before event linking", async () => {
+    const address={id:randomUUID(),venueId:"jack",label:"가상 매장",roadOriginal:"시험로 1 지하1층",parcelOriginal:"시험동 12(13)",floor:"B1",source:"합성 시험",receivedAt:now().toISOString()};
+    await expect(call("venue.address.save","",address,0)).rejects.toMatchObject({code:"ADMIN"});
+    await call("venue.address.save","",address,0,true);
+    expect((await adminState()).venueDirectory?.items[0]).toEqual(address);
+    expect(JSON.stringify(await service.state(owner))).not.toContain(address.roadOriginal);
+    const e=(await adminState()).events.find(e=>e.id===eventId)!;
+    await expect(call("event.address.select",eventId,{addressId:address.id},e.revision,true)).rejects.toMatchObject({code:"VENUE_ASSIGNMENT"});
+    await call("event.address.select",eventId,{addressId:address.id,confirmedFirstRound:true},e.revision,true);
+    const id=await create();
+    expect(JSON.stringify(await service.state(owner))).not.toContain(address.parcelOriginal);
+    await approved(id);
+    expect((await service.state(owner)).applications.find(a=>a.id===id)?.venue?.addressRecord).toEqual({roadOriginal:address.roadOriginal,parcelOriginal:address.parcelOriginal,floor:address.floor});
+    const stranger=await service.session(randomBytes(32).toString("base64url"),true);
+    expect(JSON.stringify(await service.state(stranger))).not.toContain(address.roadOriginal);
+    const unknown={...address,id:randomUUID(),venueId:null,label:"매장 연결 미확인"};
+    await call("venue.address.save","",unknown,1,true);
+    const updated=(await adminState()).events.find(e=>e.id===eventId)!;
+    await expect(call("event.address.select",eventId,{addressId:unknown.id,confirmedFirstRound:true},updated.revision,true)).rejects.toMatchObject({code:"VENUE_ASSIGNMENT"});
+    expect((await adminState()).venueDirectory?.items).toHaveLength(2);
+  });
+  it("CURRENT alternative accounts require one choice and preserve the confirmed snapshot when administrator settings change", async () => {
+    let e=(await adminState()).events.find(e=>e.id===eventId)!;
+    const accounts=[{id:randomUUID(),bank:"시험은행A",number:"0000-0000-0001"},{id:randomUUID(),bank:"시험은행B",number:"0000-0000-0002"}];
+    await call("event.save",eventId,{...e,accounts},e.revision,true);
+    const id=await create();
+    await call("application.consent",id,{consent},(await app(id)).revision);
+    await expect(call("application.confirm",id,{},(await app(id)).revision)).rejects.toMatchObject({code:"ACCOUNT"});
+    await call("application.account",id,{accountId:accounts[1].id},(await app(id)).revision);
+    await call("application.confirm",id,{},(await app(id)).revision);
+    await call("application.report",id,{},(await app(id)).revision);
+    const before=await app(id);
+    e=(await adminState()).events.find(e=>e.id===eventId)!;
+    await call("event.save",eventId,{...e,accounts:[accounts[0]]},e.revision,true);
+    expect((await app(id)).paymentAccount).toEqual(accounts[1]);
+    expect((await service.state(owner)).applications.find(a=>a.id===id)?.billing?.account).toContain(accounts[1].number);
+    await expect(call("application.account",id,{accountId:accounts[0].id},before.revision)).rejects.toMatchObject({code:"PAYMENT_LOCKED"});
+    expect((await app(id)).payment).toBe("reported");
+  });
+  it("CURRENT Halloween server slots reject early/concurrent use and preserve a lost-response receipt after closing", async () => {
+    const id=await create();await approved(id);await activate();
+    await call("application.profile",id,{profile:fullProfile},(await app(id)).revision);
+    await call("application.enter",id,{deviceSecret:"slot-isolated-device"},(await app(id)).revision);
+    const midnight=Date.parse(event.date+"T00:00:00+09:00");
+    const at=(ms:number)=>{service=new EventHubService(new HubStore(pool),"isolated-test-session-secret",()=>new Date(ms));};
+    let lastRequest:Record<string,unknown>|undefined;
+    for(const [slot,hour] of [23,24,24.5].entries()) {
+      at(midnight+hour*3600000-1);
+      await expect(call("application.draw",id,{slot},(await app(id)).revision)).rejects.toMatchObject({code:"CARD_LOCKED"});
+      at(midnight+hour*3600000);
+      const revision=(await app(id)).revision;
+      const requests=[0,1].map(()=>({action:"application.draw",target:id,data:{slot},revision,requestId:randomUUID()}));
+      const results=await Promise.allSettled(requests.map(request=>service.mutate(owner,false,request)));
+      expect(results.filter(r=>r.status==="fulfilled")).toHaveLength(1);
+      lastRequest=requests[results.findIndex(r=>r.status==="fulfilled")];
+      expect((await app(id)).cards).toHaveLength(slot+1);
+    }
+    const saved=await app(id);at(midnight+25*3600000);
+    await expect(call("application.draw",id,{},saved.revision)).rejects.toMatchObject({code:"EVENT_ENDED"});
+    expect((await app(id)).cards).toEqual(saved.cards);
+    // Existing receipts remain readable after the draw window, without another stock deduction.
+    expect((await service.receipt(owner,false,lastRequest!.requestId as string)).saved).toBe(true);
+  });
+
 });
 
 suite('private PostgreSQL roles and RLS compatibility',()=>{
@@ -2883,4 +2958,5 @@ suite('private PostgreSQL roles and RLS compatibility',()=>{
    expect(row.relrowsecurity).toBe(true);
   }finally{await pool.end();}
  });
+
 });

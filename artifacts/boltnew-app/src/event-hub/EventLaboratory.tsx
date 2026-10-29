@@ -1,3 +1,5 @@
+import { halloweenCardTimes } from "../../../../lib/api-zod/src/event-card-clock";
+import { eventEndAt } from "../../../../lib/api-zod/src/event-hub-modules";
 import {eventExpiryAt} from "../../../../lib/api-zod/src/event-hub-modules";
 import {BenefitResults} from "./EventOperations";
 import { useState, useRef, useEffect } from "react";
@@ -193,6 +195,9 @@ export function EventLaboratory({ event, persistence }: { event?: HubEvent; pers
            ...(engine.value.event.opensAt?[["접수 시작 직전",Date.parse(engine.value.event.opensAt)-1000],["접수 시작 정각",Date.parse(engine.value.event.opensAt)]]:[]),
            ["당일20:59:59",Date.parse(engine.value.event.date+"T20:59:59+09:00")],
            ["당일21:00:00",Date.parse(engine.value.event.date+"T21:00:00+09:00")],
+           ...halloweenCardTimes(engine.value.event).flatMap((at,i)=>[[`카드${i+1} 해제 직전`,at-1000],[`카드${i+1} 해제 정각`,at]]),
+           ["행사 종료 직전",eventEndAt(engine.value.event)-1000],
+           ["행사 종료 정각",eventEndAt(engine.value.event)],
            ["해당 회차17시 직전",eventExpiryAt(engine.value.event)-1000],
            ["해당 회차17시 만료",eventExpiryAt(engine.value.event)],
           ].map(([label,at])=><option key={String(label)} value={new Date(Number(at)).toISOString()}>{String(label)}</option>)}
@@ -451,7 +456,7 @@ export function EventLaboratory({ event, persistence }: { event?: HubEvent; pers
                   sync();
                 }}
               />
-              {engine.value.entered && <EventCards app={app} event={engine.value.event} hub={userHub} />}
+              {engine.value.entered && <EventCards fixedClock app={app} event={engine.value.event} hub={userHub} />}
               {engine.value.entered && (
                 <HubCard>
                   <h3 className="font-black">가상 현장 입장 완료</h3>

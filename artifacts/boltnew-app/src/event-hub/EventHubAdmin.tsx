@@ -1,3 +1,4 @@
+import { VenueDirectoryEditor } from "./VenueDirectoryEditor";
 import { paymentSatisfied } from "../../../../lib/api-zod/src/event-campaign";
 import {
   EventArtwork,
@@ -257,6 +258,7 @@ export default function EventHubAdmin({ active = true }: { active?: boolean }) {
               }}
             />
           )}
+          {tab === "공지·장소" && <VenueDirectoryEditor hub={hub} event={event}/>}
           {tab === "공지·장소" && !event && (
             <HubCard>
               <p>사진과 장소를 수정할 날짜를 위에서 선택하세요.</p>
@@ -867,6 +869,10 @@ function EventEditor({
           }
         />
       </HubField>
+      <details><summary className="font-bold">대체 입금 계좌 (최대 2개)</summary><p>둘 중 하나로 한 번만 입금합니다. 기존 입금 신고·승인 기록의 선택 계좌는 바뀌지 않습니다.</p>
+        {(v.accounts??[]).map((a,i)=><div key={a.id} className="border rounded-xl p-3">{([['bank','은행'],['number','계좌번호'],['holder','예금주 (확인된 경우만)']] as const).map(([key,label])=><HubField label={`${i+1}번 ${label}`} key={key}><input className={inputClass} value={a[key]??''} onChange={e=>set('accounts',(v.accounts??[]).map(x=>x.id===a.id?{...x,[key]:e.target.value}:x))}/></HubField>)}<HubButton onClick={()=>set('accounts',v.accounts?.filter(x=>x.id!==a.id))}>새 신청 안내에서 제외</HubButton></div>)}
+        <HubButton disabled={(v.accounts?.length??0)>=2} onClick={()=>set('accounts',[...(v.accounts??[]),{id:crypto.randomUUID(),bank:'',number:''}])}>대체 계좌 추가</HubButton>
+      </details>
       {hub.state?.settings && !v.campaign && (
         <HubButton
           onClick={() => {

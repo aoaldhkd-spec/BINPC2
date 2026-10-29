@@ -240,7 +240,10 @@ describe("laboratory event selection and restored controls", () => {
       store.jump("현장 입장", 3);
       const poolBefore = campaignInitialStocks(source).reduce((n, prize) => n + prize.remaining, 0);
       const count = source.campaign?.kind === "tour" ? 1 : 3;
-      for (let i = 0; i < count; i++) command(store, "application.draw");
+      for (let i = 0; i < count; i++) {
+        if(source.type === "halloween") store.configureClock(new Date(Date.parse(source.date+"T00:00:00+09:00")+[23,24,24.5][i]*3600000).toISOString());
+        command(store, "application.draw");
+      }
       const app = store.value.applications[0];
       expect(app.cards).toHaveLength(source.campaign?.kind === "tour" ? 2 : 3);
       expect(() => command(store, "application.draw")).toThrow("3장");

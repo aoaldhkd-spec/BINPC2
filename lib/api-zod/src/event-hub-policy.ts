@@ -83,7 +83,8 @@ export function participantApplication(a: HubApplication, e: HubEvent) {
           quote,
           billing: {
             quote,
-            account: e.account,
+            account: a.paymentAccount ? `${a.paymentAccount.bank} ${a.paymentAccount.number}${a.paymentAccount.holder ? ` ${a.paymentAccount.holder}` : ""}` : e.account,
+            accounts: a.confirmedAt ? (a.paymentAccount ? [a.paymentAccount] : []) : e.accounts,
             deadline: e.deadline,
             included: e.included,
             deposit:
@@ -94,7 +95,7 @@ export function participantApplication(a: HubApplication, e: HubEvent) {
         }
       : {}),
     ...(paymentSatisfied(a)
-      ? { venue: { address: e.address, logoId: selectedLogo?undefined:e.venueLogoId, thanksLogo:thanksLogo?{url:thanksLogo.url,label:thanksLogo.label,width:thanksLogo.width,height:thanksLogo.height}:undefined, logo:selectedLogo?{url:selectedLogo.url,label:selectedLogo.label,width:selectedLogo.width,height:selectedLogo.height}:undefined, mapUrl: e.mapUrl } }
+      ? { venue: { address: e.address, addressRecord: e.addressRecord ? {roadOriginal:e.addressRecord.roadOriginal,parcelOriginal:e.addressRecord.parcelOriginal,floor:e.addressRecord.floor} : undefined, logoId: selectedLogo?undefined:e.venueLogoId, thanksLogo:thanksLogo?{url:thanksLogo.url,label:thanksLogo.label,width:thanksLogo.width,height:thanksLogo.height}:undefined, logo:selectedLogo?{url:selectedLogo.url,label:selectedLogo.label,width:selectedLogo.width,height:selectedLogo.height}:undefined, mapUrl: e.mapUrl } }
       : {}),
   };
 }

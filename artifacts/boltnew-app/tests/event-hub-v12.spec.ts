@@ -195,3 +195,40 @@ test("V12 accessible navigation survives missing decorations, text zoom and redu
   await page.screenshot({path:info.outputPath('v12-accessible-events-320-textzoom.png'),fullPage:true});
   await info.attach('keyboard-textzoom-motion',{body:JSON.stringify({focused,widths:[320,740],textSize:20,reducedMotion:true,missingAssets,animations,scope:'Public event list; not all menus or physical screen readers'}),contentType:'application/json'});
 });
+
+test('CURRENT address editor saves, reopens, blocks unsaved links and preserves original fields on mobile/tablet/PC',async({page,request},info)=>{
+  const e=await command(request,'event.save','',{title:'격리 주소 연결 검사',type:'normal',date:'2030-01-05',start:'22:00',end:'01:00',area:'합성 지역',address:'',account:'실제 송금 금지',fee:30000,deadline:'시험 전용',notice:'주소 접근권한 검사'});
+  await page.addInitScript(value=>{localStorage.setItem('admin_token_v1',value);localStorage.setItem('admin_session_v1',JSON.stringify({phone:'01000000000',authedAt:Date.now()}));},token!);
+  await page.goto('/admin');
+  await page.getByRole('button',{name:'🎉 술번개',exact:true}).click();
+  await page.getByRole('button',{name:'공지·장소',exact:true}).first().click();
+  await page.getByLabel('관리할 행사',{exact:true}).selectOption(e.id);
+  await page.getByText('매장 주소 등록·1차 장소 연결',{exact:true}).click();
+  const label='합성주소'+String(Date.now()).slice(-6);
+  await page.getByLabel('주소의 매장',{exact:true}).selectOption('check_in');
+  for(const [key,value] of [['자료 이름',label],['도로명 원문','시험로 100'],['지번 원문','시험동 12(13)'],['층','2층'],['제공 출처','격리 브라우저 합성 검사']])await page.getByLabel(key,{exact:true}).fill(value);
+  const saved=page.waitForResponse(r=>r.url().endsWith('/api/event-hub/mutate')&&r.request().postDataJSON()?.action==='venue.address.save');
+  await page.getByRole('button',{name:'매장 주소 저장',exact:true}).click();expect((await saved).status()).toBe(200);
+  const state=await admin(request),address=state.venueDirectory.items.find((v:{label:string})=>v.label===label);
+  expect(address.parcelOriginal).toBe('시험동 12(13)');
+  await page.reload();
+  await page.getByRole('button',{name:'🎉 술번개',exact:true}).click();
+  await page.getByRole('button',{name:'공지·장소',exact:true}).first().click();
+  await page.getByLabel('관리할 행사',{exact:true}).selectOption(e.id);
+  await page.getByText('매장 주소 등록·1차 장소 연결',{exact:true}).click();
+  await page.getByLabel('저장된 매장 주소',{exact:true}).selectOption(address.id);
+  await expect(page.getByLabel('지번 원문',{exact:true})).toHaveValue('시험동 12(13)');
+  await page.getByLabel('이 매장의 해당 날짜 1차 배정을 확인했습니다').check();
+  await page.getByLabel('층',{exact:true}).fill('3층');
+  await expect(page.getByRole('button',{name:'이 행사 1차 장소로 연결'})).toBeDisabled();
+  await page.getByLabel('층',{exact:true}).fill('2층');
+  const linked=page.waitForResponse(r=>r.url().endsWith('/api/event-hub/mutate')&&r.request().postDataJSON()?.action==='event.address.select');
+  await page.getByRole('button',{name:'이 행사 1차 장소로 연결'}).click();expect((await linked).status()).toBe(200);
+  expect((await admin(request)).events.find((v:{id:string})=>v.id===e.id).addressRecord).toMatchObject({id:address.id,parcelOriginal:'시험동 12(13)',floor:'2층'});
+  for(const width of [360,768,1440]){
+    await page.setViewportSize({width,height:900});
+    await expect(page.getByRole('button',{name:'매장 주소 저장',exact:true})).toBeVisible();
+    expect(await page.evaluate(()=>document.documentElement.scrollWidth<=window.innerWidth+1)).toBe(true);
+    await page.screenshot({path:info.outputPath(`current-address-${width}.png`),fullPage:true});
+  }
+});

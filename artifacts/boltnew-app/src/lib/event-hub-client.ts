@@ -25,11 +25,12 @@ export type PrivateApplication = Omit<HubApplication, "rank" | "owner"> & {
   billing?: {
     quote: NonNullable<HubApplication["quote"]>;
     account: string;
+    accounts?: NonNullable<HubApplication["paymentAccount"]>[];
     deadline: string;
     included: string;
     deposit: number;
   };
-  venue?: { address: string; mapUrl: string; logoId?: string; logo?: {url:string;label:string;width:number;height:number}; thanksLogo?: {url:string;label:string;width:number;height:number} };
+  venue?: { address: string; addressRecord?: Pick<import("../../../../lib/api-zod/src/event-venue-directory").VenueAddress,"roadOriginal"|"parcelOriginal"|"floor">; mapUrl: string; logoId?: string; logo?: {url:string;label:string;width:number;height:number}; thanksLogo?: {url:string;label:string;width:number;height:number} };
   resultDetails?: HubApplication["cards"];
 };
 export type HubThread = {
@@ -44,6 +45,7 @@ export type HubThread = {
   history: HubAudit[];
 };
 export type HubState = {
+  venueDirectory?: import("../../../../lib/api-zod/src/event-venue-directory").VenueDirectory;
   basicDrafts?: Record<string, import("../../../../lib/api-zod/src/event-hub").HubBasicDraft>;
   testMode?: PublicEventTestMode;
   serverNow?: string;

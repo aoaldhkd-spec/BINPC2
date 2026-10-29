@@ -1,3 +1,4 @@
+import { cardSlotAvailable } from "../../../../lib/api-zod/src/event-card-clock";
 import {eventEnded,eventExpired,eventEndAt,effectiveEventTheme} from "../../../../lib/api-zod/src/event-hub-modules";
 import {
   campaignInitialStocks,
@@ -323,7 +324,7 @@ export class EventLaboratoryStore {
   state(admin = false): HubState {
     const e = this.value.event;
     const simulatedNow=new Date(this.value.quoteAt??Date.now());
-    const publicEvent = { ...e, themeEnabled: effectiveEventTheme(e,simulatedNow)!=="default", cardsEnabled:e.cardsEnabled&&!eventExpired(e,simulatedNow) };
+    const publicEvent = { ...e, themeEnabled: effectiveEventTheme(e,simulatedNow)!=="default", cardsEnabled:e.cardsEnabled&&!eventEnded(e,simulatedNow) };
     if (!admin) {
       for (const k of [
         "fee",
@@ -565,7 +566,6 @@ export class EventLaboratoryStore {
             break;
           }
           case "application.draw":
-            if(eventExpired(e,new Date(this.value.quoteAt??Date.now())))throw new Error("해당 회차 이벤트 이용 기간이 만료되었습니다.");
             if (
               !e.cardsEnabled ||
               !a.profileId ||
@@ -575,6 +575,7 @@ export class EventLaboratoryStore {
               throw new Error("현장 입장 후 뽑을 수 있습니다.");
             if (a.cards.length >= campaignCardLimit(e))
               throw new Error("행사별 카드는 3장까지 뽑을 수 있습니다.");
+            if(!cardSlotAvailable(e,a.cards.length,new Date(this.value.quoteAt??Date.now())))throw new Error("카드 해제 시각과 행사 종료 시각을 확인해 주세요.");
             if (e.campaign) {
               const pool = this.value.prizePool ?? [];
               const random = (max: number) =>

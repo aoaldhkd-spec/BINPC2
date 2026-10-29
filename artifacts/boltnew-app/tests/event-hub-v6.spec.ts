@@ -1937,8 +1937,10 @@ test("test mode real browser: isolated campaigns, durable restore, global reset 
       await admin.getByLabel("반복 테스트 시나리오", { exact: true }).selectOption(workspaceId);
       await savedAction("save", () => lab.getByLabel("가상 진행 상태", { exact: true }).selectOption("현장 입장"));
       const draw = lab.getByRole("button", { name: cards === 2 ? "추억의 뽑기 두 장 열기" : "카드 한 장 뽑기", exact: true });
-      for (let i = 0; i < (cards === 2 ? 1 : 3); i++)
+      for (let i = 0; i < (cards === 2 ? 1 : 3); i++) {
+        if(cards===3) await savedAction("save",()=>lab.getByLabel("시험 기준 시각 (한국시간)",{exact:true}).selectOption({label:`카드${i+1} 해제 정각`}));
         await savedAction("save", () => draw.click());
+      }
       await expect(draw).toBeDisabled();
       const snapshot = (await readLaboratory()).workspaces[workspaceId] as LabSnapshot;
       expect(snapshot.applications[0].cards).toHaveLength(cards);
@@ -1961,8 +1963,7 @@ test("test mode real browser: isolated campaigns, durable restore, global reset 
         await expect(lab.getByRole("alert")).toContainText("신규 입장 기간이 종료되었습니다.");
         expect(((await readLaboratory()).workspaces[workspaceId] as LabSnapshot).entered).toBe(false);
         await savedAction("save", () => lab.getByLabel("가상 진행 상태", { exact: true }).selectOption("현장 입장"));
-        await expect(draw).toBeEnabled();
-        await savedAction("save", () => draw.click());
+        await expect(draw).toBeDisabled();
         await savedAction("save", () => lab.getByLabel("시험 기준 시각 (한국시간)", { exact: true }).selectOption({ label: "해당 회차17시 만료" }));
         await expect(draw).toBeDisabled();
         await savedAction("save", () => lab.getByLabel("시험 기준 시각 (한국시간)", { exact: true }).selectOption({ label: "당일20:59:59" }));
@@ -2045,7 +2046,7 @@ test("test mode real browser: isolated campaigns, durable restore, global reset 
       "# Test mode browser evidence", "",
       "Passed against the isolated localhost React/API/PostgreSQL fixture. No production service was accessed.", "",
       "Verified public blocking, four campaign scenarios and repeated draws, isolated durable restoration, synthetic heart/chat, global reset, stale-generation rejection, and fresh acknowledgement after another administrator reset. OFF remains closed; only a separate authenticated opening confirmation enables admission, and closing immediately blocks it again.", "",
-      "For Halloween, new entry remains blocked after 01:00; an already admitted participant can draw at 16:59:59, and drawing is disabled at the next 17:00 expiry.", "",
+      "For Halloween, cards unlock at 23:00, 00:00 and 00:30. New entry and new draws close at 01:00; theme expiry remains 17:00 and saved records are retained.", "",
       "Operational applications, payment states, ranks and stock records were identical before and after. Only the explicitly isolated fixture is restored to OFF and separately reopened for following regression tests; no production opening request was sent.", "",
       ...screenshots.map(shot => `- [${shot.file}](${shot.file}) — ${shot.description}`), "",
     ].join("\n"));

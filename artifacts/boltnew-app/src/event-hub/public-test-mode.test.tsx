@@ -81,15 +81,15 @@ it("keeps real forms and external second-round application links closed after te
   expect(app).toEqual(before);
 });
 
-it("keeps admitted Halloween draws available after 01:00 until the next-day 17:00 expiry, preserving saved results at expiry", () => {
+it("closes new Halloween draws at 01:00 and preserves saved results through 17:00", () => {
   const { hub, state, app, event } = setup("현장 입장");
   state.testMode = { enabled: false, publicAdmissionOpen: true, banner: TEST_MODE_BANNER };
-  state.serverNow = "2026-10-31T16:59:59+09:00";
+  state.serverNow = "2026-10-31T00:59:59+09:00";
   const halloween = { ...event, type: "halloween" as const, date: "2026-10-30", start: "22:30", end: "01:00" };
   app.cards = [{ id: "saved-card", prize: "saved-prize", prizeLabel: "보존 테스트 상품", at: "2026-10-30T23:00:00+09:00" }];
   const view = render(<EventCards app={app} event={halloween} hub={hub} />);
   expect((screen.getByRole("button", { name: "카드 한 장 뽑기" }) as HTMLButtonElement).disabled).toBe(false);
-  state.serverNow = "2026-10-31T17:00:00+09:00";
+  state.serverNow = "2026-10-31T01:00:00+09:00";
   view.rerender(<EventCards app={app} event={halloween} hub={hub} />);
   expect((screen.getByRole("button", { name: "카드 한 장 뽑기" }) as HTMLButtonElement).disabled).toBe(true);
   expect(screen.getByText("🎁 보존 테스트 상품")).toBeTruthy();
