@@ -42,3 +42,11 @@
 6. 외부 사본·복원·별도 키 보관과 최소 운영DDL권한 확인 후 기존 승인된 Netlify/Render배포를 재개한다. 운영DB Read를Write로 임의 확대하지 않는다. 새 사이트/main병합/키교체/운영삭제 금지. 배포시테스트ON+publicAdmissionOpen=false. 테스트OFF만으로 모집을 열지 않는다.
 
 2026-10-29재확인: Netlify 관리 API HTTP200, production main, allowed branches=[main]. Render 관리 API HTTP200, main 자동배포. 기존 배포 ID는 Netlify `6addce4910baf80784543dfd`, Render `dep-dbessi95efls73bbg7qg`(이전확인값). 이번에 새 배포를 만들지 않았다. 개발 브랜치만 저장하며 PR은 만들지 않는다.
+
+## 최종 GitHub 저장과 자동검사
+
+코드 커밋 `1e571e25ac1871192e13d816c0c940650af6e492`를 개발 브랜치에 저장하고 원격 SHA가 같음을 확인했다. 원격 `main`은 `b06a900280404f79c92e17cdbc6af907a0414c30`으로 변하지 않았다. [GitHub Actions40821218021](https://github.com/aoaldhkd-spec/BINPC2/actions/runs/40821218021)은 **27단계 성공, 실패0**으로 완료됐다. 이전 실패는 삭제하지 않았다. 실제 완료한 실행만 기존 관리자 검증 이력에 추가했다.
+
+코드 Git bundle도 기존 전체 bundle에 이어 복구 가능한 증분으로 검증했다. 이것을 운영 DB 백업으로 부르지 않는다. 내부3001앱과 이번3005브라우저 시험환경은 최종 확인 시 모두 테스트ON·publicAdmissionOpen=false다. 운영 사이트에는 이번 코드를 배포하지 않았다.
+
+다음 성능 후보는 기본 신청의 관련 조회를 묶는 것이다. 아직 적용하지 않았다. 적용 시 owner 메타만 없는 기존 회원 조회를 유지하고, 기존 신청 이어쓰기에서 불필요한 타인 후보 복호화가 새 실패를 만들지 않도록 해야 한다. keyed nickname 해시·복호화 후 소유권 검사·전역 잠금·중복 제약을 그대로 유지한 뒤 측정해야 한다.

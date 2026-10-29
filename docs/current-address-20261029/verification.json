@@ -60,5 +60,12 @@
     "downloadHashVerification": "NOT_RUN",
     "externalCopyRestore": "NOT_RUN"
   },
-  "deployment": "NOT_RUN"
+  "deployment": "NOT_RUN",
+  "finalGitHubCi": {
+    "runId": 40821218021,
+    "sourceSha": "1e571e25ac1871192e13d816c0c940650af6e492",
+    "status": "success",
+    "completedSteps": 27,
+    "url": "https://github.com/aoaldhkd-spec/BINPC2/actions/runs/40821218021"
+  }
 }

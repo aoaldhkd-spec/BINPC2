@@ -1473,6 +1473,60 @@
           "reason": "실기기 검사 이력 없음. Chromium을 실기기 성적으로 바꾸지 않음."
         }
       ]
+    },
+    {
+      "id": "github-40821218021",
+      "sourceVersion": "1e571e25ac1871192e13d816c0c940650af6e492",
+      "codeFingerprint": "82f41ce52520c52e89871adfc40a83b830f3cf59fedc8079786a4cf163e6eb54",
+      "environment": "GitHub Actions Ubuntu24.04 · 실제 React/Express · PostgreSQL16 · Chromium",
+      "startedAt": "2026-10-29T05:03:57Z",
+      "finishedAt": "2026-10-29T05:12:08Z",
+      "reportUrl": "https://github.com/aoaldhkd-spec/BINPC2/actions/runs/40821218021",
+      "checks": [
+        {
+          "id": "build",
+          "title": "실제 앱 빌드",
+          "kind": "build",
+          "status": "PASS"
+        },
+        {
+          "id": "unit",
+          "title": "API·React 단위 회귀검사",
+          "kind": "unit",
+          "status": "PASS"
+        },
+        {
+          "id": "postgres",
+          "title": "실제 격리 PostgreSQL·초기화 보호",
+          "kind": "postgres",
+          "status": "PASS"
+        },
+        {
+          "id": "browser",
+          "title": "실제 React/API/DB 브라우저",
+          "kind": "browser",
+          "status": "PASS"
+        },
+        {
+          "id": "mixed",
+          "title": "150명 실제 HTTP/PostgreSQL 혼합 검사",
+          "kind": "mixed-http-postgres",
+          "status": "PASS"
+        },
+        {
+          "id": "guard",
+          "title": "기존 기능 보호검사",
+          "kind": "guard",
+          "status": "PASS"
+        },
+        {
+          "id": "physical",
+          "title": "물리 Galaxy/iPhone",
+          "kind": "physical-device",
+          "status": "UNKNOWN",
+          "reason": "실기기 검사 이력 없음. Chromium을 실기기 성적으로 바꾸지 않음."
+        }
+      ]
     }
   ]
 }
