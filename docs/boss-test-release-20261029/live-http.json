@@ -1,0 +1,12 @@
+{
+  "ownerLoginHttp": 200,
+  "locked": true,
+  "authorized": true,
+  "apiVersion": "ac4b2211e7c60ff7faf127b3b81301f728d67c12",
+  "mode": {
+    "enabled": true,
+    "publicAdmissionOpen": false
+  },
+  "laboratoryWorkspaces": 0,
+  "httpsCertificateVerified": true
+}

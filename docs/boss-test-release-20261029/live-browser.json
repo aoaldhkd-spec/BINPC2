@@ -1,0 +1,18 @@
+{
+  "checks": [
+    "anonymous web notice",
+    "ordinary and old-token API/SSE blocked",
+    "existing owner authenticated; test ON and admission closed",
+    "virtual rank 3 and approval persisted to isolated laboratory",
+    "reload restored same laboratory rank and approval",
+    "entered laboratory; timed card result saved",
+    "only laboratory reset; test ON/admission closed retained",
+    "logout revokes server access"
+  ],
+  "syntheticLaboratoryOnly": true,
+  "physicalPhones": "UNKNOWN",
+  "apiVersion": "ac4b2211e7c60ff7faf127b3b81301f728d67c12",
+  "initialLaboratoryWorkspaces": 0,
+  "success": true,
+  "at": "2026-10-29T08:57:16.728Z"
+}

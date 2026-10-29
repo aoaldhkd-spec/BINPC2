@@ -1,0 +1,28 @@
+{
+  "at": "2026-10-29T08:42:48.134839+00:00",
+  "migrationSha256": "478ad990b7b2ee92e62250995462dbeb603a79c0ab639725bf0212a3473033d5",
+  "addedTables": [
+    "event_hub_records",
+    "app_sessions"
+  ],
+  "existingContentUnchanged": true,
+  "security": [
+    {
+      "table_name": "app_sessions",
+      "rls": true,
+      "anon_access": false,
+      "authenticated_access": false,
+      "server_role_access": true
+    },
+    {
+      "table_name": "event_hub_records",
+      "rls": true,
+      "anon_access": false,
+      "authenticated_access": false,
+      "server_role_access": true
+    }
+  ],
+  "operatingParticipantWrites": false,
+  "keysChanged": false,
+  "schemaApplied": true
+}

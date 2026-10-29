@@ -1,0 +1,47 @@
+{
+  "at": "2026-10-29T08:59:56.658839+00:00",
+  "originalRows": 3274,
+  "currentRows": 3274,
+  "removedRows": 0,
+  "removedTables": [],
+  "addedRows": 0,
+  "addedTables": [],
+  "dataChanges": [
+    {
+      "table": "group_chats",
+      "changedFields": [
+        "created_at"
+      ]
+    },
+    {
+      "table": "group_chats",
+      "changedFields": [
+        "created_at"
+      ]
+    },
+    {
+      "table": "group_chats",
+      "changedFields": [
+        "created_at"
+      ]
+    },
+    {
+      "table": "group_chats",
+      "changedFields": [
+        "created_at"
+      ]
+    }
+  ],
+  "imageCount": 102,
+  "imagesUnchanged": true,
+  "hubKinds": [
+    {
+      "kind": "laboratory-mode",
+      "count": 1
+    }
+  ],
+  "keysRotated": false,
+  "allExistingRowsByteIdentical": false,
+  "note": "Four pre-existing default group rooms had created_at refreshed by the existing boot seeding order. Messages, memberships, profiles and payments were not deleted; this metadata discrepancy is retained as an outstanding issue.",
+  "profileHeartsMessagesMembershipContentUnchanged": true
+}
