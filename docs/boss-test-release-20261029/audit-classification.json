@@ -1,0 +1,92 @@
+{
+  "codeSha": "5e2a098391d58a2b79c99125dc47128abfc5a865",
+  "errorCount": 0,
+  "warningCount": 200,
+  "groups": [
+    {
+      "category": "ignored historical/temporary copies",
+      "count": 96,
+      "action": "Preserved; not included in Git or deployment"
+    },
+    {
+      "category": "synthetic test constants",
+      "count": 96,
+      "action": "Nonproduction fixtures; guards retained"
+    },
+    {
+      "category": "additional fixture/config constants",
+      "count": 4,
+      "action": "vitest, responsive mock, browser fixture, local HTTP soak only"
+    },
+    {
+      "category": "scanner expression/redaction placeholder",
+      "count": 2,
+      "action": "Pattern matches audit regex or [REDACTED], not credential value"
+    },
+    {
+      "category": "documented token placeholders in old rotation tool",
+      "count": 2,
+      "action": "No real token; rotation tool was not executed"
+    }
+  ],
+  "productionSecretFindingInThisScan": false,
+  "comprehensiveSecurityProof": false,
+  "sources": [
+    {
+      "rel": "artifacts/api-server/vitest.config.ts",
+      "line": 14,
+      "id": "hardcoded_secret",
+      "sev": "warn",
+      "classification": "application and tools: review required"
+    },
+    {
+      "rel": "artifacts/boltnew-app/scripts/check-responsive-preview.mjs",
+      "line": 55,
+      "id": "hardcoded_secret",
+      "sev": "warn",
+      "classification": "application and tools: review required"
+    },
+    {
+      "rel": "scripts/event-hub-browser-fixture.mjs",
+      "line": 73,
+      "id": "hardcoded_secret",
+      "sev": "warn",
+      "classification": "application and tools: review required"
+    },
+    {
+      "rel": "scripts/event-hub-http-soak.mjs",
+      "line": 99,
+      "id": "hardcoded_secret",
+      "sev": "warn",
+      "classification": "application and tools: review required"
+    },
+    {
+      "rel": "scripts/full-code-audit.mjs",
+      "line": 55,
+      "id": "ts_ignore",
+      "sev": "warn",
+      "classification": "application and tools: review required"
+    },
+    {
+      "rel": "scripts/lib/ops-client.mjs",
+      "line": 103,
+      "id": "hardcoded_secret",
+      "sev": "warn",
+      "classification": "application and tools: review required"
+    },
+    {
+      "rel": "scripts/rotate-exposed-secrets.mjs",
+      "line": 9,
+      "id": "hardcoded_secret",
+      "sev": "warn",
+      "classification": "application and tools: review required"
+    },
+    {
+      "rel": "scripts/rotate-exposed-secrets.mjs",
+      "line": 10,
+      "id": "hardcoded_secret",
+      "sev": "warn",
+      "classification": "application and tools: review required"
+    }
+  ]
+}

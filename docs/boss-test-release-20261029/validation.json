@@ -2,7 +2,7 @@
   "status": "PRE_DEPLOY_VALIDATED_PENDING_FINAL_CI_AND_DDL",
   "baseline": "ab00618532e04e3a226dbfe4887dc90337a68ed6",
   "localValidation": {
-    "apiUnitAndDb": 682,
+    "apiUnitAndDb": 683,
     "uiUnit": 910,
     "existingActualBrowser": 22,
     "bossActualBrowser": 2,
@@ -46,5 +46,13 @@
     "readOnly": true,
     "canCreateTables": false,
     "writePermissionAutomaticallyExpanded": false
+  },
+  "remoteFailurePreserved": {
+    "runId": 40842108357,
+    "sha": "5e2a098391d58a2b79c99125dc47128abfc5a865",
+    "stage": "Existing API unit regression checks",
+    "reason": "DB test assumed no default tour advance; CURRENT explicitly fixes new presets at 10000",
+    "repair": "Added actual DB default quote test; retained missing-advance rejection using an explicit legacy unconfigured record",
+    "targetedActualDbRetest": 81
   }
 }

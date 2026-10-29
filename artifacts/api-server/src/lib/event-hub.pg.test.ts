@@ -2430,8 +2430,22 @@ suite("event hub V6 — actual isolated PostgreSQL transactions", () => {
       expect(a.payment).toBe("approved");
       expect(a.differenceReview?.proposed).toBe(0);
     });
+    it("new tour presets quote the confirmed 10,000 advance without a final settlement", async () => {
+      eventId = await prepare("tour-2026-11-06");
+      await open(eventId);
+      const id = await create();
+      await complete(id);
+      expect((await app(id)).quote).toMatchObject({ fee: 10000, kind: "advance" });
+      expect((await app(id)).quote).not.toHaveProperty("finalSettlement");
+    });
     it("tour advance is required, rounds 2/3 are refused and no final settlement is generated", async () => {
       eventId = await prepare("tour-2026-11-06");
+      // Old unconfigured records still require an explicit amount. New presets have a default.
+      await new HubStore(pool).transaction(async (tx) => {
+        const event = (await tx.get<HubEvent>("event", eventId))!;
+        delete event.campaign!.advance;
+        await tx.put("event", event.id, event);
+      });
       await expect(open(eventId)).rejects.toMatchObject({ code: "ADVANCE" });
       await open(eventId, 17000);
       for (const round of [2, 3])
