@@ -9,6 +9,8 @@ import {
 } from "../../../../lib/api-zod/src/event-campaign";
 import {
   HubBasic,
+  HubBasicDraftInput,
+  type HubBasicDraft,
   HubConsent,
   HubEventInput,
   HubProfile,
@@ -40,6 +42,7 @@ export type LabStage =
   | "현장 입장";
 export type LabSnapshot = {
   version: 1;
+  basicDraft?: HubBasicDraft;
   rank: number;
   quoteAt?: string;
   prizePool?: CampaignPrize[];
@@ -155,7 +158,7 @@ export class EventLaboratoryStore {
       rank: 3,
       event: eventFixture(event),
       prizePool: campaignInitialStocks(eventFixture(event)),
-      quoteAt: event?.campaign ? `${event.date}T20:59:59+09:00` : undefined,
+      quoteAt: event?.campaign ? `${event.date}T20:59:59+09:00` : `${eventFixture(event).date}T23:00:00+09:00`,
       applications: [],
       thread: {
         id: "lab-owner-only",
@@ -335,6 +338,7 @@ export class EventLaboratoryStore {
     return copy({
       serverNow: this.value.quoteAt ? simulatedNow.toISOString() : undefined,
       hasSession: true,
+      basicDrafts: this.value.basicDraft ? { [e.id]: this.value.basicDraft } : {},
       enabled: true,
       // The synthetic workspace exercises opened flows without opening production admission.
       testMode: { enabled: false, publicAdmissionOpen: true, banner: "" },
@@ -416,7 +420,13 @@ export class EventLaboratoryStore {
       };
       if ((action.startsWith("admin.") || action === "stock.save") && !admin)
         throw new Error("관리자만 처리할 수 있습니다.");
-      if (action === "application.basic") {
+      if (action === "application.basic-draft") {
+        if (!recruitmentIsOpen(this.value.event, new Date(this.value.quoteAt ?? Date.now()))) throw new Error("접수 시작 전에는 저장할 수 없습니다.");
+        if (this.value.applications.length) throw new Error("기존 신청을 이어가 주세요.");
+        if (command.revision !== (this.value.basicDraft?.revision ?? 0)) throw new Error("최신 변경이 있습니다.");
+        this.value.basicDraft = { ...HubBasicDraftInput.parse(data), revision: (this.value.basicDraft?.revision ?? 0) + 1, updatedAt: now };
+        result.draft = this.value.basicDraft;
+      } else if (action === "application.basic") {
         if(!recruitmentIsOpen(this.value.event,new Date(this.value.quoteAt??Date.now()))) throw new Error("정식 접수 시작 전이거나 마감되었습니다.");
         let a = this.value.applications[0];
         if (!a) a = this.create(data.basic);
@@ -491,6 +501,8 @@ export class EventLaboratoryStore {
             if (a.quote?.fee !== 0 || a.rank !== 1)
               throw new Error("유효 1등 무료 신청만 승인합니다.");
             a.waivedAt = now;
+            delete a.approvalRevokedAt;
+            a.attendance = "confirmed";
             break;
           case "admin.application.eligibility":
             a.eligibility = { status: data.status as "approved" | "declined" };
@@ -502,7 +514,17 @@ export class EventLaboratoryStore {
             if (a.payment === "approved" && data.status !== "approved")
               throw new Error("승인을 되돌릴 수 없습니다.");
             a.payment = data.status as HubApplication["payment"];
-            if (a.payment === "approved") a.approvedAt = now;
+            if (a.payment === "approved") {
+              a.approvedAt ??= now;
+              delete a.approvalRevokedAt;
+              a.attendance = "confirmed";
+            }
+            break;
+          case "admin.application.revoke":
+            if (!paymentSatisfied(a) || !String(data.reason ?? "").trim())
+              throw new Error("승인된 신청과 취소 사유가 필요합니다.");
+            a.approvalRevokedAt = now;
+            a.attendance = "pending";
             break;
           case "admin.application.attendance":
             if (!paymentSatisfied(a))
@@ -528,12 +550,16 @@ export class EventLaboratoryStore {
             };
             break;
           case "application.enter": {
-            if(eventEnded(e,new Date(this.value.quoteAt??Date.now())))throw new Error("신규 입장 기간이 종료되었습니다.");
+            if(eventEnded(e,new Date(this.value.quoteAt??Date.now())) && (!a.profileId || eventExpired(e,new Date(this.value.quoteAt??Date.now()))))throw new Error("신규 입장 기간이 종료되었습니다.");
+            if (!a.profileId && Date.parse(this.value.quoteAt ?? now) < Date.parse(`${e.date}T${e.start}:00+09:00`)) throw new Error("해당 술번개 시작 시각 이후 입장할 수 있습니다.");
             const issue = applicationAdmissionIssue(a, e);
             if (issue) throw new Error(issue.message);
             if (!this.value.active)
               throw new Error("관리자의 회식 시작 후 입장할 수 있습니다.");
             a.profileId ??= "lab-profile-only";
+            a.enteredAt ??= now;
+            a.checkin = true;
+            a.attendance = "confirmed";
             this.value.entered = true;
             result.profile = { id: a.profileId };
             break;
@@ -543,8 +569,6 @@ export class EventLaboratoryStore {
             if (
               !e.cardsEnabled ||
               !a.profileId ||
-              !a.checkin ||
-              a.attendance !== "confirmed" ||
               !paymentSatisfied(a) ||
               !this.value.active
             )
@@ -608,9 +632,9 @@ export class EventLaboratoryStore {
             }
             break;
           case "admin.application.candy":
-            if (!a.checkin || a.candy)
-              throw new Error("현장 확인 후 두 종류 중 한 개만 지급합니다.");
-            a.candy = data.kind as string;
+            if (!a.profileId || a.candy)
+              throw new Error("실제 입장 후 한 사람에게 한 개만 지급합니다.");
+            a.candy = "haribo";
             break;
           case "admin.application.prize":
             if (
@@ -635,11 +659,11 @@ export class EventLaboratoryStore {
         });
         result.id = a.id;
       } else if (action === "thread.send") {
-        if (!admin && data.collection !== true)
+        if (!admin && data.collection !== true && this.value.thread.consentVersion !== HUB_CONSENT_VERSION)
           throw new Error("문의 수집 동의가 필요합니다.");
         const text = String(data.text ?? "").trim();
         if (!text) throw new Error("문의 내용을 입력하세요.");
-        if (!admin) this.value.thread.status = "open";
+        if (!admin) { this.value.thread.status = "open"; this.value.thread.consentVersion = HUB_CONSENT_VERSION; this.value.thread.consentAt ??= now; }
         this.value.thread.messages.push({
           id: command.requestId,
           sender: admin ? "admin" : "user",

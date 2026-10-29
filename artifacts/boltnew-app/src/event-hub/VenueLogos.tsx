@@ -5,11 +5,12 @@ export const VENUE_LOGOS = [
  ['red_hole','레드홀 · RED HOLE'],['fake','페이크 · FAKE'],['jack','자크 · JACK'],
  ['m_karaoke','M가라오케 · M KARAOKE (기존 제작 시안)'],['speed','스피드 · SPEED'],
  ['check_in','체크인 · CHECK-IN'],['on_top','온탑 · ON TOP'],
+ ['black','블랙 · BLACK'],
 ] as const;
 export function VenueLogo({id}:{id?:string}){
  const item=VENUE_LOGOS.find(v=>v[0]===id);
  if (!item) return null;
- return <figure><img src={`/tour-logos-v3/${item[0]}.png`} alt={item[1]} width={160} height={140} loading="lazy" className="max-w-full h-36 object-contain bg-white rounded-xl"/><figcaption className="text-xs">{item[1]}</figcaption></figure>;
+ return <figure><img src={`/tour-logos-v3/${item[0]}.${item[0] === 'black' ? 'webp' : 'png'}`} alt={item[1]} width={160} height={140} loading="lazy" className="max-w-full h-36 object-contain bg-white rounded-xl"/><figcaption className="text-xs">{item[1]}</figcaption></figure>;
 }
 function SavedLogoPreview({url,label}:{url:string;label:string}){
  const [preview,setPreview]=useState('');const [failed,setFailed]=useState(false);
@@ -51,8 +52,8 @@ export function VenueLogoSettings({event:e,hub}:{event:HubEvent;hub:HubControlle
   <HubField label="원본 출처 메모"><input className={inputClass} value={sourceNote} maxLength={300} onChange={x=>setSourceNote(x.target.value)}/></HubField>
   <HubButton disabled={busy||!file||!label.trim()} onClick={upload}>미리본 원본 저장 (아직 미연결)</HubButton>
  </div></details>
- <details><summary>원본·변경 이력과 이전 버전 복원 ({versions.length})</summary><div className="space-y-3 mt-3">{versions.map(v=><article key={v.id} className="rounded-xl border p-3 space-y-1"><p>{v.label} · {v.role==='thanks'?'감사 전용':v.provenance==='design'?'제작 시안':'제공 원본'} {e.venueLogoVersionId===v.id?'· 현재 연결':''}</p><p className="text-xs">{v.at} · {v.width}×{v.height}px · {v.size.toLocaleString()}B</p><p className="text-xs break-all">SHA-256 {v.sha256}</p>{v.sourceNote&&<p className="text-xs">출처: {v.sourceNote}</p>}<HubButton disabled={busy||(v.role==='venue'?e.venueLogoVersionId:e.thanksLogoVersionId)===v.id} onClick={()=>hub.mutate({action:'event.logo.select',target:e.id,revision:e.revision,data:{versionId:v.id,restore:true,area:v.role}})}>{v.role==='thanks'?'감사 영역을 이 버전으로 복원':'이 버전으로 복원'}</HubButton></article>)}{!versions.length&&<p>아직 저장한 새 원본이 없습니다. 제공된8종은 그대로 보존됩니다.</p>}{e.history.filter(h=>h.action.startsWith('event.logo.')).slice().reverse().map((h,i)=><p key={i} className="text-xs">{h.at} · {h.action} · {h.reason}</p>)}</div></details>
- <details><summary>수령한 7개 매장 로고 확인</summary><div className="grid grid-cols-2 gap-3">{VENUE_LOGOS.map(([key])=><VenueLogo key={key} id={key}/>)}</div></details>
+ <details><summary>원본·변경 이력과 이전 버전 복원 ({versions.length})</summary><div className="space-y-3 mt-3">{versions.map(v=><article key={v.id} className="rounded-xl border p-3 space-y-1"><p>{v.label} · {v.role==='thanks'?'감사 전용':v.provenance==='design'?'제작 시안':'제공 원본'} {e.venueLogoVersionId===v.id?'· 현재 연결':''}</p><p className="text-xs">{v.at} · {v.width}×{v.height}px · {v.size.toLocaleString()}B</p><p className="text-xs break-all">SHA-256 {v.sha256}</p>{v.sourceNote&&<p className="text-xs">출처: {v.sourceNote}</p>}<HubButton disabled={busy||(v.role==='venue'?e.venueLogoVersionId:e.thanksLogoVersionId)===v.id} onClick={()=>hub.mutate({action:'event.logo.select',target:e.id,revision:e.revision,data:{versionId:v.id,restore:true,area:v.role}})}>{v.role==='thanks'?'감사 영역을 이 버전으로 복원':'이 버전으로 복원'}</HubButton></article>)}{!versions.length&&<p>아직 저장한 새 원본이 없습니다. 제공된9종은 그대로 보존됩니다.</p>}{e.history.filter(h=>h.action.startsWith('event.logo.')).slice().reverse().map((h,i)=><p key={i} className="text-xs">{h.at} · {h.action} · {h.reason}</p>)}</div></details>
+ <details><summary>수령한 8개 매장 로고 확인</summary><div className="grid grid-cols-2 gap-3">{VENUE_LOGOS.map(([key])=><VenueLogo key={key} id={key}/>)}</div></details>
  <GoraeThanks/>
  </HubCard>;
 }

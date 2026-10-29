@@ -22,6 +22,7 @@ import {
 } from "../lib/event-hub-browser-storage";
 import "./event-hub.css";
 import { NoticeHistory } from "./NoticeHistory";
+import { NoticePages } from "./NoticePages";
 import { TEST_MODE_BANNER, testModeBlocksParticipation } from "../lib/public-test-mode";
 import { EventMedia } from "./EventMedia";
 import { useEffect, useState } from "react";
@@ -63,11 +64,6 @@ const paymentLabel = {
   mismatch: "입금 내역 불일치 · 문의해 주세요",
   held: "입금 확인 보류",
 };
-const attendanceLabel = {
-  pending: "참가 승인 대기",
-  paid_waitlist: "입금확정 대기자",
-  confirmed: "참가 확정",
-};
 export default function EventHubPage({ path }: { path: string }) {
   const hub = useEventHub();
   return (
@@ -88,6 +84,7 @@ function EventHubContent({ path, hub }: { path: string; hub: Hub }) {
     window.addEventListener("storage", sync);
     return () => window.removeEventListener("storage", sync);
   }, []);
+  const [applying, setApplying] = useState(false);
   const [eventFilter, setEventFilter] = useState("전체");
   const [visibleEvents, setVisibleEvents] = useState(6);
   const [waitingFilter, setWaitingFilter] = useState("전체");
@@ -118,6 +115,7 @@ function EventHubContent({ path, hub }: { path: string; hub: Hub }) {
   ]);
   useEffect(() => {
     setEditing(false);
+    setApplying(false);
   }, [appId, eventId]);
   if (!s)
     return (
@@ -147,7 +145,7 @@ function EventHubContent({ path, hub }: { path: string; hub: Hub }) {
             </a>
             <span className="hub-eyebrow">BINPC2 · EVENT</span>
             <h1 className="mt-2 text-2xl font-black">
-              {path === "/events/waiting" || app?.stage === 4
+              {path.startsWith("/events/cards") ? "MY · 행사 뽑기" : path === "/events/waiting" || app?.stage === 4
                 ? "신청대기방"
                 : event
                   ? "행사 상세"
@@ -175,7 +173,7 @@ function EventHubContent({ path, hub }: { path: string; hub: Hub }) {
             />
           )}
           {(appId || eventId) && (
-            <HubButton onClick={() => hubNavigate("/events")}>
+            <HubButton onClick={() => hubNavigate("/events/waiting")}>
               ← 내 신청 목록
             </HubButton>
           )}
@@ -187,7 +185,16 @@ function EventHubContent({ path, hub }: { path: string; hub: Hub }) {
               </p>
             </HubCard>
           )}
-          {app && event ? (
+          {path.startsWith("/events/cards") ? (
+            <>
+              <HubButton onClick={() => hubNavigate("/")}>← MY로 돌아가기</HubButton>
+              {s.applications.filter((a) => a.profileId).length === 0 && <HubCard><p>입장한 술번개가 없습니다. 승인과 필수 프로필을 확인한 뒤 입장해 주세요.</p></HubCard>}
+              {s.applications.filter((a) => a.profileId).map((a) => {
+                const e = s.events.find((e) => e.id === a.eventId);
+                return e ? <section key={a.id}><h2 className="font-bold">{e.title}</h2><EventCards app={a} event={e} hub={hub} /></section> : null;
+              })}
+            </>
+          ) : app && event ? (
             app.stage === 4 ? (
               <WaitingRoom
                 app={app}
@@ -210,7 +217,8 @@ function EventHubContent({ path, hub }: { path: string; hub: Hub }) {
             <>
               <EventDetailHeader key={event.id} event={event} />
               {event.recruitment ? (
-                <BasicForm key={event.id} eventId={event.id} hub={hub} />
+                applying ? <BasicForm key={event.id} eventId={event.id} hub={hub} /> :
+                <HubButton disabled={testMode || !s.enabled || !!s.publicationBlocked} onClick={() => setApplying(true)}>신청하기</HubButton>
               ) : (
                 <ScheduledOpening event={event} hub={hub} />
               )}
@@ -361,34 +369,7 @@ function EventHubContent({ path, hub }: { path: string; hub: Hub }) {
                     이전 신청 복구 / 기존 신청자 로그인
                   </summary>
                   <div className="mt-3 space-y-3">
-                    <p className="text-sm">
-                      신청번호만으로는 조회할 수 없습니다. 개인 복구코드를
-                      사용하세요.
-                    </p>
-                    <HubField label="개인 복구코드">
-                      <input
-                        type="password"
-                        autoComplete="off"
-                        className={inputClass}
-                        value={recovery}
-                        onChange={(e) => setRecovery(e.target.value)}
-                      />
-                    </HubField>
-                    <HubButton
-                      onClick={async () => {
-                        try {
-                          await recoverHub(recovery);
-                          setRecovery("");
-                          await hub.load();
-                        } catch (e) {
-                          hub.setError((e as Error).message);
-                        }
-                      }}
-                    >
-                      기존 신청 복구
-                    </HubButton>
-                    <hr />
-                    <HubField label="재사용 회원 닉네임">
+                    <HubField label="닉네임">
                       <input
                         className={inputClass}
                         value={loginNick}
@@ -422,8 +403,35 @@ function EventHubContent({ path, hub }: { path: string; hub: Hub }) {
                         }
                       }}
                     >
-                      재사용 프로필 불러오기
+                      기존 신청자 로그인
                     </HubButton>
+                    <details><summary>다른 방법으로 복구</summary>                    <p className="text-sm">
+                      신청번호만으로는 조회할 수 없습니다. 개인 복구코드를
+                      사용하세요.
+                    </p>
+                    <HubField label="개인 복구코드">
+                      <input
+                        type="password"
+                        autoComplete="off"
+                        className={inputClass}
+                        value={recovery}
+                        onChange={(e) => setRecovery(e.target.value)}
+                      />
+                    </HubField>
+                    <HubButton
+                      onClick={async () => {
+                        try {
+                          await recoverHub(recovery);
+                          setRecovery("");
+                          await hub.load();
+                        } catch (e) {
+                          hub.setError((e as Error).message);
+                        }
+                      }}
+                    >
+                      기존 신청 복구
+                    </HubButton>
+                    </details>
                   </div>
                 </details>
               </HubCard>
@@ -431,6 +439,7 @@ function EventHubContent({ path, hub }: { path: string; hub: Hub }) {
           )}
           {!s.member && s.hasSession && (
             <HubCard>
+              {s.applications.length > 0 && <MemberSetup hub={hub} />}
               <h2 className="font-black">향후 행사 안내 수신</h2>
               <HubCheck
                 label="향후 행사 광고성 안내 받기 (재사용 회원 동의와 별도)"
@@ -470,8 +479,7 @@ function EventHubContent({ path, hub }: { path: string; hub: Hub }) {
                 재사용 동의 철회
               </HubButton>
               <p className="text-xs">
-                새 기기에서 비밀번호로 로그인하면 개인 복구코드가 갱신됩니다. 새
-                코드를 보관해 주세요.
+                새 기기에서도 닉네임과 비밀번호로 같은 신청을 이어갈 수 있습니다.
               </p>
             </HubCard>
           )}
@@ -510,7 +518,7 @@ function EventHubContent({ path, hub }: { path: string; hub: Hub }) {
           <HubCard>
             <details>
               <summary className="font-bold cursor-pointer">
-                개인 신청 복구코드 보관
+                    추가 복구 방법
               </summary>
               <p className="text-sm my-3">
                 다른 기기나 브라우저에서도 신청·입금 상태를 이어볼 수 있습니다.
@@ -534,107 +542,70 @@ function EventHubContent({ path, hub }: { path: string; hub: Hub }) {
     </div>
   );
 }
-export function BasicForm({
-  eventId,
-  hub,
-  app,
-  onSaved,
-}: {
-  eventId: string;
-  hub: Hub;
-  app?: PrivateApplication;
-  onSaved?: () => void;
+function MemberSetup({ hub }: { hub: Hub }) {
+  const [password, setPassword] = useState("");
+  const [confirm, setConfirm] = useState("");
+  const [reuse, setReuse] = useState(false);
+  return <details className="mb-4"><summary className="font-bold">다음에도 닉네임으로 로그인하기</summary>
+    <p className="text-sm py-2">현재 연결된 본인 신청에 비밀번호를 한 번 설정합니다. 광고 수신과는 별개이며 신청·입금 상태는 그대로 유지됩니다.</p>
+    <form className="space-y-3" onSubmit={async (e) => {
+      e.preventDefault();
+      if (password !== confirm) { hub.setError("비밀번호 확인이 일치하지 않습니다."); return; }
+      if (await hub.mutate({ action: "member.setup", data: { password, reuse, version: HUB_CONSENT_VERSION } })) { setPassword(""); setConfirm(""); }
+    }}>
+      <HubField label="로그인 비밀번호 (10자 이상)"><input className={inputClass} type="password" autoComplete="new-password" minLength={10} maxLength={128} required value={password} onChange={(e) => setPassword(e.target.value)} /></HubField>
+      <HubField label="로그인 비밀번호 확인"><input className={inputClass} type="password" autoComplete="new-password" required value={confirm} onChange={(e) => setConfirm(e.target.value)} /></HubField>
+      <HubCheck label="[선택] 다음 행사에도 내 기본정보와 프로필을 재사용하는 데 동의합니다" checked={reuse} onChange={setReuse} />
+      <HubButton type="submit" disabled={!reuse || hub.status === "saving"}>로그인 설정 저장</HubButton>
+    </form>
+  </details>;
+}
+
+export function BasicForm({ eventId, hub, app, onSaved }: {
+  eventId: string; hub: Hub; app?: PrivateApplication; onSaved?: () => void;
 }) {
   const member = hub.state?.member;
-  const known = app?.basic ?? member?.basic;
-  const [v, setV] = useState({
-    nickname: known?.nickname ?? "",
-    birthYear: String(known?.birthYear ?? ""),
-    location: known?.location ?? "",
-    phone: known?.phone ?? "",
-    depositor: known?.depositor ?? "",
-  });
-  const [collection, setCollection] = useState(app?.basic.collection ?? false),
-    [returning, setReturning] = useState(!!member),
-    [keep, setKeep] = useState(true);
-  if (testModeBlocksParticipation(hub.state))
-    return <HubCard><HubButton disabled>술번개 신청</HubButton><p className="text-sm">행사 공지와 관리자 문의는 계속 확인할 수 있습니다.</p></HubCard>;
-  return (
-    <HubCard>
-      <h2 className="font-black text-lg">기본정보</h2>
-      <HubCheck
-        label="기존 신청자입니다"
-        checked={returning}
-        onChange={setReturning}
-      />
-      {returning && (
-        <div className="bg-teal-50 rounded-xl p-3 text-sm">
-          <p>지난번 사용한 닉네임을 그대로 사용하시겠습니까?</p>
-          <HubCheck
-            label="그대로 사용 (변경하려면 해제)"
-            checked={keep}
-            onChange={setKeep}
-          />
-          {!member && (
-            <p>
-              먼저 신청 목록의 기존 신청자 로그인 또는 복구코드를 이용해 주세요.
-            </p>
-          )}
-        </div>
-      )}
-      <form
-        className="space-y-3"
-        onSubmit={async (e) => {
-          e.preventDefault();
-          const r = await hub.mutate({
-            action: "application.basic",
-            revision: app?.revision,
-            data: {
-              eventId,
-              privacyPolicyFingerprint: hub.state?.privacyNotice?.fingerprint,
-              edit: !!app,
-              basic: {
-                ...v,
-                birthYear: Number(v.birthYear),
-                collection,
-                version: HUB_CONSENT_VERSION,
-              },
-            },
-          });
-          if (r?.id) {
-            if (onSaved) onSaved();
-            else hubNavigate(`/events/a/${r.id}`);
-          }
-        }}
-      >
-        {(
-          [
-            ["nickname", "닉네임"],
-            ["birthYear", "태어난 년도"],
-            ["location", "사는 지역"],
-            ["phone", "연락용 전화번호 (문자 인증 없음)"],
-            ["depositor", "실제 은행 입금 시 보내는 분 이름"],
-          ] as const
-        ).map(([key, label]) => (
-          <HubField key={key} label={label}>
-            <input
-              required
-              className={inputClass}
-              value={v[key]}
-              readOnly={key === "nickname" && returning && keep && !!member}
-              autoComplete={key === "phone" ? "tel" : "off"}
-              maxLength={key === "nickname" ? 12 : 40}
-              inputMode={
-                key === "phone"
-                  ? "tel"
-                  : key === "birthYear"
-                    ? "numeric"
-                    : "text"
-              }
-              onChange={(e) => setV({ ...v, [key]: e.target.value })}
-            />
-          </HubField>
-        ))}
+  const draft = hub.state?.basicDrafts?.[eventId];
+  const known = app?.basic ?? draft?.basic ?? member?.basic;
+  const [v, setV] = useState({ nickname: known?.nickname ?? "", birthYear: String(known?.birthYear ?? ""), location: known?.location ?? "", phone: known?.phone ?? "", depositor: known?.depositor ?? "" });
+  const [collection, setCollection] = useState(app?.basic.collection ?? draft?.basic.collection ?? false);
+  const [step, setStep] = useState(app ? 1 : draft?.nextStep ?? 0);
+  const [advancing, setAdvancing] = useState(false);
+  const fields = [["nickname", "닉네임"], ["birthYear", "태어난 년도"], ["location", "사는 지역"], ["phone", "연락용 전화번호 (문자 인증 없음)"], ["depositor", "실제 은행 입금 시 보내는 분 이름"]] as const;
+  const field = fields[Math.max(0, step - 1)];
+  if (testModeBlocksParticipation(hub.state)) return <HubCard><HubButton disabled>술번개 신청</HubButton><p className="text-sm">행사 공지와 관리자 문의는 계속 확인할 수 있습니다.</p></HubCard>;
+  const next = async () => {
+    if (advancing || !collection) return;
+    setAdvancing(true);
+    try {
+      const basic: Record<string, unknown> = { collection, version: HUB_CONSENT_VERSION };
+      // Send only completed fields. Later input stays in this screen until consented Next.
+      for (let i = 0; i < Math.min(step, fields.length); i++) {
+        const key = fields[i][0]; basic[key] = key === "birthYear" ? Number(v[key]) : v[key];
+      }
+      const final = step === fields.length;
+      const r = await hub.mutate({
+        action: app || final ? "application.basic" : "application.basic-draft",
+        revision: app?.revision ?? draft?.revision ?? 0,
+        data: { eventId, edit: !!app, privacyPolicyFingerprint: hub.state?.privacyNotice?.fingerprint,
+          basic: app || final ? { ...v, birthYear: Number(v.birthYear), collection, version: HUB_CONSENT_VERSION } : basic,
+          nextStep: Math.min(step + 1, fields.length) },
+      });
+      if (!r) return;
+      await new Promise((resolve) => setTimeout(resolve, 350));
+      if (final && r.id) { if (onSaved) onSaved(); else hubNavigate(`/events/a/${r.id}`); }
+      else setStep((n) => Math.min(n + 1, fields.length));
+    } finally { setAdvancing(false); }
+  };
+  return <HubCard>
+    <div className="flex items-center justify-between gap-2"><h2 className="font-black text-lg">{step === 0 ? "신청 전 개인정보 안내" : field[1]}</h2><small>{step === 0 ? "먼저 확인해 주세요" : `${step} / ${fields.length}`}</small></div>
+    {member && step === 1 && <p className="text-sm">기존 프로필의 닉네임을 불러왔습니다. 수정 없이 이어갈 수 있습니다.</p>}
+    <form className="space-y-4" onSubmit={(e) => { e.preventDefault(); void next(); }}>
+      {step > 0 && <HubField key={field[0]} label={field[1]}><input required autoFocus className={inputClass} value={v[field[0]]}
+        autoComplete={field[0] === "phone" ? "tel" : "off"} maxLength={field[0] === "nickname" ? 12 : field[0] === "birthYear" ? 4 : 40}
+        inputMode={field[0] === "phone" ? "tel" : field[0] === "birthYear" ? "numeric" : "text"}
+        onChange={(e) => setV({ ...v, [field[0]]: e.target.value })} /></HubField>}
+      {step === 0 && <>
         <details className="text-sm">
           <summary>개인정보 수집 안내 · 보유기간</summary>
           {hub.state?.privacyNotice ? (
@@ -683,15 +654,15 @@ export function BasicForm({
           checked={collection}
           onChange={setCollection}
         />
-        <HubButton
-          type="submit"
-          disabled={!collection || hub.status === "saving"}
-        >
-          {hub.status === "saving" ? "◌ 저장 중…" : "다음"}
-        </HubButton>
-      </form>
-    </HubCard>
-  );
+      </>}
+      {step === 4 && <p className="text-sm">연락·상품·상금·할인 확인에 사용합니다. 번호 인증이나 별도 승인은 요구하지 않습니다.</p>}
+      <div className="flex gap-2">
+        {step > 0 && <HubButton disabled={advancing || hub.status === "saving"} onClick={() => setStep(step - 1)}>← 이전</HubButton>}
+        <HubButton type="submit" disabled={!collection || advancing || hub.status === "saving"}>{hub.status === "saving" ? "저장 중…" : advancing ? "저장되었습니다 ✓" : "다음"}</HubButton>
+      </div>
+      <p className="text-xs">다음을 누르면 서버에 저장됩니다. 신청을 마치기 전에는 선착순 순번이 부여되지 않습니다.</p>
+    </form>
+  </HubCard>;
 }
 export function ApplicationSteps({
   app,
@@ -766,20 +737,12 @@ export function ApplicationSteps({
       </p>
       <p>{event.area}</p>
       <EventMedia links={event.media} materials={event.materials} />
-      <details open>
-        <summary className="font-bold cursor-pointer">행사 필독 공지</summary>
-        <p className="whitespace-pre-wrap text-sm leading-7 py-3">
-          {event.notice}
-        </p>
-        <p className="text-sm">
-          성인·신분증 확인이 필요합니다. 지각·불참·중도퇴장 기준은 행사 공지를
-          확인해 주세요. 관리자 업무·취침 중 입금 승인이 지연될 수 있습니다.
-          상세 주소는 입금 승인 후 본인 대기방에만 공개합니다.
-        </p>
-      </details>
+      {panelStage === 2 && <NoticePages key={event.noticeVersion} notice={event.notice} />}
       <NoticeHistory history={event.noticeHistory} />
       {panelStage === 2 ? (
         <>
+          <HubCheck label="필수 안내를 모두 확인하고 동의합니다" checked={c.notice && c.collection && c.sharing} onChange={(v) => setC({ ...c, notice: v, collection: v, sharing: v })} />
+          <details><summary className="text-sm">필수 동의 내용 확인</summary>
           <HubCheck
             label="[필수] 행사 공지를 확인했습니다"
             checked={c.notice}
@@ -795,6 +758,8 @@ export function ApplicationSteps({
             checked={c.sharing}
             onChange={(v) => setC({ ...c, sharing: v })}
           />
+          </details>
+          <details><summary className="text-sm">선택 설정 · 알림과 다음 행사 프로필 재사용</summary>
           <HubCheck
             label="[선택] 하트·1:1 채팅 알림 받기"
             checked={c.push}
@@ -841,15 +806,12 @@ export function ApplicationSteps({
               )}
             </div>
           </div>
+          </details>
           <fieldset>
             <legend className="font-bold text-sm">
               프로필을 미리 설정하시겠습니까?
             </legend>
-            <HubCheck
-              label="지금 설정 (해제하면 나중에 설정)"
-              checked={c.profileNow}
-              onChange={(v) => setC({ ...c, profileNow: v })}
-            />
+            <div className="flex gap-2"><HubButton onClick={() => setC({ ...c, profileNow: true })} aria-pressed={c.profileNow}>지금 설정</HubButton><HubButton onClick={() => setC({ ...c, profileNow: false })} aria-pressed={!c.profileNow}>대기방에서 나중에</HubButton></div>
             <p className="text-xs">
               어느 쪽을 선택해도 대기방에서 언제든 작성할 수 있습니다.
             </p>
@@ -926,7 +888,6 @@ export function WaitingRoom({
   edit: () => void;
   onEnter?: (result: Record<string, unknown>) => void;
 }) {
-  const currentTheme = useEventTheme(event);
   const blocked = testModeBlocksParticipation(hub.state);
   const missing = profileMissing(app.profile);
   const enter = async () => {
@@ -1010,18 +971,15 @@ export function WaitingRoom({
         <p>
           {event.date} {event.start}~{event.end}
         </p>
-        <p className="text-xs break-all">신청번호 {app.id}</p>
         <strong>
-          {app.waivedAt
+          {app.approvalRevokedAt ? "승인이 취소되었습니다 · 재입금하지 말고 관리자에게 문의해 주세요" : app.waivedAt
             ? "무료 참가 승인 완료 · 재입금 불필요"
             : event.campaign && app.quote?.fee === 0
               ? "무료 참가 승인 대기"
               : paymentLabel[app.payment]}
         </strong>
-        <p>
-          {attendanceLabel[app.attendance]} · 현장 확인{" "}
-          {app.checkin ? "완료" : "대기"}
-        </p>
+        <p>{paymentSatisfied(app) ? (app.profileId ? "입장 완료" : "참가 확정 · 프로필 완료 후 입장") : "관리자 확인 대기"}</p>
+        <details><summary>내 신청 정보</summary><p className="text-xs break-all">신청번호 {app.id}</p></details>
         {!paymentSatisfied(app) &&
           !app.waivedAt &&
           app.lateArrival?.status !== "review" &&
@@ -1138,9 +1096,7 @@ export function WaitingRoom({
         <EventMedia links={event.media} materials={event.materials} />
         <details>
           <summary>행사 공지</summary>
-          <p className="whitespace-pre-wrap text-sm leading-7">
-            {event.notice}
-          </p>
+          <NoticePages key={event.noticeVersion} notice={event.notice} />
         </details>
         <NoticeHistory history={event.noticeHistory} />
         {app.consent?.noticeVersion !== event.noticeVersion && (
@@ -1163,10 +1119,19 @@ export function WaitingRoom({
           {missing.length ? "남은 프로필 설정 완료하기" : "술번개 입장하기"}
         </HubButton>
         <p className="text-xs">
-          입장 시 서버에서 참가 승인·회식 시작·현장 확인·프로필을 다시
-          확인합니다.
+          입장 시 서버에서 참가 승인·회식 시작·필수 프로필을 확인하고 입장을 기록합니다.
         </p>
       </HubCard>
+
+    </>
+  );
+}
+
+export function EventCards({ app, event, hub }: { app: PrivateApplication; event: HubState["events"][number]; hub: Hub }) {
+  const currentTheme = useEventTheme(event);
+  const blocked = testModeBlocksParticipation(hub.state) || !paymentSatisfied(app);
+  if (!app.profileId) return <HubCard><p>술번개에 입장한 뒤 MY에서 뽑기를 이용할 수 있습니다.</p></HubCard>;
+  return <>
       {(event.cardsEnabled || app.cards.length > 0) && (
         <HubCard>
           <h2 className="font-black">
@@ -1227,12 +1192,11 @@ export function WaitingRoom({
             유지됩니다.{" "}
             {event.campaign?.kind === "tour"
               ? "할인권의 실제 적용과 최종 1/N 정산은 운영자가 직접 안내합니다."
-              : "하리보는 두 종류 중 한 개입니다."}
+              : "하리보는 1인 1개입니다."}
           </p>
         </HubCard>
       )}
-    </>
-  );
+  </>;
 }
 
 export function EventProfileEditor({

@@ -74,7 +74,7 @@ describe.skipIf(!url)("persistent administrator laboratory — isolated PostgreS
 
   it("blocks rank allocation, confirmation, payment reports, entry and draw at the authoritative write boundary", async () => {
     const before = await operationalRows();
-    for (const action of ["application.basic", "application.consent", "application.confirm", "application.report", "application.enter", "application.draw"])
+    for (const action of ["application.basic-draft", "application.basic", "application.consent", "application.confirm", "application.report", "application.enter", "application.draw"])
       await expect(mutate(action)).rejects.toMatchObject({ code: "TEST_MODE", status: 423 });
     // An administrator cannot turn participant commands into a real-data test bypass.
     await expect(mutate("application.basic", "", "", {}, true)).rejects.toMatchObject({ code: "TEST_MODE" });
@@ -205,7 +205,7 @@ describe.skipIf(!url)("persistent administrator laboratory — isolated PostgreS
     await expect(setAdmission(state, true)).rejects.toMatchObject({ code: "TEST_MODE" });
     state = await setMode(await reset(state), false);
     expect(await laboratory.publicState()).toEqual({ enabled: false, publicAdmissionOpen: false, banner: PUBLIC_ADMISSION_CLOSED_BANNER });
-    for (const action of ["application.basic", "application.consent", "application.confirm", "application.report", "application.enter", "application.draw"])
+    for (const action of ["application.basic-draft", "application.basic", "application.consent", "application.confirm", "application.report", "application.enter", "application.draw"])
       await expect(mutate(action)).rejects.toMatchObject({ code: "PUBLIC_ADMISSION_CLOSED", status: 423 });
     await expect(setAdmission(state, true, false)).rejects.toMatchObject({ code: "PUBLIC_ADMISSION_CONFIRM_REQUIRED" });
     await expect(laboratory.mutate(false, command(state, { operation: "admission", open: true, confirmOpen: true })))

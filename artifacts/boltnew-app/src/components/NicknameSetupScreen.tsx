@@ -288,7 +288,7 @@ export function NicknameSetupScreen({ onSubmit, loading, registrationError, onRe
           <DisplayScaleControls dark />
         </div>
         <h2 className="text-white font-black text-xl leading-tight mb-3">{STEP_LABELS[step - 1]}</h2>
-        {!eventDraft && <p className="text-white/80 text-xs">작성 내용은 이 브라우저에 최대24시간 임시 보관됩니다. 다시 열면 동의·알림 선택을 확인해 주세요.</p>}
+        {!eventDraft && <p className="text-white/80 text-xs leading-5 mb-3">작성 내용은 이 브라우저에 최대24시간 임시 보관됩니다. 다시 열면 동의·알림 선택을 확인해 주세요.</p>}
         {onShowRecovery && step === 1 && (
           <button
             type="button"

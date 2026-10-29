@@ -32,6 +32,16 @@ async function command(
   expect(r.status()).toBe(200);
   return r.json();
 }
+async function fillBasicSteps(page: Page, values: [string, string, string, string, string]) {
+  await page.getByRole("button", { name: "신청하기", exact: true }).click();
+  await page.getByLabel("[필수] 위 개인정보").check();
+  await page.getByRole("button", { name: "다음", exact: true }).click();
+  const labels = ["닉네임", "태어난 년도", "사는 지역", "연락용 전화번호 (문자 인증 없음)", "실제 은행 입금 시 보내는 분 이름"];
+  for (let i = 0; i < labels.length; i++) {
+    await page.getByLabel(labels[i], { exact: true }).fill(values[i]);
+    if (i < labels.length - 1) await page.getByRole("button", { name: "다음", exact: true }).click();
+  }
+}
 async function application(request: APIRequestContext, id: string) {
   const r = await request.get("/api/event-hub/admin", {
     headers: adminHeaders,
@@ -129,6 +139,9 @@ test("actual browser + API + PostgreSQL: saved stages, payment recovery, private
   request,
   browser,
 }, testInfo) => {
+  // This case performs the entire six-stage flow plus multiple mobile fault
+  // injections. Individual response/UI assertions retain their own deadlines.
+  test.setTimeout(120000);
   // At midnight KST the real rainbow guide legitimately covers the coach.
   // Acknowledge it through its real button; do not force-click or seed a seen key.
   await page.addLocatorHandler(
@@ -137,13 +150,7 @@ test("actual browser + API + PostgreSQL: saved stages, payment recovery, private
     { times: 3 },
   );
   await page.goto(`/events/e/${eventId}`);
-  await page
-    .getByLabel("닉네임", { exact: true })
-    .fill(`검증${suffix.slice(-4)}`);
-  await page.getByLabel("태어난 년도").fill("1995");
-  await page.getByLabel("사는 지역").fill("부산");
-  await page.getByLabel("연락용 전화번호").fill("01012345678");
-  await page.getByLabel("실제 은행 입금 시 보내는 분 이름").fill("격리테스트");
+  await fillBasicSteps(page, [`검증${suffix.slice(-4)}`, "1995", "부산", "01000000000", "격리테스트"]);
   await expect(page.getByText("격리 시험 계좌", { exact: true })).toHaveCount(
     0,
   );
@@ -151,7 +158,6 @@ test("actual browser + API + PostgreSQL: saved stages, payment recovery, private
     path: testInfo.outputPath("00-actual-basic-privacy.png"),
     fullPage: true,
   });
-  await page.getByLabel("[필수] 위 개인정보").check();
   let release!: () => void;
   const delay = new Promise<void>((r) => {
     release = r;
@@ -163,7 +169,7 @@ test("actual browser + API + PostgreSQL: saved stages, payment recovery, private
   });
   await page.getByRole("button", { name: "다음", exact: true }).click();
   await expect(
-    page.getByRole("button", { name: "◌ 저장 중…", exact: true }),
+    page.getByRole("button", { name: "저장 중…", exact: true }),
   ).toBeVisible();
   await page.screenshot({
     path: testInfo.outputPath("00-actual-saving.png"),
@@ -185,12 +191,7 @@ test("actual browser + API + PostgreSQL: saved stages, payment recovery, private
     path: testInfo.outputPath("00-actual-notice-before-fee.png"),
     fullPage: true,
   });
-  for (const label of [
-    "[필수] 행사 공지를 확인했습니다",
-    "[필수] 행사 운영을 위한 개인정보 수집",
-    "[필수] 입장 후 같은 행사 참가자",
-  ])
-    await page.getByLabel(label).check();
+  await page.getByLabel("필수 안내를 모두 확인하고 동의합니다", { exact: true }).check();
   let failed = false;
   await page.route("**/api/event-hub/mutate", async (route) => {
     if (
@@ -378,6 +379,7 @@ test("actual browser + API + PostgreSQL: saved stages, payment recovery, private
   const p2 = await other.newPage();
   await p2.goto("/events");
   await p2.getByText("이전 신청 복구 / 기존 신청자 로그인").click();
+  await p2.getByText("다른 방법으로 복구", { exact: true }).click();
   await p2.getByLabel("개인 복구코드", { exact: true }).fill(code!);
   await p2.getByRole("button", { name: "기존 신청 복구", exact: true }).click();
   await expect(p2.getByRole("heading", { name: "내 신청 목록" })).toBeVisible();
@@ -440,6 +442,29 @@ test("actual browser + API + PostgreSQL: saved stages, payment recovery, private
   }, { times: 3 });
   await expect(page.getByRole("navigation",{name:"참여자 메뉴"})).toBeVisible({ timeout: 15000 });
   if(await page.getByTestId("first-entry-coach").isVisible()) await page.getByTestId("first-entry-coach").getByRole("button",{name:"건너뛰기",exact:true}).click();
+  await page.getByRole("navigation", { name: "참여자 메뉴" }).getByRole("button", { name: "설정", exact: true }).click();
+  const avatarSettings = page.getByRole("button", { name: /사진 · 아바타 · 배경/ });
+  if (!(await avatarSettings.isVisible())) await page.getByRole("button", { name: "✏️ 프로필 편집", exact: true }).click();
+  await avatarSettings.click();
+  await page.getByRole("button", { name: "🎃 할로윈", exact: true }).click();
+  await expect(page.locator('[data-coach="settings-avatar"] .grid img[src*="/avatars/av3"]')).toHaveCount(30);
+  await page.getByRole("button", { name: "호박 DJ 호박 DJ", exact: true }).click();
+  await expect.poll(async () => {
+    const r = await request.post("/api/db/op", { data: { table: "profiles", op: "select", filters: [{ col: "id", op: "eq", val: profileId }], adminToken: token } });
+    return (await r.json()).data[0].photo_url;
+  }).toBe("/avatars/av361.webp");
+  await page.reload();
+  await page.getByRole("button",{name:"하트, 채팅",exact:true}).click();
+  await expect(page.getByRole("link", { name: /행사 카드/ })).toHaveAttribute("href", "/events/cards");
+  const myAvatar = page.getByRole("main").getByRole("img", { name: `검증${suffix.slice(-4)}`, exact: true });
+  await expect(myAvatar).toBeVisible();
+  await expect(myAvatar).toHaveAttribute("src", /\/avatars\/av361\.webp/);
+  await page.evaluate(() => window.dispatchEvent(new CustomEvent("binpc-seasonal-skin-changed", { detail: false })));
+  await expect(page.locator("html")).not.toHaveAttribute("data-seasonal-skin", "halloween");
+  await expect(myAvatar).toBeVisible();
+  await expect(myAvatar).toHaveAttribute("src", /\/avatars\/av361\.webp/);
+  await page.screenshot({ path: testInfo.outputPath("v12-avatar-theme-off-preserved.png"), fullPage: true });
+  await page.evaluate(() => window.dispatchEvent(new CustomEvent("binpc-seasonal-skin-changed", { detail: true })));
   await page.getByRole("button",{name:"하트, 채팅",exact:true}).click();
   await expect(page.getByRole("group",{name:"내 고유번호",exact:true})).toBeVisible();
   const originalIdentity=await page.evaluate(()=>localStorage.getItem("matching_app_user_id"));
@@ -492,6 +517,8 @@ test("actual browser + API + PostgreSQL: saved stages, payment recovery, private
   expect(await socialSnapshot()).toEqual(socialBefore);
   expect((await application(request,id)).profileId).toBe(profileId);
   await page.goto(`/events/a/${id}`);
+  await expect(page.getByRole("button", { name: "카드 한 장 뽑기", exact: true })).toHaveCount(0);
+  await page.goto("/events/cards");
   for (let count = 1; count <= 3; count++) {
     await page
       .getByRole("button", { name: "카드 한 장 뽑기", exact: true })
@@ -545,21 +572,25 @@ test("actual browser + API + PostgreSQL: saved stages, payment recovery, private
       .locator("section")
       .filter({ has: admin.getByText(`신청번호 ${id}`, { exact: true }) });
     await card
-      .getByRole("button", { name: "하리보 A 지급", exact: true })
+      .getByRole("button", { name: "하리보 1개 지급", exact: true })
       .click();
     await expect(
-      card.getByRole("button", { name: "하리보 B 지급", exact: true }),
+      card.getByRole("button", { name: "하리보 지급 완료", exact: true }),
     ).toBeDisabled();
+    expect((await application(request, id)).candy).toBe("haribo");
+    await expect(card.getByRole("button", { name: /하리보 [AB] 지급/ })).toHaveCount(0);
     const winning = cards.find(
       (c: { prize: string }) => c.prize !== "다음 기회에",
     );
     if (winning) {
       await card
-        .getByRole("button", { name: "상품 지급 확인", exact: true })
+        .getByRole("button", { name: "지급 완료", exact: true })
         .first()
         .click();
-      await expect(card.getByText("지급 완료", { exact: false })).toBeVisible();
-      expect((await application(request, id)).prizesGiven).toHaveLength(1);
+      await expect.poll(async () => (await application(request, id)).prizesGiven.length).toBe(1);
+      const fulfilled = card.locator(`[data-card-id="${winning.id}"]`);
+      await expect(fulfilled.getByRole("status")).toHaveText("지급 완료");
+      await expect(fulfilled.getByRole("button", { name: "지급 완료", exact: true })).toHaveCount(0);
     }
     await card.screenshot({
       path: testInfo.outputPath("04-actual-admin-rewards.png"),
@@ -573,6 +604,10 @@ test("mobile/tablet/desktop layouts and administrator sandbox remain isolated", 
   page,
   request,
 }, testInfo) => {
+  // Twenty independent theme/viewport combinations plus the real administrator
+  // lab. Keep each interaction's deadline; allow the complete capture matrix to
+  // finish on the retained, accumulated fixture database.
+  test.setTimeout(120000);
   const originalReady = await (await request.get("/api/db/ready")).json();
   const rawFlags = originalReady.settings.module_flags;
   const originalFlags = typeof rawFlags === "string" ? JSON.parse(rawFlags) : rawFlags;
@@ -717,7 +752,7 @@ test("inquiry drafts, participant messages and administrator replies survive reo
   await page.getByLabel("문의 내용", { exact: true }).fill(text);
   await page.getByLabel("문의 처리 목적으로").check();
   await page.getByRole("button", { name: "문의 보내기", exact: true }).click();
-  await expect(page.getByText(`나 · ${text}`)).toBeVisible();
+  await expect(page.getByText(text, { exact: true })).toBeVisible();
   await page.keyboard.press("Escape");
   await expect(
     page.getByRole("dialog", { name: "관리자 문의", exact: true }),
@@ -768,20 +803,24 @@ test("inquiry drafts, participant messages and administrator replies survive reo
   await admin
     .getByRole("textbox", { name: "관리자 답장", exact: true })
     .fill(reply);
+  const replyStarted = performance.now();
   await admin
     .getByRole("button", { name: "수정한 답장 보내기", exact: true })
     .click();
   await expect(
     admin.getByText(`관리자: ${reply}`, { exact: true }),
   ).toBeVisible();
-  await page.reload();
   await expect(
     page.getByText("관리자에게서 연락이 왔습니다", { exact: true }),
-  ).toBeVisible();
+  ).toBeVisible({ timeout: 15000 });
+  const replyVisibleMs = Math.round(performance.now() - replyStarted);
   await page.getByRole("button", { name: /💬 관리자 문의/ }).click();
   await expect(
-    page.getByText(`관리자 · ${reply}`, { exact: true }),
+    page.getByText(reply, { exact: true }),
   ).toBeVisible();
+  const timing = { environment: "two Chromium contexts, loopback React/Express/PostgreSQL, no reload before notification", action: "administrator reply click to participant unread banner", milliseconds: replyVisibleMs, targetMs: 2000, targetMet: replyVisibleMs <= 2000 };
+  writeFileSync(testInfo.outputPath("v12-inquiry-visible-timing.json"), JSON.stringify(timing, null, 2));
+  console.log("V12_INQUIRY_VISIBLE_TIMING", JSON.stringify(timing));
   await page
     .getByLabel("문의 내용", { exact: true })
     .fill("보내지 않은 임시 문의");
@@ -1223,25 +1262,13 @@ test("latest campaign actual API: first-rank free approval stays separate from b
   await page.getByRole("dialog").getByRole("button", { name: "다음", exact: true }).click();
   await page.getByRole("dialog").getByRole("button", { name: "다음", exact: true }).click();
   await page.getByRole("button", { name: "알겠어요", exact: true }).click();
-  await page
-    .getByLabel("닉네임", { exact: true })
-    .fill(`행사${suffix.slice(-4)}`);
-  await page.getByLabel("태어난 년도").fill("1995");
-  await page.getByLabel("사는 지역").fill("부산");
-  await page.getByLabel("연락용 전화번호").fill("01000000000");
-  await page.getByLabel("실제 은행 입금 시 보내는 분 이름").fill("가상행사");
+  await fillBasicSteps(page, [`행사${suffix.slice(-4)}`, "1995", "부산", "01000000000", "가상행사"]);
   await expect(page.getByText("범일 비턴점", { exact: false })).toHaveCount(0);
   await expect(page.getByText("격리 시험 계좌", { exact: true })).toHaveCount(
     0,
   );
-  await page.getByLabel("[필수] 위 개인정보").check();
   await page.getByRole("button", { name: "다음", exact: true }).click();
-  for (const label of [
-    "[필수] 행사 공지를 확인했습니다",
-    "[필수] 행사 운영을 위한 개인정보 수집",
-    "[필수] 입장 후 같은 행사 참가자",
-  ])
-    await page.getByLabel(label).check();
+  await page.getByLabel("필수 안내를 모두 확인하고 동의합니다", { exact: true }).check();
   await page.getByRole("button", { name: "동의하고 다음" }).click();
   const appId = page.url().split("/").pop()!;
   let a = await application(request, appId);
@@ -1349,21 +1376,9 @@ test("tour actual API advance and shared-component lab enforce rank ten/eleven w
   await page.getByRole("dialog").getByRole("button", { name: "다음", exact: true }).click();
   await page.getByRole("dialog").getByRole("button", { name: "다음", exact: true }).click();
   await page.getByRole("button", { name: "알겠어요", exact: true }).click();
-  await page
-    .getByLabel("닉네임", { exact: true })
-    .fill(`투어${suffix.slice(-4)}`);
-  await page.getByLabel("태어난 년도").fill("1995");
-  await page.getByLabel("사는 지역").fill("인천");
-  await page.getByLabel("연락용 전화번호").fill("01000000000");
-  await page.getByLabel("실제 은행 입금 시 보내는 분 이름").fill("가상투어");
-  await page.getByLabel("[필수] 위 개인정보").check();
+  await fillBasicSteps(page, [`투어${suffix.slice(-4)}`, "1995", "인천", "01000000000", "가상투어"]);
   await page.getByRole("button", { name: "다음", exact: true }).click();
-  for (const label of [
-    "[필수] 행사 공지를 확인했습니다",
-    "[필수] 행사 운영을 위한 개인정보 수집",
-    "[필수] 입장 후 같은 행사 참가자",
-  ])
-    await page.getByLabel(label).check();
+  await page.getByLabel("필수 안내를 모두 확인하고 동의합니다", { exact: true }).check();
   await page.getByRole("button", { name: "동의하고 다음" }).click();
   await expect(
     page.getByText("선입금액 (최종 회비 아님) 17,000원", { exact: true }),
@@ -1458,21 +1473,9 @@ test("private screening photo UI requires explicit consent, administrator review
   await page.getByRole("dialog").getByRole("button", { name: "다음", exact: true }).click();
   await page.getByRole("dialog").getByRole("button", { name: "다음", exact: true }).click();
   await page.getByRole("button", { name: "알겠어요", exact: true }).click();
-  await page
-    .getByLabel("닉네임", { exact: true })
-    .fill(`사진${suffix.slice(-4)}`);
-  await page.getByLabel("태어난 년도").fill("1990");
-  await page.getByLabel("사는 지역").fill("부산");
-  await page.getByLabel("연락용 전화번호").fill("01000000000");
-  await page.getByLabel("실제 은행 입금 시 보내는 분 이름").fill("가상사진");
-  await page.getByLabel("[필수] 위 개인정보").check();
+  await fillBasicSteps(page, [`사진${suffix.slice(-4)}`, "1990", "부산", "01000000000", "가상사진"]);
   await page.getByRole("button", { name: "다음", exact: true }).click();
-  for (const label of [
-    "[필수] 행사 공지를 확인했습니다",
-    "[필수] 행사 운영을 위한 개인정보 수집",
-    "[필수] 입장 후 같은 행사 참가자",
-  ])
-    await page.getByLabel(label).check();
+  await page.getByLabel("필수 안내를 모두 확인하고 동의합니다", { exact: true }).check();
   await page.getByRole("button", { name: "동의하고 다음" }).click();
   await page.getByRole("button", { name: "금액 확인 후 신청 확정" }).click();
   const appId = page.url().split("/").pop()!;
@@ -1662,17 +1665,19 @@ test("independent draw module switches persist and the Halloween theme expires i
   const before = await application(request, id);
   await page.clock.install({ time: new Date("2026-10-31T00:00:00+09:00") });
   await page.goto(`/events/a/${id}`);
-  await expect(page.locator('[data-campaign-theme="halloween"]')).toBeVisible();
+  // V12 keeps cards out of the waiting room; verify the actual decorative cover.
+  await expect(page.locator('[data-art-theme="halloween"]')).toBeVisible();
+  await expect(page.getByRole("button", { name: "카드 한 장 뽑기", exact: true })).toHaveCount(0);
   await page.clock.pauseAt(new Date("2026-10-31T16:59:59+09:00"));
   await page.screenshot({
     path: testInfo.outputPath("halloween-before-1700.png"),
     fullPage: true,
   });
   await page.clock.runFor(1000);
-  await expect(page.locator('[data-campaign-theme="halloween"]')).toHaveCount(
+  await expect(page.locator('[data-art-theme="halloween"]')).toHaveCount(
     0,
   );
-  await expect(page.locator('[data-campaign-theme="default"]')).toBeVisible();
+  await expect(page.locator('[data-art-theme="default"]')).toBeVisible();
   await page.screenshot({
     path: testInfo.outputPath("halloween-at-1700-restored.png"),
     fullPage: true,
@@ -1732,8 +1737,8 @@ test("V3 actual app: phone-only reward record, late-arrival review and eight rec
   await admin.screenshot({path:testInfo.outputPath("v3-admin-benefit-phone-late-review.png"),fullPage:true});
   if(!await admin.getByText("행사 설정·기록·관리 도구",{exact:true}).evaluate(el=>(el.parentElement as HTMLDetailsElement).open)) await admin.getByText("행사 설정·기록·관리 도구",{exact:true}).click();
   await admin.getByRole("button",{name:"행사·자동방",exact:true}).click();
-  await admin.getByText("수령한 7개 매장 로고 확인",{exact:true}).click();
-  for(const name of ["레드홀 · RED HOLE","페이크 · FAKE","자크 · JACK","M가라오케 · M KARAOKE (기존 제작 시안)","스피드 · SPEED","체크인 · CHECK-IN","온탑 · ON TOP","고래 Gorae 감사용 로고"]){
+  await admin.getByText("수령한 8개 매장 로고 확인",{exact:true}).click();
+  for(const name of ["레드홀 · RED HOLE","페이크 · FAKE","자크 · JACK","M가라오케 · M KARAOKE (기존 제작 시안)","스피드 · SPEED","체크인 · CHECK-IN","온탑 · ON TOP","블랙 · BLACK","고래 Gorae 감사용 로고"]){
    await admin.getByAltText(name,{exact:true}).scrollIntoViewIfNeeded();
    await expect.poll(()=>admin.getByAltText(name,{exact:true}).evaluate((img:HTMLImageElement)=>img.complete&&img.naturalWidth>0)).toBe(true);
   }

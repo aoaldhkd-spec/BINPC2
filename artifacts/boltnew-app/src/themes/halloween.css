@@ -44,12 +44,12 @@ html[data-seasonal-skin="halloween"] :is(input:not([type="checkbox"]):not([type=
 }
 html[data-seasonal-skin="halloween"] :is(input, textarea)::placeholder { color: #b4a0c4; opacity: 1; }
 html[data-seasonal-skin="halloween"] :is(input[type="checkbox"], input[type="radio"], input[type="range"]) { accent-color: var(--boo-orange); }
-html[data-seasonal-skin="halloween"] :focus-visible { outline: 3px solid var(--boo-lime) !important; outline-offset: 3px; }
+html[data-seasonal-skin="halloween"] :focus-visible { outline: 2px solid var(--boo-lilac) !important; outline-offset: 2px; }
 html[data-seasonal-skin="halloween"] :is(button.bg-teal-600, button.bg-teal-500, .event-hub-dock > button) {
   background: linear-gradient(120deg, #ffad69, #ff8051) !important;
   color: #261126 !important;
   border-color: #ffc28a !important;
-  box-shadow: 0 4px 0 #a8412d, 0 8px 22px #ff7c3022;
+  box-shadow: 0 2px 8px #ff7c3022;
 }
 /* Preserve disabled appearance and function. Only enabled targets receive a press response. */
 html[data-seasonal-skin="halloween"] :is(button, a, summary) {
@@ -132,8 +132,8 @@ html[data-seasonal-skin="halloween"] .season-home-hero img { width: 100%; height
 html[data-seasonal-skin="halloween"] :is(.season-date-sticker, .season-night-sticker) { position: absolute; z-index: 1; font-weight: 900; font-size: 11px; line-height: 1.5; }
 html[data-seasonal-skin="halloween"] .season-date-sticker { left: 1%; top: 25px; color: var(--boo-lilac); rotate: -9deg; }
 html[data-seasonal-skin="halloween"] .season-night-sticker { right: 0; bottom: 22px; color: var(--boo-lime); rotate: 8deg; }
-html[data-seasonal-skin="halloween"] .season-home a[href="/events"] { background: linear-gradient(110deg, #ffb975, #ff875b) !important; color: #2a152c !important; border: 1px solid #ffc996; box-shadow: 0 5px 0 #a74633, 0 10px 25px #ef703b20; border-radius: 18px; }
-html[data-seasonal-skin="halloween"] .season-home a[href="/events/waiting"] { background: linear-gradient(110deg, #d2b5ff, #a88ae7) !important; color: #281b3b !important; border-color: #dcc3ff; box-shadow: 0 5px 0 #624593; border-radius: 18px; }
+html[data-seasonal-skin="halloween"] .season-home a[href="/events"] { background: linear-gradient(110deg, #ffb975, #ff875b) !important; color: #2a152c !important; border: 1px solid #ffc996; box-shadow: 0 2px 8px #ef703b20; border-radius: 18px; }
+html[data-seasonal-skin="halloween"] .season-home a[href="/events/waiting"] { background: linear-gradient(110deg, #d2b5ff, #a88ae7) !important; color: #281b3b !important; border-color: #dcc3ff; box-shadow: 0 2px 8px #62459344; border-radius: 18px; }
 html[data-seasonal-skin="halloween"] .season-home-content > .w-full a { min-height: 54px; padding-block: 12px; }
 html[data-seasonal-skin="halloween"] .season-home-content > .w-full > button { min-height: 52px; border-radius: 18px; }
 html[data-seasonal-skin="halloween"] .season-home-content > .w-full > button:disabled { background: #231d2d !important; color: #b9a9c6 !important; border-color: #51425f; }

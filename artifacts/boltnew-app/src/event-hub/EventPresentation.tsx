@@ -15,6 +15,9 @@ import { recruitmentIsOpen } from "../../../../lib/api-zod/src/event-hub";
 import { EventMedia } from "./EventMedia";
 import { Preview } from "./MediaManager";
 import { useEventTheme } from "./HubUi";
+import { TOUR_WEEKS } from "../../../../lib/api-zod/src/event-policy-tour";
+import { VenueLogo } from "./VenueLogos";
+import { NoticePages } from "./NoticePages";
 
 export function eventDateLabel(event: HubEvent) {
   const day = new Date(event.date + "T12:00:00+09:00").getUTCDay();
@@ -42,6 +45,18 @@ export function EventArtwork({
           alt={`${cover.alt || "행사 공지 이미지"} · 미리보기`}
           secured={admin && cover.url.startsWith("/api/event-hub/media/")}
         />
+      ) : event.type === "tour" && TOUR_WEEKS.some((w) => event.date >= w.start && event.date <= new Date(Date.parse(w.start + "T00:00:00Z") + 3 * 86400000).toISOString().slice(0, 10)) ? (
+        <div className="hub-tour-art">
+          {TOUR_WEEKS.filter((w) => event.date >= w.start && event.date <= new Date(Date.parse(w.start + "T00:00:00Z") + 3 * 86400000).toISOString().slice(0, 10)).map((w) => (
+            <div key={w.region}>
+              <strong>{w.region} · 전국투어</strong>
+              <div className="flex items-center justify-center gap-3 flex-wrap">
+                {w.logoIds.map((id) => <VenueLogo key={id} id={id} />)}
+              </div>
+              <small>참여 매장 · 배정 장소와 상세 지도는 승인 후 안내</small>
+            </div>
+          ))}
+        </div>
       ) : theme === "halloween" ? (
         <img
           src="/event-art/halloween-lounge.webp"
@@ -67,6 +82,7 @@ export function eventListStatus(event: HubEvent, now: Date) {
   return "접수 중지";
 }
 export function applicationListStatus(app: PrivateApplication) {
+  if (app.approvalRevokedAt) return "승인 취소 · 관리자 문의";
   if (app.profileId) return "입장 완료";
   if (app.waivedAt) return "무료 승인";
   if (paymentSatisfied(app))
@@ -179,9 +195,7 @@ export function EventDetailHeader({
       <div className="hub-detail-panel" role="tabpanel" aria-label={tab}>
         {tab === "공지사항" ? (
           <>
-            <p className="whitespace-pre-wrap leading-7 text-sm">
-              {event.notice || "공지사항을 준비하고 있습니다."}
-            </p>
+            <NoticePages key={event.noticeVersion} notice={event.notice} />
             {notices.length > 0 && (
               <EventMedia
                 links={notices.map((m) => m.url)}

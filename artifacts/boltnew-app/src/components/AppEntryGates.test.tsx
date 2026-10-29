@@ -63,7 +63,7 @@ describe('renderAppEntryGates without entry code', () => {
       showRecovery: true,
     }));
     render(<>{ui}</>);
-    expect(screen.getByText('프로필 복구')).toBeTruthy();
+    expect(screen.getByText('고유번호로 프로필 복구')).toBeTruthy();
     expect(screen.getByText('고유번호 4자리로 내 프로필을 되찾아요')).toBeTruthy();
   });
 

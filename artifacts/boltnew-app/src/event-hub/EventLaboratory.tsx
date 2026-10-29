@@ -16,6 +16,7 @@ import {
   BasicForm,
   ApplicationSteps,
   WaitingRoom,
+  EventCards,
   EventProfileEditor,
 } from "./EventHubPage";
 import { ApplicationAdmin, AdminThreads } from "./EventHubAdmin";
@@ -450,6 +451,7 @@ export function EventLaboratory({ event, persistence }: { event?: HubEvent; pers
                   sync();
                 }}
               />
+              {engine.value.entered && <EventCards app={app} event={engine.value.event} hub={userHub} />}
               {engine.value.entered && (
                 <HubCard>
                   <h3 className="font-black">가상 현장 입장 완료</h3>

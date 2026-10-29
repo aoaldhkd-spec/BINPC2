@@ -222,6 +222,11 @@ export function eventHubEncryptionKey(secret = process.env.SESSION_SECRET): Buff
   if (!secret) throw new Error("SESSION_SECRET is required for the private event ledger");
   return Buffer.from(hkdfSync("sha256", secret, "binpc2-event-hub-v6", "private-records", 32));
 }
+// Every hub transaction already takes the same database-wide advisory lock.
+// Queue locally before borrowing a connection, so lock waiters cannot occupy the
+// entire shared pool and starve session reads / realtime notifications. The DB
+// locks below remain authoritative across processes and the 17:00 reset.
+const hubTurns = new WeakMap<Pool, Promise<void>>();
 export class HubStore {
   readonly key: Buffer;
   constructor(
@@ -231,31 +236,41 @@ export class HubStore {
     this.key = eventHubEncryptionKey(secret);
   }
   async transaction<T>(fn: (tx: HubTx) => Promise<T>): Promise<T> {
-    const c = await this.pool.connect();
+    const previous = hubTurns.get(this.pool) ?? Promise.resolve();
+    let finishTurn!: () => void;
+    const turn = new Promise<void>((resolve) => { finishTurn = resolve; });
+    hubTurns.set(this.pool, turn);
+    await previous;
     try {
-      await c.query("BEGIN");
-      await c.query("SET LOCAL lock_timeout='10000ms'");
-      // Same order for every write, including admission; never race the 17:00 reset.
-      await c.query("SELECT pg_advisory_xact_lock(hashtext($1))", [
-        EVENT_RESET_LOCK_KEY,
-      ]);
-      await c.query(
-        "SELECT pg_advisory_xact_lock(hashtext('binpc2:event-hub:v6'))",
-      );
-      const tx = new HubTx(c, this.key);
-      await tx.assertLedgerReadable();
-      const result = await fn(tx);
-      await c.query("COMMIT");
-      return result;
-    } catch (e) {
+      const c = await this.pool.connect();
       try {
-        await c.query("ROLLBACK");
-      } catch {
-        /* fail closed; client retries same request ID */
+        await c.query("BEGIN");
+        await c.query("SET LOCAL lock_timeout='10000ms'");
+        // Same order for every write, including admission; never race the 17:00 reset.
+        await c.query("SELECT pg_advisory_xact_lock(hashtext($1))", [
+          EVENT_RESET_LOCK_KEY,
+        ]);
+        await c.query(
+          "SELECT pg_advisory_xact_lock(hashtext('binpc2:event-hub:v6'))",
+        );
+        const tx = new HubTx(c, this.key);
+        await tx.assertLedgerReadable();
+        const result = await fn(tx);
+        await c.query("COMMIT");
+        return result;
+      } catch (e) {
+        try {
+          await c.query("ROLLBACK");
+        } catch {
+          /* fail closed; client retries same request ID */
+        }
+        throw e;
+      } finally {
+        c.release();
       }
-      throw e;
     } finally {
-      c.release();
+      finishTurn();
+      if (hubTurns.get(this.pool) === turn) hubTurns.delete(this.pool);
     }
   }
 }

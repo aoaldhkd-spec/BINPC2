@@ -4,18 +4,22 @@ export const TOUR_WEEKS = [
     region: "인천",
     start: "2026-11-05",
     venues: ["레드홀(RED HOLE)", "페이크(FAKE)"],
+    logoIds: ["red_hole", "fake"],
   },
-  { region: "종로", start: "2026-11-12", venues: ["자크(JACK)"] },
+  { region: "종로", start: "2026-11-12", venues: ["자크(JACK)"], logoIds: ["jack"] },
   {
     region: "광주",
     start: "2026-11-19",
     venues: ["M가라오케", "스피드(SPEED)"],
+    logoIds: ["m_karaoke", "speed"],
   },
   {
     region: "신림",
     start: "2026-11-26",
     venues: ["체크인(CHECK-IN)", "온탑(ONTOP)"],
+    logoIds: ["check_in", "on_top"],
   },
+  { region: "대구", start: "2026-12-03", venues: ["블랙(BLACK)"], logoIds: ["black"] },
 ] as const;
 export function tourDates() {
   return TOUR_WEEKS.flatMap((w) =>
@@ -52,6 +56,21 @@ export function tourSessionHours(date: string) {
     third: weekend
       ? "익일02:30 이후 · 종료 미정"
       : "익일01:30 이후 · 종료 미정",
+  };
+}
+
+/** Exact KST instants for notices and checks. Third-round end/venue are unspecified. */
+export function tourSessionSchedule(date: string) {
+  if (!tourDates().some((d) => d.date === date)) return null;
+  const timing = tourFirstTiming(date);
+  const at = (time: string, nextDay = false) =>
+    new Date(Date.parse(`${date}T${time}:00+09:00`) + (nextDay ? 86400000 : 0)).toISOString();
+  const weekend = timing.end === "00:30";
+  const secondEnd = at(weekend ? "02:30" : "01:30", true);
+  return {
+    first: { startsAt: at(timing.start), endsAt: at(timing.end, weekend) },
+    second: { startsAt: at(timing.end, weekend), endsAt: secondEnd },
+    third: { startsAt: secondEnd, endsAt: null },
   };
 }
 

@@ -19,7 +19,8 @@ export function CampaignSetup({ hub }: { hub: HubController }) {
       <p className="text-sm">
         기존 방과 기록은 유지합니다. 선택한 1차 방 한 개를 접수 전 상태로
         만듭니다. 계좌·입금기한·주소·전국투어 선입금은 운영자가 확인 후
-        입력하세요. 대구는 미확정이며 생성하지 않습니다.
+        입력하세요. 대구 블랙(BLACK)은 12월 3~6일 개최 확정입니다.
+        행사 준비만으로 신청 접수가 열리지는 않습니다.
       </p>
       <HubField label="생성할 행사 정책">
         <select
@@ -135,7 +136,7 @@ export function CampaignOperations({
               {a.benefitExcluded ? "제외" : (a.benefitRank ?? a.rank)}번
             </strong>
             <p>
-              {a.payment} · {a.benefitContact ?? "연락상태 미표시"}
+              {{ none: "입금 전", reported: "입금 확인 대기", approved: "승인 완료", held: "확인 보류", mismatch: "입금정보 확인 필요" }[a.payment]} · {a.benefitContact ?? "연락상태 미표시"}
             </p>
             {a.differenceReview && (
               <p className="text-amber-800">
@@ -189,9 +190,11 @@ export function CampaignOperations({
 export function CampaignApproval({
   app,
   hub,
+  showFreeApproval = true,
 }: {
   app: PrivateApplication;
   hub: HubController;
+  showFreeApproval?: boolean;
 }) {
   const [reason, setReason] = useState("");
   const event = hub.state?.events.find((e) => e.id === app.eventId);
@@ -200,10 +203,10 @@ export function CampaignApproval({
     hub.mutate({ action, target: app.id, revision: app.revision, data });
   return (
     <div className="space-y-2">
-      {event.campaign.kind !== "tour" && app.quote?.fee === 0 && (
+      {showFreeApproval && event.campaign.kind !== "tour" && app.quote?.fee === 0 && (
         <HubButton
           disabled={
-            !!app.waivedAt || paymentSatisfied(app) || hub.status === "saving"
+            paymentSatisfied(app) || hub.status === "saving"
           }
           onClick={() => {
             if (
@@ -217,10 +220,10 @@ export function CampaignApproval({
           무료 참가 승인
         </HubButton>
       )}
-      {app.waivedAt && <p>무료 참가 승인 완료 · 은행 입금으로 기록하지 않음</p>}
+      {app.waivedAt && <p>{app.approvalRevokedAt ? "무료 참가 승인 취소 · 기록 보관" : "무료 참가 승인 완료 · 은행 입금으로 기록하지 않음"}</p>}
       {app.eligibility && (
         <>
-          <p>사전 참가 검토: {app.eligibility.status}</p>
+          <p>사전 참가 검토: {{ approved: "승인", review: "확인 대기", declined: "참가 불가" }[app.eligibility.status]}</p>
           <HubField label="사전 검토 사유 (관리자 기록)">
             <input
               className={inputClass}

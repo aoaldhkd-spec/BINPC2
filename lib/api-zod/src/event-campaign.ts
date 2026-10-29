@@ -11,6 +11,7 @@ import {
   tourDates,
   tourQuote,
   tourEligibility,
+  tourSessionHours,
 } from "./event-policy-tour";
 export * from "./event-policy-halloween";
 export * from "./event-policy-tour";
@@ -28,8 +29,8 @@ export const CAMPAIGN_NOTICE = `성인 대상이며 현장에서 신분증을 �
 존댓말과 기본 예절을 지켜 주세요. 욕설·비하·폭력·무단촬영·원치 않는 언행이나 신체접촉·진행방해를 금지합니다. 음주·게임·코스프레를 강요하지 않습니다.
 늦참·중간참석·취소·불참은 관리자에게 먼저 알려 주세요. 참가 확정자 최소 5명 이상일 때 개최합니다.
 인원질문, 간보기 등은 받지 않으며, 인원과 회비에 크게 신경 쓰지 않으시는 분만 신청 부탁드립니다.
-입금 시 신청한 보내는 분 이름을 사용해 주세요. 입금 신고는 승인과 다릅니다. 은행 대조 후 관리자 승인·참가 확정이 필요합니다.
-상세 장소·지도는 승인 후 본인 대기방에서 공개합니다. 현장 체크인과 필수 프로필 완료 후 입장할 수 있습니다.`;
+입금 시 신청한 보내는 분 이름을 사용해 주세요. 입금 신고는 승인과 다릅니다. 은행 대조 후 관리자 승인이 필요합니다.
+상세 장소·지도는 승인 후 본인 대기방에서 공개합니다. 회식 시작 후 필수 프로필을 완료하면 입장할 수 있으며, 입장은 서버에서 기록합니다.`;
 export const REPLY_NOTICE = `운영자는 근무 중이거나 숙면 중인 시간을 제외하면 빠르게 답변드립니다.
 근무 또는 숙면 중에는 답변이 늦어질 수 있으니 조금만 기다려 주세요. 🙏
 신청 접수와 입금 확인은 순차적으로 진행하며, 입금 확인 후 관리자 승인이 완료되어야 참가가 확정됩니다.
@@ -47,9 +48,9 @@ export function campaignQuote(
     : halloweenQuote(e, rank, at, recognition);
 }
 export function paymentSatisfied(
-  a: Pick<HubApplication, "payment" | "waivedAt">,
+  a: Pick<HubApplication, "payment" | "waivedAt" | "approvalRevokedAt">,
 ) {
-  return a.payment === "approved" || !!a.waivedAt;
+  return !a.approvalRevokedAt && (a.payment === "approved" || !!a.waivedAt);
 }
 export function campaignCardLimit(e: Pick<HubEvent, "campaign">) {
   return !e.campaign
@@ -119,8 +120,10 @@ export function campaignPresets() {
         },
         notice:
           CAMPAIGN_NOTICE +
+          `\n${d.date} ${d.region} · ${d.venues.join(" / ")}\n1차 ${tourSessionHours(d.date)?.first} · 2차 ${tourSessionHours(d.date)?.second} · 3차 ${tourSessionHours(d.date)?.third}.` +
           "\n대관에 도움을 주신 고래 사장님께 감사드립니다.\n1차만 BINPC2 신청. 2차는 오픈채팅, 3차는 현장 안내입니다. 선입금액은 운영자가 입력하며 최종 1/N 정산은 직접 안내합니다.",
         venueCandidates: [...d.venues],
+        ...(d.region === "대구" ? { venueLogoId: "black" as const } : {}),
       },
     };
   });

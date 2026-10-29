@@ -1,0 +1,162 @@
+{
+  "format": "A4 portrait, one promotional page per campaign",
+  "width": 2480,
+  "height": 3508,
+  "published": false,
+  "publicAdmissionOpen": false,
+  "qr": "omitted: no unverified QR added",
+  "assets": [
+    {
+      "path": "artifacts/boltnew-app/public/event-art/halloween-lounge.webp",
+      "sha256": "2a9d2bf4a661491224d9cf5b7d32974189b61fc19703ba060c5dadfd5e57c398",
+      "bytes": 169690
+    },
+    {
+      "path": "artifacts/boltnew-app/public/event-art/halloween-party.webp",
+      "sha256": "19051faf120e7d966fceb211a7d0e08a32455ba750574dcb8f852877e8dfa763",
+      "bytes": 299012
+    },
+    {
+      "path": "artifacts/boltnew-app/public/tour-logos-v3/red_hole.png",
+      "sha256": "a11302bbdb4fc1eb188b5d04226c30017ea1096fd0f53a212a318d711f7b51b6",
+      "bytes": 242707
+    },
+    {
+      "path": "artifacts/boltnew-app/public/tour-logos-v3/fake.png",
+      "sha256": "c999ef3948a9258c26525f7b60e493feea43b652666748e07e922b569cf9217d",
+      "bytes": 39472
+    },
+    {
+      "path": "artifacts/boltnew-app/public/tour-logos-v3/jack.png",
+      "sha256": "5b42a89062901fbb0ec9ddf7b59b65ccc0ef0154c62a158652a6c16e8cd68c6e",
+      "bytes": 54802
+    },
+    {
+      "path": "artifacts/boltnew-app/public/tour-logos-v3/m_karaoke.png",
+      "sha256": "c7a9e1420097f7ca3fc2e21ca52bab803d03c99ae3a2c7cc0f2b7b68657b73f3",
+      "bytes": 1853467
+    },
+    {
+      "path": "artifacts/boltnew-app/public/tour-logos-v3/speed.png",
+      "sha256": "554c2cf489a4cc3a8ae6b0d429255a690d67b0a5f4e8fff641a123d2b34042e7",
+      "bytes": 66891
+    },
+    {
+      "path": "artifacts/boltnew-app/public/tour-logos-v3/check_in.png",
+      "sha256": "4c90ef692142368adb67ee6830fc209db0fbe7f882f5d5c8b8d5a73d7032727d",
+      "bytes": 521772
+    },
+    {
+      "path": "artifacts/boltnew-app/public/tour-logos-v3/on_top.png",
+      "sha256": "9bb8c93b7f87269903aea33df451126146b7a39da9260a2ca1b2c5c98bd8e330",
+      "bytes": 203921
+    },
+    {
+      "path": "artifacts/boltnew-app/public/tour-logos-v3/gorae.png",
+      "sha256": "66357b5575610113923e968213a6ba69f0447d357fbfe0a9dd956b74545e3f29",
+      "bytes": 221835
+    },
+    {
+      "path": "artifacts/boltnew-app/public/tour-logos-v3/black.png",
+      "sha256": "f5f0613ebbdbf8bfd7b94d7d4aa2de35826324729af7177dcbb9e7fed1551610",
+      "bytes": 2750110
+    }
+  ],
+  "posters": [
+    {
+      "file": "Halloween.png",
+      "bytes": 2562852,
+      "sha256": "6cd47827071d0971211af50e47d02700152588d5e058f0c0d28eefe6dc857a70",
+      "source": "01_할로윈_모집글.md",
+      "sourceSha256": "0f156a06a80afb2b140890d0034f5c154f261c875ffd03b4ae973a5eaeca7358",
+      "logoCount": 0,
+      "wordingChecks": [
+        "10.30",
+        "10.31",
+        "22:30",
+        "22:00",
+        "다음 날 01:00",
+        "23개",
+        "49개",
+        "한 종류"
+      ],
+      "layout": {
+        "width": 1240,
+        "height": 1754,
+        "bottom": 1322.09375,
+        "footer": 1520
+      }
+    },
+    {
+      "file": "Tour.png",
+      "bytes": 2674819,
+      "sha256": "f6fdef33b6e9f658ee2aa8c165f6880b55cce7c6f72a236a7a011d2f35b48eed",
+      "source": "02_전국투어_모집글.md",
+      "sourceSha256": "9df2ea3837f3bdd936f471dd954b50afb855fa4d91c896baa4c28a57d8a95d27",
+      "logoCount": 9,
+      "wordingChecks": [
+        "12.03–06",
+        "대구",
+        "블랙 BLACK",
+        "11.05–08",
+        "11.12–15",
+        "11.19–22",
+        "11.26–29",
+        "01:30",
+        "02:30"
+      ],
+      "layout": {
+        "width": 1240,
+        "height": 1754,
+        "bottom": 1423.9375,
+        "footer": 1520
+      }
+    },
+    {
+      "file": "Combined.png",
+      "bytes": 2589816,
+      "sha256": "c09145a073cb57fa014642254f1db7b6455e2a153401fcad0c2df29bd92b43bc",
+      "source": "03_통합_모집글.md",
+      "sourceSha256": "11fd0c67e0286ef9c08ff9b16550ac58fa585fd19ec167c60a29a554adb6ec7f",
+      "logoCount": 9,
+      "wordingChecks": [
+        "10.30",
+        "10.31",
+        "다음 날 01:00",
+        "12.03–06",
+        "대구",
+        "블랙 BLACK",
+        "하리보 한 종류"
+      ],
+      "layout": {
+        "width": 1240,
+        "height": 1754,
+        "bottom": 1341.9375,
+        "footer": 1520
+      }
+    },
+    {
+      "file": "HeartNow.png",
+      "bytes": 1806119,
+      "sha256": "71a06daf49facf67923b386943c2abb94a1660f64e7654119ef054c7c351da73",
+      "source": "05_하트나우_쉽게보는안내.md",
+      "sourceSha256": "86aa366240dba3cb050ca30c055472368a0597d846f8108c98b5383db7008150",
+      "logoCount": 0,
+      "wordingChecks": [
+        "하트나우",
+        "신청",
+        "대기방",
+        "프로필",
+        "입장",
+        "하트·1:1 채팅",
+        "닉네임·비밀번호"
+      ],
+      "layout": {
+        "width": 1240,
+        "height": 1754,
+        "bottom": 1481.5625,
+        "footer": 1520
+      }
+    }
+  ]
+}

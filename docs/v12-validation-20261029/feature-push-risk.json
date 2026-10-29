@@ -1,0 +1,19 @@
+{
+  "netlify": {
+    "http": 200,
+    "site": "binpc2",
+    "branch": "main",
+    "allowed_branches": [
+      "main"
+    ],
+    "skip_prs": null,
+    "stop_builds": false,
+    "published_id": "6addce4910baf80784543dfd"
+  },
+  "render": {
+    "http": 200,
+    "branch": "main",
+    "autoDeploy": "yes",
+    "service": "BINPC2"
+  }
+}

@@ -45,6 +45,7 @@ export async function privacySnapshot(
   );
   return {
     owner,
+    basicDrafts: Object.entries(own.basicDrafts ?? {}).map(([id, d]) => ({ id, revision: d.revision, updatedAt: d.updatedAt })),
     caseRevision: own.privacyCase?.revision ?? 0,
     hold: own.privacyHold,
     applications: await Promise.all(
@@ -172,7 +173,13 @@ export async function executePrivacyPlanForIsolatedTest(
         item.action === "keep"
       )
         continue;
-      if (item.kind === "application") {
+      if (item.kind === "basic-draft") {
+        const draftOwner = await tx.get<HubOwner>("owner", owner);
+        if (draftOwner?.basicDrafts && item.action === "erase") {
+          delete draftOwner.basicDrafts[item.id];
+          await tx.put("owner", owner, draftOwner);
+        }
+      } else if (item.kind === "application") {
         const a = await tx.get<HubApplication>("application", item.id);
         if (!a) continue;
         if (a.screeningPhoto) {
@@ -226,9 +233,10 @@ export async function executePrivacyPlanForIsolatedTest(
       const retained = plan.items.some(
         (i) =>
           i.action === "keep" &&
-          ["application", "member", "thread"].includes(i.kind),
+          ["application", "basic-draft", "member", "thread"].includes(i.kind),
       );
       if (!retained) {
+        own.basicDrafts = undefined;
         own.erasedAt = now.toISOString();
         // A unique, unissued tombstone cannot collide with another erased owner.
         own.recoveryHash = digest(randomBytes(32).toString("base64url"));

@@ -1,0 +1,23 @@
+{
+  "runId": "mixed-1793231188854",
+  "environment": "real HTTP -> compiled Express -> actual PostgreSQL16; loopback only; development mode with normal rate limits and PG-backed sessions; business clock offset fixture only",
+  "builtIdentity": {
+    "sourceVersion": "3942e785b4eafd5636b9d5dc84dcb1b13b762ec8-dirty-53da5f0beb7c",
+    "codeFingerprint": "a08f4fa1c72d473d9f9f9a6e0190e1d6121c08644b177ebc701c87e0ef84babf",
+    "builtAt": "2026-10-28T23:38:45.365Z"
+  },
+  "recordsBefore": 27060,
+  "durationSeconds": 51,
+  "requestCount": 2358,
+  "statusCounts": {
+    "200": 2325,
+    "500": 2,
+    "503": 31
+  },
+  "failures": [
+    {
+      "stage": "150-enter-and-three-cards",
+      "reason": "application.draw: HTTP503 PERSISTENCE_UNKNOWN (26 concurrent failures)"
+    }
+  ]
+}

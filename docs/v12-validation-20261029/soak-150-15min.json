@@ -1,0 +1,141 @@
+{
+  "runId": "mixed-1793231598141",
+  "mode": "mixed",
+  "environment": "real HTTP -> compiled Express -> actual PostgreSQL16; loopback only; development mode with normal rate limits and PG-backed sessions; business clock offset fixture only",
+  "sourceSha": "3942e785b4eafd5636b9d5dc84dcb1b13b762ec8",
+  "builtIdentity": {
+    "sourceVersion": "3942e785b4eafd5636b9d5dc84dcb1b13b762ec8-dirty-f8461c5ef4da",
+    "codeFingerprint": "b7136ecabc2f350c9553bde9d133f45d097f7e51d9d1c43cad4bd35d10dc3fa9",
+    "builtAt": "2026-10-28T23:49:39.877Z"
+  },
+  "preexistingOwnerRows": 6594,
+  "recordsBefore": 29431,
+  "startedAt": "2026-10-28T23:53:18.148Z",
+  "businessClockStart": "2026-10-31T14:00:00.185Z",
+  "cohortSizes": [
+    100,
+    150
+  ],
+  "failures": [],
+  "lostResponseReplay": true,
+  "restartVerified": true,
+  "legacyModeFixture": {
+    "enabled": false,
+    "publicAdmissionOpen": true,
+    "generation": 5,
+    "revision": 15
+  },
+  "profilePinAndNicknameRecovered": true,
+  "soakCycles": 54,
+  "sustainedMinutes": 15,
+  "finishedAt": "2026-10-29T00:09:04.697Z",
+  "durationSeconds": 947,
+  "requestCount": 11031,
+  "statusCounts": {
+    "200": 11023,
+    "409": 8
+  },
+  "requestLatencyByStage": {
+    "fixture-activation": {
+      "requests": 6,
+      "p50Ms": 20.4,
+      "p95Ms": 27.5,
+      "maxMs": 27.5,
+      "p99Ms": 27.5
+    },
+    "150-real-sessions": {
+      "requests": 150,
+      "p50Ms": 632.8,
+      "p95Ms": 1002.8,
+      "maxMs": 1042.3,
+      "p99Ms": 1035.9
+    },
+    "100-concurrent-applications": {
+      "requests": 100,
+      "p50Ms": 1005.7,
+      "p95Ms": 1919.4,
+      "maxMs": 1994.5,
+      "p99Ms": 1994.5
+    },
+    "150-mixed-applications-and-consent": {
+      "requests": 510,
+      "p50Ms": 2289.8,
+      "p95Ms": 3021.5,
+      "maxMs": 3171.7,
+      "p99Ms": 3068.3
+    },
+    "150-profile-payment-inquiry": {
+      "requests": 760,
+      "p50Ms": 2061.8,
+      "p95Ms": 2383.7,
+      "maxMs": 2464.7,
+      "p99Ms": 2450.8
+    },
+    "150-enter-and-three-cards": {
+      "requests": 910,
+      "p50Ms": 3404.6,
+      "p95Ms": 4504.9,
+      "maxMs": 4570.5,
+      "p99Ms": 4560.6
+    },
+    "duplicate-prize-rejection": {
+      "requests": 24,
+      "p50Ms": 12.3,
+      "p95Ms": 20.3,
+      "maxMs": 20.3,
+      "p99Ms": 20.3
+    },
+    "stored-response-lost-replay": {
+      "requests": 3,
+      "p50Ms": 4.9,
+      "p95Ms": 10.9,
+      "maxMs": 10.9,
+      "p99Ms": 10.9
+    },
+    "restart": {
+      "requests": 450,
+      "p50Ms": 1217.3,
+      "p95Ms": 2098.6,
+      "maxMs": 2179.1,
+      "p99Ms": 2143.1
+    },
+    "sustained-150-mixed": {
+      "requests": 8118,
+      "p50Ms": 856.4,
+      "p95Ms": 2747.7,
+      "maxMs": 6084.9,
+      "p99Ms": 4724.3
+    }
+  },
+  "recordsAfter": 33633,
+  "resourceSummary": {
+    "samples": 188,
+    "peakRssMiB": 288.86,
+    "peakCpuPercent": 57.59,
+    "perServerGeneration": {
+      "1": {
+        "sampleCount": 7,
+        "rssFirstThirdMedianMiB": 176.42,
+        "rssLastThirdMedianMiB": 287.29,
+        "heapFirstThirdMedianMiB": 39.38,
+        "heapLastThirdMedianMiB": 64.44
+      },
+      "2": {
+        "sampleCount": 181,
+        "rssFirstThirdMedianMiB": 223.96,
+        "rssLastThirdMedianMiB": 265.05,
+        "heapFirstThirdMedianMiB": 29.07,
+        "heapLastThirdMedianMiB": 28.24
+      }
+    },
+    "maxObservedDatabaseConnections": 13,
+    "maxObservedLockWaiters": 0,
+    "maxObservedTransactionSeconds": 0.89205,
+    "measurementCaveat": "One shared development machine; separate-DB browser checks overlapped part of this run. Samples are not a production capacity forecast or a multi-day memory-leak proof."
+  },
+  "rawEvidenceSha256": "93989d39654c60e50621fdd06473ddf1e7830a58e6ae792a89f3bd719c5d362a",
+  "sourceShaCaveat": "sourceSha is the pre-change parent; actual compiled worktree identity is builtIdentity. This run includes the queue fix, before later test-selector/report-only changes.",
+  "twoSecondGoal": "NOT_MET for several 150-person bursts and sustained P95",
+  "unexpected5xx": 0,
+  "expected409": "Eight intentional duplicate-prize rejections"
+}

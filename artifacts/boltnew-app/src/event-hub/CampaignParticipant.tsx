@@ -94,7 +94,7 @@ export function ApplicationGuide({
           </p>
         </div>
       </details>
-      <HubButton onClick={() => setOpen(true)}>? 신청 방법</HubButton>
+      <HubButton onClick={() => setOpen(true)}>ⓘ 신청 안내</HubButton>
       {open && (
         <TutorialModal
           applicationMode={

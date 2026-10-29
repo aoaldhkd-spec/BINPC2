@@ -1,0 +1,9 @@
+{
+  "filesScanned": 1686,
+  "textFiles": 883,
+  "binaryFiles": 803,
+  "knownSensitiveBindingsCompared": 5,
+  "findings": [],
+  "newContactOrAccountCandidates": [],
+  "scope": "Git candidate worktree, not ignored private attachment/config/DB directories. Binary files checked against known credential byte strings; images separately inspected. This scan is not proof of all historical Git objects or operational backup contents."
+}

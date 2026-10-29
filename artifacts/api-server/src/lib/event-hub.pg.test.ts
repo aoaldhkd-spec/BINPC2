@@ -15,6 +15,7 @@ import {
 import type { HubApplication, HubEvent } from "@workspace/api-zod";
 import {
   HUB_CONSENT_VERSION,
+  HubEventInput,
   PROFILE_CONSENT_VERSION,
   profileMissing,
   nextSaturday,
@@ -210,6 +211,96 @@ suite("event hub V6 — actual isolated PostgreSQL transactions", () => {
     await call("event.recruitment", eventId, { enabled: true }, 1, true);
   });
   afterAll(() => pool.end());
+  it("consented basic drafts resume after restart without a rank, reject stale writes, and cannot overwrite an approved application", async () => {
+    const data = { eventId, basic: { nickname: "이어쓰기", collection: true, version: HUB_CONSENT_VERSION }, nextStep: 2 };
+    await expect(call("application.basic-draft", "", { ...data, basic: { ...data.basic, collection: false } }, 0)).rejects.toThrow();
+    const req = randomUUID();
+    const saved = await call("application.basic-draft", "", data, 0, false, owner, req);
+    expect(await call("application.basic-draft", "", data, 0, false, owner, req)).toEqual(saved);
+    const other = await service.session(randomBytes(32).toString("base64url"), true);
+    expect((await service.state(other)).basicDrafts).toEqual({});
+    expect((await adminState()).events.find((e) => e.id === eventId)?.nextRank).toBe(0);
+    expect((await adminState()).applications).toHaveLength(0);
+    service = new EventHubService(new HubStore(pool), "isolated-test-session-secret", now);
+    expect((await service.state(owner)).basicDrafts?.[eventId]).toMatchObject({ revision: 1, nextStep: 2, basic: data.basic });
+    await expect(call("application.basic-draft", "", data, 0)).rejects.toMatchObject({ code: "REVISION" });
+    const raw = await pool.query("SELECT data FROM event_hub_records WHERE kind='owner' AND id=$1", [owner]);
+    expect(JSON.stringify(raw.rows)).not.toContain("이어쓰기");
+    const id = await create("이어쓰기"); await approved(id);
+    const before = await app(id);
+    await expect(call("application.basic-draft", "", data, 1)).rejects.toMatchObject({ code: "STAGE" });
+    expect(await app(id)).toEqual(before);
+    const plan = await service.store.transaction((tx) => planPrivacy(tx, owner, now()));
+    expect(plan.items).toEqual(expect.arrayContaining([expect.objectContaining({ kind: "basic-draft", id: eventId, action: "keep" })]));
+  });
+  it("one bank approval permits actual entry without manual checkin, and revocation preserves history while denying reuse", async () => {
+    const id = await create(); await complete(id);
+    await call("admin.application.payment", id, { status: "approved", bankChecked: true }, (await app(id)).revision, true);
+    expect(await app(id)).toMatchObject({ attendance: "confirmed", checkin: false });
+    await call("application.profile", id, { profile: fullProfile }, (await app(id)).revision);
+    await expect(call("application.draw", id, {}, (await app(id)).revision)).rejects.toMatchObject({ code: "CARDS" });
+    await activate();
+    const entered = await call("application.enter", id, { deviceSecret: "isolated-v12-device" }, (await app(id)).revision);
+    expect((await app(id)).enteredAt).toBe(now().toISOString());
+    expect((await app(id)).checkin).toBe(true);
+    await call("admin.application.candy", id, { kind: "haribo-b" }, (await app(id)).revision, true);
+    expect((await app(id)).candy).toBe("haribo");
+    const before = await app(id);
+    await expect(call("admin.application.revoke", id, { reason: "합성 취소" }, before.revision)).rejects.toMatchObject({ code: "ADMIN" });
+    await call("admin.application.revoke", id, { reason: "합성 취소" }, before.revision, true);
+    const revoked = await app(id);
+    expect(revoked).toMatchObject({ payment: "approved", approvedAt: before.approvedAt, profileId: before.profileId, candy: "haribo", approvalRevokedAt: now().toISOString() });
+    await expect(call("application.enter", id, { deviceSecret: "isolated-v12-device" }, revoked.revision)).rejects.toMatchObject({ code: "ATTENDANCE" });
+    await expect(call("application.draw", id, {}, revoked.revision)).rejects.toMatchObject({ code: "CARDS" });
+    expect((await pool.query("SELECT data FROM app_kv_rows WHERE table_name='profiles' AND row_id=$1", [(entered.profile as {id: string}).id])).rows).toHaveLength(1);
+    await call("admin.application.payment", id, { status: "approved", bankChecked: true }, revoked.revision, true);
+    expect((await app(id)).approvalRevokedAt).toBeUndefined();
+    await expect(call("admin.application.candy", id, { kind: "haribo" }, (await app(id)).revision, true)).rejects.toMatchObject({ code: "CANDY_LIMIT" });
+  });
+  it("allows a password once only from an owned legacy application and retains approvals without marketing opt-in", async () => {
+    const id = await create("기존회원"); await approved(id); const before = await app(id);
+    const data = { reuse: true, version: HUB_CONSENT_VERSION, password: "isolated-v12-password" };
+    const other = await service.session(randomBytes(32).toString("base64url"), true);
+    await expect(call("member.setup", id, data, undefined, false, other)).rejects.toMatchObject({ code: "APPLICATION" });
+    await expect(call("member.setup", id, { ...data, reuse: false })).rejects.toThrow();
+    await call("member.setup", "", data);
+    await expect(call("member.setup", "", data)).rejects.toMatchObject({ code: "MEMBER_EXISTS" });
+    expect((await service.memberLogin("기존회원", data.password)).owner).toBe(owner);
+    expect((await service.state(owner)).member?.marketing).toBe(false);
+    expect(await app(id)).toEqual(before);
+    const raw = await pool.query("SELECT data FROM event_hub_records WHERE kind IN ('member','owner','request')");
+    expect(JSON.stringify(raw.rows)).not.toContain(data.password);
+  });
+  it("retains inquiry purpose consent for later messages and never shares a thread with another owner", async () => {
+    await expect(call("thread.send", "", { text: "첫 문의" })).rejects.toMatchObject({ code: "CONSENT" });
+    await call("thread.send", "", { text: "첫 문의", collection: true });
+    await call("thread.send", "", { text: "다음 문의" });
+    const own = (await service.state(owner)).threads[0];
+    expect(own.consentVersion).toBe(HUB_CONSENT_VERSION);
+    expect(own.messages).toHaveLength(2);
+    const other = await service.session(randomBytes(32).toString("base64url"), true);
+    expect((await service.state(other)).threads).toEqual([]);
+    await expect(call("thread.send", owner, { text: "타인의 동의로 전송 시도" }, undefined, false, other)).rejects.toMatchObject({ code: "CONSENT" });
+  });
+  it("prepares all four BLACK days once and upgrades a Daegu candidate in place without changing inventory or records", async () => {
+    const candidate = randomUUID();
+    await service.store.transaction((tx) => tx.put("event", candidate, { ...HubEventInput.parse({ ...event, date: "2026-12-03", start: "21:00", end: "23:30", type: "tour", title: "대구 후보", area: "대구", notice: "대구 미확정\n기존 안내 보존", campaign: { kind: "tour", round: 1, advance: 17000, secondRoundLink: "" } }), id: candidate, revision: 1, recruitment: false, nextRank: 0, history: [] }));
+    await service.store.transaction((tx) => tx.put("stock", "v12-existing-candidate-stock", { id: "v12-existing-candidate-stock", eventId: candidate, label: "보존 재고", remaining: 7, history: [] }));
+    const beforeStock = (await adminState()).stocks;
+    for (const date of ["2026-12-03", "2026-12-04", "2026-12-05", "2026-12-06"]) {
+      const first = await call("campaign.prepare", `tour-${date}`, {}, undefined, true);
+      const second = await call("campaign.prepare", `tour-${date}`, {}, undefined, true);
+      expect(first.id).toBe(second.id);
+      const e = (await adminState()).events.find((e) => e.id === first.id)!;
+      expect(e).toMatchObject({ date, area: "대구", venueLogoId: "black", recruitment: false, nextRank: 0 });
+    }
+    const saved = (await adminState()).events.find((e) => e.id === candidate)!;
+    expect(saved.versions?.[0].notice).toContain("대구 미확정");
+    expect(saved.notice).toContain("기존 안내 보존");
+    expect(saved.notice).not.toContain("대구 미확정");
+    expect((await adminState()).stocks.filter((s) => s.eventId === candidate)).toEqual(beforeStock);
+  });
+
   it("routes participant reads before decrypting unrelated owners while retaining payload ownership checks", async () => {
     const id = await create();
     const a = await app(id);
@@ -1053,6 +1144,35 @@ suite("event hub V6 — actual isolated PostgreSQL transactions", () => {
         )
       ).profile,
     ).toBeTruthy();
+  });
+  it("queues hub lock waiters before borrowing the shared pool, preserving session reads and releasing after failure", async () => {
+    const small = new pg.Pool({ connectionString: url, max: 2, connectionTimeoutMillis: 300 });
+    const stores = [new HubStore(small), new HubStore(small)];
+    let release!: () => void;
+    const hold = new Promise<void>((resolve) => { release = resolve; });
+    let entered!: () => void;
+    const inside = new Promise<void>((resolve) => { entered = resolve; });
+    const active = stores[0].transaction(async () => { entered(); await hold; return "first"; });
+    await inside;
+    const waiting = Array.from({ length: 12 }, (_, i) => stores[i % 2].transaction(async (tx) => {
+      await tx.db.query("SELECT 1");
+      if (i === 4) throw new Error("synthetic callback failure");
+      return i;
+    }));
+    const completed = Promise.allSettled(waiting);
+    try {
+      await new Promise((resolve) => setTimeout(resolve, 30));
+      expect((await small.query("SELECT 7 AS session_read")).rows[0].session_read).toBe(7);
+      expect(small.waitingCount).toBe(0);
+    } finally {
+      release();
+      await active;
+      const results = await completed;
+      expect(results.filter((r) => r.status === "fulfilled")).toHaveLength(11);
+      expect(results.filter((r) => r.status === "rejected")).toHaveLength(1);
+      expect(await stores[0].transaction(async () => "after-error")).toBe("after-error");
+      await small.end();
+    }
   });
   it("actual existing 17:00 atomic reset deletes onsite rows but preserves applications, members and inquiries", async () => {
     const id = await create();
@@ -2080,7 +2200,7 @@ suite("event hub V6 — actual isolated PostgreSQL transactions", () => {
       expect(after.differenceReview).toMatchObject({previous:25000,proposed:15000});
       expect(after.halloweenRecognition?.participantNotice).toContain("25,000원 유지");
     });
-    it("free approval is separate from bank payment and still requires attendance/checkin/profile", async () => {
+    it("free approval is separate from bank payment and still requires an actual start and complete profile", async () => {
       eventId = await prepare("halloween-2026-10-31");
       await open(eventId);
       const id = await create();
@@ -2633,7 +2753,7 @@ suite("event hub V6 — actual isolated PostgreSQL transactions", () => {
     });
     expect((await app(id)).cards).toHaveLength(3);
     expect((await app(id)).waivedAt).toBeTruthy();
-    expect((await app(id)).candy).toBe("haribo-a");
+    expect((await app(id)).candy).toBe("haribo");
     expect(
       (await service.state(owner)).events.find((e) => e.id === eventId)
         ?.themeEnabled,

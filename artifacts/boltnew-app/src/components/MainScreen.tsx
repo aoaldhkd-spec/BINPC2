@@ -902,6 +902,9 @@ export function MainScreen({
             </div>
             {mySubTab === 'status' && (
           <div className="space-y-4">
+            {(profiles.find(p => p.id === currentUserId) as { event_hub_application?: string } | undefined)?.event_hub_application && (
+              <a href="/events/cards" className={`block rounded-2xl border p-4 font-bold text-center ${darkMode ? 'bg-slate-800 border-slate-600 text-white' : 'bg-white border-slate-200 text-slate-900'}`}>🎁 행사 카드 · 내 뽑기·지급 결과</a>
+            )}
             {/* ── 내 프로필 카드 ── */}
             {(() => {
               const me = profiles.find(p => p.id === currentUserId);
@@ -1668,7 +1671,7 @@ export function MainScreen({
                                   isSel ? 'border-cyan-500 bg-cyan-50' :
                                   darkMode ? 'border-slate-600 bg-slate-700/70 hover:border-cyan-400' : 'border-gray-200 bg-white hover:border-cyan-300 hover:shadow-md'
                                 }`}>
-                                <img src={av.src} alt={av.label} className="w-12 h-12 rounded-full object-cover block"
+                                <img src={av.src} alt={av.label} loading="lazy" decoding="async" className="w-12 h-12 rounded-full object-cover block"
                                   onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }} />
                                 <span className={`text-[10px] font-bold leading-tight text-center w-full truncate ${isSel ? 'text-cyan-600' : darkMode ? 'text-slate-300' : 'text-gray-600'}`}>{av.label}</span>
                                 {isSel && <span className="absolute top-1 right-1 w-4 h-4 bg-cyan-500 rounded-full flex items-center justify-center shadow"><CheckCircle className="w-2.5 h-2.5 text-white" /></span>}

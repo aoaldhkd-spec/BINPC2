@@ -1,3 +1,4 @@
+import { paymentSatisfied } from "../../../../lib/api-zod/src/event-campaign";
 import {
   EventArtwork,
   eventDateLabel,
@@ -330,7 +331,7 @@ export default function EventHubAdmin({ active = true }: { active?: boolean }) {
           {tab === "경품·상금·할인 결과" && <BenefitResults hub={hub} />}
           {tab === "신청·입금" && (
             <>
-              {event && <CampaignOperations event={event} hub={hub} />}
+              {event && <details><summary className="font-bold cursor-pointer py-2">선착순 혜택·연락·차액 처리</summary><CampaignOperations event={event} hub={hub} /></details>}
               <p className="text-sm">
                 실제 은행 거래를 직접 대조한 뒤 승인하세요. ‘입금했어요’는
                 신고일 뿐입니다.
@@ -1464,10 +1465,10 @@ export function ApplicationAdmin({
         <strong>
           {app.basic.nickname} · 접수 {app.rank}번
         </strong>
-        <CampaignApproval app={app} hub={hub} />
+        <CampaignApproval app={app} hub={hub} showFreeApproval={false} />
         <HalloweenRecognitionAdmin key={app.id} app={app} hub={hub} />
         {app.eligibility && <ScreeningPhoto app={app} hub={hub} admin />}
-        <p className="text-xs break-all">신청번호 {app.id}</p>
+        <details><summary>신청 정보</summary><p className="text-xs break-all">신청번호 {app.id}</p><p>입금 신고 {formatHubTime(app.reportedAt)} · 최근 저장 {formatHubTime(app.updatedAt)}</p></details>
         <p className="text-sm">
           입금자명: {app.basic.depositor} · 회비{" "}
           {app.quote?.fee.toLocaleString() ?? "미확정"}원
@@ -1483,7 +1484,7 @@ export function ApplicationAdmin({
             } as Record<string, string>
           )[app.stage] ?? "신청 진행 중"}{" "}
           ·{" "}
-          {app.waivedAt
+          {app.approvalRevokedAt ? "승인 취소 · 입금 기록 보존" : app.waivedAt
             ? "무료 참가 승인"
             : ((
                 {
@@ -1503,7 +1504,7 @@ export function ApplicationAdmin({
               cancelled: "신청 취소",
             } as Record<string, string>
           )[app.attendance] ?? "참가 확인 중"}{" "}
-          · 현장 {app.checkin ? "확인" : "미확인"}
+          · {app.profileId ? "입장 완료" : "입장 전"}
         </p>
         <p className="text-xs">
           입금 신고 시각 {formatHubTime(app.reportedAt)} · 최근 저장{" "}
@@ -1556,71 +1557,34 @@ export function ApplicationAdmin({
             </div>
           </details>
         )}
-        <div className="flex gap-2 flex-wrap">
-          {!onsite && (
-            <>
-              <HubButton
-                disabled={
-                  hub.status === "saving" ||
-                  !!app.waivedAt ||
-                  (hub.state?.events.find((e) => e.id === app.eventId)
-                    ?.campaign &&
-                    app.quote?.fee === 0)
-                }
-                onClick={() => {
-                  if (
-                    window.confirm(
-                      "실제 은행 거래의 입금자명·금액·시간을 대조했습니까?",
-                    )
-                  )
-                    void act("payment", {
-                      status: "approved",
-                      bankChecked: true,
-                    });
-                }}
-              >
-                입금 승인
-              </HubButton>
-              <HubButton onClick={() => act("payment", { status: "mismatch" })}>
-                불일치
-              </HubButton>
-              <HubButton onClick={() => act("payment", { status: "held" })}>
-                보류
-              </HubButton>
-              <HubButton
-                onClick={() => act("attendance", { status: "paid_waitlist" })}
-              >
-                입금확정 대기자
-              </HubButton>
-              <HubButton
-                onClick={() => act("attendance", { status: "confirmed" })}
-              >
-                참가 확정
-              </HubButton>
-            </>
-          )}
-          <HubButton onClick={() => act("checkin", { checked: true })}>
-            현장 확인
-          </HubButton>
-        </div>
+        {!onsite && (
+          <>
+            <div className="flex gap-2 flex-wrap">
+              <HubButton disabled={paymentSatisfied(app) || !app.confirmedAt} onClick={() => {
+                const free = !!hub.state?.events.find((e) => e.id === app.eventId)?.campaign?.kind.startsWith("halloween") && app.quote?.fee === 0;
+                if (window.confirm(free ? "무료 참가 자격을 확인했습니까? 은행 입금으로 기록하지 않습니다." : "실제 은행 거래의 입금자명·금액·시간을 대조했습니까?"))
+                  void act(free ? "free" : "payment", free ? {} : { status: "approved", bankChecked: true });
+              }}>{hub.state?.events.find((e) => e.id === app.eventId)?.campaign?.kind.startsWith("halloween") && app.quote?.fee === 0 ? "무료 참가 승인" : "입금 승인"}</HubButton>
+              <HubButton disabled={!paymentSatisfied(app) || !note.trim()} onClick={() => {
+                if (window.confirm("입장을 중지하고 승인만 취소합니다. 입금·당첨·지급 이력은 보존됩니다. 계속할까요?")) void act("revoke", { reason: note });
+              }}>승인 취소</HubButton>
+            </div>
+            {paymentSatisfied(app) && <HubField label="승인 취소 사유"><input className={inputClass} value={note} onChange={(e) => setNote(e.target.value)} placeholder="취소할 때만 입력" /></HubField>}
+            <p className="text-xs">승인하면 참가가 확정됩니다. 필수 프로필과 회식 시작을 확인한 실제 입장은 서버가 기록합니다.</p>
+          </>
+        )}
         {onsite && (
           <>
             <div className="flex flex-wrap gap-2">
               <HubButton
-                disabled={!!app.candy}
-                onClick={() => act("candy", { kind: "haribo-a" })}
+                disabled={!!app.candy || !app.profileId}
+                onClick={() => act("candy", { kind: "haribo" })}
               >
-                하리보 A 지급
-              </HubButton>
-              <HubButton
-                disabled={!!app.candy}
-                onClick={() => act("candy", { kind: "haribo-b" })}
-              >
-                하리보 B 지급
+                {app.candy ? "하리보 지급 완료" : "하리보 1개 지급"}
               </HubButton>
             </div>
             {app.cards.map((c) => (
-              <p key={c.id}>
+              <p key={c.id} data-card-id={c.id}>
                 카드:{" "}
                 {c.prizeLabel ??
                   hub.state?.stocks.find((stock) => stock.id === c.prize)
@@ -1629,10 +1593,10 @@ export function ApplicationAdmin({
                     ? c.prize
                     : "당첨 상품 · 기록 확인")}{" "}
                 {app.prizesGiven.includes(c.id)
-                  ? "지급 완료"
+                  ? <span role="status">지급 완료</span>
                   : c.prize !== "다음 기회에" && (
                       <HubButton onClick={() => act("prize", { cardId: c.id })}>
-                        상품 지급 확인
+                        지급 완료
                       </HubButton>
                     )}
               </p>

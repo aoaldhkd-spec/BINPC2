@@ -142,7 +142,7 @@ export function ProfileRecoveryScreen({
               <div className="w-9 h-9 rounded-xl bg-white/20 flex items-center justify-center flex-shrink-0">
                 <KeyRound className="w-5 h-5 text-white" />
               </div>
-              <h2 className="text-white font-black text-xl">{step === 'confirm' ? '본인 확인' : '프로필 복구'}</h2>
+              <h2 className="text-white font-black text-xl">{step === 'confirm' ? '본인 확인' : '고유번호로 프로필 복구'}</h2>
             </div>
             <p className="text-white/80 text-sm">
               {step === 'confirm'

@@ -17,7 +17,7 @@ import { NicknameSetupScreen } from "../components/NicknameSetupScreen";
 import { EventLaboratory } from "./EventLaboratory";
 import { AdminThreads, ApplicationAdmin, ApplicationRoster } from "./EventHubAdmin";
 import { NoticeHistory } from "./NoticeHistory";
-import { WaitingRoom } from "./EventHubPage";
+import { WaitingRoom, EventCards } from "./EventHubPage";
 import { EventLaboratoryStore } from "./event-laboratory-store";
 import { rememberRecoveryCode } from "../lib/event-hub-client";
 import { useEventHub } from "../lib/event-hub-client";
@@ -382,7 +382,7 @@ describe("administrator inquiry recipient safety", () => {
   });
 });
 
-describe("actual waiting-room cards", () => {
+describe("MY cards only after actual admission", () => {
   it("waits for server admission before enabling draws and renders the durable prize name", () => {
     const store = new EventLaboratoryStore();
     store.jump("프로필 완료");
@@ -397,20 +397,15 @@ describe("actual waiting-room cards", () => {
     };
     const app = state.applications[0];
     const { rerender } = render(
-      <WaitingRoom
+      <WaitingRoom edit={() => {}}
         app={app}
         event={state.events[0]}
         hub={hub}
-        edit={() => {}}
       />,
     );
-    expect(
-      (
-        screen.getByRole("button", {
-          name: "카드 한 장 뽑기",
-        }) as HTMLButtonElement
-      ).disabled,
-    ).toBe(true);
+    expect(screen.queryByRole("button", { name: "카드 한 장 뽑기" })).toBeNull();
+    rerender(<EventCards app={app} event={state.events[0]} hub={hub} />);
+    expect(screen.queryByRole("button", { name: "카드 한 장 뽑기" })).toBeNull();
     const admitted = {
       ...app,
       profileId: "synthetic-profile",
@@ -424,11 +419,10 @@ describe("actual waiting-room cards", () => {
       ],
     };
     rerender(
-      <WaitingRoom
+      <EventCards
         app={admitted}
         event={state.events[0]}
         hub={hub}
-        edit={() => {}}
       />,
     );
     expect(
@@ -473,7 +467,7 @@ it("keeps the first application tutorial open through StrictMode mount probes an
   fireEvent.click(screen.getByRole("button", { name: "다음" }));
   fireEvent.click(screen.getByRole("button", { name: "알겠어요" }));
   expect(screen.queryByRole("dialog")).toBeNull();
-  fireEvent.click(screen.getByRole("button", { name: "? 신청 방법" }));
+  fireEvent.click(screen.getByRole("button", { name: "ⓘ 신청 안내" }));
   expect(screen.getByRole("dialog")).toBeTruthy();
 });
 
@@ -567,7 +561,7 @@ it("keeps existing card results readable when new drawing is OFF", () => {
   };
   const event = { ...state.events[0], cardsEnabled: false };
   render(
-    <WaitingRoom
+    <EventCards
       app={app}
       event={event}
       hub={{
@@ -578,7 +572,6 @@ it("keeps existing card results readable when new drawing is OFF", () => {
         load: vi.fn(),
         setError: vi.fn(),
       }}
-      edit={() => {}}
     />,
   );
   expect(screen.getByText("🎁 보존 상품")).toBeTruthy();

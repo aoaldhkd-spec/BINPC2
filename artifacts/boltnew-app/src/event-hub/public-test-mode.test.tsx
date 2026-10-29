@@ -1,7 +1,7 @@
 // @vitest-environment happy-dom
 import { afterEach, expect, it, vi } from "vitest";
 import { cleanup, fireEvent, render, screen } from "@testing-library/react";
-import { ApplicationSteps, BasicForm, EventProfileEditor, WaitingRoom } from "./EventHubPage";
+import { ApplicationSteps, BasicForm, EventProfileEditor, WaitingRoom, EventCards } from "./EventHubPage";
 import { EventLaboratoryStore } from "./event-laboratory-store";
 import type { HubController } from "../lib/event-hub-client";
 import { TEST_MODE_BANNER } from "../lib/public-test-mode";
@@ -41,7 +41,7 @@ it("blocks real basic/profile forms when ON or missing, and retains the return t
 it("leaves notices and saved payment details readable while confirmation, reporting, entry and draws stay disabled", () => {
   const { hub, app, event } = setup("회비 확인");
   const view = render(<ApplicationSteps app={app} event={event} hub={hub} />);
-  expect(screen.getByText(event.notice)).toBeTruthy();
+  expect(screen.getByText(/최종 납부 금액/)).toBeTruthy();
   const confirm = screen.getByRole("button", { name: "금액 확인 후 신청 확정" }) as HTMLButtonElement;
   expect(confirm.disabled).toBe(true);
   fireEvent.click(confirm);
@@ -50,11 +50,13 @@ it("leaves notices and saved payment details readable while confirmation, report
   const report = screen.getByRole("button", { name: "입금했어요 (신고)" }) as HTMLButtonElement;
   expect(report.disabled).toBe(true);
   fireEvent.click(report);
-  expect(screen.getByText(waiting.event.notice)).toBeTruthy();
+  expect(screen.getAllByText(waiting.event.notice).length).toBeGreaterThan(0);
   expect(waiting.hub.mutate).not.toHaveBeenCalled();
   const entered = setup("현장 입장");
   view.rerender(<WaitingRoom {...entered} edit={vi.fn()} />);
   expect((screen.getByRole("button", { name: "술번개 입장하기" }) as HTMLButtonElement).disabled).toBe(true);
+  expect(screen.queryByRole("button", { name: "카드 한 장 뽑기" })).toBeNull();
+  view.rerender(<EventCards {...entered} />);
   expect((screen.getByRole("button", { name: "카드 한 장 뽑기" }) as HTMLButtonElement).disabled).toBe(true);
   expect(hub.mutate).not.toHaveBeenCalled();
 });
@@ -85,10 +87,10 @@ it("keeps admitted Halloween draws available after 01:00 until the next-day 17:0
   state.serverNow = "2026-10-31T16:59:59+09:00";
   const halloween = { ...event, type: "halloween" as const, date: "2026-10-30", start: "22:30", end: "01:00" };
   app.cards = [{ id: "saved-card", prize: "saved-prize", prizeLabel: "보존 테스트 상품", at: "2026-10-30T23:00:00+09:00" }];
-  const view = render(<WaitingRoom app={app} event={halloween} hub={hub} edit={vi.fn()} />);
+  const view = render(<EventCards app={app} event={halloween} hub={hub} />);
   expect((screen.getByRole("button", { name: "카드 한 장 뽑기" }) as HTMLButtonElement).disabled).toBe(false);
   state.serverNow = "2026-10-31T17:00:00+09:00";
-  view.rerender(<WaitingRoom app={app} event={halloween} hub={hub} edit={vi.fn()} />);
+  view.rerender(<EventCards app={app} event={halloween} hub={hub} />);
   expect((screen.getByRole("button", { name: "카드 한 장 뽑기" }) as HTMLButtonElement).disabled).toBe(true);
   expect(screen.getByText("🎁 보존 테스트 상품")).toBeTruthy();
   expect(hub.mutate).not.toHaveBeenCalled();

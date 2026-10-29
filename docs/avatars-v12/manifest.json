@@ -1,0 +1,362 @@
+{
+  "method": "image_gen original mascot sheets; equal-cell extraction and 200px WebP thumbnails; existing avatars/logos unchanged",
+  "originals": [
+    {
+      "path": "docs/avatars-v12/originals/sheet-1.png",
+      "sha256": "0aa16171e839c5f1070ec0ca531753a4c2204441121a494a2ab3e7800f613804",
+      "bytes": 1789857
+    },
+    {
+      "path": "docs/avatars-v12/originals/sheet-2.png",
+      "sha256": "642d56b51d5deb732287af11a6d8a01fca187e0fc375891d41f69c7c4832a6f2",
+      "bytes": 2007371
+    },
+    {
+      "path": "docs/avatars-v12/originals/sheet-3.png",
+      "sha256": "9de0dc9691691ece7ab09ba81ae03a76260760f58d87a473e1c4bf69ac2055a6",
+      "bytes": 1710671
+    },
+    {
+      "path": "docs/avatars-v12/originals/sheet-4.png",
+      "sha256": "742c83348e6f35a3263b1b3a6297667def2a92968d495e3eb86370f36393b2f4",
+      "bytes": 1954046
+    },
+    {
+      "path": "docs/avatars-v12/originals/sheet-5.png",
+      "sha256": "20d6a85ab1a58116ee62da0e79ab6783e5616f284bec2ecbca3348ea202a2887",
+      "bytes": 1875885
+    }
+  ],
+  "avatars": [
+    {
+      "id": "av361",
+      "label": "호박 DJ",
+      "path": "artifacts/boltnew-app/public/avatars/av361.webp",
+      "source": "docs/avatars-v12/originals/sheet-1.png",
+      "cell": 1,
+      "sha256": "68e7546d0cb8c4a9f0e699a07e882ec959cc97ea71566d101da383dba924690f",
+      "bytes": 7594,
+      "width": 200,
+      "height": 200
+    },
+    {
+      "id": "av362",
+      "label": "별빛 유령",
+      "path": "artifacts/boltnew-app/public/avatars/av362.webp",
+      "source": "docs/avatars-v12/originals/sheet-1.png",
+      "cell": 2,
+      "sha256": "d36e66ebd975c9c808579020f89c2caff4127f3fe35bbf7104366058f039442e",
+      "bytes": 4320,
+      "width": 200,
+      "height": 200
+    },
+    {
+      "id": "av363",
+      "label": "보라 박쥐",
+      "path": "artifacts/boltnew-app/public/avatars/av363.webp",
+      "source": "docs/avatars-v12/originals/sheet-1.png",
+      "cell": 3,
+      "sha256": "24df425555990adea1d0707f16a8667f0530c8509521c8cc19ddf560c2ab282d",
+      "bytes": 5474,
+      "width": 200,
+      "height": 200
+    },
+    {
+      "id": "av364",
+      "label": "마녀 고양이",
+      "path": "artifacts/boltnew-app/public/avatars/av364.webp",
+      "source": "docs/avatars-v12/originals/sheet-1.png",
+      "cell": 4,
+      "sha256": "c08bbce4dc570a80fe34ec748eeb15367d6877127b36e110e8ebc8b3db3130f5",
+      "bytes": 7010,
+      "width": 200,
+      "height": 200
+    },
+    {
+      "id": "av365",
+      "label": "꼬마 해골",
+      "path": "artifacts/boltnew-app/public/avatars/av365.webp",
+      "source": "docs/avatars-v12/originals/sheet-1.png",
+      "cell": 5,
+      "sha256": "f15ca3ca2b0decd4d9c29fb2991f6a9164220db58cd311642119e1c7ed411216",
+      "bytes": 4628,
+      "width": 200,
+      "height": 200
+    },
+    {
+      "id": "av366",
+      "label": "사탕 미라",
+      "path": "artifacts/boltnew-app/public/avatars/av366.webp",
+      "source": "docs/avatars-v12/originals/sheet-1.png",
+      "cell": 6,
+      "sha256": "cbd7e561104e26e758585419b6e1de9dfd084d17933acd532063cdf6bc9bb483",
+      "bytes": 5724,
+      "width": 200,
+      "height": 200
+    },
+    {
+      "id": "av367",
+      "label": "마법 여우",
+      "path": "artifacts/boltnew-app/public/avatars/av367.webp",
+      "source": "docs/avatars-v12/originals/sheet-2.png",
+      "cell": 1,
+      "sha256": "10669c4520b38e659fcdb71aff782069ed20f0f1f421081c16c536594136d411",
+      "bytes": 8730,
+      "width": 200,
+      "height": 200
+    },
+    {
+      "id": "av368",
+      "label": "박쥐 토끼",
+      "path": "artifacts/boltnew-app/public/avatars/av368.webp",
+      "source": "docs/avatars-v12/originals/sheet-2.png",
+      "cell": 2,
+      "sha256": "b8deac94c995fc58d2d4b314f585b821ec7be6d164da72380912c5e530e0aec5",
+      "bytes": 5930,
+      "width": 200,
+      "height": 200
+    },
+    {
+      "id": "av369",
+      "label": "호박 용",
+      "path": "artifacts/boltnew-app/public/avatars/av369.webp",
+      "source": "docs/avatars-v12/originals/sheet-2.png",
+      "cell": 3,
+      "sha256": "adbcebc97c4e968e492155518df010a8fb282039c9f81176665b48d1c6b9260d",
+      "bytes": 8228,
+      "width": 200,
+      "height": 200
+    },
+    {
+      "id": "av370",
+      "label": "캔디 몬스터",
+      "path": "artifacts/boltnew-app/public/avatars/av370.webp",
+      "source": "docs/avatars-v12/originals/sheet-2.png",
+      "cell": 4,
+      "sha256": "609d1e393065cb23edc9c1dd6fb580d40639711a8e3465076f08b6c240293e73",
+      "bytes": 4742,
+      "width": 200,
+      "height": 200
+    },
+    {
+      "id": "av371",
+      "label": "별빛 부엉이",
+      "path": "artifacts/boltnew-app/public/avatars/av371.webp",
+      "source": "docs/avatars-v12/originals/sheet-2.png",
+      "cell": 5,
+      "sha256": "171cafc0a707b85dcc9b3d02be3f6220949532718f907d1c749c24dc50ab2017",
+      "bytes": 8154,
+      "width": 200,
+      "height": 200
+    },
+    {
+      "id": "av372",
+      "label": "망토 너구리",
+      "path": "artifacts/boltnew-app/public/avatars/av372.webp",
+      "source": "docs/avatars-v12/originals/sheet-2.png",
+      "cell": 6,
+      "sha256": "af4a13179049d027f6f53e7548c734069aee0f68ed6ac79d1e031688272dfcda",
+      "bytes": 7188,
+      "width": 200,
+      "height": 200
+    },
+    {
+      "id": "av373",
+      "label": "젤리 좀비",
+      "path": "artifacts/boltnew-app/public/avatars/av373.webp",
+      "source": "docs/avatars-v12/originals/sheet-3.png",
+      "cell": 1,
+      "sha256": "f40f8012bd0fa5c44e3f7178faaf38b91e9ceb7abd89c0ec312237c74cd6d1f2",
+      "bytes": 5864,
+      "width": 200,
+      "height": 200
+    },
+    {
+      "id": "av374",
+      "label": "유령 우파루파",
+      "path": "artifacts/boltnew-app/public/avatars/av374.webp",
+      "source": "docs/avatars-v12/originals/sheet-3.png",
+      "cell": 2,
+      "sha256": "b2c5b929bbf87b60bc9724ca74ccf6627573869d98582e7b5c1023d3b01e83fd",
+      "bytes": 5152,
+      "width": 200,
+      "height": 200
+    },
+    {
+      "id": "av375",
+      "label": "랜턴 펭귄",
+      "path": "artifacts/boltnew-app/public/avatars/av375.webp",
+      "source": "docs/avatars-v12/originals/sheet-3.png",
+      "cell": 3,
+      "sha256": "29bcb37cc4b1afc18ef6fdc218516896b2c6498374e86e29bcfbfbbd89c099c2",
+      "bytes": 6676,
+      "width": 200,
+      "height": 200
+    },
+    {
+      "id": "av376",
+      "label": "호박 제빵사",
+      "path": "artifacts/boltnew-app/public/avatars/av376.webp",
+      "source": "docs/avatars-v12/originals/sheet-3.png",
+      "cell": 4,
+      "sha256": "dc5141b4d170bb79ffb1eb0ca417ad7e79cb4835df9a15a992a1858849dcbc36",
+      "bytes": 6142,
+      "width": 200,
+      "height": 200
+    },
+    {
+      "id": "av377",
+      "label": "달빛 정령",
+      "path": "artifacts/boltnew-app/public/avatars/av377.webp",
+      "source": "docs/avatars-v12/originals/sheet-3.png",
+      "cell": 5,
+      "sha256": "199808a6d1e22d5f461d75b798e2947c966707d7508bb464b0acd21019cab283",
+      "bytes": 4032,
+      "width": 200,
+      "height": 200
+    },
+    {
+      "id": "av378",
+      "label": "꼬마 거미",
+      "path": "artifacts/boltnew-app/public/avatars/av378.webp",
+      "source": "docs/avatars-v12/originals/sheet-3.png",
+      "cell": 6,
+      "sha256": "33ab3896db9e765c939e7fe0efdcb167024e979d1993871993d19a58dab4de9a",
+      "bytes": 5030,
+      "width": 200,
+      "height": 200
+    },
+    {
+      "id": "av379",
+      "label": "물약 다람쥐",
+      "path": "artifacts/boltnew-app/public/avatars/av379.webp",
+      "source": "docs/avatars-v12/originals/sheet-4.png",
+      "cell": 1,
+      "sha256": "02ba4af5a75b2236a782dad7c63328c951bfe3251c5c728de2bd29d2d246a5e4",
+      "bytes": 6678,
+      "width": 200,
+      "height": 200
+    },
+    {
+      "id": "av380",
+      "label": "망토 강아지",
+      "path": "artifacts/boltnew-app/public/avatars/av380.webp",
+      "source": "docs/avatars-v12/originals/sheet-4.png",
+      "cell": 2,
+      "sha256": "c34fcdbae382539d060387a9d7129b9092b8dfa2a46a0ac01e8d10f6432690d4",
+      "bytes": 5674,
+      "width": 200,
+      "height": 200
+    },
+    {
+      "id": "av381",
+      "label": "민트 슬라임",
+      "path": "artifacts/boltnew-app/public/avatars/av381.webp",
+      "source": "docs/avatars-v12/originals/sheet-4.png",
+      "cell": 3,
+      "sha256": "28d8e6247017d5cad74c06b013b6239af2ac1b494301e2e069f6c006074d516c",
+      "bytes": 5688,
+      "width": 200,
+      "height": 200
+    },
+    {
+      "id": "av382",
+      "label": "호박 고슴도치",
+      "path": "artifacts/boltnew-app/public/avatars/av382.webp",
+      "source": "docs/avatars-v12/originals/sheet-4.png",
+      "cell": 4,
+      "sha256": "97116bfdaa77e247d07c4ee68b85d87534d4dc64a6664822b1052e3bbcb26acb",
+      "bytes": 7816,
+      "width": 200,
+      "height": 200
+    },
+    {
+      "id": "av383",
+      "label": "마법 문어",
+      "path": "artifacts/boltnew-app/public/avatars/av383.webp",
+      "source": "docs/avatars-v12/originals/sheet-4.png",
+      "cell": 5,
+      "sha256": "15d2114cfe607642b5cf141efd0187fca0bd0ead3681c3d0ba91993775a92878",
+      "bytes": 7680,
+      "width": 200,
+      "height": 200
+    },
+    {
+      "id": "av384",
+      "label": "별빛 까마귀",
+      "path": "artifacts/boltnew-app/public/avatars/av384.webp",
+      "source": "docs/avatars-v12/originals/sheet-4.png",
+      "cell": 6,
+      "sha256": "af661659dd8ebcea7ac3a96661c6b911404d25fb256432d638140414bce854e4",
+      "bytes": 6412,
+      "width": 200,
+      "height": 200
+    },
+    {
+      "id": "av385",
+      "label": "사탕 유니콘",
+      "path": "artifacts/boltnew-app/public/avatars/av385.webp",
+      "source": "docs/avatars-v12/originals/sheet-5.png",
+      "cell": 1,
+      "sha256": "b199564897cf4cf00205a4f9b2e4593fdaf030fbee975c29b926cb646febf0da",
+      "bytes": 7430,
+      "width": 200,
+      "height": 200
+    },
+    {
+      "id": "av386",
+      "label": "호박 기사",
+      "path": "artifacts/boltnew-app/public/avatars/av386.webp",
+      "source": "docs/avatars-v12/originals/sheet-5.png",
+      "cell": 2,
+      "sha256": "9b038ff1d6f2c9a3410ce55e0b95d8209169a7c68d68c7826eb16fe2a04056df",
+      "bytes": 8266,
+      "width": 200,
+      "height": 200
+    },
+    {
+      "id": "av387",
+      "label": "유령 물범",
+      "path": "artifacts/boltnew-app/public/avatars/av387.webp",
+      "source": "docs/avatars-v12/originals/sheet-5.png",
+      "cell": 3,
+      "sha256": "fa39d728e607ac31d7f4c0a554e027b73715ea5a197fd84f63fe376a2a1e1267",
+      "bytes": 5056,
+      "width": 200,
+      "height": 200
+    },
+    {
+      "id": "av388",
+      "label": "달빛 늑대",
+      "path": "artifacts/boltnew-app/public/avatars/av388.webp",
+      "source": "docs/avatars-v12/originals/sheet-5.png",
+      "cell": 4,
+      "sha256": "fe62ebefb4af028429b45b55d0961fbd1175911ef74a0ffa5aa1e1434288bbcd",
+      "bytes": 6624,
+      "width": 200,
+      "height": 200
+    },
+    {
+      "id": "av389",
+      "label": "호박 우주인",
+      "path": "artifacts/boltnew-app/public/avatars/av389.webp",
+      "source": "docs/avatars-v12/originals/sheet-5.png",
+      "cell": 5,
+      "sha256": "d23743b131ef9737d1ab5fc83fbcce9805fa4b062d382887fc0969c4fcc9770a",
+      "bytes": 6552,
+      "width": 200,
+      "height": 200
+    },
+    {
+      "id": "av390",
+      "label": "빗자루 햄스터",
+      "path": "artifacts/boltnew-app/public/avatars/av390.webp",
+      "source": "docs/avatars-v12/originals/sheet-5.png",
+      "cell": 6,
+      "sha256": "76c5653a2eaf4350bf3395b4c62d285479e4acf2db96fb4efdef9b614b606274",
+      "bytes": 7012,
+      "width": 200,
+      "height": 200
+    }
+  ]
+}

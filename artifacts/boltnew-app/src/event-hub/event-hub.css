@@ -30,21 +30,23 @@
   overflow-wrap: anywhere;
 }
 
-/* Reserve the profile wizard's save bar; keep the existing MY-style right action. */
-body:has(.event-profile-draft) .event-hub-dock {
-  bottom: max(
-    calc(100px + env(safe-area-inset-bottom)),
-    calc(var(--hub-keyboard-inset, 0px) + 20px)
-  );
-  right: 16px;
-}
+/* The fixed inquiry strip gets its own space, including inside the profile wizard. */
+.event-profile-draft { padding-bottom: max(76px, calc(60px + env(safe-area-inset-bottom))); }
+.event-profile-draft > div:first-child { min-height: calc(var(--hub-viewport-height, 100dvh) - 76px); }
+.event-profile-draft .profile-setup-card { max-height: calc(var(--hub-viewport-height, 100dvh) - 108px); }
 .event-hub-dock {
-  bottom: max(
-    calc(20px + env(safe-area-inset-bottom)),
-    calc(var(--hub-keyboard-inset, 0px) + 20px)
-  );
-  max-width: calc(100vw - 32px);
+  bottom: var(--hub-keyboard-inset, 0px);
+  padding-bottom: max(8px, env(safe-area-inset-bottom));
+  background: var(--hub-surface, #fff);
+  border-top: 1px solid #94a3b833;
+  min-height: 60px;
 }
+.hub-participant main { padding-bottom: max(100px, calc(80px + env(safe-area-inset-bottom))); }
+.hub-participant input, .hub-participant textarea { scroll-margin-bottom: 100px; }
+.hub-tour-art { width: 100%; padding: 16px; text-align: center; }
+.hub-tour-art img { max-width: 100%; object-fit: contain !important; }
+.hub-tour-art figure { max-width: 140px; margin: 8px 0; }
+.hub-tour-art small { display: block; font-size: 10px; line-height: 1.5; }
 .event-hub-theme button,
 .event-hub-theme a,
 .event-hub-theme input,

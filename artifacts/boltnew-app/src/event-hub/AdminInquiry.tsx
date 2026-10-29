@@ -3,7 +3,7 @@ import {
   writeHubBrowserValue,
 } from "../lib/event-hub-browser-storage";
 import { useEffect, useState, useRef, type CSSProperties } from "react";
-import { type HubController } from "../lib/event-hub-client";
+import { HUB_CONSENT_VERSION, type HubController } from "../lib/event-hub-client";
 import {
   HubButton,
   HubCheck,
@@ -33,8 +33,11 @@ export function AdminInquiry({ hub }: { hub: HubController }) {
     inset: 0,
   });
   useEffect(() => {
+    const root = document.documentElement;
+    const previousHeight = root.style.getPropertyValue("--hub-viewport-height");
     const update = () => {
       const v = window.visualViewport;
+      root.style.setProperty("--hub-viewport-height", `${v?.height ?? window.innerHeight}px`);
       setViewport({
         height: v?.height ?? window.innerHeight,
         inset: Math.max(
@@ -51,6 +54,8 @@ export function AdminInquiry({ hub }: { hub: HubController }) {
     return () => {
       window.visualViewport?.removeEventListener("resize", update);
       window.visualViewport?.removeEventListener("scroll", update);
+      if (previousHeight) root.style.setProperty("--hub-viewport-height", previousHeight);
+      else root.style.removeProperty("--hub-viewport-height");
     };
   }, []);
   const sheet = useRef<HTMLElement>(null);
@@ -83,6 +88,11 @@ export function AdminInquiry({ hub }: { hub: HubController }) {
     };
   }, [open]);
   const thread = hub.state?.threads[0];
+  const alreadyConsented = thread?.consentVersion === HUB_CONSENT_VERSION;
+  const messagesEnd = useRef<HTMLDivElement>(null);
+  const followMessages = useRef(true);
+  const composing = useRef(false);
+  useEffect(() => { if (open && followMessages.current) messagesEnd.current?.scrollIntoView({ block: "nearest" }); }, [open, thread?.messages.length]);
   const unread =
     thread?.messages.some(
       (m) => m.sender === "admin" && m.at > thread.readUserAt,
@@ -118,14 +128,14 @@ export function AdminInquiry({ hub }: { hub: HubController }) {
   return (
     <div className="event-hub-theme" data-event-dark={dark}>
       <div
-        className="event-hub-dock fixed right-4 z-40"
+        className="event-hub-dock fixed right-0 left-0 z-40 flex justify-end px-4 py-2"
         style={
           { "--hub-keyboard-inset": `${viewport.inset}px` } as CSSProperties
         }
       >
         <button
-          className="min-h-12 rounded-full bg-gradient-to-r from-teal-600 to-cyan-600 px-4 py-3 text-sm font-bold text-white shadow-lg shadow-teal-950/30 active:scale-95 transition-transform"
-          onClick={() => setOpen(true)}
+          className="min-h-11 rounded-full bg-gradient-to-r from-teal-600 to-cyan-600 px-4 py-2 text-sm font-bold text-white shadow-sm active:scale-95 transition-transform"
+          onClick={() => { followMessages.current = true; setOpen(true); }}
         >
           💬 관리자 문의 {unread ? "●" : ""}
         </button>
@@ -160,14 +170,17 @@ export function AdminInquiry({ hub }: { hub: HubController }) {
             <div
               className="overflow-y-auto py-4 min-h-24 space-y-2"
               aria-live="polite"
+              onScroll={(e) => { const node = e.currentTarget; followMessages.current = node.scrollHeight - node.scrollTop - node.clientHeight < 48; }}
             >
+              {!thread?.messages.length && <p className="text-sm leading-6">안녕하세요. 신청·입금·늦참 등 궁금한 내용을 남겨 주세요. 관리자가 확인한 뒤 이 대화로 답장합니다.</p>}
               {thread?.messages.map((m) => (
                 <p
                   key={m.id}
                   className={`rounded-xl p-3 text-sm whitespace-pre-wrap break-words ${m.sender === "admin" ? "bg-teal-50" : "bg-slate-100 ml-6"}`}
                 >
-                  <strong>{m.sender === "admin" ? "관리자" : "나"}</strong> ·{" "}
-                  {m.text}
+                  <strong className="block text-xs mb-1">{m.sender === "admin" ? "관리자" : "나"}</strong>
+                  <span>{m.text}</span>
+                  <small className="block mt-1 text-right opacity-70">{new Date(m.at).toLocaleTimeString("ko-KR", { hour: "2-digit", minute: "2-digit", timeZone: "Asia/Seoul" })}{m.sender === "user" && thread.readAdminAt >= m.at ? " · 읽음" : ""}</small>
                 </p>
               )) ?? (
                 <p className="text-sm">
@@ -175,6 +188,7 @@ export function AdminInquiry({ hub }: { hub: HubController }) {
                   경우에만 알려주세요.
                 </p>
               )}
+              <div ref={messagesEnd} />
             </div>
             <form
               onSubmit={async (e) => {
@@ -182,7 +196,7 @@ export function AdminInquiry({ hub }: { hub: HubController }) {
                 if (
                   await hub.mutate({
                     action: "thread.send",
-                    data: { text: message, collection: consent },
+                    data: { text: message, collection: consent || alreadyConsented },
                   })
                 )
                   setMessage("");
@@ -195,16 +209,25 @@ export function AdminInquiry({ hub }: { hub: HubController }) {
                 autoFocus
                 id="hub-inquiry-text"
                 className={inputClass}
-                rows={3}
+                rows={2}
+                placeholder="메시지를 입력하세요"
                 maxLength={2000}
                 value={message}
                 onChange={(e) => setMessage(e.target.value)}
+                onCompositionStart={() => { composing.current = true; }}
+                onCompositionEnd={() => { composing.current = false; }}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter" && (e.ctrlKey || e.metaKey) && !composing.current && !e.nativeEvent.isComposing && e.keyCode !== 229) {
+                    e.preventDefault();
+                    if ((consent || alreadyConsented) && message.trim() && hub.status !== "saving") e.currentTarget.form?.requestSubmit();
+                  }
+                }}
               />
-              <HubCheck
+              {!alreadyConsented && <HubCheck
                 label="문의 처리 목적으로 메시지를 저장하는 데 동의합니다 (비밀번호·복구코드 전송 금지)"
                 checked={consent}
                 onChange={setConsent}
-              />
+              />}
               {!draftStorageAvailable && (
                 <p role="status" className="text-xs">
                   브라우저가 임시 저장을 차단했습니다. 보내지 않은 문의는 현재
@@ -216,7 +239,7 @@ export function AdminInquiry({ hub }: { hub: HubController }) {
               <HubButton
                 type="submit"
                 disabled={
-                  !consent || !message.trim() || hub.status === "saving"
+                  (!consent && !alreadyConsented) || !message.trim() || hub.status === "saving"
                 }
               >
                 {hub.status === "saving" ? "저장 중…" : "문의 보내기"}

@@ -5,6 +5,7 @@ import {
   HALLOWEEN_STOCK,
   tourDates,
   tourDrawEligible,
+  tourSessionSchedule,
   campaignInitialStocks,
 } from "../../../../lib/api-zod/src/event-campaign";
 import {
@@ -62,15 +63,33 @@ describe("latest campaign policy, never the V7 draft", () => {
     ).toBe(49);
     expect(HALLOWEEN_STOCK["2026-10-30"]["LED 밴드"]).toBe(0);
   });
-  it("prepares only 16 November first-round dates, without venue-round assignment or Daegu", () => {
-    expect(tourDates()).toHaveLength(16);
+  it("preserves the 16 November dates and adds exactly four confirmed Daegu first-round dates", () => {
+    expect(tourDates()).toHaveLength(20);
+    expect(tourDates().filter((d) => d.date.startsWith("2026-11"))).toHaveLength(16);
+    expect(tourDates().filter((d) => d.region === "대구").map((d) => d.date)).toEqual(["2026-12-03", "2026-12-04", "2026-12-05", "2026-12-06"]);
     for (const d of tourDates()) {
       const e = event(`tour-${d.date}`);
       expect(e.campaign?.round).toBe(1);
       expect(e.address).toBe("");
       expect(e.campaign?.advance).toBeUndefined();
     }
-    expect(campaignPresets()).toHaveLength(18);
+    expect(campaignPresets()).toHaveLength(22);
+  });
+  it("uses exact KST midnight rollover for all four BLACK days without inventing a third-round end", () => {
+    for (const [date, start, firstEnd, secondEnd] of [
+      ["2026-12-03", "21:00", "2026-12-03T23:30", "2026-12-04T01:30"],
+      ["2026-12-04", "22:00", "2026-12-05T00:30", "2026-12-05T02:30"],
+      ["2026-12-05", "22:00", "2026-12-06T00:30", "2026-12-06T02:30"],
+      ["2026-12-06", "21:00", "2026-12-06T23:30", "2026-12-07T01:30"],
+    ]) {
+      const schedule = tourSessionSchedule(date)!;
+      expect(schedule.first.startsAt).toBe(new Date(`${date}T${start}:00+09:00`).toISOString());
+      expect(schedule.first.endsAt).toBe(new Date(`${firstEnd}:00+09:00`).toISOString());
+      expect(schedule.second.startsAt).toBe(schedule.first.endsAt);
+      expect(schedule.second.endsAt).toBe(new Date(`${secondEnd}:00+09:00`).toISOString());
+      expect(schedule.third).toEqual({ startsAt: schedule.second.endsAt, endsAt: null });
+      expect(event(`tour-${date}`).venueLogoId).toBe("black");
+    }
   });
   it("never describes a tour advance as a final fixed fee", () => {
     const e = event("tour-2026-11-06");

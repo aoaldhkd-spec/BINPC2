@@ -31,6 +31,7 @@ export function HubButton({
 }: ButtonHTMLAttributes<HTMLButtonElement>) {
   return (
     <button
+      type="button"
       {...p}
       className={`min-h-11 rounded-2xl px-4 py-3 font-bold text-sm bg-teal-600 text-white disabled:opacity-50 active:scale-[.98] ${p.className ?? ""}`}
     >

@@ -102,6 +102,15 @@ await pool.query(
     }),
   ],
 );
+// Reuse all accumulated records and the original keys. A saved wall-clock offset
+// drifts past event expiry; anchor this run to the retained cycle's evening,
+// without resetting data or asking admission/reset guards to accept a future start.
+const retained = (await pool.query("SELECT data FROM app_kv_rows WHERE table_name='app_settings' ORDER BY updated_at DESC LIMIT 1")).rows[0]?.data;
+const retainedStart = Date.parse(retained?.event_cycle_started_at ?? "");
+const evening = new Date(Number.isFinite(retainedStart) ? retainedStart + 9 * 3600000 : Date.parse("2026-10-30T23:00:00Z"));
+if (evening.getUTCHours() === 0) evening.setUTCDate(evening.getUTCDate() - 1);
+const fixtureEventDate = evening.toISOString().slice(0, 10);
+cfg.HUB_LOAD_CLOCK_OFFSET_MS = String(Date.parse(`${fixtureEventDate}T23:00:00+09:00`) - Date.now());
 const key = Buffer.from(
   hkdfSync(
     "sha256",
@@ -458,7 +467,7 @@ try {
             "",
             {
               title: "격리150명 혼합·누적 시험",
-              date: "2026-10-30",
+              date: fixtureEventDate,
               start: "22:00",
               end: "01:00",
               type: "normal",

@@ -336,20 +336,24 @@ test("V4 notice/map actual file preview, save, reopen, approval ACL and context-
     ).toHaveCount(0);
     expect((await user.request.get(map.url)).status()).toBe(404);
     expect((await user.request.get(notice.url)).status()).toBe(200);
+    await user.getByRole("button", { name: "신청하기", exact: true }).click();
+    await user.getByLabel("[필수] 위 개인정보").check();
+    await user.getByRole("button", { name: "다음", exact: true }).click();
     await user
       .getByLabel("닉네임", { exact: true })
       .fill("사진" + String(Date.now()).slice(-4));
+    await user.getByRole("button", { name: "다음", exact: true }).click();
     await user.getByLabel("태어난 년도").fill("1995");
+    await user.getByRole("button", { name: "다음", exact: true }).click();
     await user.getByLabel("사는 지역").fill("부산");
+    await user.getByRole("button", { name: "다음", exact: true }).click();
     await user.getByLabel("연락용 전화번호").fill("01000000000");
+    await user.getByRole("button", { name: "다음", exact: true }).click();
     await user.getByLabel("실제 은행 입금 시 보내는 분 이름").fill("가상");
-    await user.getByLabel("[필수] 위 개인정보").check();
     await user.getByRole("button", { name: "다음", exact: true }).click();
     await expect(user).toHaveURL(/\/events\/a\//);
     const appId = user.url().split("/").pop()!;
-    await user.getByLabel("[필수] 행사 운영을 위한 개인정보 수집").check();
-    await user.getByLabel("[필수] 입장 후 같은 행사 참가자에게").check();
-    await user.getByLabel("[필수] 행사 공지를").check();
+    await user.getByLabel("필수 안내를 모두 확인하고 동의합니다", { exact: true }).check();
     await user.getByRole("button", { name: /동의.*다음|동의.*회비/ }).click();
     await expect(
       user.getByText("계좌·예금주: 실제 송금 금지", { exact: true }),

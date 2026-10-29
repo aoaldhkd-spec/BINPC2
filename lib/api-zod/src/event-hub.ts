@@ -15,6 +15,15 @@ export const HubBasic = z.object({
   collection: z.literal(true),
   version: z.literal(HUB_CONSENT_VERSION),
 });
+// A consented draft never reserves a rank or changes an approved application.
+export const HubBasicDraftInput = z.object({
+  basic: HubBasic.partial().required({ collection: true, version: true }),
+  nextStep: z.number().int().min(1).max(5),
+});
+export type HubBasicDraft = z.infer<typeof HubBasicDraftInput> & {
+  revision: number;
+  updatedAt: string;
+};
 export const HubConsent = z.object({
   collection: z.literal(true),
   sharing: z.literal(true),
@@ -68,7 +77,7 @@ export const HubEventInput = z.object({
   benefitsOpensAt: z.string().datetime().optional(),
   benefitsClosesAt: z.string().datetime().optional(),
   lateReviewAfter: z.string().datetime().optional(),
-  venueLogoId: z.enum(["red_hole","fake","jack","m_karaoke","speed","check_in","on_top"]).optional(),
+  venueLogoId: z.enum(["red_hole","fake","jack","m_karaoke","speed","check_in","on_top","black"]).optional(),
   venueLogoVersionId: z.string().uuid().optional(),
   thanksLogoVersionId: z.string().uuid().optional(),
   title: z.string().trim().min(1).max(100),
@@ -162,6 +171,8 @@ export type HubApplication = {
   reportedAt?: string;
   approvedAt?: string;
   waivedAt?: string;
+  approvalRevokedAt?: string;
+  enteredAt?: string;
   rewardPhone?: string;
   lateArrival?: { at: string; reason: string; status: "noted"|"review"|"approved"|"declined"; reviewReason?: string };
   manualResults?: {id:string;label:string;amount:number;at:string;reason?:string;receivedAt?:string;paidAt?:string}[];

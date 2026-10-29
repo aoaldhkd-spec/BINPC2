@@ -33,6 +33,8 @@ export type PrivateApplication = Omit<HubApplication, "rank" | "owner"> & {
   resultDetails?: HubApplication["cards"];
 };
 export type HubThread = {
+  consentVersion?: string;
+  consentAt?: string;
   status?: "open" | "resolved";
   id: string;
   messages: { id: string; sender: string; text: string; at: string }[];
@@ -42,6 +44,7 @@ export type HubThread = {
   history: HubAudit[];
 };
 export type HubState = {
+  basicDrafts?: Record<string, import("../../../../lib/api-zod/src/event-hub").HubBasicDraft>;
   testMode?: PublicEventTestMode;
   serverNow?: string;
   privacyNotice?:{policyVersion:string;controllerName:string;contact:string;notice:string;fingerprint:string;periods:{purpose:string;days:number|null}[]};

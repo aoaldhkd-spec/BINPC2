@@ -10,15 +10,12 @@ export function applicationAdmissionIssue(
   a: HubApplication,
   e: HubEvent,
 ): { code: string; message: string } | null {
-  if (
-    !a.confirmedAt ||
-    !paymentSatisfied(a) ||
-    a.attendance !== "confirmed" ||
-    !a.checkin
-  )
+  if (!a.confirmedAt || !paymentSatisfied(a))
     return {
       code: "ATTENDANCE",
-      message: "입금·참가 확정·현장 확인이 필요합니다.",
+      message: a.approvalRevokedAt
+        ? "참가 승인이 취소되었습니다. 재입금하지 말고 관리자에게 문의해 주세요."
+        : "관리자의 입금 확인 또는 무료 참가 승인이 필요합니다.",
     };
   if (a.eligibility && a.eligibility.status !== "approved")
     return {
@@ -58,6 +55,7 @@ export function participantApplication(a: HubApplication, e: HubEvent) {
         !h.action.startsWith("admin.") ||
         [
           "admin.application.payment",
+          "admin.application.revoke",
           "admin.application.attendance",
           "admin.application.checkin",
           "admin.application.prize",

@@ -62,6 +62,7 @@ export type PrivacyCase = {
 };
 export type PrivacySnapshot = {
   owner: string;
+  basicDrafts?: { id: string; revision: number; updatedAt: string }[];
   caseRevision: number;
   hold?: { reason: string; until?: string };
   applications: {
@@ -114,6 +115,11 @@ export function draftPrivacyPlan(
     return Date.parse(at) + r.days * 86400000 <= now.getTime();
   };
   const items: PrivacyPlan["items"] = [];
+  for (const d of s.basicDrafts ?? []) items.push({
+    purpose: "application", kind: "basic-draft", id: d.id,
+    action: due("application", d.updatedAt) ? "erase" : "keep",
+    reason: "작성 중 기본정보 · 마지막 저장일과 목적별 보관 근거 검토",
+  });
   for (const a of s.applications) {
     const operation = due("application", a.eventEnd),
       finance = !a.paid || due("finance", a.financeAt ?? "");
