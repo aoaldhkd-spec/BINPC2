@@ -1,3 +1,4 @@
+import { halloweenPrizeLabel } from "../../../../lib/api-zod/src/event-policy-halloween";
 import { VenueDirectoryEditor } from "./VenueDirectoryEditor";
 import { paymentSatisfied } from "../../../../lib/api-zod/src/event-campaign";
 import {
@@ -614,7 +615,7 @@ function PrizeOverview({
                   );
                   return (
                     <div key={s.id} className="border-b py-3">
-                      <strong>{s.label}</strong>
+                      <strong>{halloweenPrizeLabel(s.label)}</strong>
                       <p className="text-sm">
                         배정 {s.remaining + winners.length} · 당첨{" "}
                         {winners.length} · 지급{" "}
@@ -1600,12 +1601,12 @@ export function ApplicationAdmin({
             {app.cards.map((c) => (
               <p key={c.id} data-card-id={c.id}>
                 카드:{" "}
-                {c.prizeLabel ??
+                {halloweenPrizeLabel(c.prizeLabel ??
                   hub.state?.stocks.find((stock) => stock.id === c.prize)
                     ?.label ??
                   (c.prize === "다음 기회에"
                     ? c.prize
-                    : "당첨 상품 · 기록 확인")}{" "}
+                    : "당첨 상품 · 기록 확인"))}{" "}
                 {app.prizesGiven.includes(c.id)
                   ? <span role="status">지급 완료</span>
                   : c.prize !== "다음 기회에" && (

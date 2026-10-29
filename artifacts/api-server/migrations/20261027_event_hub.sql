@@ -31,3 +31,24 @@ ALTER TABLE event_hub_records ADD CONSTRAINT event_hub_records_kind_check
 
 -- Event-scoped stock lookup; payload authentication and atomic reservation remain mandatory.
 CREATE INDEX IF NOT EXISTS event_hub_stock_event ON event_hub_records ((data->>'eventId')) WHERE kind='stock';
+
+-- Server-only session/grant store. Never expose either new table via Supabase REST roles.
+CREATE TABLE IF NOT EXISTS app_sessions (
+  sid varchar NOT NULL PRIMARY KEY,
+  sess json NOT NULL,
+  expire timestamp(6) NOT NULL
+);
+CREATE INDEX IF NOT EXISTS app_sessions_expire_idx ON app_sessions(expire);
+ALTER TABLE event_hub_records ENABLE ROW LEVEL SECURITY;
+ALTER TABLE app_sessions ENABLE ROW LEVEL SECURITY;
+REVOKE ALL ON event_hub_records, app_sessions FROM PUBLIC;
+DO $$
+DECLARE external_role text;
+BEGIN
+  FOREACH external_role IN ARRAY ARRAY['anon','authenticated'] LOOP
+    IF EXISTS (SELECT 1 FROM pg_roles WHERE rolname = external_role) THEN
+      EXECUTE format('REVOKE ALL ON event_hub_records, app_sessions FROM %I', external_role);
+    END IF;
+  END LOOP;
+END $$;
+-- Existing app tables, role membership, keys and records are not changed.

@@ -71,7 +71,7 @@ describe("latest campaign policy, never the V7 draft", () => {
       const e = event(`tour-${d.date}`);
       expect(e.campaign?.round).toBe(1);
       expect(e.address).toBe("");
-      expect(e.campaign?.advance).toBeUndefined();
+      expect(e.campaign?.advance).toBe(10000); // Latest user-confirmed tour advance; Halloween remains fixed-fee.
     }
     expect(campaignPresets()).toHaveLength(22);
   });

@@ -3,7 +3,7 @@ const fixtureDatabases = new Set([
   "binpc2_hub_dev", "binpc2_hub_test", "binpc2_reset_test",
   "binpc2_hub_resume_dev", "binpc2_hub_handoff_dev",
   "binpc2_hub_test_resume", "binpc2_reset_test_resume",
-  "binpc2_hub_load_v6", "binpc2_hub_browser_v4", "binpc2_hub_browser_v6",
+  "binpc2_hub_load_v6", "binpc2_hub_browser_v4", "binpc2_hub_browser_v6", "binpc2_hub_browser_current",
 ]);
 const fixturePorts = new Set([
   "3001", "3002", "3003", "3004", "3005", "3006",

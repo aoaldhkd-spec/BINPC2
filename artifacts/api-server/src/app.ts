@@ -1,3 +1,4 @@
+import { bossAccessGate, bossOnlyLocked } from "./lib/boss-access";
 import { eventHubRateIdentity } from "./lib/rate-limit-identity";
 import { createPrivatePreviewGate } from "./lib/private-preview";
 import express, { type Express, type Request, type Response, type NextFunction } from "express";
@@ -67,7 +68,7 @@ function makeRateLimiter(maxRequests: number, windowMs: number, namespace: strin
     })();
     const loginNick = body?.nickname != null ? String(body.nickname).trim() : '';
     const queryUid = typeof req.query?.userId === 'string' ? String(req.query.userId) : '';
-    const identity = eventHubRateIdentity(namespace,req.session) ?? (bodyUid || sessionUid || queryUid || (namespace === 'auth-login' && loginNick ? `nick:${loginNick}` : ''));
+    const identity = namespace === 'boss-login' ? '' : eventHubRateIdentity(namespace,req.session) ?? (bodyUid || sessionUid || queryUid || (namespace === 'auth-login' && loginNick ? `nick:${loginNick}` : ''));
     const key = identity ? `${namespace}:id:${identity}` : `${namespace}:ip:${ip}`;
     const now = Date.now();
     const cutoff = now - windowMs;
@@ -145,7 +146,7 @@ const SESSIONLESS_PATHS = [
 ];
 app.use((req, res, next) => {
   const path = req.path;
-  if (SESSIONLESS_PATHS.some(p => path === p || path.startsWith(`${p}?`))) {
+  if (!bossOnlyLocked() && SESSIONLESS_PATHS.some(p => path === p || path.startsWith(`${p}?`))) {
     return next();
   }
   return sessionMiddleware(req, res, next);
@@ -233,6 +234,8 @@ app.use('/api/db/rpc',              makeRateLimiter(30, 60_000, 'rpc'));
 app.use('/api/event-hub/session', makeRateLimiter(180, 60_000, 'hub-session'));
 app.use('/api/event-hub/member-login', makeRateLimiter(120, 60_000, 'hub-member-login'));
 app.use('/api/event-hub/mutate', makeRateLimiter(600, 60_000, 'hub-mutate'));
+app.use("/api/boss-access/login", makeRateLimiter(8, 60_000, "boss-login"));
+app.use(bossAccessGate);
 app.use("/api", router);
 
 mountProductionSpa(app);

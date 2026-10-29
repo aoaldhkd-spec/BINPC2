@@ -532,7 +532,10 @@ test("actual browser + API + PostgreSQL: saved stages, payment recovery, private
   await page.context().setOffline(true);
   const disconnected=await page.evaluate(async()=>{window.dispatchEvent(new Event('focus'));window.dispatchEvent(new Event('offline'));document.dispatchEvent(new Event('visibilitychange'));const {supabase}=await import('/src/lib/supabase.ts');const r=await supabase.from('profiles').select('*');return !!r.error;});expect(disconnected).toBe(true);
   expect(await page.evaluate(()=>localStorage.getItem('matching_app_user_id'))).toBe(originalIdentity);
-  await expect(page.getByRole('group',{name:'내 고유번호',exact:true})).toBeVisible();
+  // The full-site access check hides cached private screens offline without clearing profile state.
+  await expect(page.getByRole('group',{name:'내 고유번호',exact:true,includeHidden:true})).toBeAttached();
+  await expect(page.getByRole('group',{name:'내 고유번호',exact:true,includeHidden:true})).toBeHidden();
+  await expect(page.getByText('접근 권한을 확인하지 못했습니다.')).toBeVisible();
   await page.context().setOffline(false);await page.reload();
   await expect(page.getByRole('navigation',{name:'참여자 메뉴'})).toBeVisible();
   expect(await page.evaluate(()=>localStorage.getItem('matching_app_user_id'))).toBe(originalIdentity);

@@ -116,12 +116,13 @@ export function campaignPresets() {
         campaign: {
           kind: "tour" as const,
           round: 1 as const,
+          advance: 10000,
           secondRoundLink: "",
         },
         notice:
           CAMPAIGN_NOTICE +
           `\n${d.date} ${d.region} · ${d.venues.join(" / ")}\n1차 ${tourSessionHours(d.date)?.first} · 2차 ${tourSessionHours(d.date)?.second} · 3차 ${tourSessionHours(d.date)?.third}.` +
-          "\n대관에 도움을 주신 고래 사장님께 감사드립니다.\n1차만 BINPC2 신청. 2차는 오픈채팅, 3차는 현장 안내입니다. 선입금액은 운영자가 입력하며 최종 1/N 정산은 직접 안내합니다.",
+          "\n대관에 도움을 주신 고래 사장님께 감사드립니다.\n1차만 BINPC2 신청. 2차는 오픈채팅, 3차는 현장 안내입니다. 전원 1인 10,000원 선입금이며 할인 예상액을 먼저 빼지 않습니다. 최종 1/N 정산은 운영자가 직접 안내합니다. 전국투어 기간 동안 부산에선 하지 않습니다.",
         venueCandidates: [...d.venues],
         ...(d.region === "대구" ? { venueLogoId: "black" as const } : {}),
       },

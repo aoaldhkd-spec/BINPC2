@@ -1,4 +1,8 @@
 import type { HubEvent, HubApplication } from "./event-hub";
+/** Presentation only: historical stock IDs, allocations and delivery records stay intact. */
+export function halloweenPrizeLabel(label: string): string {
+  return label === "LED 밴드" ? "야광밴드" : label;
+}
 export const HALLOWEEN_STOCK = {
   "2026-10-30": {
     "LED 반지": 15,

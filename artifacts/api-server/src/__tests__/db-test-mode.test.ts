@@ -132,6 +132,8 @@ describe('legacy registration respects the authoritative test mode', () => {
     const password = await request(app).post('/api/db/rpc/test_verify_password').send({ p_test_password: 'test-mode-fixture-password' });
     expect(password.status).toBe(200);
     const previousNodeEnv = process.env.NODE_ENV;
+    const previousBossRelease = process.env.BOSS_PUBLIC_RELEASE;
+    process.env.BOSS_PUBLIC_RELEASE = 'explicit-owner-approved'; // Preserve old auth/recovery guarantees in the explicit release state.
     process.env.NODE_ENV = 'production';
     try {
       for (const enabled of [false, true]) {
@@ -155,6 +157,7 @@ describe('legacy registration respects the authoritative test mode', () => {
       expect(existing.body.data.nickname).toBe(a.nickname);
     } finally {
       process.env.NODE_ENV = previousNodeEnv;
+      if (previousBossRelease === undefined) delete process.env.BOSS_PUBLIC_RELEASE; else process.env.BOSS_PUBLIC_RELEASE = previousBossRelease;
     }
   });
 
@@ -162,6 +165,8 @@ describe('legacy registration respects the authoritative test mode', () => {
     disableMode();
     const existing = await participant();
     const previousNodeEnv = process.env.NODE_ENV;
+    const previousBossRelease = process.env.BOSS_PUBLIC_RELEASE;
+    process.env.BOSS_PUBLIC_RELEASE = 'explicit-owner-approved'; // Preserve old auth/recovery guarantees in the explicit release state.
     process.env.NODE_ENV = 'production';
     try {
       // This fixture has no privacy-policy record or matching production release.
@@ -171,6 +176,7 @@ describe('legacy registration respects the authoritative test mode', () => {
       expect(recovery.body.data.id).toBe(existing.id);
       const login = await request(app).post('/api/db/auth/login').send({ userId: existing.id, deviceSecret: `secret-${existing.id}` });
       expect(login.status).toBe(200);
-    } finally { process.env.NODE_ENV = previousNodeEnv; }
+    } finally { process.env.NODE_ENV = previousNodeEnv;
+      if (previousBossRelease === undefined) delete process.env.BOSS_PUBLIC_RELEASE; else process.env.BOSS_PUBLIC_RELEASE = previousBossRelease; }
   });
 });

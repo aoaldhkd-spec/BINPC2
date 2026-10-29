@@ -1,3 +1,4 @@
+import { configureBossAccess, bossProtectedSseWrite, bossOnlyLocked } from "../lib/boss-access.js";
 import { assertOnsiteSocialWrite, onsiteWriteActor, ONSITE_SOCIAL_WRITE_TABLES } from '../lib/event-onsite-access.js';
 import '../lib/dns-ipv4-first.js';
 import { atomicEventReset } from '../lib/db-event-reset-transaction.js';
@@ -1038,6 +1039,8 @@ class RpcAuthError extends Error {
 // → 비밀번호 변경 시 자동 무효화, 재시작 후에도 동일 토큰 검증 가능
 
 /** Thin wrappers — HMAC verify lives in db-panel-tokens; getTable stays local. */
+configureBossAccess(() => getTable('app_settings')[0] ?? {});
+
 export function verifyAdminToken(provided: string | null | undefined): boolean {
   const settings = (getTable('app_settings')[0] ?? {}) as Record<string, unknown>;
   const secrets = panelAdminSecrets(String(settings.admin_password ?? ''));
@@ -2707,7 +2710,7 @@ async function resyncAllFromNativeDb(reason: 'periodic' | 'forced' = 'periodic')
 const _sseCleanup = new Map<Response, () => void>();
 
 function _send(client: Response, conns: Set<Response>, payload: string) {
-  try { client.write(payload); } catch {
+  try { bossProtectedSseWrite(client, payload); } catch {
     conns.delete(client);
     // write 실패 = 클라이언트 연결 끊김 → keepalive interval 즉시 정리 (req.close 미발화 대비)
     _sseCleanup.get(client)?.();
@@ -4963,7 +4966,7 @@ router.get('/storage-image', async (req: Request, res: Response): Promise<void> 
     res.setHeader('Content-Type', parsedImg.mime);
     res.setHeader('X-Content-Type-Options', 'nosniff');   // prevent MIME sniffing
     res.setHeader('Content-Disposition', 'inline');        // don't treat as download
-    res.setHeader('Cache-Control', 'private, max-age=86400');
+    res.setHeader('Cache-Control', bossOnlyLocked() ? 'private, no-store' : 'private, max-age=86400');
     res.send(Buffer.from(parsedImg.base64, 'base64'));
     return;
   }
@@ -5747,7 +5750,7 @@ router.get('/events', (req: Request, res: Response) => {
   // Non-private process identifier lets the client detect a cross-instance reconnect.
   // It is deliberately sent before ring replay because event sequence numbers are process-local.
   try {
-    res.write(`data: ${JSON.stringify({ type: 'instance', instanceId: INSTANCE_ID })}\n\n`);
+    bossProtectedSseWrite(res, `data: ${JSON.stringify({ type: 'instance', instanceId: INSTANCE_ID })}\n\n`);
   } catch {
     _undoSseConnCount();
     try { res.end(); } catch { /* ignore */ }
@@ -5808,11 +5811,11 @@ router.get('/events', (req: Request, res: Response) => {
       if (planSseRingReplay(missed.length, SSE_RING_REPLAY_MAX_DEFAULT) === 'catchup') {
         const latest = _sseRing.latestSeq() || lastSeq;
         try {
-          res.write(`id: ${latest}\ndata: ${JSON.stringify({ type: 'catchup', missed: missed.length })}\n\n`);
+          bossProtectedSseWrite(res, `id: ${latest}\ndata: ${JSON.stringify({ type: 'catchup', missed: missed.length })}\n\n`);
         } catch { /* ignore */ }
       } else {
         for (const entry of missed) {
-          try { res.write(`id: ${entry.seq}\ndata: ${entry.json}\n\n`); } catch { break; }
+          try { bossProtectedSseWrite(res, `id: ${entry.seq}\ndata: ${entry.json}\n\n`); } catch { break; }
         }
       }
     }
@@ -5823,7 +5826,7 @@ router.get('/events', (req: Request, res: Response) => {
     // res.writable이 false면 이미 닫힌 소켓 — cleanupConn 호출 후 정리
     if (!res.writable || res.writableEnded) { clearInterval(keepalive); cleanupConn(); return; }
     try {
-      const flushed = res.write('data: {"type":"ping"}\n\n');
+      const flushed = bossProtectedSseWrite(res, 'data: {"type":"ping"}\n\n');
       // write()가 false를 반환하면 TCP 송신 버퍼가 가득 찬 것 (backpressure)
       // 클라이언트가 읽지 못하는 좀비 연결이므로 정리 — sseUserMap에서도 제거
       if (!flushed) { clearInterval(keepalive); cleanupConn(); res.end(); }
@@ -5856,12 +5859,13 @@ router.get('/events', (req: Request, res: Response) => {
   };
   // Task #153: socket timeout forward reference 완성 — timeout 시 cleanupConn 정상 호출
   _cleanupConnRef = cleanupConn;
+  res.on('close', cleanupConn); // Includes access revocation via res.end(), even with keep-alive sockets.
   req.on('close', cleanupConn);
   req.on('aborted', cleanupConn); // Node.js HTTP/1.1 강제 종료 대비
   req.socket.on('close', cleanupConn); // 프록시가 HTTP close 없이 소켓만 끊는 경우 teardown 지연 방지
 
   // Initial ping — cleanupConn 선언 이후에 write. 이미 닫힌 응답이면 즉시 정리.
-  try { res.write('data: {"type":"ping"}\n\n'); } catch { cleanupConn(); }
+  try { bossProtectedSseWrite(res, 'data: {"type":"ping"}\n\n'); } catch { cleanupConn(); }
   } catch (e) {
     logger.error({ err: e }, '[events] Unexpected error during SSE setup');
     if (!res.headersSent) res.status(500).json({ error: 'Internal server error' });

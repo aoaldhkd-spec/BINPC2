@@ -6,6 +6,7 @@ if (
   ![
     "/binpc2_hub_load_v6",
     "/binpc2_hub_browser_v6",
+    "/binpc2_hub_browser_current",
     "/binpc2_hub_browser_v4",
     "/binpc2_hub_dev",
   ].includes(u.pathname) ||

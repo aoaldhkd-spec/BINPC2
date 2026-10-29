@@ -1,3 +1,4 @@
+import { halloweenPrizeLabel } from "../../../../lib/api-zod/src/event-policy-halloween";
 import { eventEnded } from "../../../../lib/api-zod/src/event-hub-modules";
 import { ResidenceInput } from "./ResidenceInput";
 import { PaymentAccounts } from "./PaymentAccounts";
@@ -1185,7 +1186,7 @@ export function EventCards({ app, event, hub, fixedClock=false }: { app: Private
                       ? event.campaign?.kind === "tour"
                         ? "꽝"
                         : "다음 기회에"
-                      : `🎁 ${app.cards[i].prizeLabel ?? "당첨 상품 · 관리자에게 확인해 주세요"}`
+                      : `🎁 ${halloweenPrizeLabel(app.cards[i].prizeLabel ?? "당첨 상품 · 관리자에게 확인해 주세요")}`
                     : <span><strong className="block text-2xl">🎃</strong><span className="block">카드 {i+1}</span>{slots.length > 0 && <><span className="block">{["23:00","00:00","00:30"][i]} 해제</span><span className="block">{eventEnded(event,clock) ? "뽑기 종료" : clock.getTime() < slots[i] ? `🔒 ${Math.ceil((slots[i]-clock.getTime())/60000)}분 후` : "열림"}</span></>}</span>}
                 </button>
               ),

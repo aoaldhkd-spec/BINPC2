@@ -168,9 +168,12 @@ router.post("/session", async (req, res, next) => {
       !req.session.hubOwner || req.session.hubOwner === owner
         ? req.session.userId
         : undefined;
+    const bossAccessId = req.session.bossAccessId;
     await new Promise<void>((resolve, reject) =>
       req.session.regenerate((e) => (e ? reject(e) : resolve())),
     );
+    // The separate server grant still controls revocation; retain only its pointer.
+    if (bossAccessId) req.session.bossAccessId = bossAccessId;
     req.session.hubOwner = owner;
     if (userId) req.session.userId = userId;
     await new Promise<void>((resolve, reject) =>
@@ -194,9 +197,11 @@ router.post("/member-login", async (req, res, next) => {
       !req.session.hubOwner || req.session.hubOwner === owner
         ? req.session.userId
         : undefined;
+    const bossAccessId = req.session.bossAccessId;
     await new Promise<void>((resolve, reject) =>
       req.session.regenerate((e) => (e ? reject(e) : resolve())),
     );
+    if (bossAccessId) req.session.bossAccessId = bossAccessId;
     req.session.hubOwner = owner;
     if (userId) req.session.userId = userId;
     await new Promise<void>((resolve, reject) =>

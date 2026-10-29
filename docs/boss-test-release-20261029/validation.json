@@ -1,0 +1,50 @@
+{
+  "status": "PRE_DEPLOY_VALIDATED_PENDING_FINAL_CI_AND_DDL",
+  "baseline": "ab00618532e04e3a226dbfe4887dc90337a68ed6",
+  "localValidation": {
+    "apiUnitAndDb": 682,
+    "uiUnit": 910,
+    "existingActualBrowser": 22,
+    "bossActualBrowser": 2,
+    "targetedFinalBossUnit": 10,
+    "targetedFinalUi": 60,
+    "typecheck": "PASS",
+    "guards": 598,
+    "audit": {
+      "errors": 0,
+      "warnings": 200,
+      "warningFree": false
+    }
+  },
+  "backup": {
+    "applicationRows": 3274,
+    "dbBackedImages": 102,
+    "sourceSnapshotUtc": "2026-10-29T07:50:34Z",
+    "externalDownloadSha256": "48160bf0e0d8f1a1040d5a290a99c95155c0dd841eba4fafd13e4839117e9ae8",
+    "bytes": 36019270,
+    "drivePrivateOwnerOnly": true,
+    "externalCopyIsolatedRestore": true,
+    "separateExistingKeysExternalVerified": true,
+    "recoveryKeyUserSafeCustodyConfirmed": true,
+    "fullSupabasePlatformRestore": false,
+    "productionDbWrites": false
+  },
+  "unknown": [
+    "physical Galaxy/iPhone",
+    "background push"
+  ],
+  "remaining": [
+    "companion application UI and isolated friend authorization",
+    "150-person peak p95 under 2000ms",
+    "private venue/account input application",
+    "minimal operating schema creation permission",
+    "final remote CI and existing-site deploy verification"
+  ],
+  "operatingDdl": {
+    "authenticated": true,
+    "actualRole": "supabase_read_only_user",
+    "readOnly": true,
+    "canCreateTables": false,
+    "writePermissionAutomaticallyExpanded": false
+  }
+}

@@ -11,9 +11,10 @@ const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), ".."),
   { Pool } = require("pg"),
   out = root + "/.local/v6-finish";
 await mkdir(out, { recursive: true });
-const v4=process.argv.includes("--v4");
-const configFile=out+(v4?"/browser-v4-private-env.json":"/browser-private-env.json");
-const dbName = v4?"binpc2_hub_browser_v4":"binpc2_hub_browser_v6",
+const current = process.argv.includes("--current");
+const v4=process.argv.includes("--v4"), boss = process.argv.includes("--boss");
+const configFile=out+(current ? "/browser-current-private-env.json" : v4?"/browser-v4-private-env.json":"/browser-private-env.json");
+const dbName = current ? "binpc2_hub_browser_current" : v4?"binpc2_hub_browser_v4":"binpc2_hub_browser_v6",
   dbUrl = `postgresql://postgres@127.0.0.1:5432/${dbName}?sslmode=disable`,
   adminDb = new Pool({
     connectionString:
@@ -75,9 +76,15 @@ await pool.query(
     }),
   ],
 );
+// Reuse the retained cycle, but re-anchor the explicitly isolated clock on each run.
+// A stored wall-clock offset drifts past 01:00 across resumed Codex sessions.
+const cycle = (await pool.query("SELECT data->>'event_cycle_started_at' AS started FROM app_kv_rows WHERE table_name='app_settings' AND row_id='1'")).rows[0]?.started;
+if (cycle && Number.isFinite(Date.parse(cycle))) cfg.HUB_LOAD_CLOCK_OFFSET_MS = String(Date.parse(cycle) + 5 * 60_000 - Date.now());
+else cfg.HUB_LOAD_CLOCK_OFFSET_MS = String(Date.parse("2026-10-30T14:10:00Z") - Date.now());
+await writeFile(configFile, JSON.stringify(cfg), { mode: 0o600 });
 await pool.end();
-const apiPort = process.argv.includes("--v4") ? 8127 : process.argv.includes("--fresh") ? 8122 : 8121,
-  webPort = process.argv.includes("--v4") ? 3006 : process.argv.includes("--fresh") ? 3005 : 3003;
+const apiPort = boss ? 8123 : process.argv.includes("--v4") ? 8127 : process.argv.includes("--fresh") ? 8122 : 8121,
+  webPort = boss ? 3006 : process.argv.includes("--v4") ? 3006 : process.argv.includes("--fresh") ? 3005 : 3003;
 const apiLog = await open(out + "/browser-api-private.log", "a"),
   webLog = await open(out + "/browser-vite-private.log", "a"),
   env = {
@@ -86,6 +93,7 @@ const apiLog = await open(out + "/browser-api-private.log", "a"),
     ...cfg,
     NODE_ENV: "development",
     PG_POOL_MAX: "10",
+    ...(boss ? { BOSS_ONLY_LOCK: "1" } : {}),
   };
 const api = spawn(
   process.execPath,
@@ -156,21 +164,30 @@ if (!ready) {
   throw Error("Dedicated browser fixture did not start");
 }
 await delay(800);
+let bossCookie = "", bossToken = "";
+if (boss) {
+ const response = await fetch(`http://127.0.0.1:${webPort}/api/boss-access/login`, {method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({phone:"01000000000",password:cfg.BOOTSTRAP_ADMIN_PASSWORD})});
+ if(!response.ok)throw Error("Isolated boss login failed");
+ bossCookie=response.headers.get("set-cookie").split(";")[0];bossToken=(await response.json()).adminToken;
+ const headers={"content-type":"application/json","x-admin-token":bossToken,cookie:bossCookie};
+ const state=await(await fetch(`http://127.0.0.1:${webPort}/api/event-hub/laboratory`,{headers})).json();
+ if(!state.mode.enabled){const result=await fetch(`http://127.0.0.1:${webPort}/api/event-hub/laboratory`,{method:"POST",headers,body:JSON.stringify({operation:"mode",enabled:true,generation:state.mode.generation,revision:state.mode.revision})});if(!result.ok)throw Error("Isolated laboratory enable failed");}
+}
 async function rpc(name, data) {
   const r = await fetch(`http://127.0.0.1:${webPort}/api/db/rpc/` + name, {
       method: "POST",
-      headers: { "content-type": "application/json" },
+      headers: { "content-type": "application/json", ...(bossCookie ? {cookie:bossCookie} : {}) },
       body: JSON.stringify(data),
     }),
     body = await r.json();
   if (!r.ok || body.error) throw Error("Fixture RPC failed: " + name);
   return body.data ?? body;
 }
-const token = await rpc("admin_create_session", {
+const token = boss ? bossToken : await rpc("admin_create_session", {
   p_phone: "01000000000",
   p_admin_password: cfg.BOOTSTRAP_ADMIN_PASSWORD,
 });
-await prepareLegacyEventHubFixture({
+if(!boss) await prepareLegacyEventHubFixture({
   databaseUrl: cfg.DATABASE_URL,
   baseUrl: `http://127.0.0.1:${webPort}`,
   adminToken: token,
@@ -179,10 +196,10 @@ await rpc("admin_update_settings", {
   p_payload: { module_flags: { event_hub: true } },
   adminToken: token,
 });
-await rpc("admin_toggle_session", { p_active: !process.argv.includes("--before-start"), adminToken: token });
+if(!boss) await rpc("admin_toggle_session", { p_active: !process.argv.includes("--before-start"), adminToken: token });
 await writeFile(
-  out + "/browser-binding.env",
-  `HUB_E2E_BASE_URL=http://127.0.0.1:${webPort}\nHUB_E2E_ADMIN_TOKEN=${token}\nHUB_E2E_CLOCK_OFFSET_MS=${cfg.HUB_LOAD_CLOCK_OFFSET_MS}\n`,
+  out + (boss ? "/boss-browser-binding.env" : "/browser-binding.env"),
+  `HUB_E2E_BASE_URL=http://127.0.0.1:${webPort}\nHUB_E2E_ADMIN_TOKEN=${token}\nHUB_E2E_CLOCK_OFFSET_MS=${cfg.HUB_LOAD_CLOCK_OFFSET_MS}\n${boss ? `HUB_E2E_BOSS_PASSWORD=${cfg.BOOTSTRAP_ADMIN_PASSWORD}\n` : ""}`,
   { mode: 0o600 },
 );
 console.log(

@@ -1,3 +1,4 @@
+import { bossSseTicket } from "./boss-access-client";
 import { ls } from './storage';
 /**
  * localdb.ts — HTTP client that calls the shared API server.
@@ -773,6 +774,8 @@ function createSse() {
     try { _lastEventId = sessionStorage.getItem('sse_last_event_id') ?? ''; } catch { /* ignore */ }
   }
   const params: string[] = [];
+  const bossTicket = bossSseTicket();
+  if (bossTicket) params.push(`bossTicket=${encodeURIComponent(bossTicket)}`);
   // userId와 token은 반드시 함께 제공해야 함 — token 없이 userId만 보내면 서버가 401 반환
   if (_currentUserId && _sseToken) {
     params.push(`userId=${encodeURIComponent(_currentUserId)}`);

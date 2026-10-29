@@ -323,6 +323,8 @@ describe('[Security] private /op tables and relationship ownership', () => {
 
   it('production에서 세션 없이 requesterId만 주장하면 관계 조회도 401이다', async () => {
     const prevNodeEnv = process.env.NODE_ENV;
+    const prevBossRelease = process.env.BOSS_PUBLIC_RELEASE;
+    process.env.BOSS_PUBLIC_RELEASE = 'explicit-owner-approved'; // This test verifies legacy guards AFTER an explicit public release.
     process.env.NODE_ENV = 'production';
     try {
       const res = await op({
@@ -333,6 +335,7 @@ describe('[Security] private /op tables and relationship ownership', () => {
       expect(res.status).toBe(401);
       expect(res.body.error?.code).toBe('UNAUTHORIZED');
     } finally {
+      if (prevBossRelease === undefined) delete process.env.BOSS_PUBLIC_RELEASE; else process.env.BOSS_PUBLIC_RELEASE = prevBossRelease;
       if (prevNodeEnv === undefined) delete process.env.NODE_ENV;
       else process.env.NODE_ENV = prevNodeEnv;
     }
@@ -1070,6 +1073,8 @@ describe('[Security] test dashboard password', () => {
     const prevAdmin = process.env.BOOTSTRAP_ADMIN_PASSWORD;
     const prevTest = process.env.BOOTSTRAP_TEST_PASSWORD;
     const prevNodeEnv = process.env.NODE_ENV;
+    const prevBossRelease = process.env.BOSS_PUBLIC_RELEASE;
+    process.env.BOSS_PUBLIC_RELEASE = 'explicit-owner-approved'; // This test verifies legacy guards AFTER an explicit public release.
     delete process.env.BOOTSTRAP_ADMIN_PASSWORD;
     delete process.env.BOOTSTRAP_TEST_PASSWORD;
     try {
@@ -1118,6 +1123,7 @@ describe('[Security] test dashboard password', () => {
       expect(customReset.status).toBe(200);
       expect(customReset.body.data?.ok).toBe(true);
     } finally {
+      if (prevBossRelease === undefined) delete process.env.BOSS_PUBLIC_RELEASE; else process.env.BOSS_PUBLIC_RELEASE = prevBossRelease;
       if (prevNodeEnv !== undefined) process.env.NODE_ENV = prevNodeEnv;
       else delete process.env.NODE_ENV;
       if (prevAdmin !== undefined) process.env.BOOTSTRAP_ADMIN_PASSWORD = prevAdmin;

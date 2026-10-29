@@ -1,3 +1,4 @@
+import { halloweenPrizeLabel } from "../../../../lib/api-zod/src/event-policy-halloween";
 import { useState, useEffect } from 'react';
 import { eventEndAt } from '../../../../lib/api-zod/src/event-hub-modules';
 import type { HubEvent,HubController,PrivateApplication } from '../lib/event-hub-client';
@@ -55,7 +56,7 @@ export function BenefitResults({hub}:{hub:HubController}){
    <p>전화번호 {a.rewardPhone??a.basic.phone}</p>
    <p>도착 {formatHubTime(a.lateArrival?.at)} · {a.lateArrival?({noted:"도착 예정 접수",review:"관리자 확인 대기",approved:"늦참 승인",declined:"도착 불가 · 문의 필요"})[a.lateArrival.status]:""} · {a.lateArrival?.reason}</p>
    {a.lateArrival&&<><HubField label="늦참 검토 사유"><input className={inputClass} value={reason} onChange={x=>setReason(x.target.value)}/></HubField>{['approved','declined'].map(status=><HubButton key={status} disabled={!reason||hub.status==='saving'} onClick={()=>hub.mutate({action:'admin.application.late',target:a.id,revision:a.revision,data:{status,reason}})}>{status==='approved'?'늦참 승인':'도착 불가·문의 안내'}</HubButton>)}</>}
-   {(a.resultDetails??a.cards).map(c=><p key={c.id}>{c.prizeLabel??c.prize} · {c.couponAmount??0}원 · {a.prizesGiven.includes(c.id)?'지급 확인':'지급 전'}</p>)}
+   {(a.resultDetails??a.cards).map(c=><p key={c.id}>{halloweenPrizeLabel(c.prizeLabel??c.prize)} · {c.couponAmount??0}원 · {a.prizesGiven.includes(c.id)?'지급 확인':'지급 전'}</p>)}
    {a.manualResults?.map(r=><div key={r.id}><p>{r.label} {r.amount}원 · 수신 {r.receivedAt?'확인':'대기'} / 실제 지급 {r.paidAt?'확인':'대기'}</p>{(['receivedAt','paidAt'] as const).map(field=><HubButton key={field} disabled={!!r[field]||hub.status==='saving'||(field==='paidAt'&&!checked)} onClick={()=>hub.mutate({action:'admin.application.result.confirm',target:a.id,revision:a.revision,data:{id:r.id,field,doubleChecked:checked}})}>{field==='receivedAt'?'결과 수신 확인':'실제 지급 확인'}</HubButton>)}</div>)}
    <HubField label="수동 결과 이름"><input className={inputClass} value={label} onChange={x=>setLabel(x.target.value)}/></HubField>
    <HubField label="수동 결과 금액 (기록만)"><input className={inputClass} type="number" value={amount} onChange={x=>setAmount(x.target.value)}/></HubField>

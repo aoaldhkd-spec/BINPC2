@@ -20,7 +20,7 @@ function resetLoginViewport(shell?: HTMLElement | null) {
 
 // ─── Login Screen ─────────────────────────────────────────────────────────────
 
-export function LoginScreen({ onLogin }: { onLogin: () => void }) {
+export function LoginScreen({ onLogin, bossOnly = false }: { onLogin: () => void; bossOnly?: boolean }) {
   const [phone, setPhone] = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
@@ -30,12 +30,13 @@ export function LoginScreen({ onLogin }: { onLogin: () => void }) {
   const shellRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
+    if (bossOnly) return;
     supabase.from('app_settings').select('admin_phone').eq('id', 1).maybeSingle()
       .then(({ data }: { data: { admin_phone?: string } | null }) => {
         if (data?.admin_phone) setPhone(data.admin_phone);
       })
       .catch(() => {});
-  }, []);
+  }, [bossOnly]);
 
   const formatPhone = (v: string) => {
     const d = v.replace(/\D/g, '').slice(0, 11);
@@ -67,6 +68,15 @@ export function LoginScreen({ onLogin }: { onLogin: () => void }) {
     }
     setLoading(true);
     try {
+      if (bossOnly) {
+        const response = await fetch('/api/boss-access/login', { method: 'POST', credentials: 'same-origin', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ phone, password: submittedPassword }) });
+        const result = await response.json();
+        if (!response.ok || !result.adminToken) { setError(result.error?.message ?? '로그인을 확인하지 못했습니다.'); setLoading(false); return; }
+        setAdminToken(result.adminToken);
+        localStorage.removeItem(ADMIN_PW_KEY);
+        localStorage.setItem(ADMIN_SESSION_KEY, JSON.stringify({ phone, authedAt: Date.now() }));
+        setPassword(''); setLoading(false); onLogin(); return;
+      }
       let token: string | null = null;
       let lastErr: { message?: string } | null = null;
       for (let attempt = 0; attempt < 5; attempt++) {
@@ -116,14 +126,14 @@ export function LoginScreen({ onLogin }: { onLogin: () => void }) {
           </div>
           <form onSubmit={handleSubmit} className="p-4 min-[360px]:p-6 space-y-4">
             <div>
-              <label className="block text-sm font-semibold text-gray-700 mb-1.5">전화번호</label>
-              <input type="tel" name="admin-phone" value={phone} onChange={(e) => setPhone(formatPhone(e.target.value))}
+              <label htmlFor="admin-phone" className="block text-sm font-semibold text-gray-700 mb-1.5">전화번호</label>
+              <input id="admin-phone" type="tel" name="admin-phone" value={phone} onChange={(e) => setPhone(formatPhone(e.target.value))}
                 placeholder="010-0000-0000" autoComplete="username" inputMode="tel"
                 className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-slate-500 focus:border-transparent outline-none transition-all text-gray-800 [scroll-margin:0]" required />
             </div>
             <div>
-              <label className="block text-sm font-semibold text-gray-700 mb-1.5">비밀번호</label>
-              <input ref={passwordRef} type="password" name="admin-password" {...(import.meta.env.VITE_PRIVATE_PREVIEW === "1" ? {autoComplete:"current-password"} : PANEL_PIN_INPUT_PROPS)} value={password} onChange={(e) => setPassword(e.target.value)}
+              <label htmlFor="admin-password" className="block text-sm font-semibold text-gray-700 mb-1.5">비밀번호</label>
+              <input id="admin-password" ref={passwordRef} type="password" name="admin-password" {...(bossOnly || import.meta.env.VITE_PRIVATE_PREVIEW === "1" ? {autoComplete:"current-password"} : PANEL_PIN_INPUT_PROPS)} value={password} onChange={(e) => setPassword(e.target.value)}
                 placeholder="비밀번호 입력"
                 className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-slate-500 focus:border-transparent outline-none transition-all text-gray-800 [scroll-margin:0]" required />
             </div>
@@ -142,13 +152,13 @@ export function LoginScreen({ onLogin }: { onLogin: () => void }) {
               className="w-full py-3 bg-slate-800 text-white font-semibold rounded-xl hover:bg-slate-700 disabled:opacity-50 transition-all">
               {loading ? '확인 중...' : '로그인'}
             </button>
-            <button
+            {!bossOnly && <button
               type="button"
               onClick={fillTestAdmin}
               className="w-full py-2.5 text-sm font-semibold text-slate-600 hover:text-slate-800 border border-slate-200 rounded-xl hover:bg-slate-50 transition-all"
             >
               테스트 관리자
-            </button>
+            </button>}
             <a href="/"
               className="w-full py-2.5 flex items-center justify-center gap-1.5 text-sm font-semibold text-slate-500 hover:text-slate-700 border border-slate-200 rounded-xl hover:bg-slate-50 transition-all">
               ← 입장 대기 화면으로

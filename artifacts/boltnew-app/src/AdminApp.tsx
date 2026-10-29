@@ -1,3 +1,4 @@
+import { logoutBossAccess } from "./lib/boss-access-client";
 import { SEASONAL_SKIN_CHANGED } from './themes/SeasonalSkin';
 import { DisplayScaleControls } from './components/DisplayScaleControls';
 import {
@@ -890,6 +891,7 @@ export default function AdminApp() {
 
   return isLoggedIn ? (
     <AdminDashboard onLogout={async () => {
+      await logoutBossAccess();
       const token = localStorage.getItem(ADMIN_TOKEN_KEY);
       if (token) { try { await supabase.rpc('admin_invalidate_session', { p_token: token }); } catch {} }
       localStorage.removeItem(ADMIN_SESSION_KEY);

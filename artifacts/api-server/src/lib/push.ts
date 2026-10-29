@@ -1,3 +1,4 @@
+import { bossOnlyLocked } from "./boss-access.js";
 import webpush from 'web-push';
 import pino from 'pino';
 import {
@@ -47,11 +48,12 @@ function statusCodeOf(err: unknown): number | null {
  * false = expired subscription (404/410), caller may prune
  */
 export async function sendPush(sub: PushSub, payload: PushPayload): Promise<boolean> {
-  if (!vapidConfigured) return true;
+  if (!vapidConfigured || bossOnlyLocked()) return true;
 
   recordPushAttempt();
   for (let attempt = 0; attempt <= RETRY_MS.length; attempt++) {
     try {
+      if (bossOnlyLocked()) return true; // Preserve subscriptions; no real participant test delivery.
       await webpush.sendNotification(
         { endpoint: sub.endpoint, keys: { auth: sub.keys.auth, p256dh: sub.keys.p256dh } },
         JSON.stringify(payload),
