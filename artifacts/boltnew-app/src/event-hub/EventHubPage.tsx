@@ -136,7 +136,7 @@ function EventHubContent({ path, hub }: { path: string; hub: Hub }) {
       </main>
     );
   const testMode = testModeBlocksParticipation(s);
-  const writing = !!event && (applying || (!!app && app.stage < 4));
+  const writing = !!event && (app ? app.stage < 4 : applying);
   if (editing && app && !testMode) {
     return (
       <EventProfileEditor
@@ -167,7 +167,8 @@ function EventHubContent({ path, hub }: { path: string; hub: Hub }) {
         <div className="max-w-2xl mx-auto p-4 space-y-4">
           <HubFeedback status={hub.status} error={hub.error} />
           {s.bossParticipationAllowed && !event && <HubCard><HubButton disabled={hub.status==='saving'} onClick={async()=>{try{await hubFetch('/boss-participant-events',{});await hub.load();}catch(e){hub.setError((e as Error).message);}}}>금요일·토요일 신청 열기 / 이어하기</HubButton></HubCard>}
-          {testMode && <HubCard><p role="status" className="font-bold text-amber-800">{TEST_MODE_BANNER}</p></HubCard>}
+          {testMode && <HubCard><p role="status" className="font-bold text-amber-800">{s.testMode?.enabled !== false ? TEST_MODE_BANNER : '아직 신청을 받지 않습니다. 웹·오픈채팅 모두 접수 전입니다.'}</p></HubCard>}
+          {!testMode && s.publicationBlocked && !s.bossParticipationAllowed && <HubCard><p role="status">아직 신청을 받지 않습니다. 웹·오픈채팅 모두 접수 전입니다.</p></HubCard>}
           {event && <details hidden={writing} className="rounded-2xl border p-3"><summary className="font-bold cursor-pointer">친구와 함께 신청 · 본인/친구 따로 관리</summary>
             {app && <p className="my-3">본인: {app.basic.nickname} · {app.basic.birthYear}년생 · {app.basic.location}</p>}
             <CompanionCards key={event.id} eventId={event.id} group={s.companionDrafts?.[event.id]} mutate={hub.mutate} busy={hub.status==='saving'} blocked={testMode||!event.recruitment} onOwn={()=>setApplying(true)} privacyPolicyFingerprint={s.privacyNotice?.fingerprint}/>
@@ -448,7 +449,7 @@ function EventHubContent({ path, hub }: { path: string; hub: Hub }) {
               </HubCard>
             </>
           )}
-          <div hidden={writing} className="space-y-4">
+          <div hidden={writing && !app} className="space-y-4">
           {!s.member && s.hasSession && (
             <HubCard>
               {s.applications.length > 0 && <MemberSetup hub={hub} />}

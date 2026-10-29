@@ -1,0 +1,30 @@
+{
+  "checkedAt": "2026-10-29T12:51:36.539540+00:00",
+  "initialTargetedRerun": {
+    "passed": 2,
+    "failed": 1,
+    "tests": [
+      "V12 staged basic/password recovery PASS",
+      "20 theme/viewport and sandbox combinations PASS",
+      "test OFF but admission closed message still absent FAIL"
+    ]
+  },
+  "remainingFailureFix": "Use explicit mode.enabled=false within the participation-blocked state, which also includes publicAdmissionOpen=false. Restore concise closed message without showing a boss banner.",
+  "remainingCaseRerun": {
+    "passed": 1,
+    "failed": 0,
+    "seconds": 43.1
+  },
+  "bossBrowserRerun": {
+    "passed": 4,
+    "failed": 0,
+    "seconds": 48.9
+  },
+  "relatedUiUnits": {
+    "passed": 4,
+    "failed": 0
+  },
+  "typecheck": "PASS",
+  "finalRemoteCI": "PENDING separate exact commit run",
+  "operatingDataModified": false
+}

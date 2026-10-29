@@ -1,0 +1,26 @@
+{
+  "runId": 40874476306,
+  "sourceSha": "fcd6b5fb8e513c95871d6edc1da1752ddf55a9dd",
+  "conclusion": "failure",
+  "browserPassed": 19,
+  "browserFailed": 3,
+  "failures": [
+    {
+      "test": "V12 staged basic draft and password restore",
+      "reason": "Optional reuse-password controls were hidden after the basic application had been created.",
+      "fix": "Hide optional tools only during initial basic input; existing applications keep reuse-login controls visible."
+    },
+    {
+      "test": "mobile/tablet/desktop layouts and administrator sandbox",
+      "reason": "Expected original Halloween panel color instead of requested new color.",
+      "fix": "Update exact expected color; retain theme ON/OFF and viewport checks."
+    },
+    {
+      "test": "test mode real browser",
+      "reason": "Public-closed explanatory header removed with unnecessary copy. Server admission guard still held.",
+      "fix": "Restore concise closed status only for blocked non-boss visitors; no boss banner."
+    }
+  ],
+  "rawFailureLogPreservedPrivately": ".local/ui-halloween-release/ci-failure/browser.log",
+  "checksRemoved": false
+}

@@ -686,7 +686,7 @@ test("mobile/tablet/desktop layouts and administrator sandbox remain isolated", 
         await dialog.evaluate(
           (element) => getComputedStyle(element).backgroundColor,
         ),
-      ).toBe(skin ? "rgb(33, 23, 47)" : dark ? "rgb(15, 23, 42)" : "rgb(255, 255, 255)");
+      ).toBe(skin ? "rgb(33, 19, 31)" : dark ? "rgb(15, 23, 42)" : "rgb(255, 255, 255)");
       const dialogRect = await dialog.boundingBox();
       expect(dialogRect!.x).toBeGreaterThanOrEqual(0);
       expect(dialogRect!.width).toBeLessThanOrEqual(width);
