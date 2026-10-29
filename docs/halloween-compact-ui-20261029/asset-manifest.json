@@ -36,6 +36,11 @@
       "file": "artifacts/boltnew-app/public/event-art/halloween-night.webp",
       "bytes": 321912,
       "sha256": "3f0e35a313f86284dd1a8f2f5709f82b2e984969898b4d7efd2e4961c9d17e61"
+    },
+    {
+      "file": "live-home-390x844.png",
+      "bytes": 538939,
+      "sha256": "bc61e837f0fbcd9192ffbb141c24bc3f2269b897402125c5ded8e3bb4663f3fc"
     }
   ]
 }
