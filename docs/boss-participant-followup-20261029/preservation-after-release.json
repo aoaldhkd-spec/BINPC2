@@ -1,0 +1,78 @@
+{
+  "checkedAt": "2026-10-29T10:57:11.885694+00:00",
+  "baselineAt": "2026-10-29T10:45:35.920849+00:00",
+  "productionWrites": false,
+  "resetsOrRestoresExecuted": false,
+  "baselineFilesOverwritten": false,
+  "currentKvRows": 3274,
+  "addedKvRowsByTable": {},
+  "removedKvRowsByTable": {},
+  "changedKvRowsByTable": {
+    "group_chats": 4
+  },
+  "changedRows": [
+    {
+      "table": "group_chats",
+      "identityHash": "3e6cc8b47dfa2a478fc8f6dfe98694967b9e62a1dca311bd92450f499a0b1d33",
+      "dataChanged": false,
+      "dataFieldsChanged": [],
+      "baselineFieldsNotIndividuallyRecoverable": [],
+      "metadataOnlyFields": [
+        "updated_at"
+      ],
+      "wholeRowChanged": true
+    },
+    {
+      "table": "group_chats",
+      "identityHash": "b42981b073caf16b91d095534d01be0dc7e0aa29a3876d43c4e67d345e6d02de",
+      "dataChanged": false,
+      "dataFieldsChanged": [],
+      "baselineFieldsNotIndividuallyRecoverable": [],
+      "metadataOnlyFields": [
+        "updated_at"
+      ],
+      "wholeRowChanged": true
+    },
+    {
+      "table": "group_chats",
+      "identityHash": "5a70e9d45ba76c543b661e477f69975992ca3c1969ac28b4840e97fcf5455e59",
+      "dataChanged": false,
+      "dataFieldsChanged": [],
+      "baselineFieldsNotIndividuallyRecoverable": [],
+      "metadataOnlyFields": [
+        "updated_at"
+      ],
+      "wholeRowChanged": true
+    },
+    {
+      "table": "group_chats",
+      "identityHash": "9da60125fbb27f152b701d7f178c41e25db04d143ebb3b9e31faa4cda7d33f5f",
+      "dataChanged": false,
+      "dataFieldsChanged": [],
+      "baselineFieldsNotIndividuallyRecoverable": [],
+      "metadataOnlyFields": [
+        "updated_at"
+      ],
+      "wholeRowChanged": true
+    }
+  ],
+  "existingDataUnchanged": true,
+  "existingCreationTimeChangedRows": 0,
+  "creationTimeBaselineUnknownRows": 0,
+  "imageCount": 102,
+  "imagesExactRowHashMatch": true,
+  "existingHubRowsPreserved": true,
+  "changedHubRowsByKind": {},
+  "removedHubRowsByKind": {},
+  "addedHubRowsByKind": {
+    "owner": 1
+  },
+  "additionalOwnerRows": 1,
+  "existingLaboratoryModeAndWorkspacesUnchanged": true,
+  "sessionCountBefore": 4,
+  "sessionCountBaselineAt": "2026-10-29 10:52:30.912488+00",
+  "sessionCountAfter": 6,
+  "sessionCountDelta": 2,
+  "sessionDeltaAttributableToChecker": "UNKNOWN: real user sessions and pruning may run concurrently",
+  "sessionIdentifiersOrContentsRead": false
+}
