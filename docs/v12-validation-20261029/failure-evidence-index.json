@@ -1,0 +1,97 @@
+[
+  {
+    "privateLog": ".local/v12-api-typecheck.log",
+    "sha256": "2b738b541339c49ed0ba0ba6d23c45fd0301856c97e39a3c4c0a6b79fbf4b538",
+    "summary": "Failed setup/test attempt retained. Product defects (profile overlap/pool starvation/tour card layout) and fixture/selector corrections are distinguished in V12_RESULT."
+  },
+  {
+    "privateLog": ".local/v12-browser-first.log",
+    "sha256": "6ecef3d31eace2ccc0682d88afd9252fed45c4ae426c4a0bf94c41ca1cf8b98c",
+    "summary": "Failed setup/test attempt retained. Product defects (profile overlap/pool starvation/tour card layout) and fixture/selector corrections are distinguished in V12_RESULT."
+  },
+  {
+    "privateLog": ".local/v12-browser-fourth.log",
+    "sha256": "6c8c96da61d63b2a2d75a3e7936e110d0a97860a06ee7153ee1fe9f2fd740ced",
+    "summary": "Failed setup/test attempt retained. Product defects (profile overlap/pool starvation/tour card layout) and fixture/selector corrections are distinguished in V12_RESULT."
+  },
+  {
+    "privateLog": ".local/v12-browser-second.log",
+    "sha256": "7f9f9068edd9adfd3b0ea0ae5c3cc1ce601efca4c2409de5108f883451a73a5e",
+    "summary": "Failed setup/test attempt retained. Product defects (profile overlap/pool starvation/tour card layout) and fixture/selector corrections are distinguished in V12_RESULT."
+  },
+  {
+    "privateLog": ".local/v12-browser-suite-final.log",
+    "sha256": "d8d4e94950da9b2ec1495eeeb7d4f5e1496d8fb2b8c0a7cf8bcd2a08059cc1e8",
+    "summary": "Failed setup/test attempt retained. Product defects (profile overlap/pool starvation/tour card layout) and fixture/selector corrections are distinguished in V12_RESULT."
+  },
+  {
+    "privateLog": ".local/v12-browser-suite-first.log",
+    "sha256": "41f1ff9e8704ce0719c8a311a34b2649088788ec3f77548aac04577856b0ddbf",
+    "summary": "Failed setup/test attempt retained. Product defects (profile overlap/pool starvation/tour card layout) and fixture/selector corrections are distinguished in V12_RESULT."
+  },
+  {
+    "privateLog": ".local/v12-browser-suite-second.log",
+    "sha256": "7b86214fbb153dfcee47c1a70773b71e7c8e46966629a09bb4e11073755b70d1",
+    "summary": "Failed setup/test attempt retained. Product defects (profile overlap/pool starvation/tour card layout) and fixture/selector corrections are distinguished in V12_RESULT."
+  },
+  {
+    "privateLog": ".local/v12-browser-targeted-third.log",
+    "sha256": "8db46709bb73bc09ee5ccccc8cafad64151d783cf6f9fcbb1ca98c7ddce3119a",
+    "summary": "Failed setup/test attempt retained. Product defects (profile overlap/pool starvation/tour card layout) and fixture/selector corrections are distinguished in V12_RESULT."
+  },
+  {
+    "privateLog": ".local/v12-browser-third.log",
+    "sha256": "3411a72cd905bf015d0fe580779f92698ca442bd282ef168fe12c577e29effa8",
+    "summary": "Failed setup/test attempt retained. Product defects (profile overlap/pool starvation/tour card layout) and fixture/selector corrections are distinguished in V12_RESULT."
+  },
+  {
+    "privateLog": ".local/v12-build-first.log",
+    "sha256": "9b1c97630d092386ef636754ce478beea20f0e2d3f2642b102d7e4f54d8eef63",
+    "summary": "Failed setup/test attempt retained. Product defects (profile overlap/pool starvation/tour card layout) and fixture/selector corrections are distinguished in V12_RESULT."
+  },
+  {
+    "privateLog": ".local/v12-inquiry-after-cover.log",
+    "sha256": "de59b873f1035a8bfc8986e97015fc121609cbeb660e2386f829c163d81d13c0",
+    "summary": "Failed setup/test attempt retained. Product defects (profile overlap/pool starvation/tour card layout) and fixture/selector corrections are distinguished in V12_RESULT."
+  },
+  {
+    "privateLog": ".local/v12-pg-first.log",
+    "sha256": "ecfd0bfe2ea66c98f863e3c31a063233cbdf688b71020c9a9b3f934df5b42906",
+    "summary": "Failed setup/test attempt retained. Product defects (profile overlap/pool starvation/tour card layout) and fixture/selector corrections are distinguished in V12_RESULT."
+  },
+  {
+    "privateLog": ".local/v12-pg-fourth.log",
+    "sha256": "1dc4dbab253dc1cd90ba3d46dbfdcf714f350de5765cedac3f43b340aa305cf0",
+    "summary": "Failed setup/test attempt retained. Product defects (profile overlap/pool starvation/tour card layout) and fixture/selector corrections are distinguished in V12_RESULT."
+  },
+  {
+    "privateLog": ".local/v12-pg-second.log",
+    "sha256": "2c74091315459748917f9c0b6f32327d0681836281c2a7990920888920589488",
+    "summary": "Failed setup/test attempt retained. Product defects (profile overlap/pool starvation/tour card layout) and fixture/selector corrections are distinguished in V12_RESULT."
+  },
+  {
+    "privateLog": ".local/v12-pg-third.log",
+    "sha256": "969b2588f8e18378b51569e15ecf3049f7fba2652c412f4f60b4574e6d0344dc",
+    "summary": "Failed setup/test attempt retained. Product defects (profile overlap/pool starvation/tour card layout) and fixture/selector corrections are distinguished in V12_RESULT."
+  },
+  {
+    "privateLog": ".local/v12-ui-final.log",
+    "sha256": "f66c68ff781b8b0dd54493460dfcc017b8fbf65d5e0bbeba2c68aeb816b14846",
+    "summary": "Failed setup/test attempt retained. Product defects (profile overlap/pool starvation/tour card layout) and fixture/selector corrections are distinguished in V12_RESULT."
+  },
+  {
+    "privateLog": ".local/v12-ui-release.log",
+    "sha256": "c3b3af7a58b0ff5c99cb591a4c64483da051624c77e8d69c9cf2a5aa22efe7f3",
+    "summary": "Failed setup/test attempt retained. Product defects (profile overlap/pool starvation/tour card layout) and fixture/selector corrections are distinguished in V12_RESULT."
+  },
+  {
+    "privateLog": ".local/v12-ui-unit-first.log",
+    "sha256": "fd272209a5be8c3c41e70668a687094311ad32de10832721f69b92c98fe818bb",
+    "summary": "Failed setup/test attempt retained. Product defects (profile overlap/pool starvation/tour card layout) and fixture/selector corrections are distinguished in V12_RESULT."
+  },
+  {
+    "privateLog": ".local/v12-ui-unit-second.log",
+    "sha256": "bc549b7677652fcac2bec28766a529233800828b85c4f646a8b4cd86d09fed1a",
+    "summary": "Failed setup/test attempt retained. Product defects (profile overlap/pool starvation/tour card layout) and fixture/selector corrections are distinguished in V12_RESULT."
+  }
+]

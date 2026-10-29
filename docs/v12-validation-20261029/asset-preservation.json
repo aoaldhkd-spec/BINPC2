@@ -102,5 +102,22 @@
     "manifest": "docs/avatars-v12/manifest.json",
     "count": 30,
     "runtimeBytes": 191506
+  },
+  "suppliedPackage": {
+    "name": "BINPC2_통합지시_사진20장_로고9종_대구확정_V12_20261029.zip",
+    "sha256": "736c39c350eb8f1a4db946d8f9bd9e96025a095ce2014d100b688eaa36cdb354",
+    "bytes": 9154825,
+    "private": true,
+    "requiredDocumentsRead": [
+      "00",
+      "01 complete",
+      "02",
+      "03",
+      "04",
+      "05",
+      "06"
+    ],
+    "referenceImagesInspected": 20,
+    "suppliedLogoImagesCompared": 9
   }
 }

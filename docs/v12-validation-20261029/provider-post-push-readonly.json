@@ -1,0 +1,19 @@
+{
+  "netlify": {
+    "http": 200,
+    "publishedDeploymentId": "6addce4910baf80784543dfd",
+    "publishedCommit": "b06a900280404f79c92e17cdbc6af907a0414c30",
+    "branch": "main",
+    "allowedBranches": [
+      "main"
+    ]
+  },
+  "render": {
+    "http": 200,
+    "liveDeploymentId": "dep-dbessi95efls73bbg7qg",
+    "liveCommit": "b06a900280404f79c92e17cdbc6af907a0414c30"
+  },
+  "checkedAtUtc": "2026-10-29T00:59:57.651412+00:00",
+  "productionWritesPerformed": false,
+  "supabaseBindingPresent": false
+}

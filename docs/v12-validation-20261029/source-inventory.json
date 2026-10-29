@@ -1,5 +1,5 @@
 {
-  "codeFingerprint": "3da3a8646d4718ff4c4c4fbb56f65c80beccdb9c3cbf42ebec1fc93746beeee1",
+  "codeFingerprint": "4922892eced9c0e39f8f48a77213a15cbe79cb5132020e8a216bb7b923baef15",
   "scope": [
     "artifacts/boltnew-app/src",
     "artifacts/api-server/src",
@@ -10247,7 +10247,7 @@
     {
       "id": "UIAPI-1024",
       "file": "artifacts/boltnew-app/src/event-hub/EventPresentation.tsx",
-      "line": 108,
+      "line": 111,
       "kind": "ui-control",
       "target": "button",
       "handler": "onClick={onOpen}",
@@ -10257,7 +10257,7 @@
     {
       "id": "UIAPI-1025",
       "file": "artifacts/boltnew-app/src/event-hub/EventPresentation.tsx",
-      "line": 184,
+      "line": 188,
       "kind": "ui-control",
       "target": "button",
       "handler": "onClick={() => setTab(t)}",
@@ -10267,7 +10267,7 @@
     {
       "id": "UIAPI-1026",
       "file": "artifacts/boltnew-app/src/event-hub/EventPresentation.tsx",
-      "line": 210,
+      "line": 214,
       "kind": "ui-control",
       "target": "a href={app.venue.mapUrl}",
       "handler": "",

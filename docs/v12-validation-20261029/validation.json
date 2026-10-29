@@ -1,0 +1,122 @@
+{
+  "codeCommit": "577cf0012430c252469d3c918dd3c471a687ae4f",
+  "recordingHead": "577cf0012430c252469d3c918dd3c471a687ae4f",
+  "codeFingerprint": "4922892eced9c0e39f8f48a77213a15cbe79cb5132020e8a216bb7b923baef15",
+  "baselineParent": "3942e785b4eafd5636b9d5dc84dcb1b13b762ec8",
+  "local": {
+    "unit": {
+      "api": 561,
+      "ui": 896,
+      "total": 1457,
+      "status": "PASS"
+    },
+    "postgres": {
+      "tests": 105,
+      "status": "PASS",
+      "includedInApiFullRun666": true
+    },
+    "browser": {
+      "distinctScenarios": 20,
+      "lastFullRun": {
+        "passed": 18,
+        "failed": 2
+      },
+      "correctedTargetedRerun": {
+        "passed": 2,
+        "failed": 0
+      },
+      "inquiryTimingRerun": "PASS",
+      "finalCompactTourRerun": "PASS",
+      "note": "Final remote CI runs the complete final tree; local suite failures are retained, not erased.",
+      "unusedFixtureAfterClose": "A later inquiry-only capture attempted generic event recruitment after the isolated 01:00 clock deadline and correctly received403. Re-run used the existing skip-unused-event-fixture flag for inquiry-only testing, without changing any server gate; passed13.9s.",
+      "inquiryTimingAfterCoverMs": 618
+    },
+    "guards": {
+      "passed": 598
+    },
+    "nodeSafetyTests": {
+      "passed": 32
+    },
+    "buildAndTypecheck": "PASS",
+    "finalCoverFocusedUnitTests": 31
+  },
+  "remoteCi": {
+    "previousRun": 40793499876,
+    "previousCodeCommit": "1b00b640e3cffe80e8c05f41dedf3f8011bd34af",
+    "previousConclusion": "success",
+    "finalRun": 40794905596,
+    "finalStatus": "completed",
+    "finalConclusion": "success",
+    "summaryLines": [
+      "2026-10-29T00:35:30.6440023Z  Test Files  86 passed (86)",
+      "2026-10-29T00:35:30.6443354Z       Tests  666 passed (666)",
+      "2026-10-29T00:35:48.5393329Z  Test Files  121 passed (121)",
+      "2026-10-29T00:35:48.5396158Z       Tests  896 passed (896)",
+      "2026-10-29T00:36:01.4367069Z  Test Files  3 passed (3)",
+      "2026-10-29T00:36:01.4367816Z       Tests  105 passed (105)",
+      "2026-10-29T00:41:10.1587031Z   20 passed (4.8m)",
+      "2026-10-29T00:41:10.1607478Z ##[notice]  20 passed (4.8m)",
+      "2026-10-29T00:42:30.9606946Z {\"runId\":\"mixed-1793234470532\",\"mode\":\"mixed\",\"durationSeconds\":80,\"requestCount\":3664,\"statusCounts\":{\"200\":3656,\"409\":8},\"failures\":[],\"resultFile\":\"/home/runner/work/BINPC2/BINPC2/.local/v6-finish/mixed-1793234470532-result.json\"}"
+    ],
+    "rawPrivateLogSha256": "b3d487c6de2a5c7e475fafdefef30c5390c59731447b75a7eca6cc0863ed9cf1"
+  },
+  "performance": "soak-150-15min.json; two-second target NOT_MET for some 150-person phases",
+  "physicalGalaxyIphone": "UNKNOWN",
+  "physicalPush": "UNKNOWN",
+  "productionDeployed": false,
+  "productionBackupRestore": "BLOCKED",
+  "evidence": [
+    {
+      "privateLog": ".local/v12-api-pool-fix.log",
+      "sha256": "1497280301cff6047e596393e64b6a829972fdf4f0d8cc7d9fe1e8ddaae2833f"
+    },
+    {
+      "privateLog": ".local/v12-ui-release.log",
+      "sha256": "c3b3af7a58b0ff5c99cb591a4c64483da051624c77e8d69c9cf2a5aa22efe7f3"
+    },
+    {
+      "privateLog": ".local/v12-guards-final.log",
+      "sha256": "98858e263784caf7679edaefb4c46b8e0dd2ebbcabb0b525708a60338064930d"
+    },
+    {
+      "privateLog": ".local/v12-node-tests.log",
+      "sha256": "15a09965ca0e18603ab96a58053be556e48f3a615d11d280ab2ddbe87d632495"
+    },
+    {
+      "privateLog": ".local/v12-build-release.log",
+      "sha256": "5265cca6cad690027233140db6aaeec087c835d4a98ff7037829b52470118840"
+    },
+    {
+      "privateLog": ".local/v12-web-cover-build.log",
+      "sha256": "80025f5c495daed508ca1eaeb72d0229a919d38d53123c4c016eac3ef3030fec"
+    },
+    {
+      "privateLog": ".local/v12-browser-suite-final.log",
+      "sha256": "d8d4e94950da9b2ec1495eeeb7d4f5e1496d8fb2b8c0a7cf8bcd2a08059cc1e8"
+    },
+    {
+      "privateLog": ".local/v12-browser-final-targeted.log",
+      "sha256": "f29cb5b025bd08b571fa4c3b1b2dd0c81bf5df3948b88b8d86c4c95e2690c90d"
+    },
+    {
+      "privateLog": ".local/v12-browser-inquiry-timing.log",
+      "sha256": "3cc3f1e7c17e4ed8ea6b149a1d72ed59b4c90db7cb7a46b675cd6c979208d329"
+    },
+    {
+      "privateLog": ".local/v12-inquiry-after-cover-focused.log",
+      "sha256": "e6e50adaa8f6eb928cfe7f3eec88c66feaadf6a5311bc8cceb431bce65d35c93"
+    },
+    {
+      "privateLog": ".local/v12-tour-caption-final.log",
+      "sha256": "fab1cc2a1168d097f429ab616d369afac27a8d99b62546eaee74be9377dea0c3"
+    },
+    {
+      "privateLog": ".local/v12-tour-cover-unit.log",
+      "sha256": "515d10bc034f7ee59ee47330213088b071108d9777ddc0510ae345161d0ce9a2"
+    },
+    {
+      "privateLog": ".local/v12-tour-cover-label-unit.log",
+      "sha256": "7b18d300a4dd837630d55e9e39e58eadf65594e74429256001d9b0bdc3608988"
+    }
+  ]
+}

@@ -1,3 +1,5 @@
+> 최신 V12 재개: [V12 결과](V12_RESULT_2026-10-29.md) · [재개 지점](RESUME_V12_2026-10-29.md) · [기능별131개 판정](v12-validation-20261029/REQUIREMENTS.md). 아래 기존 기록은 역사로 보존합니다.
+
 # BINPC2 문서
 
 현재 정본 기준일은 2026-10-06이다. 2026-09-17 보관 패키지(`BINPC2_FINAL_PACKAGE_20260917`)는 과거 기준점으로 유지하고, 현재 상태는 최신 코드·테스트·배포와 `MASTER_CONTEXT.md` / `CURRENT_STATUS.md`를 우선한다. ZIP 원본은 Git에 넣지 않는다.

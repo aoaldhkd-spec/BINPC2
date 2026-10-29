@@ -1,0 +1,152 @@
+[
+  {
+    "file": "screenshots/00-actual-basic-privacy.png",
+    "bytes": 904373,
+    "sha256": "e89341f2167ff4d63c8e87a1c865fe7f92c2a41339efafb6875877b9c0b0c989",
+    "environment": "actual isolated React/Express/PostgreSQL with synthetic data; not production"
+  },
+  {
+    "file": "screenshots/01-actual-admin-payment-approved.png",
+    "bytes": 680559,
+    "sha256": "54fcf0b1e65622e9812400cc011a3c05d5c9a7eb10077c2bf34bb528e57c5ec1",
+    "environment": "actual isolated React/Express/PostgreSQL with synthetic data; not production"
+  },
+  {
+    "file": "screenshots/02-actual-profile-wizard.png",
+    "bytes": 222677,
+    "sha256": "f692bea03873fcfafc4d22b1c1ad09ee70ba00c7ec74258de341ec7d69db8f87",
+    "environment": "actual isolated React/Express/PostgreSQL with synthetic data; not production"
+  },
+  {
+    "file": "screenshots/04-actual-admin-rewards.png",
+    "bytes": 36361,
+    "sha256": "9b2095d07752ae7023fb8ffdae199dcffef379c57689f47179573144b1590212",
+    "environment": "actual isolated React/Express/PostgreSQL with synthetic data; not production"
+  },
+  {
+    "file": "screenshots/04-actual-three-cards-restored.png",
+    "bytes": 190808,
+    "sha256": "495343e3c71275636b9c4c2bce26b1911d22943b78e4276a2c1579cffbb7b242",
+    "environment": "actual isolated React/Express/PostgreSQL with synthetic data; not production"
+  },
+  {
+    "file": "screenshots/09-test-off-admission-still-closed.png",
+    "bytes": 479800,
+    "sha256": "878604a4e7948f7160da714af5018810a8d84f022e5a6c17055fec3039df2805",
+    "environment": "actual isolated React/Express/PostgreSQL with synthetic data; not production"
+  },
+  {
+    "file": "screenshots/actual-admin-inquiry.png",
+    "bytes": 592649,
+    "sha256": "a13381439f462db4bb9a73edb597e5ef8a6d9a02cde8fdd93e3bbaed4680bbd4",
+    "environment": "actual isolated React/Express/PostgreSQL with synthetic data; not production"
+  },
+  {
+    "file": "screenshots/actual-inquiry-drawer.png",
+    "bytes": 1018660,
+    "sha256": "a2b9332b037424e68b51f8d8692f6453aeb3cca34168507c4a676cf5eaa57e5f",
+    "environment": "actual isolated React/Express/PostgreSQL with synthetic data; not production"
+  },
+  {
+    "file": "screenshots/admin-rank-3-sandbox.png",
+    "bytes": 499971,
+    "sha256": "059286ac249456a2cc2c124696c27977a44c22da8a1a5bc4601deb0769311169",
+    "environment": "actual isolated React/Express/PostgreSQL with synthetic data; not production"
+  },
+  {
+    "file": "screenshots/halloween-at-1700-restored.png",
+    "bytes": 1377844,
+    "sha256": "bb493f7b76451164ef0c56b4038ee1f57c80e4c0b492287347503c471df1d34b",
+    "environment": "actual isolated React/Express/PostgreSQL with synthetic data; not production"
+  },
+  {
+    "file": "screenshots/halloween-before-1700.png",
+    "bytes": 1387676,
+    "sha256": "752f71489009f58e73515d8a97ed82383216af38799dfc746da029e02451a439",
+    "environment": "actual isolated React/Express/PostgreSQL with synthetic data; not production"
+  },
+  {
+    "file": "screenshots/theme-halloween-layout-390-light.png",
+    "bytes": 474874,
+    "sha256": "68a6f213406227d3bede9757f8c384e0dba265734d2a8d9307c5c02b907aad1c",
+    "environment": "actual isolated React/Express/PostgreSQL with synthetic data; not production"
+  },
+  {
+    "file": "screenshots/theme-original-layout-390-light.png",
+    "bytes": 176702,
+    "sha256": "d17cd993ca9dd2e973481a43a9bab27706158422d7ae8ea813ab54d75bcfb6a6",
+    "environment": "actual isolated React/Express/PostgreSQL with synthetic data; not production"
+  },
+  {
+    "file": "screenshots/v12-daegu-1440.png",
+    "bytes": 1135416,
+    "sha256": "88c6a9860f2f895f0164033f9e719b8f125ea698dfba2b80a8a50b7d1e3a45f3",
+    "environment": "actual isolated React/Express/PostgreSQL with synthetic data; not production"
+  },
+  {
+    "file": "screenshots/v12-daegu-320.png",
+    "bytes": 324069,
+    "sha256": "cc4eeab7e6ea136989aeb6b150ebf985c10cc0982dc33a953c5690274991116a",
+    "environment": "actual isolated React/Express/PostgreSQL with synthetic data; not production"
+  },
+  {
+    "file": "screenshots/v12-daegu-admin-date-selector.png",
+    "bytes": 194938,
+    "sha256": "6f897f95f99e55524b2566cd1fc2e914e209fd069c7a72b0dfc1ae755e3cc9b3",
+    "environment": "actual isolated React/Express/PostgreSQL with synthetic data; not production"
+  },
+  {
+    "file": "screenshots/v12-inquiry-chat-once-consent.png",
+    "bytes": 451481,
+    "sha256": "6ef0387b7affe5fca32c256c4fafec2fb290022b9762fc013dfa16b76cddbb52",
+    "environment": "actual isolated React/Express/PostgreSQL with synthetic data; not production"
+  },
+  {
+    "file": "screenshots/v12-password-restored-same-application.png",
+    "bytes": 846103,
+    "sha256": "9d3973c605ca454043d1474abef1ca7dee9630a64d13ee06ab576b81f485483e",
+    "environment": "actual isolated React/Express/PostgreSQL with synthetic data; not production"
+  },
+  {
+    "file": "screenshots/v12-tour-list-compact.png",
+    "bytes": 396597,
+    "sha256": "00a59b68db5a0c2b2c98a9222671e5534b6ddc964364f01949bd30c18ad5e1bb",
+    "environment": "actual isolated React/Express/PostgreSQL with synthetic data; not production"
+  },
+  {
+    "file": "screenshots/v4-admin-overview.png",
+    "bytes": 1210763,
+    "sha256": "9619689a8ddb17867066f421228abdb78be6d76a8ea0b077f9c8dfec342de3c7",
+    "environment": "actual isolated React/Express/PostgreSQL with synthetic data; not production"
+  },
+  {
+    "file": "screenshots/v4-both-day-products.png",
+    "bytes": 1702580,
+    "sha256": "e6dff21cb513f9a6254146c85a4f03c5c9ebf16d85ff73d013947259cd341a5f",
+    "environment": "actual isolated React/Express/PostgreSQL with synthetic data; not production"
+  },
+  {
+    "file": "screenshots/v4-home-after-start.png",
+    "bytes": 286021,
+    "sha256": "c6433b66edee14df7a21f257c897e4b5aebe41ded66babe58b601513a7d5d5eb",
+    "environment": "actual isolated React/Express/PostgreSQL with synthetic data; not production"
+  },
+  {
+    "file": "screenshots/v4-home-before-start.png",
+    "bytes": 286540,
+    "sha256": "ed988dfd36c7c1fec5b0dea3cdd0aca92ee52e5f381f2eb227289366442dade9",
+    "environment": "actual isolated React/Express/PostgreSQL with synthetic data; not production"
+  },
+  {
+    "file": "screenshots/v4-notice-preview.png",
+    "bytes": 714758,
+    "sha256": "005eea95bdef85beabccdd7a92c30b6cf995cacef11f77055b58dc0eedbd26bb",
+    "environment": "actual isolated React/Express/PostgreSQL with synthetic data; not production"
+  },
+  {
+    "file": "screenshots/v4-photos-reopened.png",
+    "bytes": 708277,
+    "sha256": "151b0f8783f2c44316d0f726e0b410f6853b36554c6b79b9d1b990798ac9656d",
+    "environment": "actual isolated React/Express/PostgreSQL with synthetic data; not production"
+  }
+]

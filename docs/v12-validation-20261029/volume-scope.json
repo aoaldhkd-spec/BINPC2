@@ -1,0 +1,15 @@
+{
+  "baseline": {
+    "commit": "3942e785b4eafd5636b9d5dc84dcb1b13b762ec8",
+    "files": 1626,
+    "bytes": 376392334
+  },
+  "finalFunctionCode": {
+    "commit": "577cf0012430c252469d3c918dd3c471a687ae4f",
+    "files": 1688,
+    "bytes": 399104482
+  },
+  "deletedOriginalOrFunctionalBytes": 0,
+  "runtimeOptimization": "BLACK 2750110 -> 177086 bytes, exact decoded pixels unchanged; source PNG retained",
+  "scope": "Git snapshot file bytes, not Git history size, production storage, cold download, or a speed benchmark. Subsequent review package/docs are separate evidence artifacts."
+}

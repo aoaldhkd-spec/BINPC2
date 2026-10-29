@@ -1,0 +1,11 @@
+{
+  "createdAtUtc": "2026-10-29T00:47:05.651129+00:00",
+  "type": "full Git bundle of code/history refs; not production DB/uploads/keys",
+  "privateWorkspacePath": ".local/v12-code-backup/BINPC2-V12-code-577cf001.bundle",
+  "bytes": 824581775,
+  "sha256": "4e1aea8ee519fbdc6b136b0a83ffcc376448c681de162d8d2ad6c069c9f6db4a",
+  "gitBundleVerify": "PASS",
+  "codeCommit": "577cf0012430c252469d3c918dd3c471a687ae4f",
+  "storedOutsideGit": true,
+  "offsiteDisasterRecoveryProven": false
+}

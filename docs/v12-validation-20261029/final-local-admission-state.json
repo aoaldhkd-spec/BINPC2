@@ -1,0 +1,8 @@
+{
+  "environment": "isolated loopback Express + binpc2_hub_dev PostgreSQL; NOT production",
+  "checkedAtUtc": "2026-10-29T00:55:22.472783+00:00",
+  "enabled": true,
+  "publicAdmissionOpen": false,
+  "action": "Returned local test fixture to test ON / closed admission after the normal-flow tests. No reset/deletion command was executed.",
+  "productionState": "UNKNOWN: production was not modified or claimed to match this fixture."
+}

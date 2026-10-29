@@ -1,0 +1,15 @@
+{
+  "verifiedAtUtc": "2026-10-29T00:44:15.818783+00:00",
+  "repository": "https://github.com/aoaldhkd-spec/BINPC2",
+  "branch": "feat/event-hub-v6-20261027",
+  "featureCodeCommit": "577cf0012430c252469d3c918dd3c471a687ae4f",
+  "featureCodeCommitExistsRemotely": true,
+  "codeFingerprint": "4922892eced9c0e39f8f48a77213a15cbe79cb5132020e8a216bb7b923baef15",
+  "precedingV12Commit": "1b00b640e3cffe80e8c05f41dedf3f8011bd34af",
+  "startingHead": "3942e785b4eafd5636b9d5dc84dcb1b13b762ec8",
+  "mainUnchanged": true,
+  "mainHead": "b06a900280404f79c92e17cdbc6af907a0414c30",
+  "prCreated": false,
+  "deploymentExecuted": false,
+  "note": "The report/checksum commit may follow this tested code commit. It must have an identical code fingerprint. The latest branch/report SHA is reported after final push, without self-referential hashes."
+}

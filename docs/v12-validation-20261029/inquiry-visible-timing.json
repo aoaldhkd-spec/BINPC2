@@ -1,0 +1,14 @@
+{
+  "environment": "two Chromium contexts, loopback React/Express/PostgreSQL, no reload before notification",
+  "action": "administrator reply click to participant unread banner",
+  "milliseconds": 561,
+  "targetMs": 2000,
+  "targetMet": true,
+  "afterCompactCoverChange": {
+    "environment": "two Chromium contexts, loopback React/Express/PostgreSQL, no reload before notification",
+    "action": "administrator reply click to participant unread banner",
+    "milliseconds": 618,
+    "targetMs": 2000,
+    "targetMet": true
+  }
+}

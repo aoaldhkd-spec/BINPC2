@@ -1,3 +1,5 @@
+> 최신 V12: [개발·검사 결과](V12_RESULT_2026-10-29.md) · [정확한 재개 지점](RESUME_V12_2026-10-29.md). 아래 이전 코드/검사 기록은 보존하며 V12 운영 배포는 아직 미실행입니다.
+
 > 최신 기능별 미완료 포함 대조표: [V6/V3 통합 체크리스트](EVENT_HUB_V6_INTEGRATED_CHECKLIST_2026-10-27.md). 실기기·외부HTTPS·개인정보 정책은 완료 추정 금지.
 
 # BINPC2 MASTER CONTEXT — CURRENT CANON
