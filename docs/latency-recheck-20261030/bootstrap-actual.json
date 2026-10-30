@@ -1,0 +1,70 @@
+{
+  "environment": "Existing React/Vite + compiled Express + isolated PostgreSQL, 390px",
+  "dataReadyCriterion": "Server-backed event card visible and enabled; not merely heading/loading",
+  "loads": [
+    {
+      "fresh": true,
+      "visibleMs": 1375,
+      "stateGets": 1,
+      "sessionPosts": 1,
+      "callOrder": [
+        "GET /api/event-hub/state",
+        "POST /api/event-hub/session"
+      ]
+    },
+    {
+      "fresh": false,
+      "visibleMs": 1181,
+      "stateGets": 1,
+      "sessionPosts": 0,
+      "callOrder": [
+        "GET /api/event-hub/state"
+      ]
+    },
+    {
+      "fresh": true,
+      "visibleMs": 1308,
+      "stateGets": 1,
+      "sessionPosts": 1,
+      "callOrder": [
+        "GET /api/event-hub/state",
+        "POST /api/event-hub/session"
+      ]
+    },
+    {
+      "fresh": false,
+      "visibleMs": 1128,
+      "stateGets": 1,
+      "sessionPosts": 0,
+      "callOrder": [
+        "GET /api/event-hub/state"
+      ]
+    },
+    {
+      "fresh": true,
+      "visibleMs": 1314,
+      "stateGets": 1,
+      "sessionPosts": 1,
+      "callOrder": [
+        "GET /api/event-hub/state",
+        "POST /api/event-hub/session"
+      ]
+    },
+    {
+      "fresh": false,
+      "visibleMs": 1141,
+      "stateGets": 1,
+      "sessionPosts": 0,
+      "callOrder": [
+        "GET /api/event-hub/state"
+      ]
+    }
+  ],
+  "pending": {
+    "intentPrivateRequests": 0,
+    "clickToPendingMs": 87,
+    "pendingTitleVisible": true,
+    "clickToDataMs": 1456,
+    "artificialStateResponseDelayMs": 1000
+  }
+}

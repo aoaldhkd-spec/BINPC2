@@ -145,6 +145,7 @@ export function EventHubContent({ path, hub }: { path: string; hub: Hub }) {
     return (
       <main className="min-h-screen bg-slate-950 text-slate-100 p-5">
         <a href="/">← 뒤로</a>
+        <h1 className="mt-4 text-2xl font-black">{path.startsWith("/events/waiting") ? "신청대기방" : path.startsWith("/events/cards") ? "MY · 행사 뽑기" : "술번개 신청"}</h1>
         <HubLoading label="신청 기록을 불러오는 중…" />
         <HubFeedback status={hub.status} error={hub.error} />
       </main>

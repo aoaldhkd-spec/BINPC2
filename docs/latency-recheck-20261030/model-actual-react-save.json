@@ -1,0 +1,13 @@
+{
+  "modelOnly": true,
+  "notOperatingPerformance": true,
+  "realReactExpressPostgres": true,
+  "afterFiveHttpTrials": true,
+  "delayPerPgQueryMs": 120,
+  "clickToPendingMs": 52,
+  "clickToResponseMs": 905,
+  "clickToNextStageMs": 1088,
+  "sqlQueries": 7,
+  "draftRevision": 1,
+  "phoneWasNotRequired": true
+}

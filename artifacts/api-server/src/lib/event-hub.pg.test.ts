@@ -3030,7 +3030,7 @@ suite("event hub V6 — actual isolated PostgreSQL transactions", () => {
     await expect(call("event.logo.order",eventId,{items:[{builtinId:"jack"}]},(await current()).revision,true)).rejects.toMatchObject({code:"LOGO_PUBLIC_CONFIRM"});
     await call("event.logo.order",eventId,{items:[{builtinId:"jack"},{builtinId:"on_top"}],publicConfirmed:true},(await current()).revision,true);
     await call("event.logo.order",eventId,{items:[{builtinId:"on_top"},{builtinId:"jack"}]},(await current()).revision,true);
-    let e=await current();await call("event.save",eventId,{...e,promotionLogos:[]},e.revision,true);
+    const e=await current();await call("event.save",eventId,{...e,promotionLogos:[]},e.revision,true);
     expect((await current()).promotionLogos?.map(v=>v.builtinId)).toEqual(["on_top","jack"]);
     await call("event.logo.order",eventId,{items:[]},(await current()).revision,true);
     expect((await service.state(owner)).events.find(e=>e.id===eventId)?.promotionLogos).toEqual([]);

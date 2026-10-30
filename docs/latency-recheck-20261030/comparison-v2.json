@@ -1,0 +1,300 @@
+{
+  "modelOnly": true,
+  "notOperatingPerformance": true,
+  "delayPerPgQueryMs": 120,
+  "peoplePerPhase": 5,
+  "concurrentPeople": 1,
+  "baselineSourceSha256": "2bfeff2ed14bbef3e6c4df43eee6feb9b92dd8e2caefb77088a9d816d19f3e5a",
+  "afterSourceSha256": "37519a1b7b9e81c333a67f4d5c699ee0587e326657b9e0c4a8474ed4f4117284",
+  "baselineHttpRequests": 68,
+  "afterHttpRequests": 48,
+  "baselineFailures": 0,
+  "afterFailures": 0,
+  "endpointMetrics": [
+    {
+      "label": "anonymous-state",
+      "beforeMedianMs": 856.41,
+      "afterMedianMs": 494.4,
+      "beforeSqlCounts": [
+        7,
+        7,
+        7,
+        7,
+        7
+      ],
+      "afterSqlCounts": [
+        4,
+        4,
+        4,
+        4,
+        4
+      ],
+      "beforeHttpRequests": null,
+      "afterHttpRequests": null,
+      "beforeSampleMaximumMs": 859.18,
+      "afterSampleMaximumMs": 500.06
+    },
+    {
+      "label": "session-with-optional-state",
+      "beforeMedianMs": 980.39,
+      "afterMedianMs": 1470.46,
+      "beforeSqlCounts": [
+        8,
+        7,
+        7,
+        7,
+        7
+      ],
+      "afterSqlCounts": [
+        12,
+        11,
+        11,
+        11,
+        11
+      ],
+      "beforeHttpRequests": null,
+      "afterHttpRequests": null,
+      "beforeSampleMaximumMs": 1106.04,
+      "afterSampleMaximumMs": 1764.23
+    },
+    {
+      "label": "basic-draft-save",
+      "beforeMedianMs": 1224.68,
+      "afterMedianMs": 992.94,
+      "beforeSqlCounts": [
+        9,
+        9,
+        9,
+        9,
+        9
+      ],
+      "afterSqlCounts": [
+        7,
+        7,
+        7,
+        7,
+        7
+      ],
+      "beforeHttpRequests": null,
+      "afterHttpRequests": null,
+      "beforeSampleMaximumMs": 1229.57,
+      "afterSampleMaximumMs": 1148.73
+    },
+    {
+      "label": "basic-submit",
+      "beforeMedianMs": 1347.15,
+      "afterMedianMs": 1231.84,
+      "beforeSqlCounts": [
+        10,
+        10,
+        10,
+        10,
+        10
+      ],
+      "afterSqlCounts": [
+        9,
+        9,
+        9,
+        9,
+        9
+      ],
+      "beforeHttpRequests": null,
+      "afterHttpRequests": null,
+      "beforeSampleMaximumMs": 1361.13,
+      "afterSampleMaximumMs": 1270.61
+    },
+    {
+      "label": "consent-save",
+      "beforeMedianMs": 1467.98,
+      "afterMedianMs": 1844.2,
+      "beforeSqlCounts": [
+        11,
+        11,
+        11,
+        11,
+        11
+      ],
+      "afterSqlCounts": [
+        15,
+        15,
+        15,
+        15,
+        15
+      ],
+      "beforeHttpRequests": null,
+      "afterHttpRequests": null,
+      "beforeSampleMaximumMs": 1474.01,
+      "afterSampleMaximumMs": 1853.42
+    },
+    {
+      "label": "application-confirm",
+      "beforeMedianMs": 1343.94,
+      "afterMedianMs": 1234.39,
+      "beforeSqlCounts": [
+        10,
+        10,
+        10,
+        10,
+        10
+      ],
+      "afterSqlCounts": [
+        9,
+        9,
+        9,
+        9,
+        9
+      ],
+      "beforeHttpRequests": null,
+      "afterHttpRequests": null,
+      "beforeSampleMaximumMs": 1347.37,
+      "afterSampleMaximumMs": 1239.79
+    },
+    {
+      "label": "payment-report",
+      "beforeMedianMs": 1343.51,
+      "afterMedianMs": 1721.03,
+      "beforeSqlCounts": [
+        10,
+        10,
+        10,
+        10,
+        10
+      ],
+      "afterSqlCounts": [
+        14,
+        14,
+        14,
+        14,
+        14
+      ],
+      "beforeHttpRequests": null,
+      "afterHttpRequests": null,
+      "beforeSampleMaximumMs": 1348.18,
+      "afterSampleMaximumMs": 2686.65
+    },
+    {
+      "label": "payment-report-retry",
+      "beforeMedianMs": 855.73,
+      "afterMedianMs": 1347.39,
+      "beforeSqlCounts": [
+        6,
+        6,
+        6,
+        6,
+        6
+      ],
+      "afterSqlCounts": [
+        11,
+        11,
+        11,
+        11,
+        11
+      ],
+      "beforeHttpRequests": null,
+      "afterHttpRequests": null,
+      "beforeSampleMaximumMs": 859.89,
+      "afterSampleMaximumMs": 1354.53
+    },
+    {
+      "label": "owner-state-after-report",
+      "beforeMedianMs": 1220.53,
+      "afterMedianMs": 738.76,
+      "beforeSqlCounts": [
+        9,
+        9,
+        9,
+        9,
+        9
+      ],
+      "afterSqlCounts": [
+        5,
+        5,
+        5,
+        5,
+        5
+      ],
+      "beforeHttpRequests": null,
+      "afterHttpRequests": null,
+      "beforeSampleMaximumMs": 1223.3,
+      "afterSampleMaximumMs": 742.31
+    }
+  ],
+  "authoritativeCompletionMetrics": [
+    {
+      "label": "consent-save-and-authoritative-state",
+      "beforeMedianMs": 2689.34,
+      "afterMedianMs": 1844.35,
+      "beforeSqlCounts": null,
+      "afterSqlCounts": null,
+      "beforeHttpRequests": [
+        2,
+        2,
+        2,
+        2,
+        2
+      ],
+      "afterHttpRequests": [
+        1,
+        1,
+        1,
+        1,
+        1
+      ],
+      "beforeSampleMaximumMs": 3412.7,
+      "afterSampleMaximumMs": 1853.47
+    },
+    {
+      "label": "payment-report-and-authoritative-state",
+      "beforeMedianMs": 2563.56,
+      "afterMedianMs": 1721.06,
+      "beforeSqlCounts": null,
+      "afterSqlCounts": null,
+      "beforeHttpRequests": [
+        2,
+        2,
+        2,
+        2,
+        2
+      ],
+      "afterHttpRequests": [
+        1,
+        1,
+        1,
+        1,
+        1
+      ],
+      "beforeSampleMaximumMs": 2569.11,
+      "afterSampleMaximumMs": 2686.7
+    },
+    {
+      "label": "payment-report-retry-and-authoritative-state",
+      "beforeMedianMs": 2076.58,
+      "afterMedianMs": 1347.48,
+      "beforeSqlCounts": null,
+      "afterSqlCounts": null,
+      "beforeHttpRequests": [
+        2,
+        2,
+        2,
+        2,
+        2
+      ],
+      "afterHttpRequests": [
+        1,
+        1,
+        1,
+        1,
+        1
+      ],
+      "beforeSampleMaximumMs": 2084.97,
+      "afterSampleMaximumMs": 1354.56
+    }
+  ],
+  "caveat": "Five sequential synthetic people. Per-query delay model, not operating network latency. Sample maximum is not a robust tail estimate. All real SQL and authorization guards remain.",
+  "twoSecondCriterion": {
+    "allObservedFlowsUnderTwoSeconds": false,
+    "afterPaymentReportMaximumMs": 2686.7,
+    "status": "PARTIAL",
+    "reason": "One of five payment report + authoritative state flows exceeded 2 seconds; source of extra waiting not yet isolated. Do not replace maximum with median."
+  }
+}

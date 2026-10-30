@@ -23,6 +23,16 @@ export const eventHubService = new EventHubService(
 );
 const admin = (req: Request) => verifyAdminToken(req.get("x-admin-token"));
 const eventTestModeService = new EventTestModeService(eventHubService.store);
+// Shared projection for a normal read and the optional credential response.
+// Administrator headers never expand this participant response.
+const participantState = async (req: Request) => ({
+  ...(await eventHubService.state(req.session.hubOwner)),
+  hasSession: !!req.session.hubOwner,
+});
+const administratorState = async (req: Request) => {
+  if (!admin(req)) throw new HubError(403,"ADMIN","관리자 인증이 필요합니다.");
+  return eventHubService.state(req.session.hubOwner,true);
+};
 // Same-origin JSON mutations + SameSite cookies; no identifiers or recovery codes in URLs.
 router.use((req, res, next) => {
   res.setHeader("Cache-Control", "no-store");
@@ -53,19 +63,14 @@ router.post("/laboratory", async (req, res, next) => {
 });
 router.get("/state", async (req, res, next) => {
   try {
-    res.json({
-      ...(await eventHubService.state(req.session.hubOwner)),
-      hasSession: !!req.session.hubOwner,
-    });
+    res.json(await participantState(req));
   } catch (e) {
     next(e);
   }
 });
 router.get("/admin", async (req, res, next) => {
   try {
-    if (!admin(req))
-      throw new HubError(403, "ADMIN", "관리자 인증이 필요합니다.");
-    res.json(await eventHubService.state(req.session.hubOwner, true));
+    res.json(await administratorState(req));
   } catch (e) {
     next(e);
   }
@@ -164,7 +169,7 @@ router.get("/campaign-preview/:eventId", async (req, res, next) => {
 router.post("/session", async (req, res, next) => {
   try {
     const b = z
-      .object({ recoveryCode: z.string(), create: z.boolean().default(false) })
+      .object({ recoveryCode: z.string(), create: z.boolean().default(false), includeState: z.boolean().default(false) })
       .parse(req.body);
     const owner = await eventHubService.session(b.recoveryCode, b.create);
     // Regenerate on credential login to avoid session fixation; preserve existing onsite identity.
@@ -183,7 +188,9 @@ router.post("/session", async (req, res, next) => {
     await new Promise<void>((resolve, reject) =>
       req.session.save((e) => (e ? reject(e) : resolve())),
     );
-    res.json({ ok: true });
+    // Only read after the regenerated session is durably saved. If that read
+    // fails, the saved session/recovery identity remains available for retry.
+    res.json({ ok: true, ...(b.includeState ? { state: await participantState(req) } : {}) });
   } catch (e) {
     next(e);
   }
@@ -218,12 +225,17 @@ router.post("/member-login", async (req, res, next) => {
 });
 router.post("/mutate", async (req, res, next) => {
   try {
+    // Validate response options before any write. Mutation.parse strips this
+    // transport-only option from the durable idempotency hash.
+    const includeState = z.boolean().optional().parse(req.body?.includeState) === true;
+    const administrative = admin(req);
     const result = await eventHubService.mutate(
       req.session.hubOwner ?? "",
-      admin(req),
+      administrative,
       req.body,
     );
     eventHubChanged();
+    const response: Record<string,unknown> = {...result};
     if (result.profile) {
       const profile = result.profile as Record<string, unknown>;
       eventHubProfileCommitted(
@@ -239,15 +251,24 @@ router.post("/mutate", async (req, res, next) => {
         String(profile.id),
         process.env.SESSION_SECRET!,
       );
-      res.json({
-        ...result,
+      Object.assign(response, {
         binding: undefined,
         sessionToken: bearer.token,
         expiresAt: bearer.expiresAt,
       });
-      return;
     }
-    res.json(result);
+    if (includeState) {
+      try {
+        response.state = await (administrative ? administratorState(req) : participantState(req));
+        response.stateScope = administrative ? 'admin' : 'participant';
+      } catch (error) {
+        // The mutation is already committed. Preserve its receipt and any
+        // profile/session binding, but require a separate fresh-state read.
+        response.stateUnavailable = true;
+        logger.warn({stage:'event-hub-followup-state',code:persistenceFailureCode(error)},'committed event hub mutation needs a fresh state read');
+      }
+    }
+    res.json(response);
   } catch (e) {
     next(e);
   }

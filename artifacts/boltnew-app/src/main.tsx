@@ -13,7 +13,8 @@ import { clientNavigationHref, resolveClientNavigation } from './lib/client-navi
 import { refreshSseAccessScope } from './lib/localdb';
 
 const UnsubscribePage = lazy(() => import('./event-hub/NotificationReadiness').then(m=>({default:m.UnsubscribePage})));
-const EventHubPage = lazy(() => import('./event-hub/EventHubPage'));
+const loadEventHubPage = () => import('./event-hub/EventHubPage');
+const EventHubPage = lazy(loadEventHubPage);
 
 const loadAdminApp = () => import('./AdminApp');
 const AdminApp = lazy(loadAdminApp);
@@ -70,23 +71,31 @@ function Root() {
       syncPath();
       window.scrollTo(0, 0);
     };
-    const onPointerOver = (event: PointerEvent) => {
+    // Download route code on mouse, keyboard or touch intent. This never reads
+    // personal state or skips BossAccessBoundary/server authorization.
+    const onRouteIntent = (event: Event) => {
       const target = event.target;
       if (!(target instanceof Element)) return;
       const anchor = target.closest<HTMLAnchorElement>('a[href]');
       if (!anchor) return;
       const next = resolveClientNavigation(anchor.href, window.location.href, base);
-      if (next?.pathname.startsWith(`${base}/admin`)) void loadAdminApp();
+      if (next?.pathname.startsWith(`${base}/admin`)) void loadAdminApp().catch(() => {});
+      else if (next?.pathname.startsWith(`${base}/events`) && !next.pathname.startsWith(`${base}/events/unsubscribe`))
+        void loadEventHubPage().catch(() => {});
     };
 
     const onPop = () => syncPath();
     window.addEventListener('popstate', onPop);
     document.addEventListener('click', onClick);
-    document.addEventListener('pointerover', onPointerOver, { passive: true });
+    document.addEventListener('pointerover', onRouteIntent, { passive: true });
+    document.addEventListener('pointerdown', onRouteIntent, { passive: true });
+    document.addEventListener('focusin', onRouteIntent);
     return () => {
       window.removeEventListener('popstate', onPop);
       document.removeEventListener('click', onClick);
-      document.removeEventListener('pointerover', onPointerOver);
+      document.removeEventListener('pointerover', onRouteIntent);
+      document.removeEventListener('pointerdown', onRouteIntent);
+      document.removeEventListener('focusin', onRouteIntent);
     };
   }, [base]);
 

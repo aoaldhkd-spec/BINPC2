@@ -137,6 +137,74 @@ export class HubTx {
     )).rows;
     for (const row of rows) this.prefetched.set(JSON.stringify([row.kind,row.id]),row.data ?? undefined);
   }
+  /** Fixed mutation inputs plus module state and an optional owner-scoped list.
+   * The list is a separate snapshot, never a replacement for global/nickname
+   * lookups. All values still pass authenticated decryption when consumed.
+   */
+  async mutationInputs<T>(records: {kind:string;id:string}[],applicationOwner?:string) {
+    const rows=(await this.db.query(
+      `SELECT 'fixed' AS source,wanted.kind,wanted.id,r.data
+       FROM jsonb_to_recordset($1::jsonb) AS wanted(kind text,id text)
+       LEFT JOIN event_hub_records r ON r.kind=wanted.kind AND r.id=wanted.id
+       UNION ALL
+       SELECT 'owner-application' AS source,kind,id,data FROM event_hub_records
+       WHERE kind='application' AND $2::text IS NOT NULL AND data->>'owner'=$2
+       UNION ALL
+       (SELECT 'app-settings' AS source,'app-settings' AS kind,row_id AS id,data
+        FROM app_kv_rows WHERE table_name='app_settings' LIMIT 1)
+       ORDER BY source,kind,id`,
+      [JSON.stringify(records),applicationOwner??null],
+    )).rows;
+    const applications:T[]=[];
+    let appSettings:Record<string,unknown>|undefined;
+    for(const row of rows){
+      if(row.source==='app-settings'){appSettings=row.data;continue;}
+      if(row.source==='owner-application'){applications.push(this.decode<T>('application',row.id,row.data));continue;}
+      this.prefetched.set(JSON.stringify([row.kind,row.id]),row.data??undefined);
+    }
+    return {appSettings,applications};
+  }
+  /** One state-read round trip inside the existing locked transaction. The
+   * routing predicate only narrows candidates; callers still check decoded
+   * ownership. Nothing survives this transaction or bypasses ciphertext checks.
+   */
+  async stateInputs(owner: string | undefined, admin: boolean) {
+    const fixed = [
+      {kind:'laboratory-mode',id:'global'},
+      ...['global','privacy-policy',...(admin?['venue-directory']:[])].map(id=>({kind:'settings',id})),
+      ...(owner?[{kind:'owner',id:owner},{kind:'thread',id:owner}]:[]),
+    ];
+    const rows = (await this.db.query(
+      `SELECT 'hub' AS source,kind,id,data FROM event_hub_records WHERE
+        (kind='laboratory-mode' AND id='global')
+        OR (kind='settings' AND id=ANY($3::text[]))
+        OR kind='event'
+        OR (kind IN ('owner','thread') AND ($2::boolean OR ($1::text IS NOT NULL AND id=$1)))
+        OR (kind='application' AND ($2::boolean OR ($1::text IS NOT NULL AND data->>'owner'=$1)))
+        OR (kind='member' AND ($2::boolean OR ($1::text IS NOT NULL AND (data->>'owner'=$1 OR NOT(data ? 'owner')))))
+        OR ($2::boolean AND kind IN ('stock','error'))
+      UNION ALL
+      (SELECT 'app-settings' AS source,'app-settings' AS kind,row_id AS id,data
+       FROM app_kv_rows WHERE table_name='app_settings' LIMIT 1)
+      ORDER BY source,kind,id`,
+      [owner ?? null,admin,['global','privacy-policy',...(admin?['venue-directory']:[])]],
+    )).rows;
+    // Cache missing fixed keys too, rather than issuing a second read for a
+    // legitimate absent optional setting. put() already invalidates each key.
+    for(const r of fixed)this.prefetched.set(JSON.stringify([r.kind,r.id]),undefined);
+    const byKind = new Map<string,{id:string;data:Record<string,unknown>}[]>();
+    let appSettings: Record<string,unknown> | undefined;
+    for(const row of rows){
+      if(row.source==='app-settings'){appSettings=row.data;continue;}
+      this.prefetched.set(JSON.stringify([row.kind,row.id]),row.data);
+      const records=byKind.get(row.kind)??[];
+      records.push({id:row.id,data:row.data});byKind.set(row.kind,records);
+    }
+    return {
+      appSettings,
+      all:<T>(kind:string):T[] => (byKind.get(kind)??[]).map(r=>this.decode<T>(kind,r.id,r.data)),
+    };
+  }
   async all<T>(kind: string): Promise<T[]> {
     return (
       await this.db.query(

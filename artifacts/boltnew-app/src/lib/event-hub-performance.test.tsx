@@ -9,6 +9,9 @@ vi.mock('./supabase', () => ({
   onSseReconnect: () => () => {}, isSseHealthy: () => true,
 }));
 const state = { enabled: true, hasSession: true, events: [], applications: [{ id: 'kept', payment: 'approved' }], threads: [], stocks: [] };
+const fullApplication = { id: 'kept', eventId: 'event-one', revision: 2, stage: 3, payment: 'reported', basic: { nickname: '합성', birthYear: 1995, location: '합성' }, profile: { lastStep: 1 }, cards: [], history: [] };
+// Public participant events intentionally omit the administrator's revision.
+const fullState = { ...state, events: [{ id: 'event-one', title: '합성 행사', date: '2026-10-30', start: '22:30', end: '01:00' }], applications: [fullApplication], serverNow: '2026-10-30T14:00:00Z' };
 const response = (value: unknown) => new Response(JSON.stringify(value));
 afterEach(() => { cleanup(); vi.restoreAllMocks(); vi.useRealTimers(); localStorage.clear(); sessionStorage.clear(); rememberRecoveryCode(''); events.invalidate = undefined; });
 
@@ -28,6 +31,79 @@ it('reads again after session creation, never rendering the pre-login state as t
   const { result } = renderHook(() => useEventHub());
   await waitFor(() => expect(result.current.state?.applications[0]?.payment).toBe('approved'));
   expect(fetch.mock.calls.map(([path]) => path)).toEqual(['/api/event-hub/state', '/api/event-hub/session', '/api/event-hub/state']);
+});
+
+it('uses the persisted session response without a third request while preserving the cookie probe', async () => {
+  const authenticated = { ...fullState, applications: [{ ...fullApplication, payment: 'approved' }] };
+  let sent: Record<string, unknown> | undefined;
+  const fetch = vi.spyOn(globalThis, 'fetch').mockImplementation(async (path, init) => {
+    if (String(path).endsWith('/session')) { sent = JSON.parse(String(init?.body)); return response({ ok: true, state: authenticated }); }
+    return response({ ...state, hasSession: false, applications: [] });
+  });
+  const { result } = renderHook(() => useEventHub());
+  await waitFor(() => expect(result.current.state?.applications[0]?.payment).toBe('approved'));
+  expect(sent).toMatchObject({ includeState: true, create: true });
+  expect(fetch.mock.calls.map(([path]) => path)).toEqual(['/api/event-hub/state', '/api/event-hub/session']);
+});
+
+it('rejects a partial session state and restores from one authenticated fallback read', async () => {
+  let reads = 0;
+  const fetch = vi.spyOn(globalThis, 'fetch').mockImplementation(async path => {
+    if (String(path).endsWith('/session')) return response({ ok: true, state: { hasSession: true, enabled: true, applications: [] } });
+    return response(++reads === 1 ? { ...state, hasSession: false, applications: [] } : state);
+  });
+  const { result } = renderHook(() => useEventHub());
+  await waitFor(() => expect(result.current.state?.applications[0]?.payment).toBe('approved'));
+  expect(fetch).toHaveBeenCalledTimes(3);
+});
+
+it('does not accept a session envelope containing null application rows', async () => {
+  let reads = 0;
+  const fetch = vi.spyOn(globalThis, 'fetch').mockImplementation(async path => {
+    if (String(path).endsWith('/session')) return response({ ok: true, state: { ...fullState, applications: [null] } });
+    return response(++reads === 1 ? { ...state, hasSession: false, applications: [] } : state);
+  });
+  const { result } = renderHook(() => useEventHub());
+  await waitFor(() => expect(result.current.state?.applications[0]?.payment).toBe('approved'));
+  expect(fetch).toHaveBeenCalledTimes(3);
+});
+
+it('rejects a delayed session response after another identity has recovered', async () => {
+  let reads = 0, release!: (value: Response) => void;
+  const fetch = vi.spyOn(globalThis, 'fetch').mockImplementation(async path => {
+    if (String(path).endsWith('/session')) return new Promise<Response>(resolve => { release = resolve; });
+    return response(++reads === 1 ? { ...state, hasSession: false, applications: [] } : { ...state, applications: [{ id: 'current-owner', payment: 'approved' }] });
+  });
+  const { result } = renderHook(() => useEventHub());
+  await waitFor(() => expect(fetch).toHaveBeenCalledTimes(2));
+  rememberRecoveryCode('new-owner-during-session-bootstrap');
+  await act(async () => { release(response({ ok: true, state: { ...state, serverNow: '2026-10-30T14:00:00Z' } })); });
+  await waitFor(() => expect(result.current.state?.applications[0]?.id).toBe('current-owner'));
+  expect(fetch).toHaveBeenCalledTimes(3);
+});
+
+it('does not overwrite a newer explicit state read with the session response', async () => {
+  let reads = 0, release!: (value: Response) => void;
+  const fetch = vi.spyOn(globalThis, 'fetch').mockImplementation(async path => {
+    if (String(path).endsWith('/session')) return new Promise<Response>(resolve => { release = resolve; });
+    return response(++reads === 1 ? { ...state, hasSession: false, applications: [] } : state);
+  });
+  const { result } = renderHook(() => useEventHub());
+  await waitFor(() => expect(fetch).toHaveBeenCalledTimes(2));
+  await act(async () => { await result.current.load(); });
+  await act(async () => { release(response({ ok: true, state: fullState })); });
+  expect(result.current.state?.applications[0].payment).toBe('approved');
+  expect(fetch).toHaveBeenCalledTimes(3);
+});
+
+it('can use a committed cookie session when browser storage throws, without fabricating identity', async () => {
+  const authenticated = { ...fullState, applications: [{ ...fullApplication, payment: 'approved' }] };
+  vi.spyOn(Storage.prototype, 'getItem').mockImplementation(() => { throw Error('Storage unavailable'); });
+  vi.spyOn(Storage.prototype, 'setItem').mockImplementation(() => { throw Error('Storage unavailable'); });
+  const fetch = vi.spyOn(globalThis, 'fetch').mockImplementation(async path => String(path).endsWith('/session') ? response({ ok: true, state: authenticated }) : response({ ...state, hasSession: false, applications: [] }));
+  const { result } = renderHook(() => useEventHub());
+  await waitFor(() => expect(result.current.state?.applications[0]?.payment).toBe('approved'));
+  expect(fetch).toHaveBeenCalledTimes(2);
 });
 
 it('discards an old bootstrap response when a newer explicit read has restored approval', async () => {
@@ -229,4 +305,140 @@ it('does not replace a newer device draft with a delayed older save acknowledgem
   await act(async () => { release(response({ saved: true, requestId, draft: older })); await write; });
   expect(reads).toBe(3);
   expect(result.current.state?.basicDrafts?.['event-one']).toEqual(newer);
+});
+
+it('advances a non-draft save only from the exact participant committed state response without another GET', async () => {
+  const next = { ...fullState, applications: [{ ...fullApplication, revision: 3, stage: 4 }] };
+  let command: Record<string, unknown> | undefined;
+  const fetch = vi.spyOn(globalThis, 'fetch').mockImplementation(async (path, init) => {
+    if (String(path).endsWith('/mutate')) { command = JSON.parse(String(init?.body)); return response({ saved: true, requestId: command!.requestId, stateScope: 'participant', state: next }); }
+    return response(fullState);
+  });
+  const { result } = renderHook(() => useEventHub());
+  await waitFor(() => expect(result.current.state).toBeTruthy());
+  await act(async () => { await result.current.mutate({ action: 'application.consent', target: 'kept', revision: 2 }); });
+  expect(command?.includeState).toBe(true);
+  expect(result.current.status).toBe('saved');
+  expect(result.current.state?.applications[0].stage).toBe(4);
+  expect(fetch).toHaveBeenCalledTimes(2);
+});
+
+it('rejects participant state for an administrator controller and falls back to the authenticated admin read', async () => {
+  localStorage.setItem('admin_token_v1', 'synthetic-admin');
+  let reads = 0;
+  const fetch = vi.spyOn(globalThis, 'fetch').mockImplementation(async (path, init) => {
+    if (String(path).endsWith('/mutate')) return response({ saved: true, requestId: JSON.parse(String(init?.body)).requestId, stateScope: 'participant', state: { ...fullState, applications: [] } });
+    expect(String(path)).toBe('/api/event-hub/admin');reads++;return response(fullState);
+  });
+  const { result } = renderHook(() => useEventHub(true));
+  await waitFor(() => expect(result.current.state).toBeTruthy());
+  await act(async () => { await result.current.mutate({ action: 'admin.application.payment', target: 'kept', revision: 2 }); });
+  expect(reads).toBe(2);expect(fetch).toHaveBeenCalledTimes(3);
+  expect(result.current.state?.applications[0].id).toBe('kept');
+});
+
+it('accepts a matching administrator state only under the same administrator credential', async () => {
+  localStorage.setItem('admin_token_v1', 'synthetic-admin');
+  const adminState = { ...fullState, hasSession: undefined, events: fullState.events.map(event => ({ ...event, revision: 2 })) };
+  const next = { ...adminState, applications: [{ ...fullApplication, revision: 3, payment: 'approved' }] };
+  const fetch = vi.spyOn(globalThis, 'fetch').mockImplementation(async (path, init) => String(path).endsWith('/mutate')
+    ? response({ saved: true, requestId: JSON.parse(String(init?.body)).requestId, stateScope: 'admin', state: next }) : response(adminState));
+  const { result } = renderHook(() => useEventHub(true));
+  await waitFor(() => expect(result.current.state).toBeTruthy());
+  await act(async () => { await result.current.mutate({ action: 'admin.application.payment', target: 'kept', revision: 2 }); });
+  expect(fetch).toHaveBeenCalledTimes(2);expect(result.current.status).toBe('saved');expect(result.current.state?.applications[0].payment).toBe('approved');
+});
+
+it('does not report success or advance when stateUnavailable is followed by failed fresh and receipt-state reads', async () => {
+  let reads = 0, writes = 0;
+  vi.spyOn(globalThis, 'fetch').mockImplementation(async (path, init) => {
+    if (String(path).endsWith('/mutate')) { writes++;return response({ saved: true, requestId: JSON.parse(String(init?.body)).requestId, stateUnavailable: true }); }
+    if (String(path).includes('/receipt/')) return response({ saved: true });
+    if (++reads > 1) throw Error('Fresh state temporarily unavailable');
+    return response(fullState);
+  });
+  const { result } = renderHook(() => useEventHub());
+  await waitFor(() => expect(result.current.state).toBeTruthy());
+  let saved: unknown;
+  await act(async () => { saved = await result.current.mutate({ action: 'application.consent', target: 'kept', revision: 2 }); });
+  expect(saved).toBeNull();expect(result.current.status).toBe('failed');
+  expect(result.current.state?.applications[0].stage).toBe(3);expect(writes).toBe(1);
+});
+
+it('keeps a newer approval when an older mutation state reply arrives after an explicit refresh', async () => {
+  let reads = 0, requestId = '', release!: (value: Response) => void;
+  const approved = { ...fullState, applications: [{ ...fullApplication, revision: 4, payment: 'approved' }] };
+  vi.spyOn(globalThis, 'fetch').mockImplementation(async (path, init) => {
+    if (String(path).endsWith('/mutate')) { requestId = JSON.parse(String(init?.body)).requestId;return new Promise<Response>(resolve => { release = resolve; }); }
+    return response(++reads === 1 ? fullState : approved);
+  });
+  const { result } = renderHook(() => useEventHub());
+  await waitFor(() => expect(result.current.state).toBeTruthy());
+  let write!: Promise<unknown>;
+  act(() => { write = result.current.mutate({ action: 'application.consent', target: 'kept', revision: 2 }); });
+  await act(async () => { await result.current.load(); });
+  await act(async () => { release(response({ saved: true, requestId, stateScope: 'participant', state: { ...fullState, applications: [{ ...fullApplication, revision: 3 }] } }));await write; });
+  expect(reads).toBe(3);expect(result.current.state?.applications[0].payment).toBe('approved');expect(result.current.state?.applications[0].revision).toBe(4);
+});
+
+it('does not consume an approval invalidation arriving while the inline-state save is pending', async () => {
+  let reads = 0;
+  const approved = { ...fullState, applications: [{ ...fullApplication, revision: 4, payment: 'approved' }] };
+  vi.spyOn(globalThis, 'fetch').mockImplementation(async (path, init) => {
+    if (String(path).endsWith('/mutate')) { events.invalidate!();return response({ saved: true, requestId: JSON.parse(String(init?.body)).requestId, stateScope: 'participant', state: { ...fullState, applications: [{ ...fullApplication, revision: 3 }] } }); }
+    return response(++reads === 1 ? fullState : approved);
+  });
+  const { result } = renderHook(() => useEventHub());
+  await waitFor(() => expect(result.current.state).toBeTruthy());
+  await act(async () => { await result.current.mutate({ action: 'application.consent', target: 'kept', revision: 2 }); });
+  expect(result.current.status).toBe('saved');expect(reads).toBe(1);
+  await waitFor(() => expect(result.current.state?.applications[0].payment).toBe('approved'));
+  expect(reads).toBe(2);
+});
+
+it('keeps waiting for a fresh state when the inline response contains malformed application rows', async () => {
+  let reads = 0, release!: (value: Response) => void;
+  vi.spyOn(globalThis, 'fetch').mockImplementation(async (path, init) => {
+    if (String(path).endsWith('/mutate')) return response({ saved: true, requestId: JSON.parse(String(init?.body)).requestId, stateScope: 'participant', state: { ...fullState, applications: [null] } });
+    if (++reads === 2) return new Promise<Response>(resolve => { release = resolve; });
+    return response(fullState);
+  });
+  const { result } = renderHook(() => useEventHub());
+  await waitFor(() => expect(result.current.state).toBeTruthy());
+  let write!: Promise<unknown>;
+  act(() => { write = result.current.mutate({ action: 'application.consent', target: 'kept', revision: 2 }); });
+  await waitFor(() => expect(reads).toBe(2));expect(result.current.status).toBe('saving');
+  await act(async () => { release(response(fullState));await write; });
+  expect(result.current.status).toBe('saved');
+});
+
+it('confirms a disappearing known application with GET instead of clearing it from a partial chat reply', async () => {
+  let reads = 0, release!: (value: Response) => void;
+  vi.spyOn(globalThis, 'fetch').mockImplementation(async (path, init) => {
+    if (String(path).endsWith('/mutate')) return response({ saved: true, requestId: JSON.parse(String(init?.body)).requestId, stateScope: 'participant', state: { ...fullState, applications: [] } });
+    if (++reads === 2) return new Promise<Response>(resolve => { release = resolve; });
+    return response(fullState);
+  });
+  const { result } = renderHook(() => useEventHub());
+  await waitFor(() => expect(result.current.state).toBeTruthy());
+  let write!: Promise<unknown>;
+  act(() => { write = result.current.mutate({ action: 'thread.send', data: { text: '합성 문의', collection: true } }); });
+  await waitFor(() => expect(reads).toBe(2));
+  expect(result.current.status).toBe('saving');expect(result.current.state?.applications[0].id).toBe('kept');
+  await act(async () => { release(response(fullState));await write; });
+  expect(result.current.status).toBe('saved');
+});
+
+it('requires a newly returned companion application in state before advancing', async () => {
+  let reads = 0;
+  const next = { ...fullState, applications: [...fullState.applications, { ...fullApplication, id: 'new-companion-self' }] };
+  const fetch = vi.spyOn(globalThis, 'fetch').mockImplementation(async (path, init) => {
+    if (String(path).endsWith('/mutate')) return response({ saved: true, requestId: JSON.parse(String(init?.body)).requestId, id: 'new-companion-self', stateScope: 'participant', state: fullState });
+    return response(++reads === 1 ? fullState : next);
+  });
+  const { result } = renderHook(() => useEventHub());
+  await waitFor(() => expect(result.current.state).toBeTruthy());
+  await act(async () => { await result.current.mutate({ action: 'companion.submit', data: { eventId: 'event-one' } }); });
+  expect(reads).toBe(2);expect(fetch).toHaveBeenCalledTimes(3);
+  expect(result.current.state?.applications.some(app => app.id === 'new-companion-self')).toBe(true);
 });

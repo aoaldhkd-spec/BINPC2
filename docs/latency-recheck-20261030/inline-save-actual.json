@@ -1,0 +1,16 @@
+{
+  "environment": "Actual React/compiled Express/isolated PostgreSQL",
+  "fixtureOrigin": "http://127.0.0.1:3002",
+  "action": "application.consent",
+  "feedbackMs": 66,
+  "committedReplyMs": 57,
+  "clickToCommittedReplyMs": 107,
+  "nextActionMs": 1412,
+  "artificialResponseHoldMs": 1000,
+  "sentIncludeState": true,
+  "receivedExactParticipantState": true,
+  "writes": 1,
+  "readsStartedBeforeNextAction": 1,
+  "allStateReadsHeldUntilAfterNextAction": true,
+  "persistedStage": 3
+}

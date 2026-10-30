@@ -210,7 +210,8 @@ function creatingWrite(value: boolean) {
   } catch {}
 }
 
-let sessionPromise: Promise<HubState | null> | null = null;
+type SessionBootstrap = { state: HubState; epoch: number; recovery: string };
+let sessionPromise: Promise<SessionBootstrap | null> | null = null;
 export function savedRecoveryCode() {
   return recoveryRead();
 }
@@ -247,10 +248,10 @@ async function ensureSession() {
     const recoveryAtStart = recoveryRead();
     const state = await hubFetch<HubState>("/state");
     if (identityAtStart !== sessionEpoch || recoveryAtStart !== recoveryRead()) return null;
-    if (state.hasSession) return state;
+    if (state.hasSession) return { state, epoch: identityAtStart, recovery: recoveryAtStart };
     let code = savedRecoveryCode();
     // OFF must still recover an existing paid owner; never create a new session from an unknown draft.
-    if (!state.enabled && !code) return state;
+    if (!state.enabled && !code) return { state, epoch: identityAtStart, recovery: recoveryAtStart };
     const create = state.enabled && (!code || creatingRead());
     if (!code) {
       const bytes = crypto.getRandomValues(new Uint8Array(32));
@@ -261,9 +262,20 @@ async function ensureSession() {
       recoveryWrite(code);
       creatingWrite(true);
     }
-    await hubFetch("/session", { recoveryCode: code, create });
+    const restored = hubFetch<{ ok: boolean; state?: HubState }>("/session", {
+      recoveryCode: code, create, includeState: true,
+    });
+    // hubFetch starts the identity transition synchronously. A later login or
+    // recovery change makes this acknowledgement ineligible for this screen.
+    const restoredEpoch = sessionEpoch, restoredRecovery = recoveryRead();
+    const response = await restored;
+    if (restoredEpoch !== sessionEpoch || restoredRecovery !== recoveryRead()) return null;
     creatingWrite(false);
-    // Cookie identity changed: the pre-login state must never stand in for a fresh read.
+    const authenticated = response.state;
+    // New servers return this owner-scoped state only after regeneration/save.
+    // Older servers or incomplete replies retain the fresh authenticated GET.
+    if (response.ok === true && completeHubState(authenticated, false))
+      return { state: authenticated, epoch: restoredEpoch, recovery: restoredRecovery };
     return null;
   })();
   try {
@@ -278,6 +290,20 @@ export type HubCommand = {
   revision?: number;
   data?: Record<string, unknown>;
 };
+function completeHubState(value: unknown, admin: boolean): value is HubState {
+  if (!value || typeof value !== "object") return false;
+  const state = value as Partial<HubState>;
+  return typeof state.enabled === "boolean" && (admin || state.hasSession === true) &&
+    typeof state.serverNow === "string" && Number.isFinite(Date.parse(state.serverNow)) &&
+    Array.isArray(state.events) && Array.isArray(state.applications) &&
+    Array.isArray(state.threads) && Array.isArray(state.stocks) &&
+    state.events.every(event => !!event && typeof event === "object" && typeof event.id === "string" &&
+      typeof event.title === "string" && typeof event.date === "string" && typeof event.start === "string" && typeof event.end === "string" &&
+      (!admin || Number.isInteger(event.revision))) &&
+    state.applications.every(app => !!app && typeof app === "object" && typeof app.id === "string" && typeof app.eventId === "string" &&
+      Number.isInteger(app.revision) && Number.isInteger(app.stage) && !!app.basic && typeof app.basic === "object" && !!app.profile && typeof app.profile === "object" &&
+      typeof app.payment === "string" && Array.isArray(app.cards) && Array.isArray(app.history));
+}
 export function useEventHub(admin = false) {
   const [state, setState] = useState<HubState | null>(null),
     [error, setError] = useState(""),
@@ -316,19 +342,17 @@ export function useEventHub(admin = false) {
     const run = async () => {
       const sequence = ++readSequence.current;
       const invalidationAtStart = invalidationVersion.current;
-      const identityAtStart = sessionEpoch;
-      const recoveryAtStart = recoveryRead();
       try {
         const authenticatedState = admin ? null : await ensureSession();
         if (!active) return;
-        if (authenticatedState && identityAtStart === sessionEpoch && recoveryAtStart === recoveryRead()) {
+        if (authenticatedState && authenticatedState.epoch === sessionEpoch && authenticatedState.recovery === recoveryRead()) {
           // The bootstrap already read this unchanged session. Avoid another full
           // ledger query, but never replace a newer approval/invalidation response.
           if (sequence === readSequence.current) {
             coveredInvalidation.current = invalidationAtStart;
-            currentState.current = authenticatedState;
-            currentStateIdentity.current = { epoch: sessionEpoch, recovery: recoveryRead() };
-            setState(authenticatedState);
+            currentState.current = authenticatedState.state;
+            currentStateIdentity.current = { epoch: authenticatedState.epoch, recovery: authenticatedState.recovery };
+            setState(authenticatedState.state);
           }
         } else await load();
       } catch (e) {
@@ -418,9 +442,15 @@ export function useEventHub(admin = false) {
             return { ...receipt };
           }
         }
+        const stateAtRequest = currentState.current;
+        const sequenceAtRequest = readSequence.current;
+        const invalidationAtRequest = invalidationVersion.current;
+        let adminTokenAtRequest: string | null = null;
+        try { if (admin) adminTokenAtRequest = localStorage.getItem("admin_token_v1"); } catch { /* retain the authenticated fresh-read fallback */ }
+        const includeState = command.action !== "application.basic-draft";
         const result = await hubFetch<Record<string, unknown>>(
           "/mutate",
-          pending.current!.command,
+          { ...pending.current!.command, ...(includeState ? { includeState: true } : {}) },
           admin,
         );
         if (identityAtStart !== sessionEpoch || recoveryAtStart !== recoveryRead()) {
@@ -455,6 +485,36 @@ export function useEventHub(admin = false) {
           currentState.current = updated;
           setState(updated);
           requestRefresh.current();
+          pending.current = null;
+          setStatus("saved");
+          return result;
+        }
+        const refreshed = result.state;
+        let sameAdmin = !admin;
+        try { if (admin) sameAdmin = !!adminTokenAtRequest && adminTokenAtRequest === localStorage.getItem("admin_token_v1"); } catch { /* no state shortcut when authentication storage is unavailable */ }
+        const targetApplication = command.action.includes("application.")
+          ? (command.target || (typeof result.id === "string" ? result.id : undefined))
+          : ["companion.submit", "companion.confirm", "admin.companion.link"].includes(command.action) && typeof result.id === "string" ? result.id : undefined;
+        const canUseState = includeState && result.saved === true &&
+          result.requestId === pending.current!.command.requestId &&
+          result.stateScope === (admin ? "admin" : "participant") && result.stateUnavailable !== true &&
+          sameAdmin && sequenceAtRequest === readSequence.current && stateAtRequest === currentState.current &&
+          completeHubState(refreshed, admin) &&
+          (!targetApplication || refreshed.applications.some(app => app.id === targetApplication)) &&
+          (stateAtRequest?.applications ?? []).every(before => {
+            const after = refreshed.applications.find(app => app.id === before.id);
+            // Missing records can be a legitimate visibility/deletion change,
+            // but confirm that with GET before removing a known user's state.
+            return !!after && after.revision >= before.revision;
+          });
+        if (canUseState && completeHubState(refreshed, admin)) {
+          ++readSequence.current;
+          // Only notifications already known before this POST are covered.
+          // A concurrent approval/revocation still schedules its fresh read.
+          coveredInvalidation.current = Math.max(coveredInvalidation.current, invalidationAtRequest);
+          currentState.current = refreshed;
+          currentStateIdentity.current = { epoch: identityAtStart, recovery: recoveryAtStart };
+          setState(refreshed);
           pending.current = null;
           setStatus("saved");
           return result;

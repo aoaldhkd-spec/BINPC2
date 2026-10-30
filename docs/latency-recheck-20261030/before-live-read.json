@@ -1,0 +1,553 @@
+{
+  "scope": "existing authenticated boss session; read-only actual site; no new session/application/payment/reset",
+  "stages": [
+    {
+      "name": "home-0",
+      "readyMs": 2505
+    },
+    {
+      "name": "events-0",
+      "readyMs": 2385
+    },
+    {
+      "name": "home-1",
+      "readyMs": 1848
+    },
+    {
+      "name": "events-1",
+      "readyMs": 1860
+    },
+    {
+      "name": "home-2",
+      "readyMs": 1853
+    },
+    {
+      "name": "events-2",
+      "readyMs": 1882
+    }
+  ],
+  "network": [
+    {
+      "stage": "home-0",
+      "path": "/assets/index-Cc2aVMc4.css",
+      "method": "GET",
+      "ttfbMs": 180,
+      "durationMs": 288,
+      "serverTiming": null
+    },
+    {
+      "stage": "home-0",
+      "path": "/assets/vendor-yr7EEdPk.js",
+      "method": "GET",
+      "ttfbMs": 371,
+      "durationMs": 438,
+      "serverTiming": null
+    },
+    {
+      "stage": "home-0",
+      "path": "/assets/index-CNO-B81z.js",
+      "method": "GET",
+      "ttfbMs": 315,
+      "durationMs": 478,
+      "serverTiming": null
+    },
+    {
+      "stage": "home-0",
+      "path": "/api/healthz",
+      "method": "GET",
+      "ttfbMs": 709,
+      "durationMs": 723,
+      "serverTiming": null
+    },
+    {
+      "stage": "home-0",
+      "path": "/api/boss-access",
+      "method": "GET",
+      "ttfbMs": 576,
+      "durationMs": 592,
+      "serverTiming": null
+    },
+    {
+      "stage": "home-0",
+      "path": "/assets/stats-ranking-SV-XJ3jx.js",
+      "method": "GET",
+      "ttfbMs": 183,
+      "durationMs": 200,
+      "serverTiming": null
+    },
+    {
+      "stage": "home-0",
+      "path": "/assets/MainScreen-D-Cdo9hz.js",
+      "method": "GET",
+      "ttfbMs": 144,
+      "durationMs": 244,
+      "serverTiming": null
+    },
+    {
+      "stage": "home-0",
+      "path": "/assets/ChatScreen-BHBpQRfK.js",
+      "method": "GET",
+      "ttfbMs": 223,
+      "durationMs": 245,
+      "serverTiming": null
+    },
+    {
+      "stage": "home-0",
+      "path": "/assets/birth-md-edit--9y-XoIu.js",
+      "method": "GET",
+      "ttfbMs": 271,
+      "durationMs": 290,
+      "serverTiming": null
+    },
+    {
+      "stage": "home-0",
+      "path": "/assets/fortune-Dy_FLvgy.js",
+      "method": "GET",
+      "ttfbMs": 315,
+      "durationMs": 335,
+      "serverTiming": null
+    },
+    {
+      "stage": "home-0",
+      "path": "/api/db/ready",
+      "method": "GET",
+      "ttfbMs": 549,
+      "durationMs": 567,
+      "serverTiming": null
+    },
+    {
+      "stage": "home-0",
+      "path": "/api/db/op",
+      "method": "POST",
+      "ttfbMs": 549,
+      "durationMs": 566,
+      "serverTiming": null
+    },
+    {
+      "stage": "home-0",
+      "path": "/api/db/ready",
+      "method": "GET",
+      "ttfbMs": 560,
+      "durationMs": 575,
+      "serverTiming": null
+    },
+    {
+      "stage": "events-0",
+      "path": "/assets/HubUi-XU7UJmcv.css",
+      "method": "GET",
+      "ttfbMs": 211,
+      "durationMs": 229,
+      "serverTiming": null
+    },
+    {
+      "stage": "events-0",
+      "path": "/assets/EventHubPage-CkhLP65b.css",
+      "method": "GET",
+      "ttfbMs": 243,
+      "durationMs": 253,
+      "serverTiming": null
+    },
+    {
+      "stage": "events-0",
+      "path": "/assets/TutorialModal-DCBaKz3l.js",
+      "method": "GET",
+      "ttfbMs": 269,
+      "durationMs": 279,
+      "serverTiming": null
+    },
+    {
+      "stage": "events-0",
+      "path": "/assets/HubUi-Cp_ucrjN.js",
+      "method": "GET",
+      "ttfbMs": 269,
+      "durationMs": 278,
+      "serverTiming": null
+    },
+    {
+      "stage": "events-0",
+      "path": "/assets/EventHubPage-bAm-NOBe.js",
+      "method": "GET",
+      "ttfbMs": 394,
+      "durationMs": 503,
+      "serverTiming": null
+    },
+    {
+      "stage": "events-0",
+      "path": "/api/event-hub/test-mode",
+      "method": "GET",
+      "ttfbMs": 1052,
+      "durationMs": 1057,
+      "serverTiming": null
+    },
+    {
+      "stage": "events-0",
+      "path": "/api/event-hub/state",
+      "method": "GET",
+      "ttfbMs": 1503,
+      "durationMs": 1510,
+      "serverTiming": null
+    },
+    {
+      "stage": "home-1",
+      "path": "/assets/vendor-yr7EEdPk.js",
+      "method": "GET",
+      "ttfbMs": 141,
+      "durationMs": 159,
+      "serverTiming": null
+    },
+    {
+      "stage": "home-1",
+      "path": "/assets/index-CNO-B81z.js",
+      "method": "GET",
+      "ttfbMs": 151,
+      "durationMs": 288,
+      "serverTiming": null
+    },
+    {
+      "stage": "home-1",
+      "path": "/assets/index-Cc2aVMc4.css",
+      "method": "GET",
+      "ttfbMs": 192,
+      "durationMs": 357,
+      "serverTiming": null
+    },
+    {
+      "stage": "home-1",
+      "path": "/api/healthz",
+      "method": "GET",
+      "ttfbMs": 414,
+      "durationMs": 421,
+      "serverTiming": null
+    },
+    {
+      "stage": "home-1",
+      "path": "/api/boss-access",
+      "method": "GET",
+      "ttfbMs": 545,
+      "durationMs": 550,
+      "serverTiming": null
+    },
+    {
+      "stage": "home-1",
+      "path": "/assets/fortune-Dy_FLvgy.js",
+      "method": "GET",
+      "ttfbMs": 112,
+      "durationMs": 169,
+      "serverTiming": null
+    },
+    {
+      "stage": "home-1",
+      "path": "/assets/MainScreen-D-Cdo9hz.js",
+      "method": "GET",
+      "ttfbMs": 111,
+      "durationMs": 170,
+      "serverTiming": null
+    },
+    {
+      "stage": "home-1",
+      "path": "/assets/birth-md-edit--9y-XoIu.js",
+      "method": "GET",
+      "ttfbMs": 156,
+      "durationMs": 172,
+      "serverTiming": null
+    },
+    {
+      "stage": "home-1",
+      "path": "/assets/stats-ranking-SV-XJ3jx.js",
+      "method": "GET",
+      "ttfbMs": 157,
+      "durationMs": 172,
+      "serverTiming": null
+    },
+    {
+      "stage": "home-1",
+      "path": "/assets/ChatScreen-BHBpQRfK.js",
+      "method": "GET",
+      "ttfbMs": 156,
+      "durationMs": 172,
+      "serverTiming": null
+    },
+    {
+      "stage": "home-1",
+      "path": "/api/db/ready",
+      "method": "GET",
+      "ttfbMs": 573,
+      "durationMs": 587,
+      "serverTiming": null
+    },
+    {
+      "stage": "home-1",
+      "path": "/api/db/op",
+      "method": "POST",
+      "ttfbMs": 623,
+      "durationMs": 637,
+      "serverTiming": null
+    },
+    {
+      "stage": "events-1",
+      "path": "/assets/HubUi-XU7UJmcv.css",
+      "method": "GET",
+      "ttfbMs": 154,
+      "durationMs": 163,
+      "serverTiming": null
+    },
+    {
+      "stage": "events-1",
+      "path": "/assets/TutorialModal-DCBaKz3l.js",
+      "method": "GET",
+      "ttfbMs": 153,
+      "durationMs": 162,
+      "serverTiming": null
+    },
+    {
+      "stage": "events-1",
+      "path": "/assets/EventHubPage-bAm-NOBe.js",
+      "method": "GET",
+      "ttfbMs": 158,
+      "durationMs": 168,
+      "serverTiming": null
+    },
+    {
+      "stage": "events-1",
+      "path": "/assets/EventHubPage-CkhLP65b.css",
+      "method": "GET",
+      "ttfbMs": 202,
+      "durationMs": 211,
+      "serverTiming": null
+    },
+    {
+      "stage": "events-1",
+      "path": "/assets/HubUi-Cp_ucrjN.js",
+      "method": "GET",
+      "ttfbMs": 204,
+      "durationMs": 212,
+      "serverTiming": null
+    },
+    {
+      "stage": "events-1",
+      "path": "/api/db/ready",
+      "method": "GET",
+      "ttfbMs": 1081,
+      "durationMs": 1096,
+      "serverTiming": null
+    },
+    {
+      "stage": "events-1",
+      "path": "/api/event-hub/test-mode",
+      "method": "GET",
+      "ttfbMs": 1007,
+      "durationMs": 1010,
+      "serverTiming": null
+    },
+    {
+      "stage": "events-1",
+      "path": "/api/event-hub/state",
+      "method": "GET",
+      "ttfbMs": 1530,
+      "durationMs": 1534,
+      "serverTiming": null
+    },
+    {
+      "stage": "home-2",
+      "path": "/assets/index-Cc2aVMc4.css",
+      "method": "GET",
+      "ttfbMs": 197,
+      "durationMs": 218,
+      "serverTiming": null
+    },
+    {
+      "stage": "home-2",
+      "path": "/assets/index-CNO-B81z.js",
+      "method": "GET",
+      "ttfbMs": 170,
+      "durationMs": 313,
+      "serverTiming": null
+    },
+    {
+      "stage": "home-2",
+      "path": "/assets/vendor-yr7EEdPk.js",
+      "method": "GET",
+      "ttfbMs": 293,
+      "durationMs": 420,
+      "serverTiming": null
+    },
+    {
+      "stage": "home-2",
+      "path": "/api/healthz",
+      "method": "GET",
+      "ttfbMs": 507,
+      "durationMs": 512,
+      "serverTiming": null
+    },
+    {
+      "stage": "home-2",
+      "path": "/api/boss-access",
+      "method": "GET",
+      "ttfbMs": 525,
+      "durationMs": 531,
+      "serverTiming": null
+    },
+    {
+      "stage": "home-2",
+      "path": "/assets/stats-ranking-SV-XJ3jx.js",
+      "method": "GET",
+      "ttfbMs": 177,
+      "durationMs": 195,
+      "serverTiming": null
+    },
+    {
+      "stage": "home-2",
+      "path": "/assets/fortune-Dy_FLvgy.js",
+      "method": "GET",
+      "ttfbMs": 177,
+      "durationMs": 196,
+      "serverTiming": null
+    },
+    {
+      "stage": "home-2",
+      "path": "/assets/MainScreen-D-Cdo9hz.js",
+      "method": "GET",
+      "ttfbMs": 177,
+      "durationMs": 240,
+      "serverTiming": null
+    },
+    {
+      "stage": "home-2",
+      "path": "/assets/birth-md-edit--9y-XoIu.js",
+      "method": "GET",
+      "ttfbMs": 222,
+      "durationMs": 242,
+      "serverTiming": null
+    },
+    {
+      "stage": "home-2",
+      "path": "/assets/ChatScreen-BHBpQRfK.js",
+      "method": "GET",
+      "ttfbMs": 222,
+      "durationMs": 266,
+      "serverTiming": null
+    },
+    {
+      "stage": "home-2",
+      "path": "/api/db/ready",
+      "method": "GET",
+      "ttfbMs": 537,
+      "durationMs": 558,
+      "serverTiming": null
+    },
+    {
+      "stage": "home-2",
+      "path": "/api/db/ready",
+      "method": "GET",
+      "ttfbMs": 555,
+      "durationMs": 577,
+      "serverTiming": null
+    },
+    {
+      "stage": "home-2",
+      "path": "/api/db/op",
+      "method": "POST",
+      "ttfbMs": 610,
+      "durationMs": 631,
+      "serverTiming": null
+    },
+    {
+      "stage": "events-2",
+      "path": "/assets/EventHubPage-bAm-NOBe.js",
+      "method": "GET",
+      "ttfbMs": 90,
+      "durationMs": 99,
+      "serverTiming": null
+    },
+    {
+      "stage": "events-2",
+      "path": "/assets/HubUi-Cp_ucrjN.js",
+      "method": "GET",
+      "ttfbMs": 101,
+      "durationMs": 107,
+      "serverTiming": null
+    },
+    {
+      "stage": "events-2",
+      "path": "/assets/EventHubPage-CkhLP65b.css",
+      "method": "GET",
+      "ttfbMs": 102,
+      "durationMs": 109,
+      "serverTiming": null
+    },
+    {
+      "stage": "events-2",
+      "path": "/assets/HubUi-XU7UJmcv.css",
+      "method": "GET",
+      "ttfbMs": 128,
+      "durationMs": 138,
+      "serverTiming": null
+    },
+    {
+      "stage": "events-2",
+      "path": "/assets/TutorialModal-DCBaKz3l.js",
+      "method": "GET",
+      "ttfbMs": 143,
+      "durationMs": 152,
+      "serverTiming": null
+    },
+    {
+      "stage": "events-2",
+      "path": "/api/event-hub/test-mode",
+      "method": "GET",
+      "ttfbMs": 1035,
+      "durationMs": 1038,
+      "serverTiming": null
+    },
+    {
+      "stage": "events-2",
+      "path": "/api/event-hub/state",
+      "method": "GET",
+      "ttfbMs": 1597,
+      "durationMs": 1601,
+      "serverTiming": null
+    },
+    {
+      "stage": "direct-read",
+      "path": "/api/event-hub/state",
+      "method": "GET",
+      "ttfbMs": 1532,
+      "durationMs": 1535,
+      "serverTiming": null
+    },
+    {
+      "stage": "direct-read",
+      "path": "/api/event-hub/state",
+      "method": "GET",
+      "ttfbMs": 1486,
+      "durationMs": 1490,
+      "serverTiming": null
+    },
+    {
+      "stage": "direct-read",
+      "path": "/api/event-hub/state",
+      "method": "GET",
+      "ttfbMs": 1507,
+      "durationMs": 1511,
+      "serverTiming": null
+    }
+  ],
+  "writesBlocked": 0,
+  "errors": [],
+  "direct": [
+    {
+      "status": 200,
+      "ms": 1537
+    },
+    {
+      "status": 200,
+      "ms": 1492
+    },
+    {
+      "status": 200,
+      "ms": 1512
+    }
+  ],
+  "success": true,
+  "checkedAt": "2026-10-30T04:13:59.977Z"
+}

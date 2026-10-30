@@ -146,6 +146,7 @@ suite('companion submission — actual isolated PostgreSQL transactions', () => 
     const spies = [
       vi.spyOn(route.eventHubService, 'session').mockImplementation(service.session.bind(service)),
       vi.spyOn(route.eventHubService, 'mutate').mockImplementation(service.mutate.bind(service)),
+      vi.spyOn(route.eventHubService, 'state').mockImplementation(service.state.bind(service)),
       vi.spyOn(route.eventHubService, 'autoTick').mockResolvedValue(undefined),
     ];
     try {
@@ -158,16 +159,25 @@ suite('companion submission — actual isolated PostgreSQL transactions', () => 
       const command = { action: 'application.basic', target: '', data: { eventId, basic: input }, requestId: randomUUID() };
       await request(http).post('/api/event-hub/mutate').send(command).expect(401);
       const recoveryCode = randomBytes(32).toString('base64url');
-      await client.post('/api/event-hub/session').send({ recoveryCode, create: true }).expect(200);
+      const login = await client.post('/api/event-hub/session').send({ recoveryCode, create: true, includeState: true }).expect(200);
+      const initialRead = await client.get('/api/event-hub/state').expect(200);
+      expect(login.body.state).toEqual(initialRead.body);
+      expect(login.body.state.hasSession).toBe(true);
+      expect(login.body.state.owners).toBeUndefined();
       const who = await service.session(recoveryCode, false);
       const response = await client.post('/api/event-hub/mutate').send(command).expect(200);
       const id = String(response.body.id);
+      const beforeReplay = await event();
+      const replay = await client.post('/api/event-hub/mutate').send({...command,includeState:true}).expect(200);
+      expect(replay.body.id).toBe(id);expect(replay.body.stateScope).toBe('participant');
+      expect(replay.body.state.applications.filter((a:HubApplication)=>a.id===id)).toHaveLength(1);
+      expect(await event()).toEqual(beforeReplay); // Response options never change the durable request identity or allocate again.
       expect(await app(id)).toMatchObject({ owner: who, payment: 'none' });
       expect((await app(id)).basic.phone).toBeUndefined();
       const post = async (action: string, data: Record<string, unknown>, admin = false) => {
         const pending = client.post('/api/event-hub/mutate');
         if (admin) pending.set('x-admin-token', 'isolated-pg-route-admin');
-        return pending.send({ action, target: id, data, revision: (await app(id)).revision, requestId: randomUUID() });
+        return pending.send({ action, target: id, data, revision: (await app(id)).revision, requestId: randomUUID(), includeState:true });
       };
       expect((await post('application.consent', { consent })).status).toBe(200);
       expect((await post('application.confirm', {})).status).toBe(200);
@@ -182,8 +192,15 @@ suite('companion submission — actual isolated PostgreSQL transactions', () => 
       const entered = await post('application.enter', { deviceSecret: 'isolated-no-phone-device' });
       expect(entered.status).toBe(200);
       expect(entered.body.profile).toMatchObject({ event_hub_owner: who, phone_number: null });
+      expect(entered.body.stateScope).toBe('participant');
+      expect(entered.body.state.applications.find((a:HubApplication)=>a.id===id)).toMatchObject({payment:'approved',profileId:entered.body.profile.id});
       expect((await app(id)).basic.phone).toBeUndefined();
       expect((await app(id)).profileId).toBe(entered.body.profile.id);
+      const reopened = await client.post('/api/event-hub/session').set('x-admin-token','isolated-pg-route-admin')
+        .send({ recoveryCode, create:false, includeState:true }).expect(200);
+      expect(reopened.body.state.applications.find((a:HubApplication)=>a.id===id)).toMatchObject({payment:'approved',profileId:entered.body.profile.id});
+      expect(reopened.body.state.owners).toBeUndefined();
+      expect(reopened.body.state).toEqual((await client.get('/api/event-hub/state').expect(200)).body);
     } finally { spies.forEach(spy => spy.mockRestore()); }
   });
 

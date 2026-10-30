@@ -300,6 +300,9 @@ export class EventHubService {
         "SELECT data FROM app_kv_rows WHERE table_name='app_settings' LIMIT 1",
       )
     ).rows[0]?.data;
+    return this.moduleEnabled(s);
+  }
+  private moduleEnabled(s: Record<string,unknown> | undefined) {
     let f = s?.module_flags ?? {};
     if (typeof f === "string") {
       try {
@@ -335,9 +338,9 @@ export class EventHubService {
   async state(owner?: string, admin = false) {
     return this.store.transaction(async (tx) => {
       const boss = bossParticipationAllowed();
-      await tx.prefetch([{kind:'laboratory-mode',id:'global'},{kind:'settings',id:'global'},{kind:'settings',id:'privacy-policy'},...(owner?[{kind:'owner',id:owner},{kind:'thread',id:owner}]:[])]);
+      const inputs = await tx.stateInputs(owner,admin);
       const testMode = publicEventTestMode(await readEventTestMode(tx));
-      const enabled = await this.enabled(tx);
+      const enabled = this.moduleEnabled(inputs.appSettings);
       const publicationBlocked = await publicationBlockedForTx(tx);
       const account = owner
         ? await tx.get<HubOwner>("owner", owner)
@@ -376,14 +379,11 @@ export class EventHubService {
       const switches =
         (await tx.get<HubSettings>("settings", "global")) ??
         DEFAULT_HUB_SETTINGS;
-      const loadedEvents=await tx.all<HubEvent>('event');
+      const loadedEvents=inputs.all<HubEvent>('event');
       await applyScheduledRecruitment(tx, this.now(), enabled, loadedEvents);
       const events = loadedEvents.map(e=>({...e,...effectiveHalloweenHours(e)}));
-      const apps = (
-        admin
-          ? await tx.all<HubApplication>("application")
-          : await tx.applicationsForOwner<HubApplication>(owner ?? "")
-      ).filter((a) => admin || (a.owner === owner && (!a.bossTestOnly || boss)));
+      const apps = inputs.all<HubApplication>("application")
+        .filter((a) => admin || (a.owner === owner && (!a.bossTestOnly || boss)));
       const safeEvents: HubEventView[] = admin
         ? events
         : events
@@ -464,27 +464,27 @@ export class EventHubService {
             ),
           );
       const ownThread = !admin && owner ? await tx.get<HubThread>("thread",owner) : undefined;
-      const threads = admin ? await tx.all<HubThread>("thread") : ownThread ? [ownThread] : [];
-      const stocks = admin ? await tx.all<HubStock>("stock") : [];
+      const threads = admin ? inputs.all<HubThread>("thread") : ownThread ? [ownThread] : [];
+      const stocks = admin ? inputs.all<HubStock>("stock") : [];
       const settings = admin
         ? ((await tx.get<HubSettings>("settings", "global")) ??
           DEFAULT_HUB_SETTINGS)
         : undefined;
       const member = owner
-        ? (await tx.membersForOwner<HubMember>(owner)).find((m) => m.owner === owner)
+        ? inputs.all<HubMember>("member").find((m) => m.owner === owner)
         : undefined;
       const owners = admin
-        ? (await tx.all<HubOwner>("owner")).map(
+        ? inputs.all<HubOwner>("owner").map(
             ({ recoveryHash: _recoveryHash, ...o }) => o,
           )
         : undefined;
       const members = admin
-        ? (await tx.all<HubMember>("member")).map(
+        ? inputs.all<HubMember>("member").map(
             ({ salt: _salt, passwordHash: _passwordHash, ...m }) => m,
           )
         : undefined;
       const errors = admin
-        ? await tx.all<{
+        ? inputs.all<{
             id: string;
             requestId: string;
             stage: string;
@@ -578,16 +578,17 @@ export class EventHubService {
     const key = digest(`${actor}:${m.requestId}`);
     const hash = digest(JSON.stringify(m));
     return this.store.transaction(async (tx) => {
-      await tx.prefetch([
+      const needsOwnerApplications = m.action==='application.basic-draft'||(m.action==='application.basic'&&m.data.edit===true);
+      const mutationInputs = await tx.mutationInputs<HubApplication>([
         {kind:"laboratory-mode",id:"global"}, {kind:"settings",id:"global"},
         {kind:"settings",id:"privacy-policy"}, {kind:"request",id:key},
         ...(owner ? [{kind:"owner",id:owner}] : []),
         ...(typeof m.data.eventId === "string" && m.data.eventId ? [{kind:"event",id:m.data.eventId}] : []),
         ...((m.action.startsWith("application.") || m.action.startsWith("admin.application.")) && !["application.basic", "application.basic-draft"].includes(m.action) ? [{kind:"application",id:m.target}] : []),
-      ]);
+      ],needsOwnerApplications?owner:undefined);
       // Reuse only inside this locked transaction, before any application write.
       // Routing metadata is not authority: consumers still check decrypted owner/event.
-      const ownerApplicationsBeforeMutation = (m.action==='application.basic-draft'||(m.action==='application.basic'&&m.data.edit===true)) ? await tx.applicationsForOwner<HubApplication>(owner) : undefined;
+      const ownerApplicationsBeforeMutation = needsOwnerApplications ? mutationInputs.applications : undefined;
       const pendingCompanion = ownerApplicationsBeforeMutation?.find(a=>a.owner===owner&&a.eventId===m.data.eventId&&!a.erasedAt&&a.companionSubmission?.linkedAt&&a.companionSubmission.personalConsentPending);
       const linkRequest = m.action === 'admin.companion.link' ? await tx.get<CompanionLinkRequest>('settings',`companion-link:${m.target}`) : undefined;
       const targetApp = m.action.startsWith('application.') && !['application.basic','application.basic-draft'].includes(m.action) ? await tx.get<HubApplication>('application',m.target) : undefined;
@@ -612,7 +613,7 @@ export class EventHubService {
         fail("AUTH", "삭제 처리된 신청 세션입니다.", 401);
       if (!owner && !admin)
         fail("AUTH", "개인 신청 세션을 먼저 복구해 주세요.", 401);
-      const enabled = await this.enabled(tx);
+      const enabled = this.moduleEnabled(mutationInputs.appSettings);
       const publicationBlocked = await publicationBlockedForTx(tx);
       // Only opening an application needs the scheduler before this mutation.
       // State reads and the timer still apply every due open/close under the same

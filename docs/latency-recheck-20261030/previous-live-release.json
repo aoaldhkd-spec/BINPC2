@@ -1,0 +1,26 @@
+{
+  "sourceSha": "1b37c23ac91d3f545eb751471826dc56c658ee2d",
+  "ci": {
+    "id": 40999323606,
+    "passedSteps": 27,
+    "url": "https://github.com/aoaldhkd-spec/BINPC2/actions/runs/40999323606"
+  },
+  "netlifyDeploy": "6ae416ba55bc0a11da7b9b51",
+  "renderDeploy": "dep-dbi1c7tg1s2s73dmmv80",
+  "actualLiveChecks": 8,
+  "bossLocked": true,
+  "testEnabled": true,
+  "publicAdmissionOpen": false,
+  "recordsPreserved": {
+    "appRows": 3274,
+    "images": 102,
+    "existingHubRows": 30,
+    "addedEmptyVerificationOwners": 2,
+    "existingProfilePaymentPrizeContentUnchanged": true,
+    "groupChatCreatedAtUnchanged": true,
+    "groupChatMetadataOnlyChangedRows": 4
+  },
+  "externalColdEventsReadyMs": 4958,
+  "twoSecondTargetMetOnColdAttempt": false,
+  "realPhoneAndBackgroundPush": "UNKNOWN"
+}
