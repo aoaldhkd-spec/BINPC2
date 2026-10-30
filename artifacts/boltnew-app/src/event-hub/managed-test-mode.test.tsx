@@ -219,9 +219,15 @@ it("keeps admission closed and revokes confirmation when the server refuses an o
   render(<Harness />);
   openTestSettings();
   const confirmation = "테스트와 운영 준비를 마쳤으며, 웹·오픈채팅의 실제 모집을 오픈하는 것을 확인했습니다.";
-  await screen.findByRole("button", { name: "실제 모집 오픈 확인·저장" });
+  const open = await screen.findByRole("button", { name: "실제 모집 오픈 확인·저장" });
+  // The first mode response invalidates acknowledgements in a passive effect.
+  // Finish that load before simulating a deliberate operator confirmation.
+  await act(async () => {});
+  await waitFor(() => expect((screen.getByRole("switch") as HTMLButtonElement).disabled).toBe(false));
   fireEvent.click(screen.getByLabelText(confirmation));
-  fireEvent.click(screen.getByRole("button", { name: "실제 모집 오픈 확인·저장" }));
+  expect((screen.getByLabelText(confirmation) as HTMLInputElement).checked).toBe(true);
+  expect((open as HTMLButtonElement).disabled).toBe(false);
+  fireEvent.click(open);
   await screen.findByText(/운영 개인정보 정책이 아직 초안입니다/);
   expect(screen.getByText("실제 모집: 차단 · 웹·오픈채팅 모두 접수 전")).toBeTruthy();
   expect(mock.state.mode.publicAdmissionOpen).toBe(false);

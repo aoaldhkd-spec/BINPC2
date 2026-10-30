@@ -1,13 +1,24 @@
 import { publicationBlockedForTx } from "./event-hub-publication.js";
-import { z, eventEnded, eventEndAt, quoteFor, HALLOWEEN_RECOGNITION_LABELS, type HubEvent, type HubApplication } from '@workspace/api-zod';
+import { z, eventEnded, eventEndAt, quoteFor, canRequestRewardContact, hasPublicEventNotice, publicNoticeMaterials, publicNoticeSignature, HALLOWEEN_RECOGNITION_LABELS, type HubEvent, type HubApplication } from '@workspace/api-zod';
 import { fail, type HubTx } from './event-hub-store.js';
 import { readEventTestMode } from './event-test-mode.js';
 
 export function recruitmentConfigurationIssue(e: HubEvent): string | null {
-  if (!e.account || !e.deadline || !e.area || !e.notice) return '계좌·입금기한·지역·공지를 확인하세요.';
+  if (!e.account || !e.deadline || !e.area || !hasPublicEventNotice(e)) return '계좌·입금기한·지역·공지를 확인하세요.';
   if (e.campaign?.kind === 'tour' && !e.campaign.advance) return '전국투어 선입금액을 입력하세요.';
   if (e.closesAt && e.opensAt && Date.parse(e.closesAt) <= Date.parse(e.opensAt)) return '접수 종료는 시작 이후여야 합니다.';
   return null;
+}
+export function captureEventNotice(e:HubEvent) {
+  return {signature:publicNoticeSignature(e),notice:e.notice,noticeVersion:e.noticeVersion,noticeMedia:publicNoticeMaterials(e),address:e.address,fee:e.fee,account:e.account};
+}
+/** Image notice changes invalidate old acknowledgement just like text changes. */
+export function recordEventNoticeChange(e:HubEvent,before:ReturnType<typeof captureEventNotice>,at:string) {
+  if(before.signature===publicNoticeSignature(e))return false;
+  const {signature:_signature,...snapshot}=before;
+  e.versions=[...(e.versions??[]),{at,...snapshot}];
+  e.noticeVersion=Math.max(e.noticeVersion,before.noticeVersion)+1;
+  return true;
 }
 /** Called within the same durable advisory transaction by timer/read/write paths. */
 export async function applyScheduledRecruitment(tx: HubTx, now: Date, enabled: boolean, loadedEvents?: HubEvent[]) {
@@ -65,8 +76,27 @@ export function applyApplicationOperation(
       reason:JSON.stringify({reason,previousFee,...a.halloweenRecognition})});
     return true;
   }
+  if (action === 'admin.application.phone-request') {
+    if (!admin) fail('ADMIN','관리자만 처리할 수 있습니다.',403);
+    if (data.cancel === true) {
+      a.history.push({actor:'admin',action:'admin.reward-contact.cancel',at:now.toISOString(),reason:a.rewardPhoneRequest?JSON.stringify(a.rewardPhoneRequest):undefined});
+      delete a.rewardPhoneRequest;
+      return true; // Existing phone and receipt records are preserved.
+    }
+    const input=z.object({source:z.enum(['card','result']),resultId:z.string().uuid(),purpose:z.string().trim().min(2).max(200)}).parse(data);
+    if (!canRequestRewardContact(a,input.source,input.resultId,e.campaign?.kind))
+      fail('REWARD_RECEIPT','실제 상품·상금 지급 기록이 있어야 수령 연락처를 요청할 수 있습니다.',409);
+    a.rewardPhoneRequest={...input,requestedAt:now.toISOString()};
+    return true;
+  }
   if (action === 'application.phone') {
+    if (admin) fail('OWNER','수령 연락처와 이용 목적 확인은 참가자 본인이 입력합니다.',403);
+    const request=a.rewardPhoneRequest;
+    if (!request || !canRequestRewardContact(a,request.source,request.resultId,e.campaign?.kind))
+      fail('REWARD_RECEIPT','수령에 필요한 연락처 요청이 있을 때만 입력할 수 있습니다.',409);
+    if (data.purposeAccepted !== true) fail('PURPOSE','상품·상금 수령 연락처의 이용 목적을 확인해 주세요.');
     a.rewardPhone = z.string().regex(/^0[0-9 -]{8,14}$/).parse(data.phone);
+    request.fulfilledAt=now.toISOString();
     return true; // Existing session ownership only; no new verification, merging or password.
   }
   if (action === 'application.late') {
@@ -87,7 +117,7 @@ export function applyApplicationOperation(
   }
   if (action === 'admin.application.result') {
     if (!admin) fail('ADMIN','관리자만 처리할 수 있습니다.',403);
-    const row=z.object({id:z.string().uuid(),label:z.string().min(1).max(100),amount:z.number().int().min(0).max(10000000),reason:z.string().min(1).max(500)}).parse(data);
+    const row=z.object({id:z.string().uuid(),label:z.string().min(1).max(100),amount:z.number().int().min(0).max(10000000),kind:z.enum(['item','cash','discount']).optional(),reason:z.string().min(1).max(500)}).parse(data);
     if (a.manualResults?.some(r=>r.id===row.id)) fail('RESULT_DUPLICATE','이미 저장된 결과입니다.',409);
     a.manualResults=[...(a.manualResults??[]),{...row,at:now.toISOString()}];
     return true;

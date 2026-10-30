@@ -238,6 +238,9 @@ test("V4 notice/map actual file preview, save, reopen, approval ACL and context-
   await page
     .getByLabel("참가자 공지", { exact: true })
     .fill("금·토 모두 다음 날 01시에 종료합니다.");
+  const noticeEditor=page.locator('section').filter({has:page.getByRole('heading',{name:'공지사항',exact:true})});
+  await noticeEditor.getByRole('button',{name:'사진 업로드',exact:true}).click();
+  const noticeManager=page.locator('section').filter({has:page.getByRole('heading',{name:'공지 사진',exact:true})}).last();
   const file = {
     name: "synthetic-notice.png",
     mimeType: "image/png",
@@ -245,21 +248,21 @@ test("V4 notice/map actual file preview, save, reopen, approval ACL and context-
       new URL("../public/tour-logos-v3/on_top.png", import.meta.url),
     ),
   };
-  await page
+  await noticeManager
     .getByLabel("공지 사진 파일 선택", { exact: true })
     .setInputFiles(file);
-  await expect(page.getByAltText("선택한 자료 미리보기")).toBeVisible();
+  await expect(noticeManager.getByAltText("선택한 자료 미리보기")).toBeVisible();
   await expect(
-    page.getByRole("button", { name: "선택한 자료 저장", exact: true }),
+    noticeManager.getByRole("button", { name: "저장", exact: true }),
   ).toBeDisabled();
-  await page.getByLabel("신청 전 공개할 공지 사진입니다.").check();
-  await page.getByLabel("사진 설명", { exact: true }).fill("공개 공지 검증");
+  await noticeManager.getByLabel("신청 전 공개할 사진입니다. 계좌·상세 장소·개인정보가 없는지 확인했습니다.").check();
+  await noticeManager.getByLabel("사진 설명 (선택)", { exact: true }).fill("공개 공지 검증");
   await page.screenshot({
     path: info.outputPath("v4-notice-preview.png"),
     fullPage: true,
   });
-  await page
-    .getByRole("button", { name: "선택한 자료 저장", exact: true })
+  await noticeManager
+    .getByRole("button", { name: "저장", exact: true })
     .click();
   await expect
     .poll(
@@ -268,15 +271,15 @@ test("V4 notice/map actual file preview, save, reopen, approval ACL and context-
           .materials?.length,
     )
     .toBe(1);
-  await page
-    .getByRole("button", { name: "지도·약도 사진 추가", exact: true })
-    .click();
-  await page
+  await page.getByRole('tab',{name:'지도·장소',exact:true}).click();
+  await page.getByRole('button',{name:'지도 사진 업로드',exact:true}).click();
+  const mapManager=page.locator('section').filter({has:page.getByRole('heading',{name:'지도·약도 사진',exact:true})}).last();
+  await mapManager
     .getByLabel("지도·약도 사진 파일 선택", { exact: true })
     .setInputFiles({ ...file, name: "synthetic-map.png" });
-  await page.getByLabel("사진 설명", { exact: true }).fill("승인자 지도 검증");
-  await page
-    .getByRole("button", { name: "선택한 자료 저장", exact: true })
+  await mapManager.getByLabel("사진 설명 (선택)", { exact: true }).fill("승인자 지도 검증");
+  await mapManager
+    .getByRole("button", { name: "저장", exact: true })
     .click();
   await expect
     .poll(
@@ -287,11 +290,13 @@ test("V4 notice/map actual file preview, save, reopen, approval ACL and context-
     .toBe(2);
   await page.getByRole("button", { name: "신청·입금", exact: true }).click();
   await page.getByRole("button", { name: "공지·장소", exact: true }).click();
+  await page.getByRole('tab',{name:'공지사항',exact:true}).click();
+  await noticeEditor.getByRole('button',{name:'글 작성',exact:true}).click();
   await expect(page.getByLabel("참가자 공지", { exact: true })).toHaveValue(
     "금·토 모두 다음 날 01시에 종료합니다.",
   );
-  await page
-    .getByRole("button", { name: "공지·장소 저장", exact: true })
+  await noticeEditor
+    .getByRole("button", { name: "저장", exact: true })
     .click();
   await expect
     .poll(
@@ -304,9 +309,12 @@ test("V4 notice/map actual file preview, save, reopen, approval ACL and context-
   await page.getByRole("button", { name: "🎉 술번개", exact: true }).click();
   await page.getByLabel("관리할 행사").selectOption(id);
   await page.getByRole("button", { name: "공지·장소", exact: true }).click();
+  await noticeEditor.getByRole('button',{name:'미리보기',exact:true}).click();
   await expect(
     page.getByAltText("공개 공지 검증", { exact: true }),
   ).toBeVisible();
+  await page.getByRole('tab',{name:'지도·장소',exact:true}).click();
+  await page.locator('section').filter({has:page.getByRole('heading',{name:'승인 후 공개할 상세 장소',exact:true})}).getByRole('button',{name:'미리보기',exact:true}).click();
   await expect(
     page.getByAltText("승인자 지도 검증", { exact: true }),
   ).toBeVisible();
@@ -337,17 +345,17 @@ test("V4 notice/map actual file preview, save, reopen, approval ACL and context-
     expect((await user.request.get(map.url)).status()).toBe(404);
     expect((await user.request.get(notice.url)).status()).toBe(200);
     await user.getByRole("button", { name: "신청하기", exact: true }).click();
+    await user.getByRole("button", { name: "혼자 신청", exact: true }).click();
     await user.getByLabel("[필수] 위 개인정보").check();
     await user.getByRole("button", { name: "다음", exact: true }).click();
     await user
       .getByLabel("닉네임", { exact: true })
       .fill("사진" + String(Date.now()).slice(-4));
     await user.getByRole("button", { name: "다음", exact: true }).click();
-    await user.getByLabel("태어난 년도").fill("1995");
+    await user.getByLabel("태어난 년도").selectOption("1995");
     await user.getByRole("button", { name: "다음", exact: true }).click();
-    await user.getByLabel("사는 지역").fill("부산");
-    await user.getByRole("button", { name: "다음", exact: true }).click();
-    await user.getByLabel("연락용 전화번호").fill("01000000000");
+    await user.getByLabel("도시", { exact: true }).selectOption("부산");
+    await user.getByLabel("부산 구", { exact: true }).selectOption("부산진구");
     await user.getByRole("button", { name: "다음", exact: true }).click();
     await user.getByLabel("실제 은행 입금 시 보내는 분 이름").fill("가상");
     await user.getByRole("button", { name: "다음", exact: true }).click();
@@ -404,7 +412,8 @@ test("V4 new-event photo survives upload failure without duplicate event; drafts
     .click();
   await page.getByLabel("행사 제목", { exact: true }).fill("새 행사 사진 검증");
   await page.getByLabel("날짜", { exact: true }).fill("2026-11-07");
-  await page
+  const newMediaManager=page.locator('section').filter({has:page.getByRole('heading',{name:'행사 포스터·대표 이미지',exact:true})}).last();
+  await newMediaManager
     .getByLabel("공지 사진 파일 선택", { exact: true })
     .setInputFiles({
       name: "synthetic-new-event.png",
@@ -413,9 +422,9 @@ test("V4 new-event photo survives upload failure without duplicate event; drafts
         new URL("../public/tour-logos-v3/on_top.png", import.meta.url),
       ),
     });
-  await expect(page.getByAltText("선택한 자료 미리보기")).toBeVisible();
+  await expect(newMediaManager.getByAltText("선택한 자료 미리보기")).toBeVisible();
   expect((await state(request)).events.length).toBe(before.events.length);
-  await page.getByLabel("신청 전 공개할 공지 사진입니다.").check();
+  await newMediaManager.getByLabel("신청 전 공개할 사진입니다. 계좌·상세 장소·개인정보가 없는지 확인했습니다.", { exact: true }).check();
   let fail = true;
   await page.route("**/api/event-hub/mutate", async (route) => {
     if (
@@ -434,14 +443,14 @@ test("V4 new-event photo survives upload failure without duplicate event; drafts
     }
     return route.continue();
   });
-  await page
-    .getByRole("button", { name: "선택한 자료 저장", exact: true })
+  await newMediaManager
+    .getByRole("button", { name: "저장", exact: true })
     .click();
   await expect(page.getByRole("alert")).toBeVisible();
-  await expect(page.getByAltText("선택한 자료 미리보기")).toBeVisible();
+  await expect(newMediaManager.getByAltText("선택한 자료 미리보기")).toBeVisible();
   expect((await state(request)).events.length).toBe(before.events.length + 1);
-  await page
-    .getByRole("button", { name: "선택한 자료 저장", exact: true })
+  await newMediaManager
+    .getByRole("button", { name: "저장", exact: true })
     .click();
   await expect
     .poll(

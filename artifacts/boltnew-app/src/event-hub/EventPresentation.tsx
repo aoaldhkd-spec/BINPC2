@@ -16,12 +16,18 @@ import { EventMedia } from "./EventMedia";
 import { Preview } from "./MediaManager";
 import { useEventTheme } from "./HubUi";
 import { TOUR_WEEKS } from "../../../../lib/api-zod/src/event-policy-tour";
-import { VenueLogo, PromotionLogo } from "./VenueLogos";
+import "./event-media.css";
+import { VenueLogo, PromotionLogo, publicTourWeek } from "./VenueLogos";
 import { NoticePages } from "./NoticePages";
 
 /** Display-only: preserve stored event names, IDs and administrator test labels. */
 export function participantEventTitle(event: HubEvent) {
-  return event.bossTestOnly ? event.title.replace(/\s*·\s*보스 확인용\s*/g, '').trim() : event.title;
+  const title = event.bossTestOnly ? event.title.replace(/\s*·\s*보스 확인용\s*/g, '').trim() : event.title;
+  if (event.type !== "tour") return title;
+  const region = event.area || publicTourWeek(event)?.region;
+  const named = title.replace(/술번개(?:방| 신청)?/g, "전국투어");
+  const tourTitle = named.includes("전국투어") ? named : `${named} · 전국투어`;
+  return region && !tourTitle.includes(region) ? `${region} · ${tourTitle}` : tourTitle;
 }
 
 export function eventDateLabel(event: HubEvent) {
@@ -40,23 +46,21 @@ export function EventArtwork({
   const theme = useEventTheme(event);
   // Only explicitly public notices can become a list thumbnail. Never use a map,
   // protected poster, venue logo or a legacy media URL as a pre-approval cover.
-  const cover = event.promotionLogos === undefined && !event.promotionLogo && event.materials?.find(
+  const cover = event.materials?.find(
     (m) => m.purpose === "notice" && !m.hidden && event.media.includes(m.url),
   );
   return (
     <div className="hub-event-art" data-art-theme={theme ?? "normal"} data-art-compact={compact || undefined}>
       {cover ? (
-        <Preview
-          interactive={false}
-          url={cover.url}
-          alt={`${cover.alt || "행사 공지 이미지"} · 미리보기`}
-          secured={admin && cover.url.startsWith("/api/event-hub/media/")}
-        />
+        <div className="hub-public-cover">
+          <Preview interactive={false} url={cover.url} alt={`${cover.alt || "행사 공지 이미지"} · 미리보기`} secured={admin && cover.url.startsWith("/api/event-hub/media/")} />
+          <div className="hub-cover-logos"><PromotionLogo event={event} admin={admin}/></div>
+        </div>
       ) : event.promotionLogos !== undefined || event.promotionLogo ? (
         <div className="hub-tour-art hub-promotion-art"><div className="hub-tour-logos"><PromotionLogo event={event} admin={admin}/></div></div>
-      ) : event.type === "tour" && TOUR_WEEKS.some((w) => event.date >= w.start && event.date <= new Date(Date.parse(w.start + "T00:00:00Z") + 3 * 86400000).toISOString().slice(0, 10)) ? (
+      ) : !!publicTourWeek(event) ? (
         <div className="hub-tour-art">
-          {TOUR_WEEKS.filter((w) => event.date >= w.start && event.date <= new Date(Date.parse(w.start + "T00:00:00Z") + 3 * 86400000).toISOString().slice(0, 10)).map((w) => (
+          {TOUR_WEEKS.filter((w) => w === publicTourWeek(event)).map((w) => (
             <div key={w.region}>
               <strong>{w.region} · 전국투어</strong>
               <div className="hub-tour-logos">
@@ -65,7 +69,7 @@ export function EventArtwork({
             </div>
           ))}
         </div>
-      ) : theme === "halloween" ? (
+      ) : theme === "halloween" && event.type !== "tour" ? (
         <img
           src="/event-art/halloween-lounge.webp"
           alt="할로윈 행사 분위기 일러스트"
@@ -112,8 +116,7 @@ export function EventListCard({
   now: Date;
 }) {
   const status = app ? applicationListStatus(app) : eventListStatus(event, now);
-  const publicTourVenues = event.type === "tour" ? TOUR_WEEKS.find((w) =>
-    event.date >= w.start && event.date <= new Date(Date.parse(w.start + "T00:00:00Z") + 3 * 86400000).toISOString().slice(0, 10))?.venues : undefined;
+  const publicTourVenues = publicTourWeek(event)?.venues;
   return (
     <button type="button" className="hub-event-list-card" onClick={onOpen}>
       <EventArtwork event={event} compact />
@@ -160,9 +163,9 @@ export function EventDetailHeader({
   const theme = useEventTheme(event);
   const approved = !!app && paymentSatisfied(app);
   const notices =
-    event.materials?.filter((m) => m.purpose === "notice" && !m.hidden) ?? [];
+    event.materials?.filter((m) => m.purpose === "notice" && !m.hidden && event.media.includes(m.url)) ?? [];
   const maps = approved
-    ? (event.materials?.filter((m) => m.purpose === "map" && !m.hidden) ?? [])
+    ? (event.materials?.filter((m) => m.purpose === "map" && !m.hidden && event.media.includes(m.url)) ?? [])
     : [];
   return (
     <section className="hub-detail-card" data-event-accent={theme ?? "normal"}>
@@ -206,7 +209,8 @@ export function EventDetailHeader({
       <div className="hub-detail-panel" role="tabpanel" aria-label={tab}>
         {tab === "공지사항" ? (
           <>
-            <NoticePages key={event.noticeVersion} notice={event.notice} halloween={theme==='halloween'} />
+            {event.notice.trim() && <NoticePages key={event.noticeVersion} notice={event.notice} halloween={theme==='halloween'} />}
+            {!event.notice.trim() && !notices.length && <p className="text-sm">공지 준비 중</p>}
             {notices.length > 0 && (
               <EventMedia
                 links={notices.map((m) => m.url)}

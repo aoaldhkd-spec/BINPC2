@@ -27,15 +27,19 @@ export function useHubDark() {
 }
 export function HubButton({
   children,
+  pending = false,
+  pendingLabel = "저장 중…",
   ...p
-}: ButtonHTMLAttributes<HTMLButtonElement>) {
+}: ButtonHTMLAttributes<HTMLButtonElement> & { pending?: boolean; pendingLabel?: string }) {
   return (
     <button
       type="button"
       {...p}
+      disabled={pending || p.disabled}
+      aria-busy={pending || undefined}
       className={`min-h-11 rounded-2xl px-4 py-3 font-bold text-sm bg-teal-600 text-white disabled:opacity-50 active:scale-[.98] ${p.className ?? ""}`}
     >
-      {children}
+      {pending ? <><span aria-hidden="true" className="inline-block animate-spin motion-reduce:animate-none mr-2">◌</span>{pendingLabel}</> : children}
     </button>
   );
 }
@@ -83,17 +87,25 @@ export function HubFeedback({
   status: string;
   error: string;
 }) {
+  const [slow, setSlow] = useState(false);
+  useEffect(() => {
+    setSlow(false);
+    if (status !== "saving") return;
+    const timer = setTimeout(() => setSlow(true), 1800);
+    return () => clearTimeout(timer);
+  }, [status]);
+  const pending = status === "saving" || status === "checking";
   return (
-    <div aria-live="polite">
+    <div aria-live="polite" aria-atomic="true" className={pending ? "sticky top-2 z-40 rounded-xl border border-amber-300 bg-slate-950 px-4 py-3 text-amber-100 shadow-lg" : undefined}>
       {status === "saving" && (
-        <p role="status" className="text-sm text-teal-700">
-          <span aria-hidden="true" className="inline-block animate-spin">
+        <p role="status" className="text-sm font-bold">
+          <span aria-hidden="true" className="inline-block animate-spin motion-reduce:animate-none">
             ◌
           </span>{" "}
-          저장 중…
+          {slow ? "저장 응답을 기다리는 중… 입력 내용은 유지됩니다." : "저장 중…"}
         </p>
       )}
-      {status === "checking" && <p role="status">저장 결과 확인 중…</p>}
+      {status === "checking" && <p role="status" className="text-sm font-bold">저장 결과 확인 중…</p>}
       {status === "saved" && (
         <p role="status" className="text-teal-700">
           저장되었습니다 ✓

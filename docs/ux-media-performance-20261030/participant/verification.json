@@ -1,0 +1,56 @@
+{
+  "scope": "실제 React·Express·격리 PostgreSQL / 운영 DB 요청 없음",
+  "unit": {
+    "files": 9,
+    "passed": 62,
+    "log": "/tmp/application-choice-tests3.log"
+  },
+  "typescript": "PASS /tmp/application-choice-typecheck-final.log",
+  "browser": {
+    "passed": 4,
+    "seconds": 21.1,
+    "log": "/tmp/application-choice-boss-final.log"
+  },
+  "widths": [
+    320,
+    390,
+    430,
+    768,
+    1024,
+    1280,
+    1440
+  ],
+  "home320": {
+    "beforeScrollHeight": 645,
+    "afterScrollHeight": 568,
+    "viewportHeight": 568,
+    "cause": "보스 인증 완료 뒤 공개 테스트 상태 조회를 기다리는 동안 불필요한 잠금 안내가 잠시 표시됨",
+    "fix": "인증된 보스 화면에서는 공개 잠금 안내와 중복 문의 링크를 표시하지 않음; 서버 접근 제한 유지"
+  },
+  "applicationSteps": "개인정보 → 닉네임 → 년생 선택 → 도시/부산 구 또는 동 선택 → 입금자명; 기존 전화번호 단계 4는 5로 이어짐",
+  "phone": "신규 신청 요청에 phone 미전송. 기존 값 삭제 요청 없음. 관리자 로그인·복구 미변경.",
+  "modal": "최초 선택만 표시, 선택 기억, 변경 버튼, Escape, Tab/초점 확인",
+  "preserved": "기존 신청·친구 작성·각자 순번과 회비·합산 신고·각자 승인·프로필/입장/복구",
+  "unknown": [
+    "실물 갤럭시",
+    "실물 아이폰",
+    "기기 백그라운드 푸시"
+  ],
+  "failureHistory": [
+    {
+      "reason": "비공개 참가자 응답의 rank를 읽은 테스트 기대 오류",
+      "fix": "관리자 상태에서 순번 비교; 참가자 데이터 공개 범위 유지",
+      "log": "/tmp/companion-boss-browser.log"
+    },
+    {
+      "reason": "보존한 시험 DB의 고정 친구 닉네임과 충돌",
+      "fix": "매번 서로 다른 합성 닉네임 사용; 중복 방지 유지",
+      "log": "/tmp/application-choice-boss-browser.log"
+    },
+    {
+      "reason": "직전 보안검사가 의도적으로 발동시킨 비밀번호 요청 제한",
+      "fix": "시험 서버만 재시작하여 검사 재실행; DB/키/기록 보존",
+      "log": "/tmp/application-choice-boss-browser2.log"
+    }
+  ]
+}

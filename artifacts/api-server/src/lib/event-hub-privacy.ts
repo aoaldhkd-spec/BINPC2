@@ -10,6 +10,72 @@ import {
 } from "@workspace/api-zod";
 import { HubStore, HubTx, fail, digest } from "./event-hub-store.js";
 import type { HubOwner, HubMember, HubThread } from "./event-hub-service.js";
+import type { CompanionDraft } from "./companion-records.js";
+import type { CompanionLinkRequest } from "./companion-submission.js";
+
+const submittedReferenceOnly = (draft: CompanionDraft) =>
+  !!draft.applicationId && !!draft.removedAt &&
+  Object.keys(draft.basic).length === 0 && !draft.inviteHash;
+
+function companionReference(draft: CompanionDraft, applicationId: string, at: string): CompanionDraft {
+  return {
+    id: draft.id, basic: {}, applicationId,
+    submittedAt: draft.submittedAt, providedAt: draft.providedAt,
+    permissionToProvideAt: draft.permissionToProvideAt,
+    changedAt: submittedReferenceOnly(draft) ? draft.changedAt : at,
+    removedAt: draft.removedAt ?? at,
+  };
+}
+
+/** Removing the representative's personal copy must not cascade into a friend's ledger. */
+async function scrubCompanionDrafts(tx: HubTx, own: HubOwner, eventId: string, at: string) {
+  const group = own.companionDrafts?.[eventId];
+  if (!group) return;
+  const retained: CompanionDraft[] = [];
+  for (const draft of group.items) {
+    const application = draft.applicationId
+      ? await tx.get<HubApplication>("application", draft.applicationId) : undefined;
+    if (!application || application.sponsorOwner !== own.id ||
+      application.companionDraftId !== draft.id || application.eventId !== eventId)
+      continue;
+    retained.push(companionReference(draft, application.id, at));
+  }
+  if (!retained.length) delete own.companionDrafts![eventId];
+  else if (JSON.stringify(group.items) !== JSON.stringify(retained))
+    own.companionDrafts![eventId] = { revision: group.revision + 1, items: retained };
+}
+
+/** The person's erasure also covers their exact submitted copy, never the sponsor's other friends. */
+async function scrubSponsorCopy(tx: HubTx, application: HubApplication, at: string, retainReference: boolean) {
+  if (!application.sponsorOwner || !application.companionDraftId) return;
+  const sponsor = await tx.get<HubOwner>("owner", application.sponsorOwner);
+  const group = sponsor?.companionDrafts?.[application.eventId];
+  if (!sponsor || !group) return;
+  const matches = (draft: CompanionDraft) =>
+    draft.id === application.companionDraftId && draft.applicationId === application.id;
+  if (!group.items.some(matches)) return;
+  const items = group.items.flatMap(draft => !matches(draft) ? [draft] :
+    retainReference ? [companionReference(draft, application.id, at)] : []);
+  if (JSON.stringify(group.items) === JSON.stringify(items)) return;
+  sponsor.companionDrafts![application.eventId] = { revision: group.revision + 1, items };
+  await tx.put("owner", sponsor.id, sponsor);
+}
+
+/** Only the erased owner's pending requests; another person's request is never a deletion target. */
+async function clearPendingCompanionLinks(tx: HubTx, own: HubOwner, eventId?: string) {
+  const rows = await tx.db.query("SELECT id FROM event_hub_records WHERE kind='settings' AND id LIKE 'companion-link:%'");
+  for (const row of rows.rows) {
+    const request = await tx.get<CompanionLinkRequest>("settings", row.id);
+    if (request?.owner === own.id && request.status === "pending" &&
+      (!eventId || request.eventId === eventId))
+      await tx.db.query("DELETE FROM event_hub_records WHERE kind='settings' AND id=$1", [row.id]);
+  }
+  for (const [event, request] of Object.entries(own.companionLinkRequests ?? {})) {
+    if (request.status === "pending" && (!eventId || event === eventId))
+      delete own.companionLinkRequests![event];
+  }
+}
+
 export async function privacySnapshot(
   tx: HubTx,
   owner: string,
@@ -47,7 +113,12 @@ export async function privacySnapshot(
     owner,
     basicDrafts: [
       ...Object.entries(own.basicDrafts ?? {}).map(([id, d]) => ({ id, revision: d.revision, updatedAt: d.updatedAt })),
-      ...Object.entries(own.companionDrafts ?? {}).map(([id,g])=>({id:`companion:${id}`,revision:g.revision,updatedAt:g.items.map(d=>d.changedAt).sort().at(-1)??own.createdAt})),
+      ...Object.entries(own.companionDrafts ?? {})
+        .filter(([, group]) => group.items.some(draft => !submittedReferenceOnly(draft)))
+        .map(([id,g])=>({id:`companion:${id}`,revision:g.revision,updatedAt:g.items.map(d=>d.changedAt).sort().at(-1)??own.createdAt})),
+      ...Object.values(own.companionLinkRequests ?? {})
+        .filter(request => request.status === "pending")
+        .map(request => ({ id: `companion-link:${request.eventId}`, revision: request.revision, updatedAt: request.at })),
     ],
     caseRevision: own.privacyCase?.revision ?? 0,
     hold: own.privacyHold,
@@ -181,15 +252,18 @@ export async function executePrivacyPlanForIsolatedTest(
         if (draftOwner && item.action === "erase") {
           if(item.id.startsWith('companion:')){
             const eventId=item.id.slice('companion:'.length);
-            if(draftOwner.companionDrafts)delete draftOwner.companionDrafts[eventId];
+            await scrubCompanionDrafts(tx, draftOwner, eventId, now.toISOString());
             const invitations=await tx.db.query("SELECT id FROM event_hub_records WHERE kind='settings' AND id LIKE 'companion-invite:%'");
             for(const row of invitations.rows){const invitation=await tx.get<{sponsorOwner:string;eventId:string}>('settings',row.id);if(invitation?.sponsorOwner===owner&&invitation.eventId===eventId)await tx.db.query("DELETE FROM event_hub_records WHERE kind='settings' AND id=$1",[row.id]);}
+          }else if(item.id.startsWith('companion-link:')){
+            await clearPendingCompanionLinks(tx, draftOwner, item.id.slice('companion-link:'.length));
           }else if(draftOwner.basicDrafts)delete draftOwner.basicDrafts[item.id];
           await tx.put("owner", owner, draftOwner);
         }
       } else if (item.kind === "application") {
         const a = await tx.get<HubApplication>("application", item.id);
         if (!a) continue;
+        await scrubSponsorCopy(tx, a, now.toISOString(), item.action !== "erase");
         if (a.screeningPhoto) {
           await tx.db.query(
             "DELETE FROM event_hub_records WHERE kind='settings' AND id=$1",
@@ -198,6 +272,7 @@ export async function executePrivacyPlanForIsolatedTest(
           a.screeningPhoto = undefined;
         }
         a.rewardPhone = undefined;
+        a.rewardPhoneRequest = undefined;
         if (a.lateArrival) a.lateArrival={...a.lateArrival,reason:"",reviewReason:undefined};
         if (a.manualResults) a.manualResults=a.manualResults.map(r=>({...r,reason:"",label:"수동 지급 기록"}));
         a.eligibility = undefined;
@@ -213,6 +288,7 @@ export async function executePrivacyPlanForIsolatedTest(
             nickname: "삭제된 신청자",
             birthYear: 1900,
             location: "",
+            residence: undefined,
             phone: "",
             depositor: "",
           };
@@ -245,7 +321,10 @@ export async function executePrivacyPlanForIsolatedTest(
       );
       if (!retained) {
         own.basicDrafts = undefined;
-        own.companionDrafts = undefined;
+        for (const eventId of Object.keys(own.companionDrafts ?? {}))
+          await scrubCompanionDrafts(tx, own, eventId, now.toISOString());
+        if (!Object.keys(own.companionDrafts ?? {}).length) own.companionDrafts = undefined;
+        await clearPendingCompanionLinks(tx, own);
         own.companionOrigins = undefined;
         own.erasedAt = now.toISOString();
         // A unique, unissued tombstone cannot collide with another erased owner.

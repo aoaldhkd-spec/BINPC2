@@ -21,3 +21,20 @@
 .hub-help-controls > details[open] { flex-basis: 100%; }
 .hub-help-controls summary, .hub-optional-settings > summary { min-height: 44px; padding: 11px 4px; font-size: .875rem; cursor: pointer; }
 .hub-optional-settings > summary { padding-block: 8px; }
+.hub-application-choice {
+  position:fixed;inset:0;margin:auto;
+  width: min(420px, calc(100vw - 32px)); max-height: calc(100dvh - 32px);
+  overflow-y: auto; border: 1px solid #b07a5499; border-radius: 20px;
+  padding: 20px; background: var(--hub-surface, #fff); color: var(--hub-ink, #0f172a);
+  box-shadow: 0 16px 60px #0009;
+}
+.hub-application-choice::backdrop { background: #080410bb; }
+.hub-application-choice .hub-compact-actions { display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;margin-top:12px; }
+.hub-application-choice button { min-width:0; }
+.hub-application-nav { display:flex;gap:8px;flex-wrap:wrap; }
+.hub-application-nav > button { flex:1 1 88px;min-width:0;padding:10px 8px; }
+.event-hub-theme.hub-participant .hub-application-nav > button,
+.event-hub-theme.hub-participant button.hub-application-back { background:transparent !important;color:var(--hub-ink,#0f172a) !important;border:1px solid var(--hub-line,#94a3b8);box-shadow:none !important; }
+.hub-participant[data-hub-writing] main { padding-bottom:76px; }
+.hub-participant .hub-choice-button[aria-pressed="false"] { background:transparent !important;color:var(--hub-ink,#0f172a) !important;border:1px solid var(--hub-line,#94a3b8);box-shadow:none !important; }
+.hub-participant .hub-choice-button[aria-pressed="true"] { background:var(--boo-lilac,#bce7e1) !important;color:#251932 !important;border:1px solid transparent; }

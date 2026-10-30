@@ -7,7 +7,7 @@ if (!baseURL || !/^http:\/\/127\.0\.0\.1:300[12356]$/.test(baseURL))
   );
 export default defineConfig({
   testDir: "./tests",
-  testMatch: ["event-hub-v6.spec.ts", "event-hub-v4-ui.spec.ts", "event-hub-v12.spec.ts"],
+  testMatch: ["event-hub-v6.spec.ts", "event-hub-v4-ui.spec.ts", "event-hub-v12.spec.ts", "companion-group.spec.ts", "event-media-authoring.spec.ts"],
   workers: 1,
   timeout: 60000,
   reporter: "line",

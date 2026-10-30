@@ -1,0 +1,45 @@
+{
+  "environment": "loopback actual React/Express/PostgreSQL; synthetic fixtures; no operating writes",
+  "unit": {
+    "frontend": 963,
+    "api": 613,
+    "apiDbSkipped": 138
+  },
+  "actualPostgreSql": {
+    "passed": 138,
+    "files": 5
+  },
+  "browser": {
+    "ordinarySuite": 25,
+    "seconds": 288,
+    "bossSuite": 4,
+    "bossSeconds": 28.3,
+    "ordinaryFirstAttempt": {
+      "passed": 19,
+      "failed": 6,
+      "reasons": [
+        "old media selectors (2)",
+        "renamed application-help buttons (3)",
+        "retained future-time inquiry fixture (1)"
+      ]
+    },
+    "final": "PASS"
+  },
+  "guards": 598,
+  "typecheck": "PASS",
+  "inquiryUiTimingMs": {
+    "participantToAdmin": 1152,
+    "adminToParticipant": 468
+  },
+  "realPhones": "UNKNOWN",
+  "backgroundPush": "UNKNOWN",
+  "loadRuns": [
+    "mixed-1793330525341",
+    "mixed-1793331275744"
+  ],
+  "runtimeBuild": {
+    "sourceVersion": "b2bd9bee224ca6e5688df2e4dc60025719e59a06-dirty-459dda3a07d4",
+    "codeFingerprint": "c96c73bb8af324dd4c8a8775435032ef3a7d410889d5cc8f80f21ba0f46add07",
+    "builtAt": "2026-10-30T03:20:24.522Z"
+  }
+}

@@ -1,0 +1,377 @@
+{
+  "baseline": {
+    "runId": "mixed-1793329125191",
+    "builtIdentity": {
+      "sourceVersion": "b2bd9bee224ca6e5688df2e4dc60025719e59a06-dirty-a336eeff3be8",
+      "codeFingerprint": "b70134ad599c0fa481a7529d398bfad762e0c34d17f761353afc6eeff956951f",
+      "builtAt": "2026-10-30T02:52:50.723Z"
+    },
+    "environment": "real HTTP -> compiled Express -> actual PostgreSQL16; loopback only; development mode with normal rate limits and PG-backed sessions; business clock offset fixture only",
+    "durationSeconds": 98,
+    "requestCount": 4115,
+    "statusCounts": {
+      "200": 4110,
+      "409": 5
+    },
+    "requestLatencyByStage": {
+      "fixture-activation": {
+        "requests": 6,
+        "p50Ms": 9.3,
+        "p95Ms": 17.9,
+        "p99Ms": 17.9,
+        "maxMs": 17.9
+      },
+      "150-real-sessions": {
+        "requests": 150,
+        "p50Ms": 395.4,
+        "p95Ms": 630.9,
+        "p99Ms": 650,
+        "maxMs": 653.2
+      },
+      "100-concurrent-applications": {
+        "requests": 100,
+        "p50Ms": 1871.3,
+        "p95Ms": 3451.6,
+        "p99Ms": 3589.8,
+        "maxMs": 3589.8
+      },
+      "150-mixed-applications-and-consent": {
+        "requests": 510,
+        "p50Ms": 1102.3,
+        "p95Ms": 2605.1,
+        "p99Ms": 2616.6,
+        "maxMs": 2661
+      },
+      "150-profile-payment-inquiry": {
+        "requests": 760,
+        "p50Ms": 831.7,
+        "p95Ms": 911.2,
+        "p99Ms": 945.5,
+        "maxMs": 986.1
+      },
+      "150-enter-and-three-cards": {
+        "requests": 910,
+        "p50Ms": 2244.4,
+        "p95Ms": 3963.7,
+        "p99Ms": 4186.2,
+        "maxMs": 4323.2
+      },
+      "150-social-hearts-chat": {
+        "requests": 460,
+        "p50Ms": 1057.1,
+        "p95Ms": 2736.6,
+        "p99Ms": 2803.5,
+        "maxMs": 2819.1
+      },
+      "duplicate-prize-rejection": {
+        "requests": 15,
+        "p50Ms": 6.7,
+        "p95Ms": 11.6,
+        "p99Ms": 11.6,
+        "maxMs": 11.6
+      },
+      "stored-response-lost-replay": {
+        "requests": 3,
+        "p50Ms": 4.8,
+        "p95Ms": 10.2,
+        "p99Ms": 10.2,
+        "maxMs": 10.2
+      },
+      "restart": {
+        "requests": 600,
+        "p50Ms": 544.8,
+        "p95Ms": 1509,
+        "p99Ms": 1633.8,
+        "maxMs": 1669.8
+      },
+      "sustained-150-mixed": {
+        "requests": 601,
+        "p50Ms": 596.9,
+        "p95Ms": 982.4,
+        "p99Ms": 1075.6,
+        "maxMs": 1092.6
+      }
+    },
+    "preexistingOwnerRows": 9294,
+    "recordsBefore": 76826,
+    "recordsAfter": 79508,
+    "businessClockStart": "2026-10-31T14:00:00.277Z",
+    "lostResponseReplay": true,
+    "restartVerified": true,
+    "profilePinAndNicknameRecovered": true,
+    "socialRecordsSurviveRestart": true,
+    "actualSocialParticipants": 150,
+    "sustainedMinutes": 1,
+    "soakCycles": 4,
+    "unexpectedFailureCount": 0,
+    "allReportedStagesP95Under2000": false,
+    "resources": {
+      "maxRssMiB": 295.8,
+      "maxSampledCpuPercent": 73.6,
+      "maxConnections": 12,
+      "maxObservedLockWaiters": 0
+    }
+  },
+  "after": {
+    "runId": "mixed-1793330525341",
+    "builtIdentity": {
+      "sourceVersion": "b2bd9bee224ca6e5688df2e4dc60025719e59a06-dirty-459dda3a07d4",
+      "codeFingerprint": "c96c73bb8af324dd4c8a8775435032ef3a7d410889d5cc8f80f21ba0f46add07",
+      "builtAt": "2026-10-30T03:20:24.522Z"
+    },
+    "environment": "real HTTP -> compiled Express -> actual PostgreSQL16; loopback only; development mode with normal rate limits and PG-backed sessions; business clock offset fixture only",
+    "durationSeconds": 87,
+    "requestCount": 4271,
+    "statusCounts": {
+      "200": 4264,
+      "409": 7
+    },
+    "requestLatencyByStage": {
+      "fixture-activation": {
+        "requests": 6,
+        "p50Ms": 10.2,
+        "p95Ms": 15.1,
+        "p99Ms": 15.1,
+        "maxMs": 15.1
+      },
+      "150-real-sessions": {
+        "requests": 150,
+        "p50Ms": 392.4,
+        "p95Ms": 597,
+        "p99Ms": 613.3,
+        "maxMs": 615.8
+      },
+      "100-concurrent-applications": {
+        "requests": 100,
+        "p50Ms": 504,
+        "p95Ms": 866.2,
+        "p99Ms": 893.4,
+        "maxMs": 893.4
+      },
+      "150-mixed-applications-and-consent": {
+        "requests": 510,
+        "p50Ms": 983.2,
+        "p95Ms": 1114,
+        "p99Ms": 1146.7,
+        "maxMs": 1189.6
+      },
+      "150-profile-payment-inquiry": {
+        "requests": 760,
+        "p50Ms": 769.2,
+        "p95Ms": 887.3,
+        "p99Ms": 932.6,
+        "maxMs": 970.3
+      },
+      "150-enter-and-three-cards": {
+        "requests": 910,
+        "p50Ms": 1562,
+        "p95Ms": 1683.6,
+        "p99Ms": 1714.6,
+        "maxMs": 1721.9
+      },
+      "150-social-hearts-chat": {
+        "requests": 460,
+        "p50Ms": 1072.1,
+        "p95Ms": 1177.8,
+        "p99Ms": 1207.5,
+        "maxMs": 1212.4
+      },
+      "duplicate-prize-rejection": {
+        "requests": 21,
+        "p50Ms": 8.2,
+        "p95Ms": 12.1,
+        "p99Ms": 12.1,
+        "maxMs": 12.1
+      },
+      "stored-response-lost-replay": {
+        "requests": 3,
+        "p50Ms": 6.1,
+        "p95Ms": 10,
+        "p99Ms": 10,
+        "maxMs": 10
+      },
+      "restart": {
+        "requests": 600,
+        "p50Ms": 580.7,
+        "p95Ms": 1352.9,
+        "p99Ms": 1431.7,
+        "maxMs": 1450.9
+      },
+      "sustained-150-mixed": {
+        "requests": 751,
+        "p50Ms": 603.7,
+        "p95Ms": 1000.9,
+        "p99Ms": 1177.9,
+        "maxMs": 1202.9
+      }
+    },
+    "preexistingOwnerRows": 9594,
+    "recordsBefore": 81568,
+    "recordsAfter": 84282,
+    "businessClockStart": "2026-10-31T14:00:00.362Z",
+    "lostResponseReplay": true,
+    "restartVerified": true,
+    "profilePinAndNicknameRecovered": true,
+    "socialRecordsSurviveRestart": true,
+    "actualSocialParticipants": 150,
+    "sustainedMinutes": 1,
+    "soakCycles": 5,
+    "unexpectedFailureCount": 0,
+    "allReportedStagesP95Under2000": true,
+    "resources": {
+      "maxRssMiB": 284.6,
+      "maxSampledCpuPercent": 64.3,
+      "maxConnections": 13,
+      "maxObservedLockWaiters": 0
+    }
+  },
+  "afterRepeat": {
+    "runId": "mixed-1793331275744",
+    "builtIdentity": {
+      "sourceVersion": "b2bd9bee224ca6e5688df2e4dc60025719e59a06-dirty-459dda3a07d4",
+      "codeFingerprint": "c96c73bb8af324dd4c8a8775435032ef3a7d410889d5cc8f80f21ba0f46add07",
+      "builtAt": "2026-10-30T03:20:24.522Z"
+    },
+    "environment": "real HTTP -> compiled Express -> actual PostgreSQL16; loopback only; development mode with normal rate limits and PG-backed sessions; business clock offset fixture only",
+    "durationSeconds": 85,
+    "requestCount": 4115,
+    "statusCounts": {
+      "200": 4110,
+      "409": 5
+    },
+    "requestLatencyByStage": {
+      "fixture-activation": {
+        "requests": 6,
+        "p50Ms": 10.9,
+        "p95Ms": 13.9,
+        "p99Ms": 13.9,
+        "maxMs": 13.9
+      },
+      "150-real-sessions": {
+        "requests": 150,
+        "p50Ms": 353.9,
+        "p95Ms": 560,
+        "p99Ms": 576.9,
+        "maxMs": 578.8
+      },
+      "100-concurrent-applications": {
+        "requests": 100,
+        "p50Ms": 566.4,
+        "p95Ms": 982.9,
+        "p99Ms": 1016.7,
+        "maxMs": 1016.7
+      },
+      "150-mixed-applications-and-consent": {
+        "requests": 510,
+        "p50Ms": 970,
+        "p95Ms": 1261.9,
+        "p99Ms": 1297.6,
+        "maxMs": 1343.3
+      },
+      "150-profile-payment-inquiry": {
+        "requests": 760,
+        "p50Ms": 736.3,
+        "p95Ms": 847.5,
+        "p99Ms": 911.8,
+        "maxMs": 949.7
+      },
+      "150-enter-and-three-cards": {
+        "requests": 910,
+        "p50Ms": 1550.4,
+        "p95Ms": 1727.2,
+        "p99Ms": 1746.8,
+        "maxMs": 1753.3
+      },
+      "150-social-hearts-chat": {
+        "requests": 460,
+        "p50Ms": 848,
+        "p95Ms": 928.4,
+        "p99Ms": 985.1,
+        "maxMs": 1003.4
+      },
+      "duplicate-prize-rejection": {
+        "requests": 15,
+        "p50Ms": 5.9,
+        "p95Ms": 6.8,
+        "p99Ms": 6.8,
+        "maxMs": 6.8
+      },
+      "stored-response-lost-replay": {
+        "requests": 3,
+        "p50Ms": 3.7,
+        "p95Ms": 9.4,
+        "p99Ms": 9.4,
+        "maxMs": 9.4
+      },
+      "restart": {
+        "requests": 600,
+        "p50Ms": 509.3,
+        "p95Ms": 1281.3,
+        "p99Ms": 1315.4,
+        "maxMs": 1331.3
+      },
+      "sustained-150-mixed": {
+        "requests": 601,
+        "p50Ms": 572,
+        "p95Ms": 912.9,
+        "p99Ms": 960.6,
+        "maxMs": 982.8
+      }
+    },
+    "preexistingOwnerRows": 9744,
+    "recordsBefore": 84282,
+    "recordsAfter": 86964,
+    "businessClockStart": "2026-10-31T14:00:00.512Z",
+    "lostResponseReplay": true,
+    "restartVerified": true,
+    "profilePinAndNicknameRecovered": true,
+    "socialRecordsSurviveRestart": true,
+    "actualSocialParticipants": 150,
+    "sustainedMinutes": 1,
+    "soakCycles": 4,
+    "unexpectedFailureCount": 0,
+    "allReportedStagesP95Under2000": true,
+    "resources": {
+      "maxRssMiB": 250.3,
+      "maxSampledCpuPercent": 64.7,
+      "maxConnections": 13,
+      "maxObservedLockWaiters": 0
+    }
+  },
+  "qualification": "Same loopback PostgreSQL16 database and scenarios, normal rate limits and all authorization, expiry, lock and stock guards. Intervening clock-contaminated profiler triggered a normal onsite-cycle reset before after1, changing live-profile population from baseline. Do not attribute full latency difference to source code. After2 preserved both 150-profile cohorts in the same active cycle. Results cover one minute sustained per run, not hours or production internet. A separate browser fixture on another database briefly started during after2 startup; CPU isolation was not absolute.",
+  "afterAllReportedStagesP95Under2000": true,
+  "afterRepeatAllReportedStagesP95Under2000": true,
+  "attributionLimitedByFixtureCycleReset": true,
+  "hoursLongStability": "UNKNOWN",
+  "phoneInternetLatency": "UNKNOWN",
+  "contaminatedRun": "mixed-1793329694151",
+  "preservation": {
+    "checkedAt": "2026-10-30T03:39:18.960Z",
+    "database": "isolated loopback binpc2_hub_load_v6",
+    "sessionActive": true,
+    "resetComplete": false,
+    "cycleStartedAt": "2026-10-31T14:00:01.506Z",
+    "totalLiveProfiles": 301,
+    "cohorts": [
+      {
+        "runId": "mixed-1793330525341",
+        "applicationCount": 150,
+        "liveProfiles": 150,
+        "approved": 150,
+        "threeCards": 150,
+        "sameActiveCycle": 150
+      },
+      {
+        "runId": "mixed-1793331275744",
+        "applicationCount": 150,
+        "liveProfiles": 150,
+        "approved": 150,
+        "threeCards": 150,
+        "sameActiveCycle": 150
+      }
+    ],
+    "cycleId": "binpc2:event-anon:v1:2026-10-31:f40bc8d7-b577-49a7-9afc-9ec696e1c654",
+    "beforeSnapshotRecorded": false,
+    "retentionEvidence": "After second run, both independently identified synthetic cohorts retain all 150 live profiles, approved applications and 3 cards in the same active cycle. No separate pre-run snapshot was captured."
+  }
+}

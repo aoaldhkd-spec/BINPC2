@@ -12,7 +12,8 @@ export const HubBasic = z.object({
   birthYear: z.number().int().min(1900).max(2100),
   location: z.string().trim().min(1).max(40),
   residence: z.object({city:z.string().trim().min(1).max(20),kind:z.enum(["city","district","neighborhood"]),value:z.string().trim().min(1).max(30)}).optional(),
-  phone: z.string().regex(/^0[0-9 -]{8,14}$/),
+  // Kept optional for existing records/clients; ordinary applications never require it.
+  phone: z.string().regex(/^0[0-9 -]{8,14}$/).optional(),
   depositor: z.string().trim().min(1).max(40),
   collection: z.literal(true),
   version: z.literal(HUB_CONSENT_VERSION),
@@ -103,7 +104,8 @@ export const HubEventInput = z.object({
   venueAddressId: z.string().uuid().nullable().optional(),
   deadline: z.string().max(100),
   included: z.string().max(1000).default(""),
-  notice: z.string().min(1).max(10000),
+  // A draft may be empty; publication/consent require text or approved public notice images.
+  notice: z.string().max(10000).default(""),
   noticeVersion: z.number().int().positive().default(1),
   benefitsEnabled: z.boolean().default(false),
   benefits: z.array(Benefit).max(30).default([]),
@@ -149,6 +151,8 @@ export type HubEvent = z.infer<typeof HubEventInput> & {
     address: string;
     fee: number;
     account: string;
+    noticeVersion?: number;
+    noticeMedia?: {id:string;url:string;alt:string}[];
   }[];
 };
 export type HubAudit = {
@@ -161,6 +165,9 @@ export type HubApplication = {
   bossTestOnly?: boolean;
   sponsorOwner?: string;
   companionDraftId?: string;
+  /** Representative-provided event registration; never substitutes for personal consent. */
+  companionSubmission?: { submittedAt: string; permissionToProvideAt: string; personalConsentPending: boolean; linkedAt?: string };
+  combinedPaymentReport?: { sponsorOwner: string; batchId: string; at: string };
   privacyPolicyConsent?:{version:string;fingerprint:string;at:string};
   erasedAt?: string;
   id: string;
@@ -169,7 +176,8 @@ export type HubApplication = {
   revision: number;
   stage: 1 | 2 | 3 | 4;
   rank: number;
-  basic: z.infer<typeof HubBasic>;
+  basic: Omit<z.infer<typeof HubBasic>, "phone" | "depositor" | "collection" | "version"> &
+    Partial<Pick<z.infer<typeof HubBasic>, "phone" | "depositor" | "collection" | "version">>;
   consent?: z.infer<typeof HubConsent> & {
     acceptedAt: string;
     noticeVersion: number;
@@ -190,8 +198,9 @@ export type HubApplication = {
   approvalRevokedAt?: string;
   enteredAt?: string;
   rewardPhone?: string;
+  rewardPhoneRequest?: {source:"card"|"result";resultId:string;purpose:string;requestedAt:string;fulfilledAt?:string};
   lateArrival?: { at: string; reason: string; status: "noted"|"review"|"approved"|"declined"; reviewReason?: string };
-  manualResults?: {id:string;label:string;amount:number;at:string;reason?:string;receivedAt?:string;paidAt?:string}[];
+  manualResults?: {id:string;label:string;amount:number;kind?:"item"|"cash"|"discount";at:string;reason?:string;receivedAt?:string;paidAt?:string}[];
   benefitRank?: number;
   benefitExcluded?: boolean;
   benefitContact?: string;

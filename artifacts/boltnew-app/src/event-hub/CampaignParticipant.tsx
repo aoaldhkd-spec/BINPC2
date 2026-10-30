@@ -51,7 +51,7 @@ export function ApplicationGuide({
     <section className="hub-participant-help" aria-label="신청 도움말">
       {!webOpen && <p className="font-bold" role="status">웹·오픈채팅 모두 접수 전 · 송금하지 마세요</p>}
       <div className="hub-help-controls">
-      <HubButton onClick={() => setOpen(true)}>ⓘ 신청 안내</HubButton>
+      <HubButton onClick={() => setOpen(true)}>신청 안내</HubButton>
       <details>
         <summary className="cursor-pointer font-bold">오픈채팅 신청 방법</summary>
         <div className="mt-3 space-y-3 text-sm">

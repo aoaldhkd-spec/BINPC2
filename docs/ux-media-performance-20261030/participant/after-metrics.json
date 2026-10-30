@@ -1,0 +1,247 @@
+{
+  "metrics": [
+    {
+      "width": 320,
+      "height": 568,
+      "scrollWidth": 320,
+      "scrollHeight": 568
+    },
+    {
+      "width": 390,
+      "height": 844,
+      "scrollWidth": 390,
+      "scrollHeight": 844
+    },
+    {
+      "width": 430,
+      "height": 844,
+      "scrollWidth": 430,
+      "scrollHeight": 844
+    },
+    {
+      "width": 768,
+      "height": 1024,
+      "scrollWidth": 768,
+      "scrollHeight": 1024
+    },
+    {
+      "width": 1024,
+      "height": 1024,
+      "scrollWidth": 1024,
+      "scrollHeight": 1024
+    },
+    {
+      "width": 1280,
+      "height": 1024,
+      "scrollWidth": 1280,
+      "scrollHeight": 1024
+    },
+    {
+      "width": 1440,
+      "height": 1024,
+      "scrollWidth": 1440,
+      "scrollHeight": 1024
+    },
+    {
+      "screen": "choice",
+      "width": 320,
+      "height": 568,
+      "scrollWidth": 320,
+      "scrollHeight": 2002
+    },
+    {
+      "screen": "choice",
+      "width": 390,
+      "height": 844,
+      "scrollWidth": 390,
+      "scrollHeight": 1958
+    },
+    {
+      "screen": "choice",
+      "width": 430,
+      "height": 844,
+      "scrollWidth": 430,
+      "scrollHeight": 1843
+    },
+    {
+      "screen": "choice",
+      "width": 768,
+      "height": 1024,
+      "scrollWidth": 768,
+      "scrollHeight": 1819
+    },
+    {
+      "screen": "choice",
+      "width": 1024,
+      "height": 1024,
+      "scrollWidth": 1024,
+      "scrollHeight": 1841
+    },
+    {
+      "screen": "choice",
+      "width": 1280,
+      "height": 1024,
+      "scrollWidth": 1280,
+      "scrollHeight": 1841
+    },
+    {
+      "screen": "choice",
+      "width": 1440,
+      "height": 1024,
+      "scrollWidth": 1440,
+      "scrollHeight": 1841
+    },
+    {
+      "screen": "태어난 년도",
+      "width": 320,
+      "height": 568,
+      "scrollWidth": 320,
+      "scrollHeight": 568
+    },
+    {
+      "screen": "태어난 년도",
+      "width": 390,
+      "height": 844,
+      "scrollWidth": 390,
+      "scrollHeight": 844
+    },
+    {
+      "screen": "태어난 년도",
+      "width": 430,
+      "height": 844,
+      "scrollWidth": 430,
+      "scrollHeight": 844
+    },
+    {
+      "screen": "태어난 년도",
+      "width": 768,
+      "height": 1024,
+      "scrollWidth": 768,
+      "scrollHeight": 1024
+    },
+    {
+      "screen": "태어난 년도",
+      "width": 1024,
+      "height": 1024,
+      "scrollWidth": 1024,
+      "scrollHeight": 1024
+    },
+    {
+      "screen": "태어난 년도",
+      "width": 1280,
+      "height": 1024,
+      "scrollWidth": 1280,
+      "scrollHeight": 1024
+    },
+    {
+      "screen": "태어난 년도",
+      "width": 1440,
+      "height": 1024,
+      "scrollWidth": 1440,
+      "scrollHeight": 1024
+    },
+    {
+      "screen": "사는 지역",
+      "width": 320,
+      "height": 568,
+      "scrollWidth": 320,
+      "scrollHeight": 628
+    },
+    {
+      "screen": "사는 지역",
+      "width": 390,
+      "height": 844,
+      "scrollWidth": 390,
+      "scrollHeight": 844
+    },
+    {
+      "screen": "사는 지역",
+      "width": 430,
+      "height": 844,
+      "scrollWidth": 430,
+      "scrollHeight": 844
+    },
+    {
+      "screen": "사는 지역",
+      "width": 768,
+      "height": 1024,
+      "scrollWidth": 768,
+      "scrollHeight": 1024
+    },
+    {
+      "screen": "사는 지역",
+      "width": 1024,
+      "height": 1024,
+      "scrollWidth": 1024,
+      "scrollHeight": 1024
+    },
+    {
+      "screen": "사는 지역",
+      "width": 1280,
+      "height": 1024,
+      "scrollWidth": 1280,
+      "scrollHeight": 1024
+    },
+    {
+      "screen": "사는 지역",
+      "width": 1440,
+      "height": 1024,
+      "scrollWidth": 1440,
+      "scrollHeight": 1024
+    },
+    {
+      "screen": "실제 은행 입금 시 보내는 분 이름",
+      "width": 320,
+      "height": 568,
+      "scrollWidth": 320,
+      "scrollHeight": 568
+    },
+    {
+      "screen": "실제 은행 입금 시 보내는 분 이름",
+      "width": 390,
+      "height": 844,
+      "scrollWidth": 390,
+      "scrollHeight": 844
+    },
+    {
+      "screen": "실제 은행 입금 시 보내는 분 이름",
+      "width": 430,
+      "height": 844,
+      "scrollWidth": 430,
+      "scrollHeight": 844
+    },
+    {
+      "screen": "실제 은행 입금 시 보내는 분 이름",
+      "width": 768,
+      "height": 1024,
+      "scrollWidth": 768,
+      "scrollHeight": 1024
+    },
+    {
+      "screen": "실제 은행 입금 시 보내는 분 이름",
+      "width": 1024,
+      "height": 1024,
+      "scrollWidth": 1024,
+      "scrollHeight": 1024
+    },
+    {
+      "screen": "실제 은행 입금 시 보내는 분 이름",
+      "width": 1280,
+      "height": 1024,
+      "scrollWidth": 1280,
+      "scrollHeight": 1024
+    },
+    {
+      "screen": "실제 은행 입금 시 보내는 분 이름",
+      "width": 1440,
+      "height": 1024,
+      "scrollWidth": 1440,
+      "scrollHeight": 1024
+    }
+  ],
+  "overflow": {
+    "height": 568,
+    "doc": 568,
+    "nodes": []
+  }
+}

@@ -1,4 +1,5 @@
 import "./admin-compact.css";
+import { CompanionAdminGroups, CompanionLinkRequests } from "./CompanionAdmin";
 import { halloweenPrizeLabel } from "../../../../lib/api-zod/src/event-policy-halloween";
 import { VenueDirectoryEditor } from "./VenueDirectoryEditor";
 import { paymentSatisfied } from "../../../../lib/api-zod/src/event-campaign";
@@ -6,6 +7,7 @@ import {
   EventArtwork,
   eventDateLabel,
   applicationListStatus,
+  participantEventTitle,
 } from "./EventPresentation";
 import { recruitmentIsOpen } from "../../../../lib/api-zod/src/event-hub";
 import { eventEndAt } from "../../../../lib/api-zod/src/event-hub-modules";
@@ -70,8 +72,7 @@ const initialEvent = {
   account: "",
   deadline: "",
   included: "",
-  notice:
-    "성인·신분증 확인이 필요합니다. 지각·불참·중도퇴장 규정과 포함 내역을 작성해 주세요.\n관리자 업무·취침 중 입금 확인이 늦어질 수 있습니다. 상세 주소는 입금 승인 후 공개합니다.",
+  notice: "",
   noticeVersion: 1,
   benefitsEnabled: false,
   benefits: [] as HubEvent["benefits"],
@@ -79,6 +80,28 @@ const initialEvent = {
   notificationsEnabled: false,
   media: [] as string[],
 };
+export function EventDateTabs({ events, selected, onSelect }: {
+  events: HubEvent[]; selected: string; onSelect: (id: string) => void;
+}) {
+  const grouped = new Map<string, HubEvent[]>();
+  for (const event of events) {
+    if (!event.campaign?.kind.startsWith("halloween")) continue;
+    grouped.set(event.date, [...(grouped.get(event.date) ?? []), event]);
+  }
+  const dates = [...grouped.keys()].sort();
+  const showYear = new Set(dates.map(date => date.slice(0, 4))).size > 1;
+  return <div className="hub-admin-date-tabs flex flex-wrap gap-2" aria-label="행사 날짜 선택">
+    <button aria-pressed={!selected} className={`rounded-xl px-4 py-3 font-bold ${!selected ? "bg-teal-700 text-white" : "border bg-white"}`} onClick={() => onSelect("")}>전체</button>
+    {dates.map(date => {
+      const sameDate = grouped.get(date)!;
+      const current = sameDate.find(event => event.id === selected);
+      const day = new Date(`${date}T12:00:00+09:00`).getUTCDay();
+      return <button key={date} aria-pressed={!!current} className={`rounded-xl px-4 py-3 font-bold ${current ? "bg-teal-700 text-white" : "border bg-white"}`} onClick={() => onSelect((current ?? sameDate[0]).id)}>
+        {(showYear ? date : date.slice(5)).replaceAll("-", "/")} {['일요일', '월요일', '화요일', '수요일', '목요일', '금요일', '토요일'][day]}
+      </button>;
+    })}
+  </div>;
+}
 export default function EventHubAdmin({ active = true }: { active?: boolean }) {
   const hub = useEventHub(true);
   const testMode = useTestMode();
@@ -192,43 +215,7 @@ export default function EventHubAdmin({ active = true }: { active?: boolean }) {
                 : "모든 행사"}
             </p>
           </div>
-          <div
-            className="hub-admin-date-tabs flex flex-wrap gap-2"
-            aria-label="행사 날짜 선택"
-          >
-            <button
-              className={`rounded-xl px-4 py-3 font-bold ${!selected ? "bg-teal-700 text-white" : "border bg-white"}`}
-              onClick={() => {
-                setSelected("");
-                setNewEvent(false);
-              }}
-            >
-              전체
-            </button>
-            {s.events
-              .filter((e) => e.campaign?.kind.startsWith("halloween"))
-              .sort(
-                (a, b) =>
-                  Number(!!b.campaign) - Number(!!a.campaign) ||
-                  a.date.localeCompare(b.date),
-              )
-              .map((e) => (
-                <button
-                  key={e.id}
-                  aria-pressed={selected === e.id}
-                  className={`rounded-xl px-4 py-3 font-bold ${selected === e.id ? "bg-teal-700 text-white" : "border bg-white"}`}
-                  onClick={() => {
-                    setSelected(e.id);
-                    setNewEvent(false);
-                  }}
-                >
-                  {e.date.slice(5).replace("-", "/")}{" "}
-                  {new Date(e.date + "T12:00:00+09:00").getUTCDay() === 5
-                    ? "금요일"
-                    : "토요일"}
-                </button>
-              ))}
-          </div>
+          <EventDateTabs events={s.events} selected={selected} onSelect={id => { setSelected(id); setNewEvent(false); }} />
           <HubFeedback status={hub.status} error={hub.error} />
           <HubField label="관리할 행사">
             <select
@@ -242,7 +229,7 @@ export default function EventHubAdmin({ active = true }: { active?: boolean }) {
               <option value="">전체 행사</option>
               {s.events.map((e) => (
                 <option key={e.id} value={e.id}>
-                  {e.date} · {e.title} · {eventStatus(e)}
+                  {e.date} · {participantEventTitle(e)} · {eventStatus(e)}
                 </option>
               ))}
             </select>
@@ -474,7 +461,7 @@ function OperationsOverview({
               <EventArtwork event={e} admin compact />
               <div className="hub-operation-content">
                 <div className="flex flex-wrap justify-between gap-2">
-                  <h3 className="font-black text-lg">{e.title}</h3>
+                  <h3 className="font-black text-lg">{participantEventTitle(e)}</h3>
                   <span className="text-sm text-teal-700">
                     {eventStatus(e)}
                   </span>
@@ -1196,9 +1183,7 @@ function EventEditor({
           </div>
         )}
       </form>
-      {!event && (
-        <MediaManager event={currentEvent} hub={hub} ensureEvent={saveEvent} />
-      )}
+      <MediaManager event={currentEvent} hub={hub} ensureEvent={saveEvent} coverMode />
     </HubCard>
   );
 }
@@ -1420,6 +1405,10 @@ export function ApplicationRoster({
           </button>
         )}
       </HubCard>
+      {!onsite && <>
+        <CompanionAdminGroups applications={applications} events={hub.state?.events ?? []} onSelect={setSelectedId} />
+        <CompanionLinkRequests applications={applications} hub={hub} />
+      </>}
       {current && (
         <ApplicationAdmin
           key={current.id}
@@ -1467,6 +1456,8 @@ export function ApplicationAdmin({
         <strong>
           {app.basic.nickname} · 접수 {app.rank}번
         </strong>
+        {app.companionSubmission && <p className="text-sm">{app.companionSubmission.linkedAt ? "본인 연결 완료" : "본인 연결 대기"} · {app.companionSubmission.personalConsentPending ? "본인 동의 대기" : "본인 동의 완료"}</p>}
+        {app.combinedPaymentReport && <p className="text-sm">합산 입금 신고 · 이 참가자만 승인합니다.</p>}
         <CampaignApproval app={app} hub={hub} showFreeApproval={false} />
         <HalloweenRecognitionAdmin key={app.id} app={app} hub={hub} />
         {app.eligibility && <ScreeningPhoto app={app} hub={hub} admin />}

@@ -10,6 +10,8 @@ export function applicationAdmissionIssue(
   a: HubApplication,
   e: HubEvent,
 ): { code: string; message: string } | null {
+  if (a.companionSubmission?.personalConsentPending)
+    return { code: "COMPANION_CONSENT", message: "본인 신청 연결과 필수 동의를 완료해 주세요." };
   if (!a.confirmedAt || !paymentSatisfied(a))
     return {
       code: "ATTENDANCE",
@@ -47,6 +49,7 @@ export function participantApplication(a: HubApplication, e: HubEvent) {
     benefitExcluded,
     benefitContact,
     halloweenRecognition,
+    combinedPaymentReport: _combinedPaymentReport,
     ...safe
   } = a;
   // Internal notes/restrictions are not participant notices. Preserve transparent fee changes.

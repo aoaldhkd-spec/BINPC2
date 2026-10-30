@@ -1,0 +1,23 @@
+{
+  "failedRun": "mixed-1793329694151",
+  "status": "INVALID_COMPARISON_CLOCK_COLLISION",
+  "keptOriginal": ".local/v6-finish/mixed-1793329694151-result.json",
+  "observedRealTime": "2026-10-30T03:08:35.260Z",
+  "loadBusinessClockStart": "2026-10-31T14:00:00.232Z",
+  "concurrentSmokeBusinessClockAtStart": "2026-11-01T12:36:59Z",
+  "observedCycle": {
+    "sessionActive": false,
+    "resetComplete": true,
+    "autoEndCount": 1,
+    "enteredApplicationCount": 150,
+    "remainingLiveProfiles": 0,
+    "retainedApplicationCardCounts": {
+      "0": 45,
+      "1": 105
+    }
+  },
+  "explanation": "Concurrent isolated profiler used stale retained offset against the same fixture database, crossing the next 17:00 KST boundary. Normal cycle reset removed live onsite profiles; durable applications/payments/cards remained and draw guards correctly returned EVENT_ENDED. No expiry/authentication guard was removed.",
+  "cleanRerun": "/workspace/BINPC2/.local/v6-finish/mixed-1793330525341-result.json",
+  "productFixForIncident": false,
+  "operatingDatabaseTouched": false
+}

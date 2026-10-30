@@ -26,3 +26,14 @@
   .hub-admin-compact .hub-admin-sidebar nav { grid-template-columns: repeat(2,minmax(0,1fr)); }
   .hub-admin-compact .hub-admin-workspace { padding: 10px; }
 }
+
+/* Media authoring actions stay spaced and quiet; only saving is prominent. */
+.hub-admin-compact .hub-media-actions { display: grid; grid-template-columns: repeat(3,minmax(0,1fr)); gap: 8px; }
+.hub-admin-compact .hub-media-actions > button { min-width: 0; min-height: 44px; padding: 10px 8px; }
+.hub-admin-compact .hub-media-actions > button:not([data-primary]) { background: #edf0f5; color: #26344b; border: 1px solid #cad4e2; }
+.hub-admin-compact .hub-media-actions > button[aria-pressed="true"],
+.hub-admin-compact .hub-media-actions > button[aria-selected="true"] { background: #d9c7f5; color: #302042; border-color: #a68bc7; }
+html[data-seasonal-skin="halloween"] .hub-admin-compact .hub-media-actions > button:not([data-primary]) { background: #33223f !important; color: #fff1e8 !important; border-color: #80608f !important; }
+html[data-seasonal-skin="halloween"] .hub-admin-compact .hub-media-actions > button[aria-pressed="true"],
+html[data-seasonal-skin="halloween"] .hub-admin-compact .hub-media-actions > button[aria-selected="true"] { background: #bea0e8 !important; color: #25162f !important; border-color: #bea0e8 !important; }
+@media (max-width:700px) { .hub-admin-compact .hub-media-actions { grid-template-columns: repeat(2,minmax(0,1fr)); } }

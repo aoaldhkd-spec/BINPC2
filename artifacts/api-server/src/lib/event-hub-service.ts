@@ -1,12 +1,14 @@
 import { VenueAddressInput, type VenueDirectory } from "../../../../lib/api-zod/src/event-venue-directory.js";
 import { bossParticipationAllowed } from './boss-participation.js';
 import { companionCommand, companionDraftViews, type CompanionGroup } from './companion-records.js';
+import { companionApplicationViews, companionSubmissionCommand, type CompanionLinkRequest } from './companion-submission.js';
+import { saveBasicApplication } from './event-hub-application-basic.js';
 import { campaignPresets } from '@workspace/api-zod';
 import { cardSlotAvailable } from "../../../../lib/api-zod/src/event-card-clock.js";
 import { validateLogoOriginal } from "./event-hub-logo.js";
 import { HubBasicDraftInput, type HubBasicDraft } from "@workspace/api-zod";
 import { publicationBlockedForTx, photoPublicationBlockedForTx, policyCompletionIssue, policyFingerprint, publicPolicyNotice } from "./event-hub-publication.js";
-import { applyScheduledRecruitment, applyApplicationOperation, recruitmentConfigurationIssue } from "./event-operations.js";
+import { applyScheduledRecruitment, applyApplicationOperation, recruitmentConfigurationIssue, captureEventNotice, recordEventNoticeChange } from "./event-operations.js";
 import { halloweenTiming, tourFirstTiming } from "@workspace/api-zod";
 import {
   effectiveHalloweenHours,
@@ -14,13 +16,15 @@ import {
   eventExpired,
   effectiveEventTheme,
   drawModuleEnabled,
-  campaignEligibility,
 } from "@workspace/api-zod";
 const eTour = (id: string, events: import("@workspace/api-zod").HubEvent[]) =>
   events.find((e) => e.id === id)?.campaign?.kind === "tour";
 import { campaignAction, drawCampaign } from "./event-campaign-service.js";
 import {
   paymentSatisfied,
+  hasPublicEventNotice,
+  publicNoticeMaterials,
+  publicNoticeSignature,
   campaignCardLimit,
   tourDates,
 } from "@workspace/api-zod";
@@ -40,7 +44,6 @@ import {
   PrivacyPolicyInput,
   type PrivacyPolicy,
   type PrivacyCase,
-  containsBannedNicknameWord,
   recruitmentIsOpen,
   HubBasic,
   HubConsent,
@@ -104,6 +107,8 @@ export type HubOwner = {
   createdAt: string;
   basicDrafts?: Record<string, HubBasicDraft>;
   companionDrafts?: Record<string, CompanionGroup>;
+  companionPendingApplicationId?: string;
+  companionLinkRequests?: Record<string, CompanionLinkRequest>;
   companionOrigins?: Record<string,{sponsorOwner:string;companionDraftId:string;claimedAt:string}>;
   memberId?: string;
   restricted?: { active: boolean; reason: string; at: string };
@@ -344,6 +349,9 @@ export class EventHubService {
           testMode,
           basicDrafts: undefined,
           companionDrafts: undefined,
+          companionApplications: [],
+          companionAccounts: {},
+          companionLinkRequests: [],
           bossParticipationAllowed: false,
           venueDirectory: undefined,
           privacyPolicy: undefined,
@@ -492,6 +500,9 @@ export class EventHubService {
         venueDirectory: admin ? (await tx.get<VenueDirectory>("settings","venue-directory") ?? {revision:0,items:[],history:[]}) : undefined,
         basicDrafts: !admin && !account?.erasedAt ? account?.basicDrafts ?? {} : undefined,
         companionDrafts: !admin && !account?.erasedAt ? companionDraftViews(account) : undefined,
+        companionApplications: !admin && !account?.erasedAt ? await companionApplicationViews(tx,account,apps) : [],
+        companionAccounts: !admin && !account?.erasedAt ? Object.fromEntries(events.filter(e=>account?.companionDrafts?.[e.id] && apps.some(a=>a.eventId===e.id&&a.owner===owner&&!a.erasedAt&&a.consent?.notice)).map(e=>[e.id,e.accounts??[]])) : {},
+        companionLinkRequests: admin ? (owners??[]).flatMap(o=>Object.values(o.companionLinkRequests??{})) : Object.values(account?.companionLinkRequests??{}),
         privacyNotice:publicPolicyNotice(publicationPolicy),
         publicationBlocked:admin?publicationBlocked:undefined,
         retentionDays:
@@ -571,14 +582,20 @@ export class EventHubService {
         {kind:"laboratory-mode",id:"global"}, {kind:"settings",id:"global"},
         {kind:"settings",id:"privacy-policy"}, {kind:"request",id:key},
         ...(owner ? [{kind:"owner",id:owner}] : []),
+        ...(typeof m.data.eventId === "string" && m.data.eventId ? [{kind:"event",id:m.data.eventId}] : []),
         ...((m.action.startsWith("application.") || m.action.startsWith("admin.application.")) && !["application.basic", "application.basic-draft"].includes(m.action) ? [{kind:"application",id:m.target}] : []),
       ]);
+      // Reuse only inside this locked transaction, before any application write.
+      // Routing metadata is not authority: consumers still check decrypted owner/event.
+      const ownerApplicationsBeforeMutation = (m.action==='application.basic-draft'||(m.action==='application.basic'&&m.data.edit===true)) ? await tx.applicationsForOwner<HubApplication>(owner) : undefined;
+      const pendingCompanion = ownerApplicationsBeforeMutation?.find(a=>a.owner===owner&&a.eventId===m.data.eventId&&!a.erasedAt&&a.companionSubmission?.linkedAt&&a.companionSubmission.personalConsentPending);
+      const linkRequest = m.action === 'admin.companion.link' ? await tx.get<CompanionLinkRequest>('settings',`companion-link:${m.target}`) : undefined;
       const targetApp = m.action.startsWith('application.') && !['application.basic','application.basic-draft'].includes(m.action) ? await tx.get<HubApplication>('application',m.target) : undefined;
-      const targetEventId = targetApp?.eventId ?? (typeof m.data.eventId === 'string' ? m.data.eventId : '');
+      const targetEventId = targetApp?.eventId ?? linkRequest?.eventId ?? (typeof m.data.eventId === 'string' ? m.data.eventId : '');
       const targetEvent = targetEventId ? await tx.get<HubEvent>('event',targetEventId) : undefined;
       const bossTestRequest = bossParticipationAllowed() && targetEvent?.bossTestOnly === true && (!targetApp || targetApp.owner === owner);
       if (targetEvent?.bossTestOnly && !bossTestRequest && !admin) fail('BOSS_AUTH','보스 확인용 행사입니다.',403);
-      if (bossTestRequest && targetEvent && eventEnded(targetEvent,this.now()) && (['application.basic','application.basic-draft','application.confirm'].includes(m.action)||m.action.startsWith('companion.')))
+      if (bossTestRequest && !pendingCompanion && targetEvent && eventEnded(targetEvent,this.now()) && (['application.basic','application.basic-draft','application.confirm','companion.submit','companion.confirm','companion.draft.save','companion.invite','companion.claim'].includes(m.action)))
         fail('EVENT_ENDED','행사 접수가 종료되었습니다. 기존 기록은 보존됩니다.',403);
       if (!bossTestRequest && (m.action.startsWith('companion.') || ["application.basic-draft", "application.basic", "application.consent", "application.confirm", "application.report", "application.enter", "application.draw"].includes(m.action)))
         await assertTestModeAllowsPublicMutation(tx);
@@ -601,7 +618,11 @@ export class EventHubService {
       // State reads and the timer still apply every due open/close under the same
       // locks. Profile/payment/chat/card writes retain their own expiry checks;
       // they need not decrypt and traverse every unrelated event's notice/history.
-      if (m.action === "application.basic" || m.action === "application.basic-draft")
+      const basicRegistration = m.action === "application.basic" || m.action === "application.basic-draft";
+      // An unscheduled target cannot open/close through this scheduler. Full state
+      // reads and the timer still sweep all events. A scheduled target MUST use
+      // the full sweep so same-date/auto/tour conflicts remain authoritative.
+      if (!pendingCompanion && ["application.basic", "application.basic-draft", "companion.submit", "companion.confirm"].includes(m.action) && (!basicRegistration || targetEvent?.scheduleEnabled === true))
         await applyScheduledRecruitment(tx, this.now(), enabled);
       const requireEnabled = () => {
         if (!enabled && !bossTestRequest)
@@ -622,16 +643,22 @@ export class EventHubService {
         saved: true,
         requestId: m.requestId,
       };
-      if (m.action.startsWith('companion.')) {
-        requireEnabled();
-        const e=await this.event(tx,text(m.data.eventId));
-        if(!bossTestRequest && publicationBlocked)fail('PRIVACY_POLICY_UNCONFIRMED','개인정보 정책 확정 전 신규 신청은 차단됩니다.',403);
-        if(!bossTestRequest && !recruitmentIsOpen(e,this.now()))fail('CLOSED','현재 신청 접수 중이 아닙니다.',403);
+      if (m.action.startsWith('companion.') || m.action === 'admin.companion.link') {
+        const e=await this.event(tx,text(linkRequest?.eventId??m.data.eventId));
+        const newRegistration=['companion.submit','companion.confirm','companion.draft.save','companion.invite','companion.claim'].includes(m.action);
+        if(newRegistration){
+          requireEnabled();
+          if(!hasPublicEventNotice(e))fail('NOTICE','공지가 준비된 뒤 신청할 수 있습니다.',409);
+          if(!bossTestRequest && publicationBlocked)fail('PRIVACY_POLICY_UNCONFIRMED','개인정보 정책 확정 전 신규 신청은 차단됩니다.',403);
+          if(!bossTestRequest && !recruitmentIsOpen(e,this.now()))fail('CLOSED','현재 신청 접수 중이 아닙니다.',403);
+        }
         const policy=await tx.get<PrivacyPolicy>('settings','privacy-policy');
-        if(process.env.NODE_ENV==='production' && publicPolicyNotice(policy) && m.data.privacyPolicyFingerprint!==policyFingerprint(policy!))fail('PRIVACY_NOTICE_CHANGED','최신 개인정보 안내를 확인해 주세요.',409);
+        if(newRegistration && process.env.NODE_ENV==='production' && publicPolicyNotice(policy) && m.data.privacyPolicyFingerprint!==policyFingerprint(policy!))fail('PRIVACY_NOTICE_CHANGED','최신 개인정보 안내를 확인해 주세요.',409);
         const year=(m.data.basic as {birthYear?:unknown}|undefined)?.birthYear;
         if(typeof year==='number'&&!isAdultBirthYear(year,this.now()))fail('ADULT','성인 참가 조건을 확인해 주세요.');
-        Object.assign(result,await companionCommand(tx,{owner,eventId:e.id,now,command:m,maxDrafts:20,invitationTtlMs:24*3600000}));
+        if(['companion.submit','companion.confirm','companion.report','companion.link.request','admin.companion.link'].includes(m.action)){
+          Object.assign(result,await companionSubmissionCommand(tx,{owner,admin,event:e,now:this.now(),command:m,...(publicPolicyNotice(policy)?{privacyPolicyConsent:{version:policy!.policyVersion!,fingerprint:policyFingerprint(policy!),at:now}}:{})}));
+        }else Object.assign(result,await companionCommand(tx,{owner,eventId:e.id,now,command:m,maxDrafts:20,invitationTtlMs:24*3600000}));
       } else if (m.action === "venue.address.save") {
         requireAdmin();
         const directory = await tx.get<VenueDirectory>("settings","venue-directory") ?? {revision:0,items:[],history:[]};
@@ -704,9 +731,14 @@ export class EventHubService {
         requireAdmin();
         const e = await this.event(tx, m.target);
         revision(e.revision);
-        if (e.media.length >= 10 || (e.materials?.length??0)>=40)
-          fail("MEDIA_LIMIT", "표시 자료는 10개, 보존 원본은 40개까지입니다. 이전 자료의 연결을 해제하면 표시 공간을 확보할 수 있습니다.");
+        const noticeBefore=captureEventNotice(e);
         const purpose = z.enum(["notice","map","poster","video"]).optional().parse(m.data.purpose);
+        const replaceId=z.string().uuid().optional().parse(m.data.replaceId);
+        const replacement=replaceId?e.materials?.find(item=>item.id===replaceId):undefined;
+        if(replaceId&&(!replacement||replacement.purpose!==purpose))fail("MEDIA_REPLACE","이 행사의 같은 유형 자료만 교체할 수 있습니다.",409);
+        const replacementVisible=!!replacement&&!replacement.hidden&&e.media.includes(replacement.url);
+        if ((e.media.length >= 10 && !replacementVisible) || (e.materials?.length??0)>=40)
+          fail("MEDIA_LIMIT", "표시 자료는 10개, 보존 원본은 40개까지입니다. 이전 자료의 연결을 해제하면 표시 공간을 확보할 수 있습니다.");
         if(purpose==="notice" && m.data.publicConfirmed!==true) fail("MEDIA_PUBLIC_CONFIRM","신청 전 공개할 공지 사진인지 확인해 주세요.");
         const file = validateHubMedia(m.data);
         if(purpose && purpose!=="video") validateLogoOriginal({...m.data,label:"행사 자료",role:"venue",provenance:"original"});
@@ -722,15 +754,21 @@ export class EventHubService {
           createdAt: now,
         });
         const url = `/api/event-hub/media/${id}.${file.extension}`;
-        e.media.push(url);
-        if(purpose)e.materials=[...(e.materials??[]),{id,url,purpose,alt,hidden:false,at:now}];
+        if(replacementVisible)e.media=e.media.map(value=>value===replacement!.url?url:value);
+        else e.media.push(url);
+        if(purpose){
+          const added={id,url,purpose,alt,hidden:false,at:now};
+          e.materials=replacement?(e.materials??[]).flatMap(item=>item.id===replacement.id?[added,{...item,hidden:true}]:[item]):[...(e.materials??[]),added];
+        }
+        recordEventNoticeChange(e,noticeBefore,now);
         e.revision++;
-        e.history.push(audit(actor, "event.media.upload", now, JSON.stringify({id,purpose:purpose??"legacy-private",alt})));
+        e.history.push(audit(actor, "event.media.upload", now, JSON.stringify({id,purpose:purpose??"legacy-private",alt,...(replaceId?{replaces:replaceId}:{})})));
         await tx.put("event", e.id, e);
         result.id = e.id;
         result.mediaUrl = url;
       } else if (m.action === "event.media.update") {
         requireAdmin();const e=await this.event(tx,m.target);revision(e.revision);
+        const noticeBefore=captureEventNotice(e);
         const order=z.array(z.object({id:z.string().uuid(),alt:z.string().trim().max(200),hidden:z.boolean()})).max(40).parse(m.data.items);
         if(order.length!==(e.materials??[]).length || new Set(order.map(v=>v.id)).size!==order.length || order.some(v=>!e.materials?.some(x=>x.id===v.id)))fail("MEDIA","이 행사의 저장한 자료만 정리할 수 있습니다.");
         e.materials=order.map(v=>({...e.materials!.find(x=>x.id===v.id)!,alt:v.alt,hidden:v.hidden}));
@@ -738,6 +776,8 @@ export class EventHubService {
         const visible=e.materials.filter(v=>!v.hidden).map(v=>v.url);
         if(legacy.length+visible.length>10)fail("MEDIA_LIMIT","동시에 표시할 자료는 10개까지입니다. 원본은 보존됩니다.");
         e.media=[...visible,...legacy];
+        if(e.recruitment&&!hasPublicEventNotice(e))fail("NOTICE","접수를 중지한 뒤 마지막 공지를 숨길 수 있습니다.",409);
+        recordEventNoticeChange(e,noticeBefore,now);
         e.revision++;e.history.push(audit(actor,"event.media.update",now,JSON.stringify(order)));
         await tx.put("event",e.id,e);result.id=e.id;
       } else if (m.action === "event.save") {
@@ -797,14 +837,17 @@ export class EventHubService {
             {
               at: now,
               notice: old.notice,
+              noticeVersion: old.noticeVersion,
+              noticeMedia: publicNoticeMaterials(old),
               address: old.address,
               fee: old.fee,
               account: old.account,
             },
           ];
-          if (old.notice !== e.notice || old.address !== e.address)
+          if (publicNoticeSignature(old) !== publicNoticeSignature(e) || old.address !== e.address)
             e.noticeVersion = old.noticeVersion + 1;
         }
+        if(e.recruitment&&!hasPublicEventNotice(e))fail("NOTICE","접수를 중지한 뒤 공지를 비울 수 있습니다.",409);
         if (old?.scheduleEnabled && old.opensAt !== e.opensAt) e.recruitment=false;
         if (e.benefitsOpensAt&&e.benefitsClosesAt&&Date.parse(e.benefitsClosesAt)<=Date.parse(e.benefitsOpensAt))fail("CONFIG","혜택 종료는 시작 이후여야 합니다.");
         if (old) e.noticeVersion = Math.max(old.noticeVersion, e.noticeVersion);
@@ -839,6 +882,7 @@ export class EventHubService {
             "운영 개인정보 정책이 미확정입니다. 운영 모집 공개는 검토·승인 전 차단됩니다.",
             403,
           );
+        if(on&&!hasPublicEventNotice(e))fail("NOTICE","공지를 작성하거나 공개 공지 사진을 등록해 주세요.",409);
         if (on && (!e.account || !e.deadline || !e.area))
           fail("CONFIG", "계좌·입금기한·지역을 먼저 설정해 주세요.");
         if (on && e.campaign?.kind === "tour" && !e.campaign.advance)
@@ -907,34 +951,38 @@ export class EventHubService {
           revision: (old?.revision ?? 0) + 1,
         });
       } else if (m.action === "application.basic-draft") {
-        requireEnabled();
-        if (publicationBlocked && !bossTestRequest) fail("PRIVACY_POLICY_UNCONFIRMED", "운영 개인정보 정책 확정 전 신규 신청은 차단됩니다.", 403);
+        if (!pendingCompanion) requireEnabled();
+        if (!pendingCompanion && publicationBlocked && !bossTestRequest) fail("PRIVACY_POLICY_UNCONFIRMED", "운영 개인정보 정책 확정 전 신규 신청은 차단됩니다.", 403);
         const e = await this.event(tx, text(m.data.eventId));
-        if (!bossTestRequest && !recruitmentIsOpen(e, this.now())) fail("CLOSED", "현재 신청 접수 중이 아닙니다.", 403);
+        if(!pendingCompanion&&!hasPublicEventNotice(e))fail("NOTICE","공지가 준비된 뒤 신청할 수 있습니다.",409);
+        if (!pendingCompanion && !bossTestRequest && !recruitmentIsOpen(e, this.now())) fail("CLOSED", "현재 신청 접수 중이 아닙니다.", 403);
         const own = await tx.get<HubOwner>("owner", owner);
         if (!own) fail("AUTH", "개인 신청 세션을 복구해 주세요.", 401);
         if (own.restricted?.active) fail("RESTRICTED", "관리자 확인이 필요한 신청입니다.", 403);
         const policy = await tx.get<PrivacyPolicy>("settings", "privacy-policy");
         if (process.env.NODE_ENV === "production" && publicPolicyNotice(policy) && m.data.privacyPolicyFingerprint !== policyFingerprint(policy!)) fail("PRIVACY_NOTICE_CHANGED", "최신 개인정보 안내를 확인해 주세요.", 409);
-        if ((await tx.applicationsForOwner<HubApplication>(owner)).some((a) => a.owner === owner && a.eventId === e.id)) fail("STAGE", "이미 저장된 신청을 이어가 주세요. 승인 상태는 변경되지 않았습니다.", 409);
+        if (!pendingCompanion && ownerApplicationsBeforeMutation!.some((a) => a.owner === owner && a.eventId === e.id)) fail("STAGE", "이미 저장된 신청을 이어가 주세요. 승인 상태는 변경되지 않았습니다.", 409);
         const input = HubBasicDraftInput.parse(m.data);
+        if (pendingCompanion && ((input.basic.nickname !== undefined && nickKey(input.basic.nickname) !== nickKey(pendingCompanion.basic.nickname)) || (input.basic.birthYear !== undefined && input.basic.birthYear !== pendingCompanion.basic.birthYear))) fail('COMPANION_IDENTITY','접수한 이름·년생 정정은 관리자에게 문의해 주세요.',409);
         const old = own.basicDrafts?.[e.id];
         revision(old?.revision ?? 0);
         if (!old && Object.keys(own.basicDrafts ?? {}).length >= 30) fail("DRAFT_LIMIT", "작성 중인 신청이 많습니다. 기존 신청을 먼저 확인해 주세요.");
         own.basicDrafts ??= {};
-        own.basicDrafts[e.id] = { ...input, revision: (old?.revision ?? 0) + 1, updatedAt: now };
+        own.basicDrafts[e.id] = { ...input, basic: { ...input.basic, ...(input.basic.phone === undefined && old?.basic.phone !== undefined ? { phone: old.basic.phone } : {}) }, revision: (old?.revision ?? 0) + 1, updatedAt: now };
         await tx.put("owner", owner, own);
         result.draft = own.basicDrafts[e.id];
       } else if (m.action === "application.basic") {
-        requireEnabled();
-        if (publicationBlocked && !bossTestRequest)
+        const linkedPending = m.data.edit === true && pendingCompanion;
+        if (!linkedPending) requireEnabled();
+        if (!linkedPending && publicationBlocked && !bossTestRequest)
           fail(
             "PRIVACY_POLICY_UNCONFIRMED",
             "운영 개인정보 정책 확정 전 신규 신청은 차단됩니다.",
             403,
           );
         const e = await this.event(tx, text(m.data.eventId));
-        if (!bossTestRequest && !recruitmentIsOpen(e, this.now()))
+        if(!linkedPending&&!hasPublicEventNotice(e))fail("NOTICE","공지가 준비된 뒤 신청할 수 있습니다.",409);
+        if (!linkedPending && !bossTestRequest && !recruitmentIsOpen(e, this.now()))
           fail("CLOSED", "현재 신청 접수 중이 아닙니다.", 403);
         const own = await tx.get<HubOwner>("owner", owner);
         if (!own) fail("AUTH", "개인 신청 세션을 복구해 주세요.", 401);
@@ -949,122 +997,9 @@ export class EventHubService {
         const basic = HubBasic.parse(m.data.basic);
         const policy=await tx.get<PrivacyPolicy>("settings","privacy-policy");
         if(process.env.NODE_ENV==="production" && publicPolicyNotice(policy) && m.data.privacyPolicyFingerprint!==policyFingerprint(policy!))fail("PRIVACY_NOTICE_CHANGED","개인정보 안내가 변경되었습니다. 최신 안내를 확인한 뒤 같은 신청을 이어가세요.",409);
-        if (!isAdultBirthYear(basic.birthYear, this.now()))
-          fail("ADULT", "성인 참가 조건을 확인해 주세요.");
-        if (
-          containsBannedNicknameWord(basic.nickname) ||
-          /[<>\u0000-\u001f\u200b-\u200f]/.test(basic.nickname) ||
-          [
-            ...new Intl.Segmenter("ko", { granularity: "grapheme" }).segment(
-              basic.nickname,
-            ),
-          ].length > 6 ||
-          /관리자|범일NPC|admin|운영자/i.test(basic.nickname)
-        )
-          fail("NICKNAME", "사용할 수 없는 닉네임입니다.");
-        const inputs = await tx.basicInputs<HubApplication,HubMember>(owner,nickKey(basic.nickname));
-        const apps = inputs.applications.filter(a=>a.owner===owner);
-        const member = inputs.members.find(v=>v.owner===owner);
-        if (
-          member &&
-          member.nicknameKey !== nickKey(basic.nickname) &&
-          (member.nicknameChanges ?? 0) >= 1
-        )
-          fail(
-            "NICKNAME_CHANGE",
-            "닉네임 변경권을 이미 사용했습니다. 관리자에게 문의해 주세요.",
-            409,
-          );
-        const old = apps.find((a) => a.eventId === e.id && a.owner === owner);
-        if (old && m.data.edit !== true) {
-          result.id = old.id;
-        } else {
-          const candidates=inputs.nicknameApplications();
-          const members = inputs.nicknameMembers();
-          if (
-            candidates.some(
-              (a) =>
-                a.owner !== owner &&
-                nickKey(a.basic.nickname) === nickKey(basic.nickname),
-            ) ||
-            members.some(
-              (a) =>
-                a.owner !== owner && a.nicknameKey === nickKey(basic.nickname),
-            )
-          )
-            fail("NICKNAME", "이미 사용 중인 닉네임입니다.", 409);
-          const live = inputs.profiles;
-          if (
-            live.some(
-              (p) =>
-                nickKey(String(p.nickname ?? "")) === nickKey(basic.nickname) &&
-                p.event_hub_owner !== owner,
-            )
-          )
-            fail("NICKNAME", "이미 현장에서 사용 중인 닉네임입니다.", 409);
-          if (member && member.nicknameKey !== nickKey(basic.nickname)) {
-            member.nicknameChanges = (member.nicknameChanges ?? 0) + 1;
-            member.nicknameKey = nickKey(basic.nickname);
-            member.basic = basic;
-            member.history.push(audit(actor, "member.nickname.change", now));
-            await tx.put("member", member.id, member);
-          }
-          if (old) {
-            revision(old.revision);
-            if (old.confirmedAt)
-              fail(
-                "STAGE",
-                "신청 확정 후 기본정보 변경은 관리자 문의를 이용해 주세요.",
-              );
-            old.basic = basic;
-            old.revision++;
-            old.updatedAt = now;
-            old.history.push(audit(actor, "application.basic.edit", now));
-            await tx.put("application", old.id, old);
-            result.id = old.id;
-          } else {
-            e.nextRank++;
-            await tx.put("event", e.id, e);
-            const a: HubApplication = {
-              bossTestOnly: e.bossTestOnly,
-              ...(own.companionOrigins?.[e.id] ?? {}),
-              id: randomUUID(),
-              eventId: e.id,
-              owner,
-              revision: 1,
-              stage: 2,
-              rank: e.nextRank,
-              basic,
-              ...(publicPolicyNotice(policy)?{privacyPolicyConsent:{version:policy!.policyVersion!,fingerprint:policyFingerprint(policy!),at:now}}:{}),
-              payment: "none",
-              attendance: "pending",
-              checkin: false,
-              profile: member ? { ...member.profile } : { lastStep: 1 },
-              quote: quoteFor(e, e.nextRank, this.now()),
-              ...(e.campaign
-                ? {
-                    benefitRank: e.nextRank,
-                    eligibility: {
-                      status: campaignEligibility(e, basic.birthYear),
-                    },
-                  }
-                : {}),
-              cards: [],
-              prizesGiven: [],
-              history: [audit(actor, "application.basic", now)],
-              retainUntil: new Date(
-                Date.parse(`${e.date}T${e.end}:00+09:00`) +
-                  (e.end <= e.start ? 86400000 : 0) +
-                  ((await tx.get<HubSettings>("settings", "global"))
-                    ?.retentionDays ?? 180) *
-                    86400000,
-              ).toISOString(),
-              updatedAt: now,
-            };
-            await tx.put("application", a.id, a);
-            result.id = a.id;
-          }
-        }
+        const saved = await saveBasicApplication(tx,{owner:own,event:e,basic,now:this.now(),actor,edit:m.data.edit===true,revision:m.revision,...(publicPolicyNotice(policy)?{privacyPolicyConsent:{version:policy!.policyVersion!,fingerprint:policyFingerprint(policy!),at:now}}:{})});
+        result.id = saved.id;
+        if (linkedPending && own.basicDrafts?.[e.id]) { delete own.basicDrafts[e.id]; await tx.put('owner',own.id,own); }
       } else if (
         m.action.startsWith("application.") ||
         m.action.startsWith("admin.application.")
@@ -1075,13 +1010,18 @@ export class EventHubService {
         if (applyApplicationOperation(a,e,m.action,m.data,this.now(),admin)) {
           // Ownership, revision, durable receipt, audit and encryption use the common engine.
         } else if (m.action === "application.consent") {
-          requireEnabled();
+          if(!hasPublicEventNotice(e))fail("NOTICE","현재 공지가 준비되지 않았습니다. 관리자에게 문의해 주세요.",409);
+          if (!a.companionSubmission?.linkedAt || !a.companionSubmission.personalConsentPending) requireEnabled();
           const c = HubConsent.parse(m.data.consent);
-          if (a.confirmedAt)
+          if (a.confirmedAt && !a.companionSubmission?.personalConsentPending)
             fail(
               "STAGE",
               "완료된 신청의 동의는 공지 재확인으로 갱신해 주세요.",
             );
+          if (a.companionSubmission?.personalConsentPending) {
+            if (!a.companionSubmission.linkedAt) fail("COMPANION_LINK","본인 신청 연결을 확인해 주세요.",403);
+            HubBasic.parse(a.basic);
+          }
           if (c.reuse) {
             const password = z.string().min(10).max(128).parse(m.data.password);
             const existing = (await tx.membersForOwner<HubMember>(owner)).find(
@@ -1092,7 +1032,7 @@ export class EventHubService {
               id: existing?.id ?? randomUUID(),
               owner,
               nicknameKey: nickKey(a.basic.nickname),
-              basic: a.basic,
+              basic: { ...a.basic, ...(a.basic.phone === undefined && existing?.basic.phone !== undefined ? { phone: existing.basic.phone } : {}) },
               profile: a.profile,
               marketing: c.marketing,
               salt,
@@ -1134,12 +1074,15 @@ export class EventHubService {
           }
           a.consent = { ...c, acceptedAt: now, noticeVersion: e.noticeVersion };
           a.quote ??= quoteFor(e, a.rank);
-          a.stage = 3;
+          if (a.companionSubmission) a.companionSubmission.personalConsentPending = false;
+          a.stage = a.confirmedAt ? 4 : 3;
         } else if (m.action === "application.notice") {
+          if(!hasPublicEventNotice(e))fail("NOTICE","현재 공지가 준비되지 않았습니다. 관리자에게 문의해 주세요.",409);
           if (!a.consent) fail("CONSENT", "필수 공지 동의가 필요합니다.");
           a.consent.noticeVersion = e.noticeVersion;
           a.consent.acceptedAt = now;
         } else if (m.action === "application.confirm") {
+          if(!hasPublicEventNotice(e))fail("NOTICE","현재 공지가 준비되지 않았습니다. 관리자에게 문의해 주세요.",409);
           requireEnabled();
           if (!bossTestRequest && !recruitmentIsOpen(e, this.now()))
             fail(

@@ -265,13 +265,13 @@ export function WaitingOverlay({ landingThemeEnabled = true, sessionActive, even
           <img src="/event-art/halloween-party.webp" alt="" width="1200" height="900"/>
         </div>}
 
-        {testMode && <div className="w-[88%] rounded-xl border border-amber-300/40 bg-amber-950/60 p-3 text-center text-sm font-bold text-amber-100 mb-3"><p role="status">{TEST_MODE_BANNER}</p><p className="mt-1 text-xs">웹·오픈채팅 모두 접수 전입니다. 오픈 확인 전에는 신청하거나 송금하지 마세요.</p></div>}
+        {testMode && !bossTest && <div className="w-[88%] rounded-xl border border-amber-300/40 bg-amber-950/60 p-3 text-center text-sm font-bold text-amber-100 mb-3"><p role="status">{TEST_MODE_BANNER}</p><p className="mt-1 text-xs">웹·오픈채팅 모두 접수 전입니다. 오픈 확인 전에는 신청하거나 송금하지 마세요.</p></div>}
 
         {/* 피라미드형 버튼 그룹 */}
         <div className="season-home-actions w-full flex flex-col items-center gap-2 mb-2">
           <div className="season-home-apply-links flex flex-col gap-3 w-[88%] mb-1">
             {testMode && !bossTest ? <button type="button" disabled className="min-h-16 flex gap-3 items-center justify-center rounded-xl border border-pink-300/40 bg-gradient-to-br from-pink-500 to-pink-800 px-4 py-4 text-lg font-bold text-white opacity-50 cursor-not-allowed"><Wine size={24} aria-hidden="true"/>술번개 신청</button> : <a href={"/events"} className="min-h-16 flex gap-3 items-center justify-center rounded-xl border border-pink-300/60 bg-gradient-to-br from-pink-500 to-pink-800 px-4 py-4 text-lg font-bold text-white shadow-lg shadow-pink-900/30 hover:brightness-110 active:scale-[.98] transition-all"><Wine size={24} aria-hidden="true"/>술번개 신청</a>}
-            {testMode && <a href="/events" className="text-center text-sm text-amber-100 underline">행사 공지 · 관리자 문의</a>}
+            {testMode && !bossTest && <a href="/events" className="text-center text-sm text-amber-100 underline">행사 공지 · 관리자 문의</a>}
             <a href={"/events/waiting"} className="min-h-16 flex gap-3 items-center justify-center rounded-xl border border-blue-300/60 bg-gradient-to-br from-blue-500 to-blue-800 px-4 py-4 text-lg font-bold text-white shadow-lg shadow-blue-900/30 hover:brightness-110 active:scale-[.98] transition-all"><List size={24} aria-hidden="true"/>신청대기방</a>
           </div>
           <button

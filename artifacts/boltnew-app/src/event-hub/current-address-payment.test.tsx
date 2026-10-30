@@ -37,14 +37,14 @@ it('uses the saved account choice and hides banking actions in test mode',()=>{
 it('accepts one Busan district or neighborhood, and another city without merging fields',()=>{
   function Harness(){const [v,setV]=useState('');const [r,setR]=useState<Parameters<typeof ResidenceInput>[0]['residence']>();return <><ResidenceInput value={v} residence={r} onChange={(value,residence)=>{setV(value);setR(residence);}}/><output aria-label="저장 지역">{v}</output></>;}
   render(<Harness/>);
-  fireEvent.click(screen.getByRole('button',{name:'부산'}));
+  fireEvent.change(screen.getByLabelText('도시'),{target:{value:'부산'}});
   fireEvent.click(screen.getByRole('button',{name:'동으로 입력'}));
-  fireEvent.change(screen.getByLabelText('사는 지역'),{target:{value:'전포동'}});
+  fireEvent.change(screen.getByLabelText('부산 동'),{target:{value:'전포동'}});
   expect(screen.getByLabelText('저장 지역').textContent).toBe('부산 전포동');
-  expect(screen.getAllByRole('textbox')).toHaveLength(1);
-  fireEvent.click(screen.getByRole('button',{name:'다른 도시'}));
-  fireEvent.change(screen.getByLabelText('사는 지역'),{target:{value:'파주'}});
-  expect(screen.getByLabelText('저장 지역').textContent).toBe('파주');
+  expect(screen.queryByRole('textbox')).toBeNull();
+  expect(screen.queryByLabelText('부산 구')).toBeNull();
+  fireEvent.change(screen.getByLabelText('도시'),{target:{value:'경기 파주'}});
+  expect(screen.getByLabelText('저장 지역').textContent).toBe('경기 파주');
 });
 it('blocks an unsaved address link and sends the original revision after a concurrent edit',()=>{
   const {hub,state}=fixture();

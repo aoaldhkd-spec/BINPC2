@@ -13,3 +13,5 @@ export * from "./event-hub-modules";
 export * from "./event-cycle-clock";
 export * from './event-verification';
 export * from './event-test-mode';
+export * from './event-reward-contact';
+export * from './event-notice';

@@ -1,0 +1,51 @@
+[
+  {
+    "file": "after-admin-media-320.png",
+    "width": 320,
+    "height": 844,
+    "scrollWidth": 320,
+    "scrollHeight": 1606
+  },
+  {
+    "file": "after-admin-media-390.png",
+    "width": 390,
+    "height": 844,
+    "scrollWidth": 390,
+    "scrollHeight": 1579
+  },
+  {
+    "file": "after-admin-media-430.png",
+    "width": 430,
+    "height": 844,
+    "scrollWidth": 430,
+    "scrollHeight": 1579
+  },
+  {
+    "file": "after-admin-media-768.png",
+    "width": 768,
+    "height": 900,
+    "scrollWidth": 768,
+    "scrollHeight": 1419
+  },
+  {
+    "file": "after-admin-media-1024.png",
+    "width": 1024,
+    "height": 900,
+    "scrollWidth": 1024,
+    "scrollHeight": 1443
+  },
+  {
+    "file": "after-admin-media-1280.png",
+    "width": 1280,
+    "height": 900,
+    "scrollWidth": 1280,
+    "scrollHeight": 1443
+  },
+  {
+    "file": "after-admin-media-1440.png",
+    "width": 1440,
+    "height": 900,
+    "scrollWidth": 1440,
+    "scrollHeight": 1443
+  }
+]

@@ -34,13 +34,18 @@ async function command(
 }
 async function fillBasicSteps(page: Page, values: [string, string, string, string, string]) {
   await page.getByRole("button", { name: "신청하기", exact: true }).click();
+  await page.getByRole("button", { name: "혼자 신청", exact: true }).click();
   await page.getByLabel("[필수] 위 개인정보").check();
   await page.getByRole("button", { name: "다음", exact: true }).click();
-  const labels = ["닉네임", "태어난 년도", "사는 지역", "연락용 전화번호 (문자 인증 없음)", "실제 은행 입금 시 보내는 분 이름"];
-  for (let i = 0; i < labels.length; i++) {
-    await page.getByLabel(labels[i], { exact: true }).fill(values[i]);
-    if (i < labels.length - 1) await page.getByRole("button", { name: "다음", exact: true }).click();
-  }
+  await page.getByLabel("닉네임", { exact: true }).fill(values[0]);
+  await page.getByRole("button", { name: "다음", exact: true }).click();
+  await page.getByLabel("태어난 년도", { exact: true }).selectOption(values[1]);
+  await page.getByRole("button", { name: "다음", exact: true }).click();
+  await page.getByLabel("도시", { exact: true }).selectOption(values[2] === "부산" ? "부산" : "서울");
+  if (values[2] === "부산") await page.getByLabel("부산 구", { exact: true }).selectOption("부산진구");
+  await page.getByRole("button", { name: "다음", exact: true }).click();
+  await expect(page.getByLabel("연락용 전화번호", { exact: false })).toHaveCount(0);
+  await page.getByLabel("실제 은행 입금 시 보내는 분 이름", { exact: true }).fill(values[4]);
 }
 async function application(request: APIRequestContext, id: string) {
   const r = await request.get("/api/event-hub/admin", {
@@ -1127,6 +1132,7 @@ test("protected media HTTP, privacy review and participant-safe notices use the 
     await admin
       .getByRole("button", { name: "공지·장소", exact: true })
       .click();
+    await admin.getByRole('tab',{name:'대기방 자료',exact:true}).click();
     await admin.getByRole("button",{name:"사진·포스터 추가",exact:true}).click();
     const upload = admin.getByLabel("사진·포스터 파일 선택");
     await upload.setInputFiles({
@@ -1135,7 +1141,7 @@ test("protected media HTTP, privacy review and participant-safe notices use the 
       buffer: readFileSync(new URL('../public/tour-logos-v3/on_top.png',import.meta.url)),
     });
     await expect(admin.getByAltText("선택한 자료 미리보기")).toBeVisible();
-    await admin.getByRole("button",{name:"선택한 자료 저장",exact:true}).click();
+    await admin.locator('section').filter({has:admin.getByRole('heading',{name:'행사 자료',exact:true})}).getByRole("button",{name:"저장",exact:true}).click();
     await expect(
       admin.getByText("저장되었습니다 ✓", { exact: true }),
     ).toBeVisible();
@@ -1299,7 +1305,7 @@ test("latest campaign actual API: first-rank free approval stays separate from b
   await page.setViewportSize({ width: 390, height: 844 });
   await page.goto(`/events/e/${id}`);
   await expect(page.getByRole("dialog")).toHaveCount(0);
-  await page.getByRole("button", { name: "ⓘ 신청 안내", exact: true }).click();
+  await page.getByRole("button", { name: "신청 안내", exact: true }).click();
   await expect(page.getByRole("dialog")).toBeVisible();
   expect(await page.locator(".application-tutorial .line-clamp-2").evaluateAll(elements=>elements.every(element=>element.scrollHeight<=element.clientHeight+1))).toBe(true);
   await page.screenshot({
@@ -1419,7 +1425,7 @@ test("tour actual API advance and shared-component lab enforce rank ten/eleven w
     e.revision,
   );
   await page.goto(`/events/e/${id}`);
-  await page.getByRole("button", { name: "ⓘ 신청 안내", exact: true }).click();
+  await page.getByRole("button", { name: "신청 안내", exact: true }).click();
   await page.getByRole("dialog").getByRole("button", { name: "다음", exact: true }).click();
   await page.getByRole("dialog").getByRole("button", { name: "다음", exact: true }).click();
   await page.getByRole("button", { name: "알겠어요", exact: true }).click();
@@ -1517,7 +1523,7 @@ test("private screening photo UI requires explicit consent, administrator review
     e.revision,
   );
   await page.goto(`/events/e/${id}`);
-  await page.getByRole("button", { name: "ⓘ 신청 안내", exact: true }).click();
+  await page.getByRole("button", { name: "신청 안내", exact: true }).click();
   await page.getByRole("dialog").getByRole("button", { name: "다음", exact: true }).click();
   await page.getByRole("dialog").getByRole("button", { name: "다음", exact: true }).click();
   await page.getByRole("button", { name: "알겠어요", exact: true }).click();
@@ -1736,7 +1742,7 @@ test("independent draw module switches persist and the Halloween theme expires i
   expect(after.cards).toEqual(before.cards);
 });
 
-test("V3 actual app: phone-only reward record, late-arrival review and eight received logos preserve ownership",async({page,request,browser},testInfo)=>{
+test("actual app: optional receipt contact only after paid reward, late-arrival review and received logos preserve ownership",async({page,request,browser},testInfo)=>{
  const code=randomBytes(32).toString("base64url");
  await page.request.post("/api/event-hub/session",{data:{recoveryCode:code,create:true}});
  const user=async(action:string,target:string,data:Record<string,unknown>,revision?:number)=>{
@@ -1749,8 +1755,16 @@ test("V3 actual app: phone-only reward record, late-arrival review and eight rec
  await user("application.confirm",id,{},2);
  await page.addInitScript((id)=>sessionStorage.setItem("binpc2_application_guide_v6:"+id,"1"),eventId);
  await page.goto("/events/a/"+id);
- await page.getByLabel("상품·상금·할인 기록용 전화번호",{exact:true}).fill("01011110000");
- await page.getByRole("button",{name:"기록용 전화번호 저장",exact:true}).click();
+ await expect(page.getByLabel("수령 연락처 (선택)",{exact:true})).toHaveCount(0);
+ const rewardId=randomUUID();
+ await command(request,'admin.application.result',id,{id:rewardId,label:'합성 수동 상금',kind:'cash',amount:3000,reason:'격리 시험 지급 기록'},(await application(request,id)).revision);
+ await command(request,'admin.application.result.confirm',id,{id:rewardId,field:'paidAt',doubleChecked:true},(await application(request,id)).revision);
+ await command(request,'admin.application.phone-request',id,{source:'result',resultId:rewardId,purpose:'수령 기록 확인용 선택 연락처'},(await application(request,id)).revision);
+ await page.reload();
+ await page.getByLabel("수령 연락처 (선택)",{exact:true}).fill("01011110000");
+ await expect(page.getByRole("button",{name:"연락처 저장",exact:true})).toBeDisabled();
+ await page.getByLabel('위 수령 목적의 연락처 이용에 동의합니다 (선택)',{exact:true}).check();
+ await page.getByRole("button",{name:"연락처 저장",exact:true}).click();
  await expect.poll(async()=> (await application(request,id)).rewardPhone).toBe("01011110000");
  const initial=await application(request,id);
  await page.getByRole("button",{name:"늦게 도착해요 / 도착 예정시간",exact:true}).click();
@@ -1776,9 +1790,10 @@ test("V3 actual app: phone-only reward record, late-arrival review and eight rec
   await admin.getByLabel("관리할 행사").selectOption(eventId);
   if(!await admin.getByText("행사 설정·기록·관리 도구",{exact:true}).evaluate(el=>(el.parentElement as HTMLDetailsElement).open)) await admin.getByText("행사 설정·기록·관리 도구",{exact:true}).click();
   await admin.getByRole("button",{name:"경품·상금·할인 결과",exact:true}).click();
-  await admin.getByLabel("번호·닉네임·행사 검색",{exact:true}).fill(nickname);
+  await admin.getByLabel("닉네임·행사 검색",{exact:true}).fill(nickname);
   await admin.getByRole("button",{name:"권한 있는 관리자 상세 열람",exact:true}).click();
-  await expect(admin.getByText("전화번호 01011110000",{exact:true})).toBeVisible();
+  await admin.getByText('수령 연락처 · 저장됨',{exact:true}).click();
+  await expect(admin.getByText("수령 연락처: 01011110000",{exact:true})).toBeVisible();
   await admin.getByLabel("늦참 검토 사유",{exact:true}).fill("현장 확인 후 안내");
   await admin.getByRole("button",{name:"늦참 승인",exact:true}).click();
   await expect.poll(async()=> (await application(request,id)).lateArrival?.status).toBe("approved");

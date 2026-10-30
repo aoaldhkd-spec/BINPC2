@@ -1,3 +1,4 @@
+import { RewardContactAdmin, RewardReceiptContact } from "./RewardContact";
 import { halloweenPrizeLabel } from "../../../../lib/api-zod/src/event-policy-halloween";
 import { useState, useEffect } from 'react';
 import { eventEndAt } from '../../../../lib/api-zod/src/event-hub-modules';
@@ -26,9 +27,9 @@ export function RecruitmentSchedule({event:e,hub}:{event:HubEvent;hub:HubControl
  </HubCard>;
 }
 export function ParticipantOperations({app:a,event:e,hub}:{app:PrivateApplication;event:HubEvent;hub:HubController}){
- const [open,setOpen]=useState(false),[at,setAt]=useState(local(a.lateArrival?.at)||e.date+'T23:30'),[reason,setReason]=useState(a.lateArrival?.reason??''),[phone,setPhone]=useState(a.rewardPhone??a.basic.phone);
+ const [open,setOpen]=useState(false),[at,setAt]=useState(local(a.lateArrival?.at)||e.date+'T23:30'),[reason,setReason]=useState(a.lateArrival?.reason??'');
  const save=(action:string,data:Record<string,unknown>)=>hub.mutate({action,target:a.id,revision:a.revision,data});
- return <HubCard><h3 className="font-black">도착 예정 · 혜택 기록</h3>
+ return <HubCard><h3 className="font-black">도착 예정</h3>
   <HubButton onClick={()=>setOpen(!open)}>늦게 도착해요 / 도착 예정시간</HubButton>
   {open&&<div className="space-y-2">
    <p>{e.type==='halloween'?'1차만 진행하며 다음 날 01:00 종료·2차 없음. 늦게 와도 안내된 회비는 같습니다.':'범일NPC 술번개는 1차 신청입니다. 다른 차수는 운영자 안내를 확인하세요.'}</p>
@@ -39,30 +40,29 @@ export function ParticipantOperations({app:a,event:e,hub}:{app:PrivateApplicatio
    <p>문의는 화면의 관리자 1:1 문의를 이용하세요.</p>
   </div>}
   {a.lateArrival&&<p>예정 {formatHubTime(a.lateArrival.at)} · {({noted:"도착 예정 접수",review:"관리자 확인 대기",approved:"늦참 승인",declined:"도착 불가 · 문의 필요"})[a.lateArrival.status]} {a.lateArrival.reviewReason}</p>}
-  <HubField label="상품·상금·할인 기록용 전화번호"><input className={inputClass} type="tel" value={phone} onChange={x=>setPhone(x.target.value)}/></HubField>
-  <p className="text-xs">입력·저장만 합니다. SMS·전화 인증이나 추가 비밀번호는 없습니다. 지급 전 운영자가 직접 대조합니다.</p>
-  <HubButton disabled={hub.status==='saving'} onClick={()=>save('application.phone',{phone})}>기록용 전화번호 저장</HubButton>
+  <RewardReceiptContact app={a} event={e} hub={hub}/>
  </HubCard>;
 }
 export function BenefitResults({hub}:{hub:HubController}){
- const [search,setSearch]=useState(''),[detail,setDetail]=useState(''),[label,setLabel]=useState(''),[amount,setAmount]=useState('0'),[reason,setReason]=useState(''),[checked,setChecked]=useState(false);
+ const [search,setSearch]=useState(''),[detail,setDetail]=useState(''),[label,setLabel]=useState(''),[amount,setAmount]=useState('0'),[reason,setReason]=useState(''),[checked,setChecked]=useState(false),[kind,setKind]=useState<'item'|'cash'|'discount'>('item');
  return <HubCard><h3 className="font-black">경품·상금·할인 결과</h3>
- <HubField label="번호·닉네임·행사 검색"><input className={inputClass} value={search} onChange={e=>setSearch(e.target.value)}/></HubField>
- {hub.state?.applications.filter(a=>[a.basic.nickname,a.rewardPhone??a.basic.phone,hub.state?.events.find(e=>e.id===a.eventId)?.title].some(v=>v?.includes(search))).map(a=><section key={a.id} className="border-t py-3 space-y-2">
-  <p>{a.basic.nickname} · {(a.rewardPhone??a.basic.phone).replace(/[^0-9]/g,'').replace(/^(\d{3})\d+(\d{4})$/,'$1****$2')} · {a.waivedAt?'무료 승인':a.quote?.benefit}</p>
+ <HubField label="닉네임·행사 검색"><input className={inputClass} value={search} onChange={e=>setSearch(e.target.value)}/></HubField>
+ {hub.state?.applications.filter(a=>[a.basic.nickname,hub.state?.events.find(e=>e.id===a.eventId)?.title].some(v=>v?.includes(search))).map(a=><section key={a.id} className="border-t py-3 space-y-2">
+  <p>{a.basic.nickname} · {a.waivedAt?'무료 승인':a.quote?.benefit}</p>
   <p>{hub.state?.events.find(e=>e.id===a.eventId)?.date} · {a.cards.length}개 결과 · 지급확인 {a.prizesGiven.length}</p>
   <HubButton onClick={()=>setDetail(detail===a.id?'':a.id)}>권한 있는 관리자 상세 열람</HubButton>
   {detail===a.id&&<div className="space-y-2">
-   <p>전화번호 {a.rewardPhone??a.basic.phone}</p>
    <p>도착 {formatHubTime(a.lateArrival?.at)} · {a.lateArrival?({noted:"도착 예정 접수",review:"관리자 확인 대기",approved:"늦참 승인",declined:"도착 불가 · 문의 필요"})[a.lateArrival.status]:""} · {a.lateArrival?.reason}</p>
    {a.lateArrival&&<><HubField label="늦참 검토 사유"><input className={inputClass} value={reason} onChange={x=>setReason(x.target.value)}/></HubField>{['approved','declined'].map(status=><HubButton key={status} disabled={!reason||hub.status==='saving'} onClick={()=>hub.mutate({action:'admin.application.late',target:a.id,revision:a.revision,data:{status,reason}})}>{status==='approved'?'늦참 승인':'도착 불가·문의 안내'}</HubButton>)}</>}
    {(a.resultDetails??a.cards).map(c=><p key={c.id}>{halloweenPrizeLabel(c.prizeLabel??c.prize)} · {c.couponAmount??0}원 · {a.prizesGiven.includes(c.id)?'지급 확인':'지급 전'}</p>)}
    {a.manualResults?.map(r=><div key={r.id}><p>{r.label} {r.amount}원 · 수신 {r.receivedAt?'확인':'대기'} / 실제 지급 {r.paidAt?'확인':'대기'}</p>{(['receivedAt','paidAt'] as const).map(field=><HubButton key={field} disabled={!!r[field]||hub.status==='saving'||(field==='paidAt'&&!checked)} onClick={()=>hub.mutate({action:'admin.application.result.confirm',target:a.id,revision:a.revision,data:{id:r.id,field,doubleChecked:checked}})}>{field==='receivedAt'?'결과 수신 확인':'실제 지급 확인'}</HubButton>)}</div>)}
+   <RewardContactAdmin app={a} event={hub.state?.events.find(e=>e.id===a.eventId)} hub={hub}/>
+   <HubField label="결과 종류"><select className={inputClass} value={kind} onChange={e=>setKind(e.target.value as typeof kind)}><option value="item">상품</option><option value="cash">상금</option><option value="discount">할인</option></select></HubField>
    <HubField label="수동 결과 이름"><input className={inputClass} value={label} onChange={x=>setLabel(x.target.value)}/></HubField>
    <HubField label="수동 결과 금액 (기록만)"><input className={inputClass} type="number" value={amount} onChange={x=>setAmount(x.target.value)}/></HubField>
    <HubField label="수동 결과 근거"><input className={inputClass} value={reason} onChange={x=>setReason(x.target.value)}/></HubField>
    <HubCheck label="지급 전 신청·번호·결과를 직접 더블체크했습니다" checked={checked} onChange={setChecked}/>
-   <HubButton disabled={!label||!reason||hub.status==='saving'} onClick={()=>hub.mutate({action:'admin.application.result',target:a.id,revision:a.revision,data:{id:crypto.randomUUID(),label,amount:Number(amount),reason}})}>수동 상금·상품 결과 기록 (송금 없음)</HubButton>
+   <HubButton disabled={!label||!reason||hub.status==='saving'} onClick={()=>hub.mutate({action:'admin.application.result',target:a.id,revision:a.revision,data:{id:crypto.randomUUID(),label,amount:Number(amount),kind,reason}})}>수동 상금·상품 결과 기록 (송금 없음)</HubButton>
   </div>}
  </section>)}
  </HubCard>;

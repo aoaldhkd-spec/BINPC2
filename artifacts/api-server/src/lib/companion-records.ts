@@ -6,7 +6,8 @@ const DraftBasic = HubBasic.pick({nickname:true,birthYear:true,location:true,res
   nickname:z.string().trim().max(12).optional(), location:z.string().trim().max(40).optional(),
   residence:HubBasic.shape.residence.unwrap().extend({value:z.string().trim().max(30)}).optional(),
 });
-const CompleteBasic = HubBasic.pick({nickname:true,birthYear:true,location:true,residence:true});
+export const CompanionCompleteBasic = HubBasic.pick({nickname:true,birthYear:true,location:true,residence:true});
+const CompleteBasic = CompanionCompleteBasic;
 export const CompanionSave = z.object({
   id:z.string().uuid(), basic:DraftBasic, permissionToProvide:z.literal(true),
 }).strict();
@@ -20,6 +21,7 @@ export type CompanionDraft = {
   id:string; basic:z.infer<typeof DraftBasic>; providedAt:string;
   permissionToProvideAt:string; changedAt:string; removedAt?:string;
   inviteHash?:string; claimedAt?:string;
+  applicationId?:string; submittedAt?:string;
 };
 export type CompanionGroup = {revision:number; items:CompanionDraft[]};
 type Owner = {
@@ -94,14 +96,14 @@ export async function companionCommand(tx:HubTx,ctx:Context,
   const group=groupFor(me,eventId);expectedRevision(group.revision,m.revision);
   if(m.action==='companion.draft.save'){
     const input=CompanionSave.parse(payload),old=group.items.find(x=>x.id===input.id);
-    if(old?.claimedAt || old?.removedAt)fail('COMPANION_LOCKED','친구가 확인한 신청은 친구 본인이 이어서 수정합니다.',409);
+    if(old?.claimedAt || old?.removedAt || old?.applicationId)fail('COMPANION_LOCKED','접수한 친구 신청은 관리자에게 문의해 주세요.',409);
     if(!old && (group.items.length>=100 || group.items.filter(x=>!x.removedAt).length>=ctx.maxDrafts))fail('LIMIT','한 번에 작성할 친구 수를 초과했습니다. 관리자에게 문의해 주세요.');
     const item:CompanionDraft={id:input.id,basic:input.basic,providedAt:old?.providedAt??now,permissionToProvideAt:old?.permissionToProvideAt??now,changedAt:now};
     // Editing invalidates old invitations, but does not erase their audit record.
     group.items=old?group.items.map(x=>x.id===item.id?item:x):[...group.items,item];
   }else{
     const draft=group.items.find(x=>x.id===m.target);
-    if(!draft || draft.removedAt || draft.claimedAt)fail('COMPANION_LOCKED','작성 중인 친구 신청을 확인해 주세요.',409);
+    if(!draft || draft.removedAt || draft.claimedAt || draft.applicationId)fail('COMPANION_LOCKED','작성 중인 친구 신청을 확인해 주세요.',409);
     if(m.action==='companion.draft.remove'){
       draft.removedAt=now;draft.changedAt=now;draft.inviteHash=undefined;
     }else if(m.action==='companion.invite'){

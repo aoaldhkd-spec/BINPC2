@@ -1,0 +1,727 @@
+{
+  "allWorkspaceCounts": {
+    "error": 0,
+    "warn": 216,
+    "info": 1064
+  },
+  "publishableSourceCounts": {
+    "info": 571,
+    "warn": 117
+  },
+  "sourceWarningsByRule": {
+    "hardcoded_secret": 116,
+    "ts_ignore": 1
+  },
+  "sourceWarnings": [
+    {
+      "rel": "artifacts/api-server/src/__tests__/admin-event-end-reset.test.ts",
+      "line": 9,
+      "id": "hardcoded_secret",
+      "sev": "warn"
+    },
+    {
+      "rel": "artifacts/api-server/src/__tests__/broadcast-targets.test.ts",
+      "line": 7,
+      "id": "hardcoded_secret",
+      "sev": "warn"
+    },
+    {
+      "rel": "artifacts/api-server/src/__tests__/db-security.test.ts",
+      "line": 30,
+      "id": "hardcoded_secret",
+      "sev": "warn"
+    },
+    {
+      "rel": "artifacts/api-server/src/__tests__/db-security.test.ts",
+      "line": 304,
+      "id": "hardcoded_secret",
+      "sev": "warn"
+    },
+    {
+      "rel": "artifacts/api-server/src/__tests__/db-security.test.ts",
+      "line": 1021,
+      "id": "hardcoded_secret",
+      "sev": "warn"
+    },
+    {
+      "rel": "artifacts/api-server/src/__tests__/db-security.test.ts",
+      "line": 1086,
+      "id": "hardcoded_secret",
+      "sev": "warn"
+    },
+    {
+      "rel": "artifacts/api-server/src/__tests__/db-security.test.ts",
+      "line": 1087,
+      "id": "hardcoded_secret",
+      "sev": "warn"
+    },
+    {
+      "rel": "artifacts/api-server/src/__tests__/db-security.test.ts",
+      "line": 1088,
+      "id": "hardcoded_secret",
+      "sev": "warn"
+    },
+    {
+      "rel": "artifacts/api-server/src/__tests__/db-security.test.ts",
+      "line": 1112,
+      "id": "hardcoded_secret",
+      "sev": "warn"
+    },
+    {
+      "rel": "artifacts/api-server/src/__tests__/db-security.test.ts",
+      "line": 1117,
+      "id": "hardcoded_secret",
+      "sev": "warn"
+    },
+    {
+      "rel": "artifacts/api-server/src/__tests__/db-security.test.ts",
+      "line": 1122,
+      "id": "hardcoded_secret",
+      "sev": "warn"
+    },
+    {
+      "rel": "artifacts/api-server/src/__tests__/db-security.test.ts",
+      "line": 1185,
+      "id": "hardcoded_secret",
+      "sev": "warn"
+    },
+    {
+      "rel": "artifacts/api-server/src/__tests__/db-security.test.ts",
+      "line": 1186,
+      "id": "hardcoded_secret",
+      "sev": "warn"
+    },
+    {
+      "rel": "artifacts/api-server/src/__tests__/db-security.test.ts",
+      "line": 1190,
+      "id": "hardcoded_secret",
+      "sev": "warn"
+    },
+    {
+      "rel": "artifacts/api-server/src/__tests__/db-security.test.ts",
+      "line": 1196,
+      "id": "hardcoded_secret",
+      "sev": "warn"
+    },
+    {
+      "rel": "artifacts/api-server/src/__tests__/db-security.test.ts",
+      "line": 1254,
+      "id": "hardcoded_secret",
+      "sev": "warn"
+    },
+    {
+      "rel": "artifacts/api-server/src/__tests__/db-security.test.ts",
+      "line": 1262,
+      "id": "hardcoded_secret",
+      "sev": "warn"
+    },
+    {
+      "rel": "artifacts/api-server/src/__tests__/db-security.test.ts",
+      "line": 1279,
+      "id": "hardcoded_secret",
+      "sev": "warn"
+    },
+    {
+      "rel": "artifacts/api-server/src/__tests__/db-security.test.ts",
+      "line": 1284,
+      "id": "hardcoded_secret",
+      "sev": "warn"
+    },
+    {
+      "rel": "artifacts/api-server/src/__tests__/db-security.test.ts",
+      "line": 1301,
+      "id": "hardcoded_secret",
+      "sev": "warn"
+    },
+    {
+      "rel": "artifacts/api-server/src/__tests__/db-security.test.ts",
+      "line": 1306,
+      "id": "hardcoded_secret",
+      "sev": "warn"
+    },
+    {
+      "rel": "artifacts/api-server/src/__tests__/db-security.test.ts",
+      "line": 1313,
+      "id": "hardcoded_secret",
+      "sev": "warn"
+    },
+    {
+      "rel": "artifacts/api-server/src/__tests__/db-security.test.ts",
+      "line": 1343,
+      "id": "hardcoded_secret",
+      "sev": "warn"
+    },
+    {
+      "rel": "artifacts/api-server/src/__tests__/db-security.test.ts",
+      "line": 1354,
+      "id": "hardcoded_secret",
+      "sev": "warn"
+    },
+    {
+      "rel": "artifacts/api-server/src/__tests__/db-test-mode.test.ts",
+      "line": 7,
+      "id": "hardcoded_secret",
+      "sev": "warn"
+    },
+    {
+      "rel": "artifacts/api-server/src/__tests__/db-test-mode.test.ts",
+      "line": 61,
+      "id": "hardcoded_secret",
+      "sev": "warn"
+    },
+    {
+      "rel": "artifacts/api-server/src/__tests__/db-test-mode.test.ts",
+      "line": 132,
+      "id": "hardcoded_secret",
+      "sev": "warn"
+    },
+    {
+      "rel": "artifacts/api-server/src/__tests__/db-test-mode.test.ts",
+      "line": 150,
+      "id": "hardcoded_secret",
+      "sev": "warn"
+    },
+    {
+      "rel": "artifacts/api-server/src/__tests__/hearts-chat-group-invariants.test.ts",
+      "line": 10,
+      "id": "hardcoded_secret",
+      "sev": "warn"
+    },
+    {
+      "rel": "artifacts/api-server/src/__tests__/load-venue-150.test.ts",
+      "line": 9,
+      "id": "hardcoded_secret",
+      "sev": "warn"
+    },
+    {
+      "rel": "artifacts/api-server/src/__tests__/push-self-test.test.ts",
+      "line": 6,
+      "id": "hardcoded_secret",
+      "sev": "warn"
+    },
+    {
+      "rel": "artifacts/api-server/src/__tests__/sulbun-event-reset.test.ts",
+      "line": 9,
+      "id": "hardcoded_secret",
+      "sev": "warn"
+    },
+    {
+      "rel": "artifacts/api-server/src/lib/boss-access.test.ts",
+      "line": 7,
+      "id": "hardcoded_secret",
+      "sev": "warn"
+    },
+    {
+      "rel": "artifacts/api-server/src/lib/boss-access.test.ts",
+      "line": 13,
+      "id": "hardcoded_secret",
+      "sev": "warn"
+    },
+    {
+      "rel": "artifacts/api-server/src/lib/boss-access.test.ts",
+      "line": 66,
+      "id": "hardcoded_secret",
+      "sev": "warn"
+    },
+    {
+      "rel": "artifacts/api-server/src/lib/companion-submission.pg.test.ts",
+      "line": 33,
+      "id": "hardcoded_secret",
+      "sev": "warn"
+    },
+    {
+      "rel": "artifacts/api-server/src/lib/companion-submission.pg.test.ts",
+      "line": 154,
+      "id": "hardcoded_secret",
+      "sev": "warn"
+    },
+    {
+      "rel": "artifacts/api-server/src/lib/companion-submission.pg.test.ts",
+      "line": 177,
+      "id": "hardcoded_secret",
+      "sev": "warn"
+    },
+    {
+      "rel": "artifacts/api-server/src/lib/companion-submission.pg.test.ts",
+      "line": 179,
+      "id": "hardcoded_secret",
+      "sev": "warn"
+    },
+    {
+      "rel": "artifacts/api-server/src/lib/companion-submission.pg.test.ts",
+      "line": 182,
+      "id": "hardcoded_secret",
+      "sev": "warn"
+    },
+    {
+      "rel": "artifacts/api-server/src/lib/companion-submission.pg.test.ts",
+      "line": 266,
+      "id": "hardcoded_secret",
+      "sev": "warn"
+    },
+    {
+      "rel": "artifacts/api-server/src/lib/companion-submission.pg.test.ts",
+      "line": 276,
+      "id": "hardcoded_secret",
+      "sev": "warn"
+    },
+    {
+      "rel": "artifacts/api-server/src/lib/companion-submission.pg.test.ts",
+      "line": 432,
+      "id": "hardcoded_secret",
+      "sev": "warn"
+    },
+    {
+      "rel": "artifacts/api-server/src/lib/companion-submission.pg.test.ts",
+      "line": 436,
+      "id": "hardcoded_secret",
+      "sev": "warn"
+    },
+    {
+      "rel": "artifacts/api-server/src/lib/db-app-settings-boot.test.ts",
+      "line": 14,
+      "id": "hardcoded_secret",
+      "sev": "warn"
+    },
+    {
+      "rel": "artifacts/api-server/src/lib/db-app-settings-boot.test.ts",
+      "line": 22,
+      "id": "hardcoded_secret",
+      "sev": "warn"
+    },
+    {
+      "rel": "artifacts/api-server/src/lib/db-app-settings-boot.test.ts",
+      "line": 23,
+      "id": "hardcoded_secret",
+      "sev": "warn"
+    },
+    {
+      "rel": "artifacts/api-server/src/lib/db-app-settings-boot.test.ts",
+      "line": 25,
+      "id": "hardcoded_secret",
+      "sev": "warn"
+    },
+    {
+      "rel": "artifacts/api-server/src/lib/db-app-settings-boot.test.ts",
+      "line": 43,
+      "id": "hardcoded_secret",
+      "sev": "warn"
+    },
+    {
+      "rel": "artifacts/api-server/src/lib/db-app-settings-boot.test.ts",
+      "line": 51,
+      "id": "hardcoded_secret",
+      "sev": "warn"
+    },
+    {
+      "rel": "artifacts/api-server/src/lib/db-app-settings-boot.test.ts",
+      "line": 60,
+      "id": "hardcoded_secret",
+      "sev": "warn"
+    },
+    {
+      "rel": "artifacts/api-server/src/lib/db-app-settings-boot.test.ts",
+      "line": 68,
+      "id": "hardcoded_secret",
+      "sev": "warn"
+    },
+    {
+      "rel": "artifacts/api-server/src/lib/db-app-settings-boot.test.ts",
+      "line": 69,
+      "id": "hardcoded_secret",
+      "sev": "warn"
+    },
+    {
+      "rel": "artifacts/api-server/src/lib/db-app-settings-boot.test.ts",
+      "line": 70,
+      "id": "hardcoded_secret",
+      "sev": "warn"
+    },
+    {
+      "rel": "artifacts/api-server/src/lib/db-app-settings-boot.test.ts",
+      "line": 113,
+      "id": "hardcoded_secret",
+      "sev": "warn"
+    },
+    {
+      "rel": "artifacts/api-server/src/lib/db-app-settings-boot.test.ts",
+      "line": 114,
+      "id": "hardcoded_secret",
+      "sev": "warn"
+    },
+    {
+      "rel": "artifacts/api-server/src/lib/db-app-settings-boot.test.ts",
+      "line": 115,
+      "id": "hardcoded_secret",
+      "sev": "warn"
+    },
+    {
+      "rel": "artifacts/api-server/src/lib/db-app-settings-view.test.ts",
+      "line": 40,
+      "id": "hardcoded_secret",
+      "sev": "warn"
+    },
+    {
+      "rel": "artifacts/api-server/src/lib/db-app-settings-view.test.ts",
+      "line": 41,
+      "id": "hardcoded_secret",
+      "sev": "warn"
+    },
+    {
+      "rel": "artifacts/api-server/src/lib/db-app-settings-view.test.ts",
+      "line": 42,
+      "id": "hardcoded_secret",
+      "sev": "warn"
+    },
+    {
+      "rel": "artifacts/api-server/src/lib/db-app-settings-view.test.ts",
+      "line": 43,
+      "id": "hardcoded_secret",
+      "sev": "warn"
+    },
+    {
+      "rel": "artifacts/api-server/src/lib/db-app-settings-view.test.ts",
+      "line": 115,
+      "id": "hardcoded_secret",
+      "sev": "warn"
+    },
+    {
+      "rel": "artifacts/api-server/src/lib/db-session-tokens.test.ts",
+      "line": 21,
+      "id": "hardcoded_secret",
+      "sev": "warn"
+    },
+    {
+      "rel": "artifacts/api-server/src/lib/event-hub.pg.test.ts",
+      "line": 250,
+      "id": "hardcoded_secret",
+      "sev": "warn"
+    },
+    {
+      "rel": "artifacts/api-server/src/lib/event-hub.pg.test.ts",
+      "line": 260,
+      "id": "hardcoded_secret",
+      "sev": "warn"
+    },
+    {
+      "rel": "artifacts/api-server/src/lib/event-hub.pg.test.ts",
+      "line": 271,
+      "id": "hardcoded_secret",
+      "sev": "warn"
+    },
+    {
+      "rel": "artifacts/api-server/src/lib/event-hub.pg.test.ts",
+      "line": 305,
+      "id": "hardcoded_secret",
+      "sev": "warn"
+    },
+    {
+      "rel": "artifacts/api-server/src/lib/event-hub.pg.test.ts",
+      "line": 875,
+      "id": "hardcoded_secret",
+      "sev": "warn"
+    },
+    {
+      "rel": "artifacts/api-server/src/lib/event-hub.pg.test.ts",
+      "line": 892,
+      "id": "hardcoded_secret",
+      "sev": "warn"
+    },
+    {
+      "rel": "artifacts/api-server/src/lib/event-hub.pg.test.ts",
+      "line": 902,
+      "id": "hardcoded_secret",
+      "sev": "warn"
+    },
+    {
+      "rel": "artifacts/api-server/src/lib/event-hub.pg.test.ts",
+      "line": 911,
+      "id": "hardcoded_secret",
+      "sev": "warn"
+    },
+    {
+      "rel": "artifacts/api-server/src/lib/event-hub.pg.test.ts",
+      "line": 950,
+      "id": "hardcoded_secret",
+      "sev": "warn"
+    },
+    {
+      "rel": "artifacts/api-server/src/lib/event-hub.pg.test.ts",
+      "line": 963,
+      "id": "hardcoded_secret",
+      "sev": "warn"
+    },
+    {
+      "rel": "artifacts/api-server/src/lib/event-hub.pg.test.ts",
+      "line": 986,
+      "id": "hardcoded_secret",
+      "sev": "warn"
+    },
+    {
+      "rel": "artifacts/api-server/src/lib/event-hub.pg.test.ts",
+      "line": 1164,
+      "id": "hardcoded_secret",
+      "sev": "warn"
+    },
+    {
+      "rel": "artifacts/api-server/src/lib/event-hub.pg.test.ts",
+      "line": 1180,
+      "id": "hardcoded_secret",
+      "sev": "warn"
+    },
+    {
+      "rel": "artifacts/api-server/src/lib/event-hub.pg.test.ts",
+      "line": 1191,
+      "id": "hardcoded_secret",
+      "sev": "warn"
+    },
+    {
+      "rel": "artifacts/api-server/src/lib/event-hub.pg.test.ts",
+      "line": 1200,
+      "id": "hardcoded_secret",
+      "sev": "warn"
+    },
+    {
+      "rel": "artifacts/api-server/src/lib/event-hub.pg.test.ts",
+      "line": 1245,
+      "id": "hardcoded_secret",
+      "sev": "warn"
+    },
+    {
+      "rel": "artifacts/api-server/src/lib/event-hub.pg.test.ts",
+      "line": 1293,
+      "id": "hardcoded_secret",
+      "sev": "warn"
+    },
+    {
+      "rel": "artifacts/api-server/src/lib/event-hub.pg.test.ts",
+      "line": 1332,
+      "id": "hardcoded_secret",
+      "sev": "warn"
+    },
+    {
+      "rel": "artifacts/api-server/src/lib/event-hub.pg.test.ts",
+      "line": 1428,
+      "id": "hardcoded_secret",
+      "sev": "warn"
+    },
+    {
+      "rel": "artifacts/api-server/src/lib/event-hub.pg.test.ts",
+      "line": 1532,
+      "id": "hardcoded_secret",
+      "sev": "warn"
+    },
+    {
+      "rel": "artifacts/api-server/src/lib/event-hub.pg.test.ts",
+      "line": 1569,
+      "id": "hardcoded_secret",
+      "sev": "warn"
+    },
+    {
+      "rel": "artifacts/api-server/src/lib/event-hub.pg.test.ts",
+      "line": 1680,
+      "id": "hardcoded_secret",
+      "sev": "warn"
+    },
+    {
+      "rel": "artifacts/api-server/src/lib/event-hub.pg.test.ts",
+      "line": 1804,
+      "id": "hardcoded_secret",
+      "sev": "warn"
+    },
+    {
+      "rel": "artifacts/api-server/src/lib/event-hub.pg.test.ts",
+      "line": 2141,
+      "id": "hardcoded_secret",
+      "sev": "warn"
+    },
+    {
+      "rel": "artifacts/api-server/src/lib/event-hub.pg.test.ts",
+      "line": 2354,
+      "id": "hardcoded_secret",
+      "sev": "warn"
+    },
+    {
+      "rel": "artifacts/api-server/src/lib/event-hub.pg.test.ts",
+      "line": 2367,
+      "id": "hardcoded_secret",
+      "sev": "warn"
+    },
+    {
+      "rel": "artifacts/api-server/src/lib/event-hub.pg.test.ts",
+      "line": 2762,
+      "id": "hardcoded_secret",
+      "sev": "warn"
+    },
+    {
+      "rel": "artifacts/api-server/src/lib/event-hub.pg.test.ts",
+      "line": 2811,
+      "id": "hardcoded_secret",
+      "sev": "warn"
+    },
+    {
+      "rel": "artifacts/api-server/src/lib/event-hub.pg.test.ts",
+      "line": 2852,
+      "id": "hardcoded_secret",
+      "sev": "warn"
+    },
+    {
+      "rel": "artifacts/api-server/src/lib/event-hub.pg.test.ts",
+      "line": 2854,
+      "id": "hardcoded_secret",
+      "sev": "warn"
+    },
+    {
+      "rel": "artifacts/api-server/src/lib/event-hub.pg.test.ts",
+      "line": 2957,
+      "id": "hardcoded_secret",
+      "sev": "warn"
+    },
+    {
+      "rel": "artifacts/api-server/src/lib/private-preview.test.ts",
+      "line": 5,
+      "id": "hardcoded_secret",
+      "sev": "warn"
+    },
+    {
+      "rel": "artifacts/api-server/src/lib/private-preview.test.ts",
+      "line": 6,
+      "id": "hardcoded_secret",
+      "sev": "warn"
+    },
+    {
+      "rel": "artifacts/api-server/src/routes/event-hub-session-boundary.test.ts",
+      "line": 33,
+      "id": "hardcoded_secret",
+      "sev": "warn"
+    },
+    {
+      "rel": "artifacts/api-server/src/routes/event-hub-session-boundary.test.ts",
+      "line": 106,
+      "id": "hardcoded_secret",
+      "sev": "warn"
+    },
+    {
+      "rel": "artifacts/api-server/src/routes/event-hub-session-boundary.test.ts",
+      "line": 119,
+      "id": "hardcoded_secret",
+      "sev": "warn"
+    },
+    {
+      "rel": "artifacts/api-server/vitest.config.ts",
+      "line": 14,
+      "id": "hardcoded_secret",
+      "sev": "warn"
+    },
+    {
+      "rel": "artifacts/boltnew-app/scripts/check-responsive-preview.mjs",
+      "line": 55,
+      "id": "hardcoded_secret",
+      "sev": "warn"
+    },
+    {
+      "rel": "artifacts/boltnew-app/src/admin/LoginScreen.test.tsx",
+      "line": 60,
+      "id": "hardcoded_secret",
+      "sev": "warn"
+    },
+    {
+      "rel": "artifacts/boltnew-app/src/event-hub/event-laboratory-store.test.ts",
+      "line": 178,
+      "id": "hardcoded_secret",
+      "sev": "warn"
+    },
+    {
+      "rel": "artifacts/boltnew-app/src/lib/signal-match.test.ts",
+      "line": 152,
+      "id": "hardcoded_secret",
+      "sev": "warn"
+    },
+    {
+      "rel": "artifacts/boltnew-app/src/lib/signal-match.test.ts",
+      "line": 247,
+      "id": "hardcoded_secret",
+      "sev": "warn"
+    },
+    {
+      "rel": "artifacts/boltnew-app/tests/companion-group.spec.ts",
+      "line": 149,
+      "id": "hardcoded_secret",
+      "sev": "warn"
+    },
+    {
+      "rel": "artifacts/boltnew-app/tests/event-hub-v6.spec.ts",
+      "line": 309,
+      "id": "hardcoded_secret",
+      "sev": "warn"
+    },
+    {
+      "rel": "artifacts/boltnew-app/tests/event-hub-v6.spec.ts",
+      "line": 424,
+      "id": "hardcoded_secret",
+      "sev": "warn"
+    },
+    {
+      "rel": "scripts/event-hub-browser-fixture.mjs",
+      "line": 73,
+      "id": "hardcoded_secret",
+      "sev": "warn"
+    },
+    {
+      "rel": "scripts/event-hub-http-soak.mjs",
+      "line": 99,
+      "id": "hardcoded_secret",
+      "sev": "warn"
+    },
+    {
+      "rel": "scripts/full-code-audit.mjs",
+      "line": 55,
+      "id": "ts_ignore",
+      "sev": "warn"
+    },
+    {
+      "rel": "scripts/lib/ops-client.mjs",
+      "line": 103,
+      "id": "hardcoded_secret",
+      "sev": "warn"
+    },
+    {
+      "rel": "scripts/rotate-exposed-secrets.mjs",
+      "line": 9,
+      "id": "hardcoded_secret",
+      "sev": "warn"
+    },
+    {
+      "rel": "scripts/rotate-exposed-secrets.mjs",
+      "line": 10,
+      "id": "hardcoded_secret",
+      "sev": "warn"
+    },
+    {
+      "rel": "scripts/test/event-hub-legacy-fixture.test.mjs",
+      "line": 8,
+      "id": "hardcoded_secret",
+      "sev": "warn"
+    },
+    {
+      "rel": "scripts/test/ops-client.test.mjs",
+      "line": 127,
+      "id": "hardcoded_secret",
+      "sev": "warn"
+    },
+    {
+      "rel": "scripts/test/ops-client.test.mjs",
+      "line": 128,
+      "id": "hardcoded_secret",
+      "sev": "warn"
+    }
+  ],
+  "ignoredPrivateWorkspaceCount": 592,
+  "note": "Pattern warnings; no source credential literal emitted; local snapshots/builds excluded only from source summary, original full audit preserved.",
+  "classification": {
+    "testOrIsolatedFixture": 113,
+    "tokenInputDocumentationPlaceholders": 2,
+    "redactionConstant": 1,
+    "auditRuleSelfMatch": 1
+  }
+}

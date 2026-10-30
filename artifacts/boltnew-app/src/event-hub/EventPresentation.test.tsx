@@ -12,6 +12,7 @@ import {
   EventDetailHeader,
   EventListCard,
   eventDateLabel,
+  participantEventTitle,
 } from "./EventPresentation";
 import type { HubEvent, PrivateApplication } from "../lib/event-hub-client";
 const event = {
@@ -105,4 +106,24 @@ it("never reveals a leaked location field without payment approval and keeps the
   expect(v.container.textContent).not.toContain("승인 전 비공개 주소");
   expect(v.container.querySelector('a[href*="private"]')).toBeNull();
   expect(screen.getByText("상세 장소는 승인 후 열려요")).toBeTruthy();
+});
+
+it("uses the chosen public cover before logos and preserves the same public venue logos", () => {
+ const v=render(<EventArtwork event={{...event,promotionLogos:[{builtinId:"jack"}],media:["/chosen-public.png"],materials:[{id:"cover",url:"/chosen-public.png",purpose:"notice",alt:"선택한 포스터",hidden:false,at:"2026-10-30T00:00:00Z"}]}}/>);
+ expect(v.container.querySelector('img[src="/chosen-public.png"]')).not.toBeNull();
+ expect(v.container.querySelector('img[src="/tour-logos-v3/jack.png"]')).not.toBeNull();
+});
+it("names tours by their actual region and never gives an unknown tour a Halloween store image", () => {
+ const tour={...event,type:"tour" as const,title:"술번개방",date:"2026-12-03",area:"대구"};
+ expect(participantEventTitle(tour)).toBe("대구 · 전국투어");
+ expect(tour.title).toBe("술번개방");
+ render(<EventArtwork event={{...tour,date:"2027-01-10",area:"",promotionLogos:[]}}/>);
+ expect(screen.queryByAltText("할로윈 행사 분위기 일러스트")).toBeNull();
+ expect(screen.queryByAltText(/블랙/)).toBeNull();
+});
+
+it("does not infer another region's stores from a matching tour date alone", () => {
+ const v=render(<EventArtwork event={{...event,type:"tour",date:"2026-12-03",title:"별도 전국투어",area:"부산",themeEnabled:false}}/>);
+ expect(v.container.querySelector('img[src*="black"]')).toBeNull();
+ expect(v.container.textContent).toContain("KOREA TOUR");
 });

@@ -1,0 +1,51 @@
+{
+  "metrics": [
+    {
+      "width": 320,
+      "height": 568,
+      "scrollWidth": 320,
+      "scrollHeight": 645
+    },
+    {
+      "width": 390,
+      "height": 844,
+      "scrollWidth": 390,
+      "scrollHeight": 844
+    },
+    {
+      "width": 430,
+      "height": 844,
+      "scrollWidth": 430,
+      "scrollHeight": 844
+    },
+    {
+      "width": 768,
+      "height": 1024,
+      "scrollWidth": 768,
+      "scrollHeight": 1024
+    },
+    {
+      "width": 1024,
+      "height": 1024,
+      "scrollWidth": 1024,
+      "scrollHeight": 1024
+    },
+    {
+      "width": 1280,
+      "height": 1024,
+      "scrollWidth": 1280,
+      "scrollHeight": 1024
+    },
+    {
+      "width": 1440,
+      "height": 1024,
+      "scrollWidth": 1440,
+      "scrollHeight": 1024
+    }
+  ],
+  "overflow": {
+    "height": 568,
+    "doc": 568,
+    "nodes": []
+  }
+}

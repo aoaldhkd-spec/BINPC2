@@ -1,0 +1,29 @@
+{
+  "checkedAt": "2026-10-30T03:39:18.960Z",
+  "database": "isolated loopback binpc2_hub_load_v6",
+  "sessionActive": true,
+  "resetComplete": false,
+  "cycleStartedAt": "2026-10-31T14:00:01.506Z",
+  "totalLiveProfiles": 301,
+  "cohorts": [
+    {
+      "runId": "mixed-1793330525341",
+      "applicationCount": 150,
+      "liveProfiles": 150,
+      "approved": 150,
+      "threeCards": 150,
+      "sameActiveCycle": 150
+    },
+    {
+      "runId": "mixed-1793331275744",
+      "applicationCount": 150,
+      "liveProfiles": 150,
+      "approved": 150,
+      "threeCards": 150,
+      "sameActiveCycle": 150
+    }
+  ],
+  "cycleId": "binpc2:event-anon:v1:2026-10-31:f40bc8d7-b577-49a7-9afc-9ec696e1c654",
+  "beforeSnapshotRecorded": false,
+  "retentionEvidence": "After second run, both independently identified synthetic cohorts retain all 150 live profiles, approved applications and 3 cards in the same active cycle. No separate pre-run snapshot was captured."
+}

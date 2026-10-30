@@ -20,7 +20,7 @@ it('edits a person-specific draft without submitting a personal application or c
 it('a stale friend list keeps typed input and blocks overwriting newer saved data',()=>{
   const mutate=vi.fn(),props={eventId:'event',mutate,busy:false,blocked:false,onOwn:vi.fn()};
   const {rerender}=render(<CompanionCards {...props} group={{revision:0,items:[]}}/>);
-  fireEvent.click(screen.getByRole('button',{name:'친구 추가'}));
+  fireEvent.click(screen.getByRole('button',{name:'+ 지인 추가'}));
   fireEvent.change(screen.getByLabelText('친구 닉네임'),{target:{value:'남은입력'}});
   fireEvent.click(screen.getByLabelText(/친구에게 이번 행사/));
   rerender(<CompanionCards {...props} group={{revision:1,items:[]}}/>);

@@ -14,9 +14,17 @@ export function VenueLogo({id}:{id?:string}){
  if (!item) return null;
  return <figure><img src={`/tour-logos-v3/${item[0]}.${item[0] === 'black' ? 'webp' : 'png'}`} alt={item[1]} width={160} height={140} loading="lazy" className="max-w-full h-36 object-contain bg-white rounded-xl"/><figcaption className="text-xs">{item[1]}</figcaption></figure>;
 }
+/** A date alone must not attach another region's stores to a custom tour. */
+export function publicTourWeek(event: HubEvent) {
+ if(event.type!=='tour')return undefined;
+ const week=TOUR_WEEKS.find(w=>event.date>=w.start&&event.date<=new Date(Date.parse(w.start+'T00:00:00Z')+3*86400000).toISOString().slice(0,10));
+ if(!week)return undefined;
+ const declared=(event.area??'').trim()||event.title;
+ return declared.includes(week.region)?week:undefined;
+}
 /** Only the explicitly public selection is used for list/detail/admin artwork. */
 export function publicLogoChoices(event:HubEvent): NonNullable<HubEvent["promotionLogo"]>[]{
- return event.promotionLogos ?? (event.promotionLogo ? [event.promotionLogo] : event.type==='tour' ? (TOUR_WEEKS.find(w=>event.date>=w.start&&event.date<=new Date(Date.parse(w.start+'T00:00:00Z')+3*86400000).toISOString().slice(0,10))?.logoIds??[]).map(builtinId=>({builtinId})) : []);
+ return event.promotionLogos ?? (event.promotionLogo ? [event.promotionLogo] : event.type==='tour' ? (publicTourWeek(event)?.logoIds??[]).map(builtinId=>({builtinId})) : []);
 }
 export function PromotionLogo({event,admin=false}:{event:HubEvent;admin?:boolean}){
  return <>{publicLogoChoices(event).map((choice,i)=><SinglePromotionLogo key={choice.versionId??choice.builtinId??choice.url??i} event={event} choice={choice} admin={admin}/>)}</>;

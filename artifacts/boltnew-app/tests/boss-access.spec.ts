@@ -43,35 +43,55 @@ test('boss uses the ordinary application UI and actual admission API while publi
   await page.getByRole('button',{name:'할로윈 신청·이어하기'}).click();
   await page.getByRole('button',{name:/신청 가능.*10월 30/}).click();
   await expect(page.getByRole('dialog')).toHaveCount(0);
-  await page.getByRole('button',{name:'ⓘ 신청 안내',exact:true}).click();
+  await page.getByRole('button',{name:'신청 안내',exact:true}).click();
   await page.getByRole('button',{name:'신청 안내 닫기',exact:true}).click();
-  await page.getByText('친구와 함께 신청',{exact:true}).click();
-  await page.getByRole('button',{name:'친구 추가',exact:true}).click();
-  await page.getByLabel('친구 닉네임',{exact:true}).fill('동반시험');
-  await page.getByLabel('친구 출생연도 (네 자리)',{exact:true}).fill('1998');
+  await page.getByRole('button',{name:'신청하기',exact:true}).click();
+  await expect(page.getByRole('dialog',{name:'누구와 신청하시나요?'})).toBeVisible();
+  await expect(page.getByRole('button',{name:'혼자 신청',exact:true})).toBeFocused();
+  await page.keyboard.press('Tab');await expect(page.getByRole('button',{name:'지인과 함께',exact:true})).toBeFocused();
+  await page.keyboard.press('Escape');await expect(page.getByRole('dialog')).toHaveCount(0);
+  await page.getByRole('button',{name:'신청하기',exact:true}).click();
+  await page.getByRole('button',{name:'지인과 함께',exact:true}).click();
+  await page.getByRole('button',{name:'+ 지인 추가',exact:true}).click();
+  const friendName='동반'+crypto.randomUUID().slice(0,4);
+  await page.getByLabel('친구 닉네임',{exact:true}).fill(friendName);
+  await page.getByLabel('친구 출생연도',{exact:true}).selectOption('1998');
+  await page.getByLabel('도시',{exact:true}).selectOption('경기 파주');
   await page.getByLabel(/친구에게 이번 행사/).check();
   await page.getByRole('button',{name:'친구 정보 저장',exact:true}).click();
-  await expect(page.getByRole('heading',{name:'친구 1 · 동반시험'})).toBeVisible();
+  await expect(page.getByRole('heading',{name:`친구 1 · ${friendName}`})).toBeVisible();
   await page.reload();
-  await page.getByText('친구와 함께 신청',{exact:true}).click();
-  await expect(page.getByRole('heading',{name:'친구 1 · 동반시험'})).toBeVisible();
   await page.getByRole('button',{name:'신청하기',exact:true}).click();
+  await expect(page.getByRole('dialog')).toHaveCount(0);
+  await expect(page.getByRole('heading',{name:`친구 1 · ${friendName}`})).toBeVisible();
+  await page.getByRole('button',{name:'본인 정보 입력',exact:true}).click();
   await page.getByLabel('[필수] 위 개인정보').check();await page.getByRole('button',{name:'다음',exact:true}).click();
-  const nickname='실앱'+String(Date.now()).slice(-3);
-  for(const [label,value] of [['닉네임',nickname],['태어난 년도','1995'],['사는 지역','서울'],['연락용 전화번호 (문자 인증 없음)','01000000000'],['실제 은행 입금 시 보내는 분 이름','가상확인']]){
-    await page.getByLabel(label,{exact:true}).fill(value);await page.getByRole('button',{name:'다음',exact:true}).click();
+  const nickname='실앱'+crypto.randomUUID().slice(0,4);
+  for(const [label,value] of [['닉네임',nickname],['태어난 년도','1995'],['도시','서울'],['실제 은행 입금 시 보내는 분 이름','가상확인']]){
+    if(label==='태어난 년도'||label==='도시')await page.getByLabel(label,{exact:true}).selectOption(value);else await page.getByLabel(label,{exact:true}).fill(value);
+    await page.getByRole('button',{name:label==='실제 은행 입금 시 보내는 분 이름'?'2명 함께 신청':'다음',exact:true}).click();
   }
   await page.getByLabel('필수 안내를 모두 확인하고 동의합니다',{exact:true}).check();
   await page.getByRole('button',{name:'동의하고 다음'}).click();
-  await page.getByRole('button',{name:'금액 확인 후 신청 확정'}).click();
+  await page.getByRole('button',{name:'2명 금액 확인·신청 확정'}).click();
   await expect(page.getByRole('heading',{name:'👤 내 프로필'})).toBeVisible();
   await page.reload();await expect(page.getByRole('heading',{name:'👤 내 프로필'})).toBeVisible();
+  await expect(page.getByRole('heading',{name:'함께 신청한 친구'})).toBeVisible();
+  await page.getByRole('button',{name:/선택한 \d명 입금 신고/}).click();
+  await expect(page.getByRole('button',{name:/선택한 \d명 입금 신고/})).toHaveCount(0);
+  await page.screenshot({path:info.outputPath('boss-companion-combined-report-mobile.png'),fullPage:true});
   const api=async(path:string,body?:unknown,admin=false)=>page.evaluate(async({path,body,admin})=>{const r=await fetch('/api/event-hub'+path,{method:body===undefined?'GET':'POST',headers:{'content-type':'application/json',...(admin?{'x-admin-token':localStorage.getItem('admin_token_v1')!}:{})},...(body===undefined?{}:{body:JSON.stringify(body)})});return {status:r.status,body:await r.json()};},{path,body,admin});
   const state=await api('/state');let app=state.body.applications.find((a:any)=>a.basic.nickname===nickname);
+  const friend=state.body.companionApplications.find((a:any)=>a.eventId===app.eventId);
+  expect(friend).toMatchObject({nickname:friendName,payment:'reported',personalConsentPending:true,linked:false});
+  const ownRank=(await api('/admin',undefined,true)).body.applications.find((a:any)=>a.id===app.id).rank;
+  expect(friend.rank).toBe(ownRank+1);expect(state.body.applications).toHaveLength(1);
+  for(const field of ['owner','profile','profileId','phone','venue','cards'])expect(friend).not.toHaveProperty(field);
   expect(app.bossTestOnly).toBe(true);expect(state.body.testMode).toMatchObject({enabled:true,publicAdmissionOpen:false});
   const command=async(action:string,data:unknown,admin=false)=>{const s=await api('/state');app=s.body.applications.find((a:any)=>a.id===app.id);return api('/mutate',{action,target:app.id,revision:app.revision,data,requestId:crypto.randomUUID()},admin);};
   expect((await command('application.enter',{deviceSecret:crypto.randomUUID()})).status).toBe(403);
   const approved=await command(app.quote.fee===0?'admin.application.free':'admin.application.payment',app.quote.fee===0?{}:{status:'approved',testChecked:true},true);expect(approved.status).toBe(200);
+  expect((await api('/state')).body.companionApplications.find((a:any)=>a.id===friend.id).payment).toBe('reported');
   expect((await command('application.profile',{profile:{mbti:'INTJ',interests:['여행','음악'],personalityScore:50,privacyConsent:{collection:true,sharing:true,version:PROFILE_CONSENT_VERSION},pushDecision:'skip',lastStep:6}})).status).toBe(200);
   await page.reload();await page.getByRole('button',{name:'술번개 입장하기',exact:true}).click();
   await expect.poll(()=>page.evaluate(()=>localStorage.getItem('matching_app_user_id'))).toBeTruthy();
@@ -100,7 +120,7 @@ test('compact Halloween home and normal application keep controls visible withou
   await page.getByRole('button',{name:'로그인',exact:true}).click();
   await expect(page.getByRole('heading',{name:'범일NPC 술번개'})).toBeVisible();
   const results=[];
-  for(const size of [{width:320,height:568},{width:390,height:700},{width:768,height:1024},{width:1440,height:900}]){
+  for(const size of [{width:320,height:568},{width:390,height:700},{width:430,height:844},{width:768,height:1024},{width:1024,height:1024},{width:1280,height:900},{width:1440,height:900}]){
     await page.setViewportSize(size);await page.evaluate(()=>document.fonts.ready);
     await expect(page.getByRole('button',{name:'입장하기',exact:true})).toBeEnabled();
     expect(await page.getByText('보스 테스트 중 · 일반 이용은 잠겨 있습니다',{exact:true}).count()).toBe(0);
@@ -118,9 +138,10 @@ test('compact Halloween home and normal application keep controls visible withou
   await page.getByRole('button',{name:'할로윈 신청·이어하기'}).click();
   await page.getByRole('button',{name:/신청 가능.*10월 30/}).click();
   await expect(page.getByRole('dialog')).toHaveCount(0);
-  await page.getByRole('button',{name:'ⓘ 신청 안내',exact:true}).click();
+  await page.getByRole('button',{name:'신청 안내',exact:true}).click();
   await page.getByRole('button',{name:'신청 안내 닫기',exact:true}).click();
   await page.getByRole('button',{name:'신청하기',exact:true}).click();
+  await page.getByRole('button',{name:'혼자 신청',exact:true}).click();
   await page.getByLabel('[필수] 위 개인정보').check();await page.getByRole('button',{name:'다음',exact:true}).click();
   await expect(page.getByLabel('닉네임',{exact:true})).toBeVisible();
   expect(await page.locator('.hub-detail-cover:visible').count()).toBe(0);

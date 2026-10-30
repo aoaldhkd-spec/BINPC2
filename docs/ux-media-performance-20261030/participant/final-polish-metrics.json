@@ -1,0 +1,44 @@
+[
+  {
+    "screen": "태어난 년도",
+    "width": 390,
+    "height": 844,
+    "scrollWidth": 390,
+    "scrollHeight": 844
+  },
+  {
+    "screen": "태어난 년도",
+    "width": 1440,
+    "height": 1024,
+    "scrollWidth": 1440,
+    "scrollHeight": 1024
+  },
+  {
+    "screen": "사는 지역",
+    "width": 390,
+    "height": 844,
+    "scrollWidth": 390,
+    "scrollHeight": 844
+  },
+  {
+    "screen": "사는 지역",
+    "width": 1440,
+    "height": 1024,
+    "scrollWidth": 1440,
+    "scrollHeight": 1024
+  },
+  {
+    "screen": "실제 은행 입금 시 보내는 분 이름",
+    "width": 390,
+    "height": 844,
+    "scrollWidth": 390,
+    "scrollHeight": 844
+  },
+  {
+    "screen": "실제 은행 입금 시 보내는 분 이름",
+    "width": 1440,
+    "height": 1024,
+    "scrollWidth": 1440,
+    "scrollHeight": 1024
+  }
+]

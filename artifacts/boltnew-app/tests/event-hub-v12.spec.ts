@@ -36,6 +36,7 @@ test("V12 staged basic draft: failed save stays put, reload resumes, lost final 
   await page.goto(`/events/e/${event.id}`);
   await expect(page.getByLabel("닉네임", { exact: true })).toHaveCount(0);
   await page.getByRole("button", { name: "신청하기", exact: true }).click();
+  await page.getByRole("button", { name: "혼자 신청", exact: true }).click();
   await expect(page.getByLabel("[필수] 위 개인정보")).not.toBeChecked();
   await expect(page.getByRole("button", { name: "다음", exact: true })).toBeDisabled();
   await page.getByLabel("[필수] 위 개인정보").check();
@@ -57,10 +58,12 @@ test("V12 staged basic draft: failed save stays put, reload resumes, lost final 
   await page.reload();
   await page.getByRole("button", { name: "신청하기", exact: true }).click();
   await expect(page.getByLabel("태어난 년도", { exact: true })).toBeVisible();
-  for (const [label, value] of [["태어난 년도", "1995"], ["사는 지역", "합성 지역"], ["연락용 전화번호 (문자 인증 없음)", "01000000000"]]) {
-    await page.getByLabel(label, { exact: true }).fill(value);
-    await page.getByRole("button", { name: "다음", exact: true }).click();
-  }
+  await expect(page.getByRole('dialog', { name: '누구와 신청하시나요?' })).toHaveCount(0);
+  await page.getByLabel("태어난 년도", { exact: true }).selectOption("1995");
+  await page.getByRole("button", { name: "다음", exact: true }).click();
+  await page.getByLabel("도시", { exact: true }).selectOption("서울");
+  await page.getByRole("button", { name: "다음", exact: true }).click();
+  await expect(page.getByLabel('연락용 전화번호', { exact: false })).toHaveCount(0);
   await page.getByLabel("실제 은행 입금 시 보내는 분 이름").fill("합성 입금자");
   let dropped = false;
   await page.route("**/api/event-hub/mutate", async (route) => {
