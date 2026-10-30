@@ -1,0 +1,9 @@
+{
+  "testEnabled": true,
+  "publicAdmissionOpen": false,
+  "workspaceCount": 0,
+  "workspaceHash": "44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a",
+  "modeHash": "20346c74048b05250fbeb5309ddf8f7dcc380f3e9ee7d3e8b8d46ad42a16e402",
+  "apiSourceSha": "1844f8d74a5c1eb7ee8f56d9e17ca38226cffd4c",
+  "businessWrites": false
+}

@@ -1,0 +1,9 @@
+{
+  "files": 445,
+  "bytes": 10423225,
+  "sha256": "ea2bbc9494b5fc2d577c074bb8a9d063997ef2e0af8a04a78e7abd1a128cabf1",
+  "existingApi": "https://binpc2.onrender.com",
+  "sourceMaps": 0,
+  "sourceSha": "eaf1f0b47a2919e226cfce2025930db1960a7d83",
+  "testedSourceSha": "30186001ba44d445fc30bbf8cf208f5d7f76905c"
+}

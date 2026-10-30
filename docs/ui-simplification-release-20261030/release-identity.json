@@ -1,0 +1,9 @@
+{
+  "testedSourceSha": "30186001ba44d445fc30bbf8cf208f5d7f76905c",
+  "sourceSha": "eaf1f0b47a2919e226cfce2025930db1960a7d83",
+  "codeFingerprint": "3e93ba41688c818dbd8129b9d1ac64f5c536c3ed4417d88edd4ed8c84fb78411",
+  "apiSourceSha": "1844f8d74a5c1eb7ee8f56d9e17ca38226cffd4c",
+  "mode": "boss-only-test",
+  "publicAdmissionOpen": false,
+  "builtAt": "2026-10-30T01:52:10.718553+00:00"
+}

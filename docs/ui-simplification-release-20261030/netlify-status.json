@@ -1,0 +1,11 @@
+{
+  "http": 200,
+  "id": "6ae3f8a1685d605eccbc0586",
+  "state": "ready",
+  "sourceSha": "eaf1f0b47a2919e226cfce2025930db1960a7d83",
+  "apiSha": "1844f8d74a5c1eb7ee8f56d9e17ca38226cffd4c",
+  "ssl_url": "https://binpc2.netlify.app",
+  "created_at": "2026-10-30T01:53:37.698Z",
+  "published_at": "2026-10-30T01:53:40.317Z",
+  "error_message": null
+}

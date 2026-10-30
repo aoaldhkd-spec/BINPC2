@@ -1,0 +1,56 @@
+{
+  "checks": [
+    "anonymous maintenance screen",
+    "anonymous API and SSE reject old token",
+    "deployed frontend identity",
+    "existing boss login",
+    "actual administrator test ON and public admission closed",
+    "normal main application waiting and entry controls",
+    "normal events controls without creating applications or test events",
+    "post-check version and mode remain protected"
+  ],
+  "businessWritesAllowed": false,
+  "loginSessionOnly": true,
+  "emptyApplicationOwnerSessionRequestsAllowed": 1,
+  "resetAttempted": false,
+  "applicationSubmitted": false,
+  "physicalPhones": "UNKNOWN",
+  "blockedApplicationSessionCreations": 0,
+  "blockedOtherWrites": 0,
+  "frontendSha": "eaf1f0b47a2919e226cfce2025930db1960a7d83",
+  "before": {
+    "sourceSha": "1844f8d74a5c1eb7ee8f56d9e17ca38226cffd4c",
+    "testEnabled": true,
+    "publicAdmissionOpen": false,
+    "workspaceCount": 0,
+    "workspaceHash": "44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a",
+    "modeHash": "20346c74048b05250fbeb5309ddf8f7dcc380f3e9ee7d3e8b8d46ad42a16e402"
+  },
+  "homeMode": {
+    "status": 200,
+    "bossParticipationAllowed": true,
+    "enabled": true,
+    "publicAdmissionOpen": false
+  },
+  "homeLayout": {
+    "height": 844,
+    "width": 390,
+    "scrollHeight": 844,
+    "scrollWidth": 390,
+    "background": "linear-gradient(rgba(16, 7, 24, 0.08), rgba(18, 9, 24, 0.21)), url(\"https://binpc2.netlify.app/event-art/halloween-night.webp\")"
+  },
+  "after": {
+    "sourceSha": "1844f8d74a5c1eb7ee8f56d9e17ca38226cffd4c",
+    "testEnabled": true,
+    "publicAdmissionOpen": false,
+    "workspaceCount": 0,
+    "workspaceHash": "44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a",
+    "modeHash": "20346c74048b05250fbeb5309ddf8f7dcc380f3e9ee7d3e8b8d46ad42a16e402"
+  },
+  "laboratoryHashUnchanged": true,
+  "modeHashUnchanged": true,
+  "success": true,
+  "checkedAt": "2026-10-30T01:57:33.806Z",
+  "emptyApplicationOwnerSessionAllowed": true,
+  "fullApplicationApprovalEntryFlowTested": false
+}
