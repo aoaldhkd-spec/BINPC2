@@ -68,6 +68,7 @@ export type CompanionApplication = {
 };
 export type CompanionDraftGroup = {
   revision: number;
+  selection?: { draftIds: string[]; reviewedRevision: number };
   items: {
     id: string;
     basic: Pick<import('../../../../lib/api-zod/src/event-hub').HubBasicDraft['basic'], 'nickname'|'birthYear'|'location'|'residence'>;
@@ -75,6 +76,7 @@ export type CompanionDraftGroup = {
     removedAt?: string;
     applicationId?: string;
     submittedAt?: string;
+    identityLinkedAt?: string;
   }[];
 };
 export type CompanionLinkRequest = {
@@ -85,6 +87,10 @@ export type CompanionLinkRequest = {
   revision: number;
   status: 'pending' | 'linked';
   applicationId?: string;
+  prepared?: boolean;
+  cancelledAt?: string;
+  /** Administrator projection only; participant requests expose prepared instead. */
+  draftBinding?: { sponsorOwner: string; draftId: string; basicFingerprint: string; at: string };
 };
 export type HubState = {
   companionDrafts?: Record<string, CompanionDraftGroup>;
@@ -108,6 +114,9 @@ export type HubState = {
   retentionDays?: number;
   owners?: {
     id: string;
+    erasedAt?: string;
+    basicDrafts?: HubState["basicDrafts"];
+    companionDrafts?: Record<string, CompanionDraftGroup>;
     restricted?: { active: boolean; reason: string };
     deleteRequestedAt?: string;
     privacyCase?: import("../../../../lib/api-zod/src/event-hub-privacy").PrivacyCase;
@@ -149,12 +158,17 @@ export class HubClientError extends Error {
   }
 }
 let sessionEpoch = 0;
+// Opaque UI scope only; credentials never become React keys or DOM attributes.
+let identityRevision = 0;
+const identityListeners = new Set<() => void>();
 export async function hubFetch<T>(
   path: string,
   body?: unknown,
   admin = false,
 ): Promise<T> {
-  if (body !== undefined && (path === "/session" || path === "/member-login")) sessionEpoch++;
+  const credentialRequest = body !== undefined && (path === "/session" || path === "/member-login");
+  if (credentialRequest) sessionEpoch++;
+  const credentialEpoch = sessionEpoch;
   const response = await fetch(`/api/event-hub${path}`, {
     credentials: "include",
     method: body === undefined ? "GET" : "POST",
@@ -174,6 +188,13 @@ export async function hubFetch<T>(
       data.code ?? "UNKNOWN",
       response.status,
     );
+  if (credentialRequest) {
+    if (credentialEpoch !== sessionEpoch)
+      throw new HubClientError("로그인 상태가 바뀌었습니다. 현재 신청을 확인해 주세요.", "SESSION_CHANGED", 409);
+    if (data?.ok !== true || (path === "/member-login" &&
+      (typeof data.recoveryCode !== "string" || !/^[A-Za-z0-9_-]{43,100}$/.test(data.recoveryCode))))
+      throw new HubClientError("로그인 응답을 확인하지 못했습니다. 다시 확인해 주세요.", "SESSION_UNCONFIRMED", 502);
+  }
   return data;
 }
 const RECOVERY_KEY = "binpc2_event_recovery_v6";
@@ -216,9 +237,15 @@ export function savedRecoveryCode() {
   return recoveryRead();
 }
 export function rememberRecoveryCode(code: string) {
-  if (recoveryRead() !== code) sessionEpoch++;
+  const changed = recoveryRead() !== code;
+  if (changed) sessionEpoch++;
   recoveryWrite(code);
   creatingWrite(false);
+  if (changed) {
+    identityRevision++;
+    for (const notify of identityListeners) notify();
+  }
+  return changed;
 }
 export function clearOnsiteBrowserIdentity() {
   try {
@@ -239,7 +266,7 @@ export function clearOnsiteBrowserIdentity() {
 export async function recoverHub(code: string) {
   await hubFetch("/session", { recoveryCode: code, create: false });
   clearOnsiteBrowserIdentity();
-  rememberRecoveryCode(code);
+  return rememberRecoveryCode(code);
 }
 async function ensureSession() {
   if (sessionPromise) return sessionPromise;
@@ -308,6 +335,8 @@ export function useEventHub(admin = false) {
   const [state, setState] = useState<HubState | null>(null),
     [error, setError] = useState(""),
     [status, setStatus] = useState("");
+  const [uiIdentityRevision, setUiIdentityRevision] = useState(identityRevision);
+  const mutationSequence = useRef(0);
   const busy = useRef(false);
   const pending = useRef<{
     signature: string;
@@ -338,13 +367,35 @@ export function useEventHub(admin = false) {
     return value;
   }, [admin]);
   useEffect(() => {
+    const changed = () => {
+      const revision = identityRevision;
+      // Only an explicit, completed credential change calls this notification.
+      // Ordinary reads, delays, offline transitions and failed logins keep UI state.
+      ++mutationSequence.current;
+      ++readSequence.current;
+      busy.current = false;
+      pending.current = null;
+      currentState.current = null;
+      currentStateIdentity.current = null;
+      setState(null);
+      setUiIdentityRevision(revision);
+      setStatus("");
+      setError("");
+      void load().catch(e => {
+        if (revision === identityRevision) setError((e as Error).message);
+      });
+    };
+    identityListeners.add(changed);
+    return () => { identityListeners.delete(changed); };
+  }, [load]);
+  useEffect(() => {
     let active = true;
     const run = async () => {
       const sequence = ++readSequence.current;
       const invalidationAtStart = invalidationVersion.current;
       try {
         const authenticatedState = admin ? null : await ensureSession();
-        if (!active) return;
+        if (!active || sequence !== readSequence.current) return;
         if (authenticatedState && authenticatedState.epoch === sessionEpoch && authenticatedState.recovery === recoveryRead()) {
           // The bootstrap already read this unchanged session. Avoid another full
           // ledger query, but never replace a newer approval/invalidation response.
@@ -356,7 +407,7 @@ export function useEventHub(admin = false) {
           }
         } else await load();
       } catch (e) {
-        if (active) {
+        if (active && sequence === readSequence.current) {
           setError((e as Error).message);
           try {
             await load();
@@ -413,12 +464,24 @@ export function useEventHub(admin = false) {
   },[state?.events,state?.serverNow,load]);
   const mutate = useCallback(
     async (command: HubCommand) => {
-      if (busy.current) return null;
+      if (busy.current || !currentState.current) return null;
+      const operation = ++mutationSequence.current;
       busy.current = true;
       setStatus("saving");
       setError("");
       const identityAtStart = sessionEpoch;
       const recoveryAtStart = recoveryRead();
+      const sameIdentity = () => operation === mutationSequence.current &&
+        identityAtStart === sessionEpoch && recoveryAtStart === recoveryRead();
+      const stale = () => {
+        // An obsolete operation cannot clear a newer request or show its status.
+        if (operation === mutationSequence.current) {
+          pending.current = null;
+          setStatus("failed");
+          setError("로그인 상태가 바뀌었습니다. 현재 신청을 확인한 뒤 다시 시도해 주세요.");
+        }
+        return null;
+      };
       const signature = JSON.stringify(command);
       const retry = pending.current?.signature === signature;
       if (!retry)
@@ -426,17 +489,20 @@ export function useEventHub(admin = false) {
           signature,
           command: { ...command, requestId: crypto.randomUUID() },
         };
+      const request = pending.current!;
       try {
         // Retry checks durable acknowledgement first. Reuse the nonce if no receipt exists.
         // Entry still replays the mutation to refresh its HttpOnly/bearer binding.
         if (retry) {
           const receipt = await hubFetch<{ saved: boolean; id?: string }>(
-            `/receipt/${pending.current!.command.requestId}`,
+            `/receipt/${request.command.requestId}`,
             undefined,
             admin,
           );
+          if (!sameIdentity()) return stale();
           if (receipt.saved && command.action !== "application.enter") {
             await load();
+            if (!sameIdentity()) return stale();
             pending.current = null;
             setStatus("saved");
             return { ...receipt };
@@ -450,16 +516,10 @@ export function useEventHub(admin = false) {
         const includeState = command.action !== "application.basic-draft";
         const result = await hubFetch<Record<string, unknown>>(
           "/mutate",
-          { ...pending.current!.command, ...(includeState ? { includeState: true } : {}) },
+          { ...request.command, ...(includeState ? { includeState: true } : {}) },
           admin,
         );
-        if (identityAtStart !== sessionEpoch || recoveryAtStart !== recoveryRead()) {
-          try { await load(); } catch { /* Never merge the previous identity's acknowledgement. */ }
-          pending.current = null;
-          setStatus("failed");
-          setError("로그인 상태가 바뀌었습니다. 현재 신청을 확인한 뒤 다시 시도해 주세요.");
-          return null;
-        }
+        if (!sameIdentity()) return stale();
         // Only this endpoint returns the complete, committed per-event draft.
         // Keep every application/approval unchanged and invalidate older reads.
         // Missing/ambiguous acknowledgements retain the normal fresh-read barrier.
@@ -470,7 +530,7 @@ export function useEventHub(admin = false) {
         let storedIdentity = "";
         try { storedIdentity = localStorage.getItem(RECOVERY_KEY) ?? ""; } catch { /* full read when browser storage is unavailable */ }
         const canUseDraft = !admin && command.action === "application.basic-draft" &&
-          result.saved === true && result.requestId === pending.current!.command.requestId && parsedDraft.success && typeof eventId === "string" &&
+          result.saved === true && result.requestId === request.command.requestId && parsedDraft.success && typeof eventId === "string" &&
           value?.hasSession && value.events.some(event => event.id === eventId) &&
           currentStateIdentity.current?.epoch === identityAtStart && currentStateIdentity.current.recovery === recoveryAtStart &&
           !!storedIdentity && storedIdentity === recoveryAtStart &&
@@ -496,7 +556,7 @@ export function useEventHub(admin = false) {
           ? (command.target || (typeof result.id === "string" ? result.id : undefined))
           : ["companion.submit", "companion.confirm", "admin.companion.link"].includes(command.action) && typeof result.id === "string" ? result.id : undefined;
         const canUseState = includeState && result.saved === true &&
-          result.requestId === pending.current!.command.requestId &&
+          result.requestId === request.command.requestId &&
           result.stateScope === (admin ? "admin" : "participant") && result.stateUnavailable !== true &&
           sameAdmin && sequenceAtRequest === readSequence.current && stateAtRequest === currentState.current &&
           completeHubState(refreshed, admin) &&
@@ -520,19 +580,23 @@ export function useEventHub(admin = false) {
           return result;
         }
         await load();
+        if (!sameIdentity()) return stale();
         pending.current = null;
         setStatus("saved");
         return result;
       } catch (e) {
+        if (!sameIdentity()) return stale();
         setStatus("checking");
         try {
           const receipt = await hubFetch<{ saved: boolean; id?: string }>(
-            `/receipt/${pending.current!.command.requestId}`,
+            `/receipt/${request.command.requestId}`,
             undefined,
             admin,
           );
+          if (!sameIdentity()) return stale();
           if (receipt.saved && command.action !== "application.enter") {
             await load();
+            if (!sameIdentity()) return stale();
             pending.current = null;
             setStatus("saved");
             return { ...receipt };
@@ -540,12 +604,14 @@ export function useEventHub(admin = false) {
         } catch {
           /* unknown until durable state can be read */
         }
+        if (!sameIdentity()) return stale();
         // Reconcile with durable state before another attempt. Never report success from local state.
         try {
           await load();
         } catch {
           /* retain user's inputs */
         }
+        if (!sameIdentity()) return stale();
         setStatus("failed");
         setError(
           `${(e as Error).message} · 입력 내용은 그대로입니다. 서버 상태를 확인한 뒤 다시 시도해 주세요.`,
@@ -554,12 +620,12 @@ export function useEventHub(admin = false) {
           pending.current = null;
         return null;
       } finally {
-        busy.current = false;
+        if (operation === mutationSequence.current) busy.current = false;
       }
     },
     [admin, load],
   );
-  return { state, error, status, load, mutate, setError };
+  return { state, error, status, load, mutate, setError, identityRevision: uiIdentityRevision };
 }
 
 export type HubController = Pick<

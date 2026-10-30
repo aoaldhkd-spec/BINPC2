@@ -24,6 +24,7 @@ import {
   CampaignApproval,
 } from "./CampaignAdmin";
 import { useState, useRef, useLayoutEffect, useEffect } from "react";
+import { useInquiryReadReceipt } from "./useInquiryReadReceipt";
 import {
   budgetSplit,
   useEventHub,
@@ -331,6 +332,7 @@ export default function EventHubAdmin({ active = true }: { active?: boolean }) {
               </p>
               <ApplicationRoster
                 key={selected + ":payments"}
+                selectedEventId={selected || undefined}
                 applications={s.applications.filter(
                   (a) => !selected || a.eventId === selected,
                 )}
@@ -1336,10 +1338,12 @@ export function ApplicationRoster({
   applications,
   hub,
   onsite = false,
+  selectedEventId,
 }: {
   applications: PrivateApplication[];
   hub: Hub;
   onsite?: boolean;
+  selectedEventId?: string;
 }) {
   const drafts = useRef<Record<string, { note: string; fee: string }>>({});
   const [query, setQuery] = useState("");
@@ -1407,7 +1411,7 @@ export function ApplicationRoster({
       </HubCard>
       {!onsite && <>
         <CompanionAdminGroups applications={applications} events={hub.state?.events ?? []} onSelect={setSelectedId} />
-        <CompanionLinkRequests applications={applications} hub={hub} />
+        <CompanionLinkRequests applications={applications} hub={hub} eventId={selectedEventId} />
       </>}
       {current && (
         <ApplicationAdmin
@@ -1664,9 +1668,8 @@ export function AdminThreads({ hub, state, initialOwner='',active=true }: { hub:
   const setDraft = (text: string) =>
     setDrafts((previous) => ({ ...previous, [selected]: text }));
   const t = state.threads.find((v) => v.id === selected);
-  const unread=t?.messages.some(m=>m.sender==='user'&&m.at>t.readAdminAt);
-  const markRead=hub.mutate;
-  useEffect(()=>{if(active&&selected&&unread)void markRead({action:'thread.read',target:selected});},[active,selected,unread,markRead]);
+  const unreadMessage=t?.messages.filter(m=>m.sender==='user'&&m.at>t.readAdminAt).at(-1);
+  useInquiryReadReceipt({active,threadId:t?.id,unreadMessageId:unreadMessage?.id,status:hub.status,markRead:hub.mutate,admin:true});
   const owners = [
     ...new Set([
       ...state.threads.map((t) => t.id),

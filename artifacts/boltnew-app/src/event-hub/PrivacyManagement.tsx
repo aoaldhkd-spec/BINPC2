@@ -1,12 +1,16 @@
 import { useState } from "react";
 import {
   DEFAULT_PRIVACY_POLICY,
+  APPROVED_PRIVACY_RETENTION_NOTICE,
+  APPROVED_PRIVACY_RETENTION_RULES,
+  APPROVED_REWARD_PHONE_RULE,
   PRIVACY_PURPOSES,
   type PrivacyPolicy,
   type PrivacyPlan,
   type PrivacyPurpose,
 } from "../../../../lib/api-zod/src/event-hub-privacy";
 import type { HubController, HubState } from "../lib/event-hub-client";
+import { ApprovedRetentionSummary } from "./PrivacyNotice";
 import {
   HubButton,
   HubCard,
@@ -23,24 +27,42 @@ const labels: Record<PrivacyPurpose, string> = {
   audit: "운영·오류 감사",
   recovery: "세션·복구·저장 영수증",
   backup: "백업·복제본",
+  rewardPhone: "상품·상금 수령 전화번호",
 };
+function editablePolicySignature(policy: PrivacyPolicy) {
+  return JSON.stringify({
+    fields: [policy.policyVersion, policy.controllerName, policy.contact, policy.notice, policy.backupProcedure, policy.photoNotice],
+    rules: PRIVACY_PURPOSES.map(purpose => [purpose, policy.rules[purpose].days, policy.rules[purpose].basis]),
+    photo: policy.photoRule ? [policy.photoRule.days, policy.photoRule.basis] : null,
+    rewardPhone: policy.rewardPhoneRule ? [policy.rewardPhoneRule.days, policy.rewardPhoneRule.basis] : null,
+  });
+}
 export function PrivacyManagement({ hub }: { hub: HubController }) {
   const [policy, setPolicy] = useState<PrivacyPolicy>(
       hub.state?.privacyPolicy ?? DEFAULT_PRIVACY_POLICY,
     ),
     [plan, setPlan] = useState<PrivacyPlan | null>(null);
+  const unsaved = editablePolicySignature(policy) !== editablePolicySignature(hub.state?.privacyPolicy ?? DEFAULT_PRIVACY_POLICY);
   return (
     <div className="space-y-4">
       <HubCard>
         <h3 className="font-black">목적별 보관·파기 정책</h3>
-        <p>상태: {policy.status} · 정책 확정과 운영 공개 승인은 별개입니다. 값을 수정해 저장하면 다시 초안이 됩니다. 실제 삭제·자동 파기는 이 화면에서 실행하지 않습니다.</p>
+        <p className="text-sm">{policy.status === "approved" ? "저장된 정책 확정됨" : "정책 검토 중"} · 모집 공개와 실제 삭제는 별도 승인입니다.</p>
+        <details className="rounded-xl border p-3" open>
+          <summary className="font-bold cursor-pointer">승인된 보관 기준 6가지</summary>
+          <div className="space-y-3 pt-3"><ApprovedRetentionSummary />
+            <HubButton disabled={hub.status === "saving" || hub.status === "checking"} onClick={() => setPolicy({
+              ...policy, status: "draft", approvedAt: undefined, publicationFingerprint: undefined,
+              notice: APPROVED_PRIVACY_RETENTION_NOTICE,
+              rules: { ...policy.rules, ...APPROVED_PRIVACY_RETENTION_RULES },
+              rewardPhoneRule: { ...APPROVED_REWARD_PHONE_RULE },
+            })}>승인 기준 불러오기</HubButton>
+            <p className="text-xs">편집값만 바꿉니다. 저장·모집·삭제는 실행하지 않습니다. 백업·감사·복구 기준은 기존 값 또는 미확정으로 유지합니다.</p>
+          </div>
+        </details>
         {(['policyVersion','controllerName','contact'] as const).map((field,i)=><HubField key={field} label={['정책 버전','운영 책임 주체','개인정보 문의처'][i]}><input className={inputClass} value={policy[field]??''} maxLength={field==='policyVersion'?100:field==='contact'?300:200} onChange={e=>setPolicy({...policy,[field]:e.target.value})}/></HubField>)}
         {policy.publicationFingerprint&&<p className="text-xs break-all">확정 정책 지문: {policy.publicationFingerprint}</p>}
 
-        <p className="text-sm text-amber-800">
-          현재 확정 여부는 위 상태를 확인하세요. 정책 확정과 별개로 이 화면은
-          자동 파기나 운영 데이터 삭제를 실행하지 않습니다.
-        </p>
         <HubField label="개인정보 고지 원문 초안">
           <textarea
             className={inputClass}
@@ -49,6 +71,7 @@ export function PrivacyManagement({ hub }: { hub: HubController }) {
             onChange={(e) => setPolicy({ ...policy, notice: e.target.value })}
           />
         </HubField>
+        <details><summary className="cursor-pointer font-bold py-2">목적별 저장값 편집</summary><div className="space-y-3">
         {PRIVACY_PURPOSES.map((p) => (
           <fieldset key={p} className="border rounded-xl p-3 space-y-2">
             <legend className="text-sm font-bold">{labels[p]}</legend>
@@ -92,6 +115,13 @@ export function PrivacyManagement({ hub }: { hub: HubController }) {
             </HubField>
           </fieldset>
         ))}
+        <fieldset className="border rounded-xl p-3 space-y-2">
+          <legend className="text-sm font-bold">실제 상품·상금 수령 전화번호</legend>
+          <p className="text-sm">지급·정산 확인 후 원칙적으로 30일 안에 삭제. 일반 신청·승인·입장에는 수집하지 않습니다.</p>
+          <HubField label="수령 전화번호 보관기간 (일)"><input className={inputClass} type="number" min={1} max={3650} value={policy.rewardPhoneRule?.days ?? ""} onChange={e => setPolicy({ ...policy, rewardPhoneRule: { days: e.target.value ? Number(e.target.value) : null, basis: policy.rewardPhoneRule?.basis ?? "" } })} /></HubField>
+          <HubField label="수령 전화번호 목적·기준일·예외"><textarea className={inputClass} value={policy.rewardPhoneRule?.basis ?? ""} onChange={e => setPolicy({ ...policy, rewardPhoneRule: { days: policy.rewardPhoneRule?.days ?? null, basis: e.target.value } })} /></HubField>
+        </fieldset>
+        </div></details>
         <HubField label="백업·스냅샷·복제본 파기 절차 초안">
           <textarea
             className={inputClass}
@@ -119,7 +149,7 @@ export function PrivacyManagement({ hub }: { hub: HubController }) {
           >
             정책 초안 저장
           </HubButton>
-          <HubButton disabled={hub.status==="saving"||policy.status==="approved"} onClick={async()=>{if(!window.confirm('저장된 최신 정책 원문·모든 목적별 기간·백업 절차를 확정했습니까? 정책 확정만 기록하며 모집·사진·파기를 켜지 않습니다.'))return;const r=await hub.mutate({action:'admin.privacy.policy.approve',revision:policy.revision,data:{confirmed:true}});if(r)setPolicy({...policy,status:'approved',revision:policy.revision+1,publicationFingerprint:String(r.policyFingerprint)});}}>저장된 정책 확정 기록 (모집은 별도 승인)</HubButton>
+          <HubButton disabled={unsaved||hub.status==="saving"||hub.status==="checking"||policy.status==="approved"} onClick={async()=>{if(unsaved)return;if(!window.confirm('저장된 최신 정책 원문·모든 목적별 기간·백업 절차를 확정했습니까? 정책 확정만 기록하며 모집·사진·파기를 켜지 않습니다.'))return;const r=await hub.mutate({action:'admin.privacy.policy.approve',revision:policy.revision,data:{confirmed:true}});if(r)setPolicy({...policy,status:'approved',revision:policy.revision+1,publicationFingerprint:String(r.policyFingerprint)});}}>저장된 정책 확정 기록 (모집은 별도 승인)</HubButton>
           <HubButton
             onClick={() =>
               setPolicy(hub.state?.privacyPolicy ?? DEFAULT_PRIVACY_POLICY)
@@ -128,6 +158,7 @@ export function PrivacyManagement({ hub }: { hub: HubController }) {
             서버 최신 초안 불러오기
           </HubButton>
         </div>
+        {unsaved && <p className="text-sm" role="status">편집한 정책을 먼저 저장해야 확정할 수 있습니다.</p>}
       </HubCard>
       {(hub.state?.owners ?? [])
         .filter((o) => o.privacyCase)

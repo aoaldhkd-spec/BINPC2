@@ -21,6 +21,14 @@ export class HubError extends Error {
 export function fail(code: string, message: string, status = 400): never {
   throw new HubError(status, code, message);
 }
+const LEDGER_SENTINEL_SQL = "SELECT kind,id,data FROM event_hub_records WHERE data ? 'crypto_box' ORDER BY kind,id LIMIT 1";
+function ledgerKeyUnavailable(): never {
+  fail(
+    "LEDGER_KEY_UNAVAILABLE",
+    "행사 기록의 암호화 키를 확인할 수 없습니다. 기존 키를 복원한 뒤 다시 시도해 주세요. 기록은 변경하지 않았습니다.",
+    503,
+  );
+}
 export const normalizeHubNickname = (s: string) =>
   s.normalize("NFKC").toLocaleLowerCase("ko-KR").trim();
 export class HubTx {
@@ -99,21 +107,23 @@ export class HubTx {
     ) as T;
   }
   /** Fail before the callback can write with an accidentally replaced encryption key. */
-  async assertLedgerReadable() {
-    const row = (
-      await this.db.query(
-        "SELECT kind,id,data FROM event_hub_records WHERE data ? 'crypto_box' ORDER BY kind,id LIMIT 1",
-      )
-    ).rows[0];
-    if (!row) return;
+  async assertLedgerReadable(prefetchedRows?: unknown) {
+    const rows = prefetchedRows === undefined
+      ? (await this.db.query(LEDGER_SENTINEL_SQL)).rows
+      : prefetchedRows;
+    // Only an explicit empty SELECT result means that no encrypted ledger exists.
+    // Missing/malformed batch output must never become an empty-ledger bypass.
+    if (!Array.isArray(rows) || rows.length > 1) ledgerKeyUnavailable();
+    if (rows.length === 0) return;
+    const row = rows[0];
+    if (!row || typeof row.kind !== "string" || !row.kind || typeof row.id !== "string" || !row.id ||
+      !row.data || typeof row.data !== "object" || Array.isArray(row.data) ||
+      !row.data.crypto_box || typeof row.data.crypto_box !== "object" || Array.isArray(row.data.crypto_box))
+      ledgerKeyUnavailable();
     try {
       this.decode(row.kind, row.id, row.data);
     } catch {
-      fail(
-        "LEDGER_KEY_UNAVAILABLE",
-        "행사 기록의 암호화 키를 확인할 수 없습니다. 기존 키를 복원한 뒤 다시 시도해 주세요. 기록은 변경하지 않았습니다.",
-        503,
-      );
+      ledgerKeyUnavailable();
     }
   }
   async get<T>(kind: string, id: string): Promise<T | undefined> {
@@ -362,13 +372,22 @@ export class HubStore {
     try {
       const c = await this.pool.connect();
       try {
-        // One round trip, unchanged transaction/timeout/lock order. Both locks
-        // remain authoritative across processes and the 17:00 reset.
-        await c.query(`BEGIN; SET LOCAL lock_timeout='10000ms';
+        // One round trip, unchanged transaction/timeout/lock order. The exact
+        // existing sentinel SELECT runs after both locks and is authenticated
+        // before any callback, including on a genuinely empty new ledger.
+        const opening: unknown = await c.query(`BEGIN; SET LOCAL lock_timeout='10000ms';
           SELECT pg_advisory_xact_lock(hashtext('${EVENT_RESET_LOCK_KEY}'));
-          SELECT pg_advisory_xact_lock(hashtext('binpc2:event-hub:v6'));`);
+          SELECT pg_advisory_xact_lock(hashtext('binpc2:event-hub:v6'));
+          ${LEDGER_SENTINEL_SQL};`);
+        const commands = ["BEGIN", "SET", "SELECT", "SELECT", "SELECT"];
+        if (!Array.isArray(opening) || opening.length !== commands.length ||
+          commands.some((command, index) => opening[index]?.command !== command))
+          ledgerKeyUnavailable();
+        const sentinel = opening[4];
+        if (!Array.isArray(sentinel.rows) || sentinel.rowCount !== sentinel.rows.length)
+          ledgerKeyUnavailable();
         const tx = new HubTx(c, this.key);
-        await tx.assertLedgerReadable();
+        await tx.assertLedgerReadable(sentinel.rows);
         const result = await fn(tx);
         await c.query("COMMIT");
         return result;

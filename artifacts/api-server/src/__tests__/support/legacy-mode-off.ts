@@ -1,4 +1,5 @@
 import { EVENT_TEST_MODE_BANNER, type EventTestModeState } from '@workspace/api-zod';
+import { emptyHubOpeningResult } from './hub-opening-result.js';
 
 /** Explicit opt-out for legacy suites backed entirely by a mocked pg driver. */
 export function createLegacyModeOffQuery(storage: 'in-memory-pg-mock') {
@@ -19,6 +20,8 @@ export function createLegacyModeOffQuery(storage: 'in-memory-pg-mock') {
     changedAt: '2026-10-28T00:00:00.000Z',
   };
   return (sql: string, values: unknown[] = []) => {
+    const opening = emptyHubOpeningResult(sql, values);
+    if (opening) return opening;
     if (sql.replace(/\s+/g, ' ').trim() === 'SELECT data FROM event_hub_records WHERE kind=$1 AND id=$2'
       && values.length === 2 && values[0] === 'laboratory-mode' && values[1] === 'global') {
       return { rows: [{ data: structuredClone(mode) }] };

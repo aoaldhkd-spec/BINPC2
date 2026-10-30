@@ -1,9 +1,9 @@
 import { useEffect, useState } from 'react';
 import type { VenueAddress } from '../../../../lib/api-zod/src/event-venue-directory';
-import { useEventHub, type HubEvent } from '../lib/event-hub-client';
+import type { HubController, HubEvent } from '../lib/event-hub-client';
 import { HubButton, HubCard, HubField, inputClass } from './HubUi';
 const venues = {red_hole:'레드홀',fake:'페이크',jack:'자크 (JACK)',m_karaoke:'M가라오케',speed:'스피드',check_in:'체크인',on_top:'온탑',black:'BLACK'};
-export function VenueDirectoryEditor({hub,event}:{hub:ReturnType<typeof useEventHub>;event?:HubEvent}) {
+export function VenueDirectoryEditor({hub,event}:{hub:HubController;event?:HubEvent}) {
   const directory=hub.state?.venueDirectory??{revision:0,items:[],history:[]};
   const fresh=():VenueAddress=>({id:crypto.randomUUID(),venueId:null,label:'',roadOriginal:'',parcelOriginal:'',floor:'',source:'사용자 직접 제공',receivedAt:new Date().toISOString()});
   const [value,setValue]=useState(fresh),[confirmed,setConfirmed]=useState(false);

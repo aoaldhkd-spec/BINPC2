@@ -3,6 +3,7 @@ import {HUB_CONSENT_VERSION,type HubBasicDraft} from '../../../../lib/api-zod/sr
 import {HubButton,HubCard,HubField,inputClass} from './HubUi';
 import {ResidenceInput} from './ResidenceInput';
 import {BirthYearSelect} from './BirthYearSelect';
+import {useCompanionSelection} from './useCompanionSelection';
 import type {CompanionDraftGroup,PrivateApplication} from '../lib/event-hub-client';
 type Basic=Pick<HubBasicDraft['basic'],'nickname'|'birthYear'|'location'|'residence'>;
 type Group=CompanionDraftGroup;
@@ -12,9 +13,9 @@ export function CompanionCards({eventId,group={revision:0,items:[]},mutate,busy,
 }){
  const [editor,setEditor]=useState<{id:string;basic:Basic;revision:number;permission:boolean}|null>(null);
  const [message,setMessage]=useState('');
- const [excluded,setExcluded]=useState<string[]>([]);
- const pending=group.items.filter(x=>!x.removedAt&&!x.claimedAt&&!x.applicationId);
- const selected=pending.filter(x=>!excluded.includes(x.id));
+ const selection=useCompanionSelection(eventId,group,mutate);
+ const {pending,selected}=selection;
+ const saving=busy||selection.saving;
  const open=(item?:Group['items'][number])=>setEditor({id:item?.id??crypto.randomUUID(),basic:structuredClone(item?.basic??{}),revision:group.revision,permission:false});
  return <HubCard>
   <h3 className="font-black">동반신청</h3>
@@ -22,14 +23,17 @@ export function CompanionCards({eventId,group={revision:0,items:[]},mutate,busy,
   {group.items.filter(x=>!x.removedAt).map((item,i)=><article className="rounded-xl border p-3 my-2" key={item.id}>
    <h4>친구 {i+1}{item.basic.nickname?` · ${item.basic.nickname}`:''}</h4>
    <p>{item.basic.birthYear?`${item.basic.birthYear}년생`: '년생 작성 전'} · {item.basic.location||'지역 작성 전'}</p>
-   <p className="text-sm">{item.claimedAt?'본인 계정에 연결됨':item.applicationId?'신청 접수됨':'친구 정보 저장됨 · 신청 미확정'}</p>
-   {ownApplication&&!item.claimedAt&&!item.applicationId&&<label className="flex items-center gap-2 py-2"><input type="checkbox" checked={!excluded.includes(item.id)} onChange={e=>setExcluded(v=>e.target.checked?v.filter(id=>id!==item.id):[...v,item.id])}/>{item.basic.nickname||'친구'} 함께 신청</label>}
-   {!item.claimedAt&&!item.applicationId&&<div className="hub-compact-actions">
+   <p className="text-sm">{item.claimedAt?'본인 계정에 연결됨':item.applicationId?'신청 접수됨':item.identityLinkedAt?'본인 확인 완료 · 신청 미확정':'친구 정보 저장됨 · 신청 미확정'}</p>
+   {ownApplication&&!item.claimedAt&&!item.applicationId&&<label className="flex items-center gap-2 py-2"><input type="checkbox" disabled={saving||blocked} checked={selected.some(person=>person.id===item.id)} onChange={e=>void selection.toggle(item.id,e.target.checked)}/>{item.basic.nickname||'친구'} 함께 신청</label>}
+   {!item.claimedAt&&!item.applicationId&&item.identityLinkedAt&&<HubButton disabled={busy||blocked} onClick={()=>mutate({action:'companion.draft.unlink',target:item.id,revision:group.revision,data:{eventId}})}>본인 확인 해제</HubButton>}
+   {!item.claimedAt&&!item.applicationId&&!item.identityLinkedAt&&<div className="hub-compact-actions">
     <HubButton aria-label="친구 정보 수정" disabled={busy||blocked} onClick={()=>open(item)}>정보 수정</HubButton>
     <HubButton disabled={busy||blocked} onClick={async()=>{if(await mutate({action:'companion.draft.remove',target:item.id,revision:group.revision,data:{eventId,privacyPolicyFingerprint}})){setMessage('친구 작성 목록에서 제외했습니다. 보관 기록은 유지됩니다.');}}} aria-label="작성 목록에서 제외">목록 제외</HubButton>
    </div>}
   </article>)}
-  {ownApplication&&pending.length>0&&<HubButton pending={busy} disabled={blocked||selected.length===0} onClick={async()=>{const result=await mutate({action:'companion.submit',revision:group.revision,data:{eventId,draftIds:selected.map(x=>x.id),privacyPolicyFingerprint}});if(result){setMessage('친구 신청을 접수했습니다. 금액을 확인해 주세요.');onOwn();}}}>친구 {selected.length}명 신청 접수</HubButton>}
+  {ownApplication&&selection.saving&&<p role="status">신청 인원 저장 중…</p>}
+  {ownApplication&&pending.length>0&&selection.needsReview&&<><p role="alert">{selection.failed?'신청 인원을 저장하지 못했습니다.':'지인 목록이 변경되었습니다. 신청 인원을 확인해 주세요.'}</p><HubButton disabled={saving||blocked} onClick={()=>selection.save()}>신청 인원 확인·저장</HubButton></>}
+  {ownApplication&&pending.length>0&&<HubButton pending={saving} disabled={blocked||selected.length===0||selection.needsReview||selection.awaitingState} onClick={async()=>{const result=await mutate({action:'companion.submit',revision:group.revision,data:{eventId,draftIds:selected.map(x=>x.id),privacyPolicyFingerprint}});if(result){setMessage('친구 신청을 접수했습니다. 금액을 확인해 주세요.');onOwn();}}}>친구 {selected.length}명 신청 접수</HubButton>}
   <HubButton disabled={busy||blocked} onClick={()=>open()}>+ 지인 추가</HubButton>
   {editor&&<form noValidate className="border rounded-xl p-3 space-y-2" onSubmit={async e=>{e.preventDefault();const result=await mutate({action:'companion.draft.save',revision:editor.revision,data:{eventId,id:editor.id,basic:editor.basic,permissionToProvide:editor.permission,privacyPolicyFingerprint}});if(result){setEditor(null);setMessage('친구 정보를 저장했습니다. 신청은 아직 확정되지 않았습니다.');}}}>
    <HubField label="친구 닉네임"><input className={inputClass} maxLength={12} value={editor.basic.nickname??''} onChange={e=>setEditor({...editor,basic:{...editor.basic,nickname:e.target.value}})}/></HubField>

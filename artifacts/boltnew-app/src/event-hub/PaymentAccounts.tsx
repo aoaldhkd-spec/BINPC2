@@ -1,8 +1,8 @@
 import { useState } from 'react';
 import type { PrivateApplication } from '../lib/event-hub-client';
-import { useEventHub } from '../lib/event-hub-client';
+import type { HubController } from '../lib/event-hub-client';
 import { HubButton } from './HubUi';
-export function PaymentAccounts({app,hub,blocked}:{app:PrivateApplication;hub:ReturnType<typeof useEventHub>;blocked:boolean}) {
+export function PaymentAccounts({app,hub,blocked}:{app:PrivateApplication;hub:HubController;blocked:boolean}) {
   const [copied,setCopied]=useState('');
   if (app.approvalRevokedAt) return <p>승인 상태를 운영자에게 확인해 주세요. 다시 송금하지 마세요.</p>;
   if (app.waivedAt) return <p>무료 참가 승인 완료입니다. 입금하지 마세요.</p>;

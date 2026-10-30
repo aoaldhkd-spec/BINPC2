@@ -5,6 +5,7 @@ import { ResidenceInput } from "./ResidenceInput";
 import { BirthYearSelect } from './BirthYearSelect';
 import { ApplicationChoice, type ApplicationParty } from './ApplicationChoice';
 import { CompanionCards } from './CompanionCards';
+import { useCompanionSelection } from './useCompanionSelection';
 import { CompanionFeeRows, CompanionOrders, MyCompanionRequest } from './CompanionOrders';
 import { PaymentAccounts } from "./PaymentAccounts";
 import { halloweenCardTimes, cardSlotAvailable } from "../../../../lib/api-zod/src/event-card-clock";
@@ -37,6 +38,7 @@ import "./event-hub.css";
 import "./participant-compact.css";
 import { NoticeHistory } from "./NoticeHistory";
 import { NoticePages } from "./NoticePages";
+import { PublicPrivacyNotice } from "./PrivacyNotice";
 import { TEST_MODE_BANNER, testModeBlocksParticipation } from "../lib/public-test-mode";
 import { EventMedia } from "./EventMedia";
 import { useEffect, useState } from "react";
@@ -82,8 +84,8 @@ export default function EventHubPage({ path }: { path: string }) {
   const hub = useEventHub();
   return (
     <>
-      <EventHubContent path={path} hub={hub} />
-      <AdminInquiry hub={hub} />
+      <EventHubContent key={`content:${hub.identityRevision}`} path={path} hub={hub} />
+      <AdminInquiry key={`inquiry:${hub.identityRevision}`} hub={hub} />
     </>
   );
 }
@@ -437,9 +439,9 @@ export function EventHubContent({ path, hub }: { path: string; hub: Hub }) {
                             password: loginPw,
                           });
                           clearOnsiteBrowserIdentity();
-                          rememberRecoveryCode(login.recoveryCode);
+                          const changed = rememberRecoveryCode(login.recoveryCode);
                           setLoginPw("");
-                          await hub.load();
+                          if (!changed) await hub.load();
                         } catch (e) {
                           hub.setError((e as Error).message);
                         }
@@ -463,9 +465,9 @@ export function EventHubContent({ path, hub }: { path: string; hub: Hub }) {
                     <HubButton
                       onClick={async () => {
                         try {
-                          await recoverHub(recovery);
+                          const changed = await recoverHub(recovery);
                           setRecovery("");
-                          await hub.load();
+                          if (!changed) await hub.load();
                         } catch (e) {
                           hub.setError((e as Error).message);
                         }
@@ -613,17 +615,18 @@ export function BasicForm({ eventId, hub, app, onSaved, includeCompanions=true }
   const [residence,setResidence] = useState(known?.residence);
   const [collection, setCollection] = useState(completingCompanion ? draft?.basic.collection ?? false : app?.basic.collection ?? draft?.basic.collection ?? false);
   const [step, setStep] = useState(()=>{const saved=completingCompanion ? draft?.nextStep ?? 0 : app ? 1 : draft?.nextStep ?? 0;return saved===4?5:saved;});
-  const [excludedFriends,setExcludedFriends]=useState<string[]>([]);
   const [advancing, setAdvancing] = useState(false);
   const group=hub.state?.companionDrafts?.[eventId];
-  const friends=(group?.items??[]).filter(item=>!item.removedAt&&!item.claimedAt&&!item.applicationId);
-  const selectedFriends=includeCompanions?friends.filter(item=>!excludedFriends.includes(item.id)):[];
+  const companionSelection=useCompanionSelection(eventId,group,hub.mutate);
+  const friends=companionSelection.pending;
+  const selectedFriends=includeCompanions?companionSelection.selected:[];
+  const selectionBlocked=!app&&includeCompanions&&step===5&&(companionSelection.saving||companionSelection.needsReview||companionSelection.awaitingState);
   // Keep legacy draft step IDs: the retired phone step 4 resumes at depositor step 5.
   const fields = [["nickname", "닉네임",1], ["birthYear", "태어난 년도",2], ["location", "사는 지역",3], ["depositor", "실제 은행 입금 시 보내는 분 이름",5]] as const;
   const field = fields.find(([, , fieldStep])=>fieldStep===step)??fields[0];
   if (testModeBlocksParticipation(hub.state)) return <HubCard><HubButton disabled>술번개 신청</HubButton><p className="text-sm">행사 공지와 관리자 문의는 계속 확인할 수 있습니다.</p></HubCard>;
   const next = async () => {
-    if (advancing || !collection) return;
+    if (advancing || !collection || selectionBlocked) return;
     setAdvancing(true);
     try {
       const basic: Record<string, unknown> = { collection, version: HUB_CONSENT_VERSION };
@@ -663,46 +666,7 @@ export function BasicForm({ eventId, hub, app, onSaved, includeCompanions=true }
         {completingCompanion && <p className="font-bold">{v.nickname} · {v.birthYear}년생 · {v.location}</p>}
         <details className="text-sm">
           <summary>개인정보 수집 안내 · 보유기간</summary>
-          {hub.state?.privacyNotice ? (
-            <div className="py-3 space-y-2">
-              <p>
-                {hub.state.privacyNotice.policyVersion} ·{" "}
-                {hub.state.privacyNotice.controllerName} · 문의{" "}
-                {hub.state.privacyNotice.contact}
-              </p>
-              <p className="whitespace-pre-wrap">
-                {hub.state.privacyNotice.notice}
-              </p>
-              <ul>
-                {hub.state.privacyNotice.periods.map((r) => (
-                  <li key={r.purpose}>
-                    {(
-                      {
-                        application: "신청·행사",
-                        finance: "입금·분쟁",
-                        member: "회원 재사용",
-                        inquiry: "문의",
-                        audit: "운영 이력",
-                        recovery: "세션·복구",
-                        backup: "백업",
-                      } as Record<string, string>
-                    )[r.purpose] ?? r.purpose}
-                    : {r.days ?? "미확정"}일
-                  </li>
-                ))}
-              </ul>
-              <p>보류·백업 예외는 확정 고지 원문에서 확인하세요.</p>
-            </div>
-          ) : (
-            <p className="py-3">
-              행사 운영자가 신청 처리·입금 확인·연락을 위해
-              닉네임·출생연도·지역·입금자명을 수집합니다. 행사 운영기록은
-              기본 {hub.state?.retentionDays ?? 180}일의 보관 검토기간을
-              사용하며 법정 보관이 필요한 기록은 별도 정책을 따릅니다. 필수
-              수집을 거부하면 신청할 수 없습니다. 현장 공개 프로필은 입장 승인
-              후에만 생성합니다.
-            </p>
-          )}
+          <PublicPrivacyNotice notice={hub.state?.privacyNotice} />
         </details>
         <HubCheck
           label="[필수] 위 개인정보 수집·이용 안내를 확인하고 동의합니다"
@@ -710,10 +674,13 @@ export function BasicForm({ eventId, hub, app, onSaved, includeCompanions=true }
           onChange={setCollection}
         />
       </>}
-      {!app && includeCompanions&&step===5 && friends.length>0 && <fieldset className="space-y-2"><legend className="font-bold">함께 신청할 사람</legend><p>{v.nickname} · 본인 · {v.birthYear}년생 · {v.location}</p>{friends.map(item=><label key={item.id} className="flex items-center gap-2 py-2"><input type="checkbox" checked={!excludedFriends.includes(item.id)} onChange={e=>setExcludedFriends(v=>e.target.checked?v.filter(id=>id!==item.id):[...v,item.id])}/>{item.basic.nickname} · {item.basic.birthYear}년생 · {item.basic.location}</label>)}<p className="text-sm">선택한 사람마다 순번·회비가 정해집니다.</p></fieldset>}
+      {!app && includeCompanions&&step===5 && (friends.length>0||companionSelection.needsReview) && <fieldset className="space-y-2"><legend className="font-bold">함께 신청할 사람</legend><p>{v.nickname} · 본인 · {v.birthYear}년생 · {v.location}</p>{friends.map(item=><label key={item.id} className="flex items-center gap-2 py-2"><input type="checkbox" disabled={advancing||companionSelection.saving||hub.status==='saving'||hub.status==='checking'} checked={selectedFriends.some(selected=>selected.id===item.id)} onChange={e=>void companionSelection.toggle(item.id,e.target.checked)}/>{item.basic.nickname} · {item.basic.birthYear}년생 · {item.basic.location}</label>)}<p className="text-sm">선택한 사람마다 순번·회비가 정해집니다.</p>
+        {companionSelection.saving&&<p role="status">신청 인원 저장 중…</p>}
+        {companionSelection.needsReview&&<><p role="alert">{companionSelection.failed?'신청 인원을 저장하지 못했습니다.':'지인 목록이 변경되었습니다. 신청 인원을 확인해 주세요.'}</p><HubButton onClick={()=>companionSelection.save()} disabled={advancing||hub.status==='saving'||hub.status==='checking'}>신청 인원 확인·저장</HubButton></>}
+      </fieldset>}
       <div className="flex gap-2">
         {step > 0 && <HubButton className="hub-application-back" disabled={advancing || hub.status === "saving"||hub.status==='checking'} onClick={() => setStep(step===5?3:step-1)}>← 이전</HubButton>}
-        <HubButton type="submit" className="flex-1" pending={advancing||hub.status==='saving'||hub.status==='checking'} pendingLabel={hub.status==='checking'?'저장 확인 중…':'저장 중…'} disabled={!collection}>{!app&&step===5&&selectedFriends.length>0 ? `${selectedFriends.length+1}명 함께 신청` : "다음"}</HubButton>
+        <HubButton type="submit" className="flex-1" pending={advancing||hub.status==='saving'||hub.status==='checking'} pendingLabel={hub.status==='checking'?'저장 확인 중…':'저장 중…'} disabled={!collection||selectionBlocked}>{!app&&step===5&&selectedFriends.length>0 ? `${selectedFriends.length+1}명 함께 신청` : "다음"}</HubButton>
       </div>
       {step === 0 && <p className="text-xs">기본정보 입력을 마쳐야 신청 순번이 정해집니다.</p>}
     </form>

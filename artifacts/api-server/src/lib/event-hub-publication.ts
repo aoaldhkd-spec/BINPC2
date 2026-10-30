@@ -36,6 +36,7 @@ export function policyFingerprint(p: PrivacyPolicy): string {
         ]),
         photoRule: p.photoRule ?? null,
         photoNotice: p.photoNotice ?? "",
+        rewardPhoneRule: p.rewardPhoneRule ?? null,
       }),
     )
     .digest("hex");
@@ -82,10 +83,11 @@ export function publicPolicyNotice(p: PrivacyPolicy | undefined) {
     controllerName: p.controllerName,
     contact: p.contact,
     notice: p.notice,
-    periods: PRIVACY_PURPOSES.map((purpose) => ({
+    periods: [...PRIVACY_PURPOSES.map((purpose) => ({
       purpose,
       days: p.rules[purpose].days,
-    })),
+      basis:p.rules[purpose].basis,
+    })),...(p.rewardPhoneRule?[{purpose:'rewardPhone',days:p.rewardPhoneRule.days,basis:p.rewardPhoneRule.basis}]:[])],
     fingerprint: policyFingerprint(p),
   };
 }

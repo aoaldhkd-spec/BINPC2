@@ -1,6 +1,7 @@
 import { randomBytes } from 'node:crypto';
 import { z, HubBasic, HUB_CONSENT_VERSION, type HubBasicDraft } from '@workspace/api-zod';
 import { digest, fail, type HubTx } from './event-hub-store.js';
+import {releaseCompanionDraftLink} from './companion-links.js';
 
 const DraftBasic = HubBasic.pick({nickname:true,birthYear:true,location:true,residence:true}).partial().extend({
   nickname:z.string().trim().max(12).optional(), location:z.string().trim().max(40).optional(),
@@ -22,8 +23,9 @@ export type CompanionDraft = {
   permissionToProvideAt:string; changedAt:string; removedAt?:string;
   inviteHash?:string; claimedAt?:string;
   applicationId?:string; submittedAt?:string;
+  linkRequestId?:string; identityLinkedAt?:string;
 };
-export type CompanionGroup = {revision:number; items:CompanionDraft[]};
+export type CompanionGroup = {revision:number; items:CompanionDraft[];selection?:{draftIds:string[];reviewedRevision:number}};
 type Owner = {
   id:string; erasedAt?:string; restricted?:{active:boolean};
   basicDrafts?:Record<string,HubBasicDraft>;
@@ -53,7 +55,7 @@ function expectedRevision(actual:number,expected:number|undefined){
 }
 export function companionDraftViews(owner:Pick<Owner,"companionDrafts">|undefined){
   return Object.fromEntries(Object.entries(owner?.companionDrafts??{}).map(([eventId,group])=>[eventId,{
-    revision:group.revision,items:group.items.filter(x=>!x.removedAt).map(({inviteHash:_privateHash,...draft})=>draft),
+    revision:group.revision,selection:group.selection,items:group.items.filter(x=>!x.removedAt).map(({inviteHash:_privateHash,linkRequestId:_privateRequest,...draft})=>draft),
   }]));
 }
 
@@ -71,7 +73,7 @@ export async function companionCommand(tx:HubTx,ctx:Context,
     if(invitation.sponsorOwner===me.id)fail('COMPANION_SELF','친구가 자기 계정으로 확인해 주세요.',403);
     const sponsor=authorizedOwner(await tx.get<Owner>('owner',invitation.sponsorOwner),invitation.sponsorOwner);
     const group=groupFor(sponsor,eventId),draft=group.items.find(x=>x.id===invitation.draftId);
-    if(!draft || draft.removedAt || draft.claimedAt || draft.inviteHash!==hash)
+    if(!draft || draft.removedAt || draft.claimedAt || draft.linkRequestId || draft.inviteHash!==hash)
       fail('COMPANION_INVITE','친구 신청 내용이 바뀌었습니다. 새 연결코드를 받아 주세요.',409);
     // Never merge people by phone, payer or device; preserve an existing personal application/draft.
     const existing=(await tx.applicationsForOwner<{owner:string;eventId:string}>(me.id)).some(a=>a.owner===me.id&&a.eventId===eventId);
@@ -94,9 +96,13 @@ export async function companionCommand(tx:HubTx,ctx:Context,
   }
   if (!me.companionDrafts?.[eventId] && Object.keys(me.companionDrafts??{}).length >= 30) fail('LIMIT','작성 중인 행사 수를 초과했습니다. 기존 친구 목록을 확인해 주세요.');
   const group=groupFor(me,eventId);expectedRevision(group.revision,m.revision);
-  if(m.action==='companion.draft.save'){
+  if(m.action==='companion.selection.save'){
+    const selected=z.array(z.string().uuid()).max(ctx.maxDrafts).refine(v=>new Set(v).size===v.length).parse(m.data.draftIds);
+    if(selected.some(id=>!group.items.some(d=>d.id===id&&!d.removedAt&&!d.applicationId&&!d.claimedAt)))fail('COMPANION_SELECTION','친구 목록이 바뀌었습니다. 다시 선택해 주세요.',409);
+    group.selection={draftIds:selected,reviewedRevision:group.revision+1};
+  }else if(m.action==='companion.draft.save'){
     const input=CompanionSave.parse(payload),old=group.items.find(x=>x.id===input.id);
-    if(old?.claimedAt || old?.removedAt || old?.applicationId)fail('COMPANION_LOCKED','접수한 친구 신청은 관리자에게 문의해 주세요.',409);
+    if(old?.claimedAt || old?.removedAt || old?.applicationId || old?.linkRequestId)fail('COMPANION_LOCKED','연결된 친구 정보는 연결 해제 후 수정해 주세요.',409);
     if(!old && (group.items.length>=100 || group.items.filter(x=>!x.removedAt).length>=ctx.maxDrafts))fail('LIMIT','한 번에 작성할 친구 수를 초과했습니다. 관리자에게 문의해 주세요.');
     const item:CompanionDraft={id:input.id,basic:input.basic,providedAt:old?.providedAt??now,permissionToProvideAt:old?.permissionToProvideAt??now,changedAt:now};
     // Editing invalidates old invitations, but does not erase their audit record.
@@ -104,9 +110,13 @@ export async function companionCommand(tx:HubTx,ctx:Context,
   }else{
     const draft=group.items.find(x=>x.id===m.target);
     if(!draft || draft.removedAt || draft.claimedAt || draft.applicationId)fail('COMPANION_LOCKED','작성 중인 친구 신청을 확인해 주세요.',409);
-    if(m.action==='companion.draft.remove'){
+    if(m.action==='companion.draft.unlink'){
+      await releaseCompanionDraftLink(tx,me,draft,eventId,now);
+    }else if(m.action==='companion.draft.remove'){
+      if(draft.linkRequestId)fail('COMPANION_LOCKED','친구 계정 연결을 먼저 해제해 주세요.',409);
       draft.removedAt=now;draft.changedAt=now;draft.inviteHash=undefined;
     }else if(m.action==='companion.invite'){
+      if(draft.linkRequestId)fail('COMPANION_LOCKED','이미 본인 확인으로 연결된 친구입니다.',409);
       CompleteBasic.parse(draft.basic);
       const invitationToken=newToken(),hash=digest(invitationToken);
       if(!/^[A-Za-z0-9_-]{43}$/.test(invitationToken))throw Error('Invalid server invitation generator');
@@ -121,5 +131,5 @@ export async function companionCommand(tx:HubTx,ctx:Context,
     }else fail('ACTION','지원하지 않는 동작입니다.');
   }
   group.revision++;me.companionDrafts={...me.companionDrafts,[eventId]:group};await tx.put('owner',me.id,me);
-  return {saved:true,eventId};
+  return {saved:true,eventId,revision:group.revision};
 }

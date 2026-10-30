@@ -51,7 +51,7 @@ export function CompanionOrders({ app, hub, blocked }: { app: PrivateApplication
     </>}
     {payable.length > 0 && <fieldset className="space-y-2">
       <legend className="font-bold">함께 입금한 사람</legend>
-      {payable.map(a => <label key={a.id} className="flex items-center gap-2 py-2"><input type="checkbox" checked={!excluded.includes(a.id)} onChange={e => setExcluded(v => e.target.checked ? v.filter(id=>id!==a.id) : [...v,a.id])}/>{a.nickname}{a.id===app.id?' · 본인':''} · {a.quote!.fee.toLocaleString()}원</label>)}
+      {payable.map(a => <label key={a.id} className="flex items-center gap-2 py-2"><input type="checkbox" disabled={blocked||busy} checked={!excluded.includes(a.id)} onChange={e => setExcluded(v => e.target.checked ? v.filter(id=>id!==a.id) : [...v,a.id])}/>{a.nickname}{a.id===app.id?' · 본인':''} · {a.quote!.fee.toLocaleString()}원</label>)}
       <p className="font-bold">선택 {selected.length}명 · 합계 {total.toLocaleString()}원</p>
       {!sameAccount&&<p role="alert">같은 계좌로 입금한 사람끼리 선택해 주세요.</p>}
       {sameAccount&&selectedAccount&&!app.bossTestOnly&&<p>{selectedAccount.bank} {selectedAccount.number}{selectedAccount.holder?` · ${selectedAccount.holder}`:''}</p>}
@@ -63,7 +63,10 @@ export function CompanionOrders({ app, hub, blocked }: { app: PrivateApplication
 }
 
 export function MyCompanionRequest({eventId,hub,blocked}:{eventId:string;hub:HubController;blocked:boolean}) {
-  const request=hub.state?.companionLinkRequests?.find(r=>r.eventId===eventId);
-  if (request) return <p role="status" className="text-sm">{request.status==='pending'?'관리자 확인 대기':'내 신청 확인 완료'} · 요청 {request.id.slice(0,8)}</p>;
+  const request=hub.state?.companionLinkRequests?.find(r=>r.eventId===eventId&&!r.cancelledAt);
+  const busy=hub.status==='saving'||hub.status==='checking';
+  if (request) return <div className="space-y-2"><p role="status" className="text-sm">{request.status==='linked'?'내 신청 확인 완료':request.prepared?'대표자 신청 대기':'관리자 확인 대기'} · 요청 {request.id.slice(0,8)}</p>
+    {request.status==='pending'&&<HubButton pending={busy} disabled={blocked} onClick={()=>hub.mutate({action:'companion.link.cancel',target:request.id,revision:request.revision,data:{eventId}})}>동반신청 확인 취소</HubButton>}
+  </div>;
   return <HubButton disabled={blocked||hub.status==='saving'||hub.status==='checking'} onClick={()=>hub.mutate({action:'companion.link.request',data:{eventId}})}>친구가 대신 신청했어요</HubButton>;
 }

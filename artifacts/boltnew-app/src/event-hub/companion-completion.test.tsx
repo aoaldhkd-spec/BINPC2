@@ -25,13 +25,16 @@ it('submits the selected person cards atomically at the final basic step, never 
   const {hub,state,event,mutate}=setup();state.applications=[];
   state.basicDrafts={[event.id]:{revision:4,updatedAt:'2026-10-30T12:00:00Z',nextStep:5,basic:{nickname:'대표테스트',birthYear:1992,location:'서울',phone:'01000000000',collection:true,version:HUB_CONSENT_VERSION}}};
   state.companionDrafts![event.id]={revision:6,items:[{id:'first',basic:{nickname:'첫친구',birthYear:1998,location:'파주'}},{id:'second',basic:{nickname:'다음친구',birthYear:2002,location:'안산'}}]};
+  mutate.mockImplementation(async command=>{if(command.action==='companion.selection.save'){const group=state.companionDrafts![event.id];group.revision++;group.selection={draftIds:command.data?.draftIds as string[],reviewedRevision:group.revision};return {saved:true,id:state.applications[0]?.id,revision:group.revision};}return {saved:true,id:'own-application'};});
   render(<BasicForm eventId={event.id} hub={hub}/>);
   expect(mutate).not.toHaveBeenCalled();
   fireEvent.click(screen.getByLabelText(/다음친구 · 2002년생/));
   fireEvent.change(screen.getByLabelText('실제 은행 입금 시 보내는 분 이름'),{target:{value:'가상입금자'}});
+  await waitFor(()=>expect((screen.getByRole('button',{name:'2명 함께 신청'}) as HTMLButtonElement).disabled).toBe(false));
   fireEvent.click(screen.getByRole('button',{name:'2명 함께 신청'}));
-  await waitFor(()=>expect(mutate).toHaveBeenCalledOnce());
-  expect(mutate.mock.calls[0][0]).toMatchObject({action:'companion.submit',revision:6,data:{eventId:event.id,draftIds:['first'],basic:{nickname:'대표테스트',depositor:'가상입금자'}}});
+  await waitFor(()=>expect(mutate).toHaveBeenCalledTimes(2));
+  expect(mutate.mock.calls[0][0]).toMatchObject({action:'companion.selection.save',revision:6,data:{draftIds:['first']}});
+  expect(mutate.mock.calls[1][0]).toMatchObject({action:'companion.submit',revision:7,data:{eventId:event.id,draftIds:['first'],basic:{nickname:'대표테스트',depositor:'가상입금자'}}});
 });
 it('shows separately quoted fees before confirming the whole order and does not invent friend consent',async()=>{
   const {hub,state,app,event,friend,mutate}=setup('회비 확인');delete friend.confirmedAt;

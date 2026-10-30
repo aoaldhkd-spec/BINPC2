@@ -74,6 +74,52 @@ async function admin(context: BrowserContext) {
 test.beforeEach(async ({ context }) => {
   await local(context);
 });
+test("floating inquiry leaves the privacy checkbox and page beside it clickable at phone and tablet widths", async ({ page, request }, info) => {
+  const event = await cmd(request, "event.save", "", {
+    title: `격리 문의 배치 ${Date.now()}`, date: "2030-01-05", start: "22:00", end: "01:00",
+    area: "합성 시험", address: "승인자만 보는 합성 장소", fee: 23000, account: "실제 송금 금지",
+    deadline: "시험 전용", notice: "화면 배치 검증용 공지",
+  });
+  await cmd(request, "event.recruitment", event.id, { enabled: true }, 1);
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto(`/events/e/${event.id}`);
+  await page.getByRole("button", { name: "신청하기", exact: true }).click();
+  await page.getByRole("button", { name: "혼자 신청", exact: true }).click();
+  await page.getByText("개인정보 수집 안내 · 보유기간", { exact: true }).click();
+  const consent = page.getByLabel("[필수] 위 개인정보");
+  const inquiry = page.getByRole("button", { name: /관리자 문의/ });
+  for (const width of [320, 390, 768]) {
+    await page.setViewportSize({ width, height: 844 });
+    await consent.scrollIntoViewIfNeeded();
+    const bounds = await consent.evaluate(element => {
+      const input = element.getBoundingClientRect(), dock = document.querySelector<HTMLElement>(".event-hub-dock")!;
+      const rect = dock.getBoundingClientRect(), control = dock.querySelector("button")!, button = control.getBoundingClientRect();
+      const style = getComputedStyle(dock);
+      const atCheckbox = document.elementFromPoint(input.x + input.width / 2, input.y + input.height / 2);
+      const besideDock = document.elementFromPoint(input.x + input.width / 2, button.y + button.height / 2);
+      // Existing responsive text scale also scales rem-based padding. Measure
+      // actual layout padding; keep pointer tests on the visual coordinates.
+      return { dockX: rect.x, dockWidth: rect.width, buttonWidth: control.offsetWidth, inputRight: input.right,
+        horizontalPadding: parseFloat(style.paddingLeft) + parseFloat(style.paddingRight),
+        checkboxReceivesPointer: atCheckbox === element, leftSideIsBlocked: !!besideDock?.closest(".event-hub-dock"),
+        background: getComputedStyle(dock).backgroundColor, pageFits: document.documentElement.scrollWidth <= innerWidth + 1 };
+    });
+    expect(bounds.dockX).toBeGreaterThan(bounds.inputRight);
+    expect(bounds.dockWidth).toBeLessThanOrEqual(bounds.buttonWidth + bounds.horizontalPadding + 1);
+    expect(bounds.background).toBe("rgba(0, 0, 0, 0)");
+    expect(bounds.checkboxReceivesPointer).toBe(true);expect(bounds.leftSideIsBlocked).toBe(false);expect(bounds.pageFits).toBe(true);
+    await consent.check();await expect(page.getByRole("button", { name: "다음", exact: true })).toBeEnabled();await consent.uncheck();
+    await expect(page.getByRole("button", { name: "다음", exact: true })).toBeDisabled();
+    await inquiry.click();await page.getByLabel("문의 내용", { exact: true }).fill("화면 크기를 바꿔도 남길 문의");
+    await page.getByRole("button", { name: "닫기", exact: true }).click();
+    if (width === 390) {
+      await page.evaluate(() => scrollTo(0, 0));
+      await page.screenshot({ path: info.outputPath("privacy-390-floating-inquiry.png"), fullPage: true });
+    }
+  }
+  await inquiry.click();await expect(page.getByLabel("문의 내용", { exact: true })).toHaveValue("화면 크기를 바꿔도 남길 문의");
+  await page.keyboard.press("Escape");await expect(page.getByRole("dialog", { name: "관리자 문의" })).toHaveCount(0);
+});
 test("V4 main uses central actions; actual server start activates entry and inquiry is route-scoped", async ({
   page,
   request,

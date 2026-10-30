@@ -20,6 +20,7 @@ const confirmed = { mode: "isolated-test" as const, policyConfirmed: true, ident
 const policy: PrivacyPolicy = {
   ...DEFAULT_PRIVACY_POLICY,
   revision: 1,
+  rewardPhoneRule: { days: 30, basis: "실제 운영 정책 확정이 아닌 격리 전화 만료 검사" },
   backupProcedure: "격리 합성자료만 검사; 운영 백업/파기 승인이 아님",
   rules: Object.fromEntries(Object.keys(DEFAULT_PRIVACY_POLICY.rules).map(purpose => [purpose, {
     days: purpose === "finance" ? 3650 : 1,
@@ -50,7 +51,8 @@ describe.skipIf(!url)("companion privacy — actual isolated PostgreSQL", () => 
     attendance: "confirmed", checkin: false, profile: { lastStep: 1 },
     cards: [], prizesGiven: [], history: [], updatedAt: oldAt,
     rewardPhone: "01000000000",
-    rewardPhoneRequest: {source:"result",resultId:randomUUID(),purpose:"합성 상품 수령 연락",requestedAt:oldAt},
+    rewardPhoneRetainFrom: oldAt,
+    rewardPhoneRequest: {source:"result",resultId:randomUUID(),purpose:"합성 상품 수령 연락",requestedAt:oldAt,retentionStartedAt:oldAt},
     quote: { fee: 15000, original: 25000, benefit: "합성 회비", version: 1, kind: "fixed" },
   });
   const request = (who: HubOwner, overrides: Partial<CompanionLinkRequest> = {}): CompanionLinkRequest => ({

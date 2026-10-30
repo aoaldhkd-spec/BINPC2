@@ -1,5 +1,4 @@
-import { useEffect, useState } from "react";
-import { TutorialModal } from "../components/TutorialModal";
+import { lazy, Suspense, useEffect, useState } from "react";
 import {
   writeHubBrowserValue,
 } from "../lib/event-hub-browser-storage";
@@ -9,6 +8,7 @@ import type {
   PrivateApplication,
 } from "../lib/event-hub-client";
 import { HubButton, HubCard, HubCheck, useHubDark } from "./HubUi";
+const TutorialModal = lazy(() => import("../components/TutorialModal").then(module => ({ default: module.TutorialModal })));
 export function ApplicationGuide({
   event,
   webOpen = event?.recruitment === true,
@@ -82,6 +82,7 @@ export function ApplicationGuide({
       </details>
       </div>
       {open && (
+        <Suspense fallback={<div role="status" className="p-3 text-sm">안내를 불러오는 중…</div>}>
         <TutorialModal
           applicationMode={
             event?.campaign?.kind === "tour"
@@ -94,6 +95,7 @@ export function ApplicationGuide({
           darkMode={dark}
           onClose={close}
         />
+        </Suspense>
       )}
     </section>
   );

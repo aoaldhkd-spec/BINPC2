@@ -1,0 +1,86 @@
+{
+  "checkedAtUtc": "2026-10-30T07:04:42.365267+00:00",
+  "sourceBaseSha": "98bcdc39b11304e0423ace537e9d7a42381a2db7",
+  "releaseCommit": "PENDING final code/evidence freeze",
+  "publicationScan": {
+    "publicTextFiles": 1080,
+    "changedCandidatesAtCheck": 64,
+    "blockingFindings": 0,
+    "newBinaryFilesAtCheck": 0,
+    "coverage": [
+      "Available runtime authentication values and current owner login credentials",
+      "Supplied alternative bank accounts and confirmed private venue addresses",
+      "Existing recovery key encodings",
+      "High-confidence API-token/private-key/database-dump patterns"
+    ],
+    "existingClassifiedMatches": {
+      "retiredBootstrapDefaultsRejectedByProduction": 14
+    },
+    "limits": [
+      "A final scan must be rerun after reports or screenshots are packaged and before committing",
+      "Not an OCR or full Git history audit",
+      "No proof of platform-wide or real-device security is implied"
+    ]
+  },
+  "staticAudit": {
+    "checkedAtUtc": "2026-10-30T07:02:23.236150+00:00",
+    "workspaceCounts": {
+      "error": 0,
+      "warn": 240,
+      "info": 1108
+    },
+    "publicCandidateCounts": {
+      "info": 573,
+      "warn": 123
+    },
+    "publicWarningsByRule": {
+      "hardcoded_secret": 122,
+      "ts_ignore": 1
+    },
+    "previousPublicWarnings": 117,
+    "addedWarnings": [
+      {
+        "file": "artifacts/api-server/src/lib/companion-submission.pg.test.ts",
+        "rule": "hardcoded_secret",
+        "count": 4
+      },
+      {
+        "file": "artifacts/boltnew-app/src/lib/event-hub-identity.test.tsx",
+        "rule": "hardcoded_secret",
+        "count": 2
+      }
+    ],
+    "classification": {
+      "testOrIsolatedFixture": 119,
+      "auditRuleSelfMatch": 1,
+      "redactionConstant": 1,
+      "tokenInputDocumentationPlaceholder": 2
+    },
+    "excludedPrivateOrGeneratedWarnings": 117,
+    "publicErrorCount": 0,
+    "note": "Pattern warnings are classified, not deleted. Full-workspace locations are preserved privately; no credential literals are copied to this report."
+  },
+  "providerReadOnlyReview": {
+    "checkedAtUtc": "2026-10-30T06:52:19.067126+00:00",
+    "developmentHead": "98bcdc39b11304e0423ace537e9d7a42381a2db7",
+    "mainHead": "b06a900280404f79c92e17cdbc6af907a0414c30",
+    "netlifyBuildBranch": "main",
+    "netlifyAllowedBranches": [
+      "main"
+    ],
+    "netlifyStoppedBuilds": false,
+    "renderBranch": "main",
+    "renderAutoDeploy": "yes",
+    "featurePushDoesNotTargetConfiguredBuildBranches": true,
+    "prPreviewExcluded": "UNKNOWN; no PR created",
+    "futureMainChangeCanOverwriteManualRelease": true,
+    "settingsChanged": false
+  },
+  "writes": {
+    "productionData": false,
+    "keys": false,
+    "providerSettings": false,
+    "commit": false,
+    "push": false
+  }
+}

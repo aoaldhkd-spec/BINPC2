@@ -12,6 +12,7 @@ import { HubStore, HubTx, fail, digest } from "./event-hub-store.js";
 import type { HubOwner, HubMember, HubThread } from "./event-hub-service.js";
 import type { CompanionDraft } from "./companion-records.js";
 import type { CompanionLinkRequest } from "./companion-submission.js";
+import {recordPrivacyErasure} from './event-hub-privacy-restore.js';
 
 const submittedReferenceOnly = (draft: CompanionDraft) =>
   !!draft.applicationId && !!draft.removedAt &&
@@ -83,6 +84,13 @@ export async function privacySnapshot(
   const own = await tx.get<HubOwner>("owner", owner);
   if (!own) fail("OWNER", "대상을 찾을 수 없습니다.", 404);
   const events = await tx.all<HubEvent>("event");
+  const eventEnd=(id:string)=>{
+    const e=events.find(value=>value.id===id);
+    if(!e)return "";
+    const value=Date.parse(`${e.date}T${e.end}:00+09:00`)+(e.end<=e.start?86400000:0);
+    return Number.isFinite(value)?new Date(value).toISOString():"";
+  };
+  const latest=(values:(string|undefined)[])=>values.filter((value):value is string=>!!value&&Number.isFinite(Date.parse(value))).sort((a,b)=>Date.parse(a)-Date.parse(b)).at(-1);
   const apps = (await tx.all<HubApplication>("application")).filter(
     (a) => a.owner === owner,
   );
@@ -112,32 +120,26 @@ export async function privacySnapshot(
   return {
     owner,
     basicDrafts: [
-      ...Object.entries(own.basicDrafts ?? {}).map(([id, d]) => ({ id, revision: d.revision, updatedAt: d.updatedAt })),
+      ...Object.entries(own.basicDrafts ?? {}).map(([id, d]) => ({ id, revision: d.revision, updatedAt: d.updatedAt,eventEnd:eventEnd(id) })),
       ...Object.entries(own.companionDrafts ?? {})
         .filter(([, group]) => group.items.some(draft => !submittedReferenceOnly(draft)))
-        .map(([id,g])=>({id:`companion:${id}`,revision:g.revision,updatedAt:g.items.map(d=>d.changedAt).sort().at(-1)??own.createdAt})),
+        .map(([id,g])=>({id:`companion:${id}`,revision:g.revision,updatedAt:g.items.map(d=>d.changedAt).sort().at(-1)??own.createdAt,eventEnd:eventEnd(id)})),
       ...Object.values(own.companionLinkRequests ?? {})
         .filter(request => request.status === "pending")
-        .map(request => ({ id: `companion-link:${request.eventId}`, revision: request.revision, updatedAt: request.at })),
+        .map(request => ({ id: `companion-link:${request.eventId}`, revision: request.revision, updatedAt: request.at,eventEnd:eventEnd(request.eventId) })),
     ],
     caseRevision: own.privacyCase?.revision ?? 0,
     hold: own.privacyHold,
     applications: await Promise.all(
-      apps
-        .filter((a) => !a.erasedAt)
-        .map(async (a) => {
-          const e = events.find((e) => e.id === a.eventId);
+      apps.map(async (a) => {
           return {
             id: a.id,
             revision: a.revision,
-            eventEnd: e
-              ? new Date(
-                  Date.parse(`${e.date}T${e.end}:00+09:00`) +
-                    (e.end <= e.start ? 86400000 : 0),
-                ).toISOString()
-              : "",
-            financeAt: a.approvedAt ?? a.confirmedAt,
-            paid: a.payment === "approved",
+            eventEnd:eventEnd(a.eventId),
+            financeAt:latest([a.approvedAt,a.reportedAt,...Object.values(a.prizeGivenAt??{}),...(a.manualResults??[]).flatMap(result=>[result.paidAt,result.receivedAt]),...a.history.filter(item=>item.action==='admin.application.prize').map(item=>item.at)])??a.confirmedAt,
+            paid: a.payment!=="none"||!!a.approvedAt||a.prizesGiven.length>0||!!a.manualResults?.some(result=>result.paidAt||result.receivedAt),
+            erasedAt:a.erasedAt,
+            ...(a.rewardPhone?{rewardPhone:{confirmedAt:a.rewardPhoneRetainFrom??a.rewardPhoneRequest?.retentionStartedAt}}:{}),
             publicProfile:
               !!a.profileId &&
               !!(
@@ -152,13 +154,15 @@ export async function privacySnapshot(
     member: member
       ? {
           id: member.id,
-          lastAt: member.lastActivityAt ?? member.history.at(-1)?.at ?? "",
+          lastAt: member.lastActivityAt ?? latest(member.history.filter(item=>['member.consent','member.setup.consent','member.nickname.change','member.login'].includes(item.action)).map(item=>item.at)) ?? "",
         }
       : undefined,
     thread: thread
       ? {
           id: thread.id,
           lastAt: thread.messages.at(-1)?.at ?? thread.readUserAt,
+          status:thread.status,
+          resolvedAt:thread.status==='resolved'?(thread.resolvedAt??thread.history.filter(item=>item.action==='thread.resolved').at(-1)?.at):undefined,
         }
       : undefined,
     receiptIds,
@@ -227,7 +231,7 @@ export async function executePrivacyPlanForIsolatedTest(
     const snapshot = await privacySnapshot(tx, owner);
     if (
       snapshot.hold &&
-      (!snapshot.hold.until || Date.parse(snapshot.hold.until) > now.getTime())
+      (!snapshot.hold.until || !Number.isFinite(Date.parse(snapshot.hold.until)) || Date.parse(snapshot.hold.until) > now.getTime())
     )
       fail("PRIVACY_HOLD", "보관 보류 중입니다.", 409);
     if (
@@ -271,8 +275,9 @@ export async function executePrivacyPlanForIsolatedTest(
           );
           a.screeningPhoto = undefined;
         }
-        a.rewardPhone = undefined;
-        a.rewardPhoneRequest = undefined;
+        if(!plan.items.some(entry=>entry.kind==='reward-phone'&&entry.id===a.id&&entry.action==='keep')){
+          a.rewardPhone = undefined;a.rewardPhoneRequest = undefined;a.rewardPhoneRetainFrom=undefined;
+        }
         if (a.lateArrival) a.lateArrival={...a.lateArrival,reason:"",reviewReason:undefined};
         if (a.manualResults) a.manualResults=a.manualResults.map(r=>({...r,reason:"",label:"수동 지급 기록"}));
         a.eligibility = undefined;
@@ -299,6 +304,10 @@ export async function executePrivacyPlanForIsolatedTest(
           a.revision++;
           await tx.put("application", a.id, a);
         }
+      } else if(item.kind==='reward-phone'&&item.action==='erase'){
+        if(plan.items.some(entry=>entry.kind==='application'&&entry.id===item.id&&entry.action==='erase'))continue;
+        const a=await tx.get<HubApplication>('application',item.id);
+        if(a){a.rewardPhone=undefined;a.rewardPhoneRequest=undefined;a.rewardPhoneRetainFrom=undefined;a.revision++;await tx.put('application',a.id,a);}
       } else if (item.kind === "request") {
         const r = await tx.get<Record<string, unknown>>("request", item.id);
         if (r) {
@@ -352,6 +361,7 @@ export async function executePrivacyPlanForIsolatedTest(
       }
       await tx.put("owner", own.id, own);
     }
+    await recordPrivacyErasure(tx,owner,plan.items.filter(item=>['application','basic-draft','member','thread','request','reward-phone'].includes(item.kind)&&['erase','minimize'].includes(item.action)).map(item=>({kind:item.kind as 'application'|'basic-draft'|'member'|'thread'|'request'|'reward-phone',id:item.id,action:item.action as 'erase'|'minimize'})),now.toISOString());
     return { applied: true, scope: "isolated-test", fingerprint };
   });
 }

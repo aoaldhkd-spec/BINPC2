@@ -9,7 +9,19 @@ let rows:Map<string,any>,queries:string[],owner:HubOwner,event:HubEvent;
 const clock=new Date('2026-10-30T11:00:00Z'),copy=<T>(v:T):T=>v===undefined?v:structuredClone(v);
 const listed=(kind:string)=>[...rows].filter(([k])=>k.startsWith(`${kind}:`)).map(([k,data])=>({id:k.slice(kind.length+1),data:copy(data)}));
 const db={release(){},async query(sql:string,v:any[]=[]){
- if(sql.startsWith('BEGIN')){queries.push('begin-locks');return{rows:[]};}
+ if(sql.startsWith('BEGIN')){
+  expect(sql.trim().split(';').filter(s=>s.trim()).map(s=>s.trim())).toEqual([
+   'BEGIN', "SET LOCAL lock_timeout='10000ms'",
+   "SELECT pg_advisory_xact_lock(hashtext('binpc2:event-anonymous-archive-reset:v1'))",
+   "SELECT pg_advisory_xact_lock(hashtext('binpc2:event-hub:v6'))",
+   "SELECT kind,id,data FROM event_hub_records WHERE data ? 'crypto_box' ORDER BY kind,id LIMIT 1",
+  ]);
+  queries.push('begin-locks-key-validation');
+  const first=[...rows].filter(([,data])=>data.crypto_box).sort(([a],[b])=>a.localeCompare(b))[0];
+  const colon=first?.[0].indexOf(':');
+  const sentinel=first?[{kind:first[0].slice(0,colon),id:first[0].slice(colon!+1),data:copy(first[1])}]:[];
+  return ['BEGIN','SET','SELECT','SELECT','SELECT'].map((command,i)=>({command,rows:i===4?sentinel:[],rowCount:i===4?sentinel.length:null}));
+ }
  if(sql==='COMMIT'||sql==='ROLLBACK'){queries.push(sql);return{rows:[]};}
  if(sql.startsWith('INSERT INTO event_hub_records')){queries.push('put');rows.set(`${v[0]}:${v[1]}`,JSON.parse(v[2]));return{rows:[]};}
  if(sql.includes("data ? 'crypto_box'")){queries.push('key-validation');const first=[...rows].find(([,data])=>data.crypto_box);if(!first)return{rows:[]};const colon=first[0].indexOf(':');return{rows:[{kind:first[0].slice(0,colon),id:first[0].slice(colon+1),data:copy(first[1])}]};}
@@ -38,25 +50,25 @@ beforeEach(async()=>{
  await tx().put('owner',owner.id,owner);await tx().put('event',event.id,event);await tx().put('laboratory-mode','global',mode());queries=[];
 });
 
-it('reads participant state in four SQL round trips including unchanged locks, key validation and commit',async()=>{
- const state=await service().state(owner.id);expect(queries).toEqual(['begin-locks','key-validation','state-batch','COMMIT']);
+it('reads participant state in three SQL round trips with the exact lock and key-validation batch before commit',async()=>{
+ const state=await service().state(owner.id);expect(queries).toEqual(['begin-locks-key-validation','state-batch','COMMIT']);
  expect(state.testMode).toMatchObject({enabled:true,publicAdmissionOpen:false});expect(state.applications).toEqual([]);expect(state.settings).toBeUndefined();
 });
 it('keeps anonymous state private and does not perform ownerless application/member reads',async()=>{
- const state=await service().state();expect(queries).toEqual(['begin-locks','key-validation','state-batch','COMMIT']);
+ const state=await service().state();expect(queries).toEqual(['begin-locks-key-validation','state-batch','COMMIT']);
  expect(state.owners).toBeUndefined();expect(state.members).toBeUndefined();expect(state.member).toBeNull();expect(state.applications).toEqual([]);
 });
 it('retains full administrator collections while stripping authentication material',async()=>{
  await tx().put('owner','other-owner',{id:'other-owner',recoveryHash:'hidden',createdAt:clock.toISOString()});
  await tx().put('thread','other-owner',{id:'other-owner',messages:[]});await tx().put('stock','stock-one',{id:'stock-one',eventId:event.id,label:'합성',remaining:1});
  await tx().put('error','error-one',{id:'error-one',code:'SYNTHETIC'});queries=[];
- const state=await service().state(owner.id,true);expect(queries).toEqual(['begin-locks','key-validation','state-batch','COMMIT']);
+ const state=await service().state(owner.id,true);expect(queries).toEqual(['begin-locks-key-validation','state-batch','COMMIT']);
  expect(state.owners).toHaveLength(2);expect(state.owners?.every(o=>!('recoveryHash'in o))).toBe(true);expect(state.threads).toHaveLength(1);expect(state.stocks).toHaveLength(1);expect(state.errors).toHaveLength(1);
 });
 it('does not expose a foreign application when unencrypted owner routing is forged',async()=>{
  const id=randomUUID(),a={id,eventId:event.id,owner:'foreign-owner',revision:1,stage:4,rank:1,basic:{nickname:'타인',birthYear:1995,location:'서울'},profile:{lastStep:1},payment:'approved',attendance:'confirmed',checkin:false,cards:[],prizesGiven:[],history:[],updatedAt:clock.toISOString()} satisfies HubApplication;
  await tx().put('application',id,a);rows.get(`application:${id}`).owner=owner.id;queries=[];
- const state=await service().state(owner.id);expect(state.applications).toEqual([]);expect(queries).toEqual(['begin-locks','key-validation','state-batch','COMMIT']);
+ const state=await service().state(owner.id);expect(state.applications).toEqual([]);expect(queries).toEqual(['begin-locks-key-validation','state-batch','COMMIT']);
 });
 it('does not make a partial owner collection into a global tx.all cache',async()=>{
  await tx().put('application','foreign',{id:'foreign',owner:'foreign-owner'});const transaction=tx();const inputs=await transaction.stateInputs(owner.id,false);

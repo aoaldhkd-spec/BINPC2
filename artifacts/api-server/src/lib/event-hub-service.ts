@@ -2,7 +2,8 @@ import { VenueAddressInput, type VenueDirectory } from "../../../../lib/api-zod/
 import { bossParticipationAllowed } from './boss-participation.js';
 import { companionCommand, companionDraftViews, type CompanionGroup } from './companion-records.js';
 import { companionApplicationViews, companionSubmissionCommand, type CompanionLinkRequest } from './companion-submission.js';
-import { saveBasicApplication } from './event-hub-application-basic.js';
+import {participantLinkRequest} from './companion-links.js';
+import { saveBasicApplication,withoutGeneralPhoneInput } from './event-hub-application-basic.js';
 import { campaignPresets } from '@workspace/api-zod';
 import { cardSlotAvailable } from "../../../../lib/api-zod/src/event-card-clock.js";
 import { validateLogoOriginal } from "./event-hub-logo.js";
@@ -65,6 +66,7 @@ import {
   type HubMedia,
 } from "./event-hub-media.js";
 import { planPrivacy } from "./event-hub-privacy.js";
+import {recordPrivacyErasure} from './event-hub-privacy-restore.js';
 import { HubStore, HubTx, fail, digest, normalizeHubNickname } from "./event-hub-store.js";
 import { eventCycleMilestones } from "./db-event-cycle-heart.js";
 import { parseModuleFlags } from "./db-module-flags.js";
@@ -138,6 +140,7 @@ export type HubThread = {
   consentVersion?: string;
   consentAt?: string;
   status?: "open" | "resolved";
+  resolvedAt?:string;
   id: string;
   messages: { id: string; sender: string; text: string; at: string }[];
   readUserAt: string;
@@ -502,7 +505,7 @@ export class EventHubService {
         companionDrafts: !admin && !account?.erasedAt ? companionDraftViews(account) : undefined,
         companionApplications: !admin && !account?.erasedAt ? await companionApplicationViews(tx,account,apps) : [],
         companionAccounts: !admin && !account?.erasedAt ? Object.fromEntries(events.filter(e=>account?.companionDrafts?.[e.id] && apps.some(a=>a.eventId===e.id&&a.owner===owner&&!a.erasedAt&&a.consent?.notice)).map(e=>[e.id,e.accounts??[]])) : {},
-        companionLinkRequests: admin ? (owners??[]).flatMap(o=>Object.values(o.companionLinkRequests??{})) : Object.values(account?.companionLinkRequests??{}),
+        companionLinkRequests: admin ? (owners??[]).flatMap(o=>Object.values(o.companionLinkRequests??{})) : Object.values(account?.companionLinkRequests??{}).map(participantLinkRequest),
         privacyNotice:publicPolicyNotice(publicationPolicy),
         publicationBlocked:admin?publicationBlocked:undefined,
         retentionDays:
@@ -590,7 +593,8 @@ export class EventHubService {
       // Routing metadata is not authority: consumers still check decrypted owner/event.
       const ownerApplicationsBeforeMutation = needsOwnerApplications ? mutationInputs.applications : undefined;
       const pendingCompanion = ownerApplicationsBeforeMutation?.find(a=>a.owner===owner&&a.eventId===m.data.eventId&&!a.erasedAt&&a.companionSubmission?.linkedAt&&a.companionSubmission.personalConsentPending);
-      const linkRequest = m.action === 'admin.companion.link' ? await tx.get<CompanionLinkRequest>('settings',`companion-link:${m.target}`) : undefined;
+      const persistedLinkAction=['admin.companion.link','admin.companion.link-draft','admin.companion.unlink-draft','companion.link.cancel'].includes(m.action);
+      const linkRequest = persistedLinkAction ? await tx.get<CompanionLinkRequest>('settings',`companion-link:${m.target}`) : undefined;
       const targetApp = m.action.startsWith('application.') && !['application.basic','application.basic-draft'].includes(m.action) ? await tx.get<HubApplication>('application',m.target) : undefined;
       const targetEventId = targetApp?.eventId ?? linkRequest?.eventId ?? (typeof m.data.eventId === 'string' ? m.data.eventId : '');
       const targetEvent = targetEventId ? await tx.get<HubEvent>('event',targetEventId) : undefined;
@@ -644,7 +648,7 @@ export class EventHubService {
         saved: true,
         requestId: m.requestId,
       };
-      if (m.action.startsWith('companion.') || m.action === 'admin.companion.link') {
+      if (m.action.startsWith('companion.') || persistedLinkAction) {
         const e=await this.event(tx,text(linkRequest?.eventId??m.data.eventId));
         const newRegistration=['companion.submit','companion.confirm','companion.draft.save','companion.invite','companion.claim'].includes(m.action);
         if(newRegistration){
@@ -657,7 +661,7 @@ export class EventHubService {
         if(newRegistration && process.env.NODE_ENV==='production' && publicPolicyNotice(policy) && m.data.privacyPolicyFingerprint!==policyFingerprint(policy!))fail('PRIVACY_NOTICE_CHANGED','최신 개인정보 안내를 확인해 주세요.',409);
         const year=(m.data.basic as {birthYear?:unknown}|undefined)?.birthYear;
         if(typeof year==='number'&&!isAdultBirthYear(year,this.now()))fail('ADULT','성인 참가 조건을 확인해 주세요.');
-        if(['companion.submit','companion.confirm','companion.report','companion.link.request','admin.companion.link'].includes(m.action)){
+        if(['companion.submit','companion.confirm','companion.report','companion.link.request','companion.link.cancel','admin.companion.link','admin.companion.link-draft','admin.companion.unlink-draft'].includes(m.action)){
           Object.assign(result,await companionSubmissionCommand(tx,{owner,admin,event:e,now:this.now(),command:m,...(publicPolicyNotice(policy)?{privacyPolicyConsent:{version:policy!.policyVersion!,fingerprint:policyFingerprint(policy!),at:now}}:{})}));
         }else Object.assign(result,await companionCommand(tx,{owner,eventId:e.id,now,command:m,maxDrafts:20,invitationTtlMs:24*3600000}));
       } else if (m.action === "venue.address.save") {
@@ -963,7 +967,7 @@ export class EventHubService {
         const policy = await tx.get<PrivacyPolicy>("settings", "privacy-policy");
         if (process.env.NODE_ENV === "production" && publicPolicyNotice(policy) && m.data.privacyPolicyFingerprint !== policyFingerprint(policy!)) fail("PRIVACY_NOTICE_CHANGED", "최신 개인정보 안내를 확인해 주세요.", 409);
         if (!pendingCompanion && ownerApplicationsBeforeMutation!.some((a) => a.owner === owner && a.eventId === e.id)) fail("STAGE", "이미 저장된 신청을 이어가 주세요. 승인 상태는 변경되지 않았습니다.", 409);
-        const input = HubBasicDraftInput.parse(m.data);
+        const input = HubBasicDraftInput.parse({...m.data,basic:withoutGeneralPhoneInput(m.data.basic)});
         if (pendingCompanion && ((input.basic.nickname !== undefined && nickKey(input.basic.nickname) !== nickKey(pendingCompanion.basic.nickname)) || (input.basic.birthYear !== undefined && input.basic.birthYear !== pendingCompanion.basic.birthYear))) fail('COMPANION_IDENTITY','접수한 이름·년생 정정은 관리자에게 문의해 주세요.',409);
         const old = own.basicDrafts?.[e.id];
         revision(old?.revision ?? 0);
@@ -995,7 +999,7 @@ export class EventHubService {
           );
         if (e.campaign && m.data.round !== undefined && m.data.round !== 1)
           fail("ROUND", "BINPC2는 1차만 신청받습니다.");
-        const basic = HubBasic.parse(m.data.basic);
+        const basic = HubBasic.parse(withoutGeneralPhoneInput(m.data.basic));
         const policy=await tx.get<PrivacyPolicy>("settings","privacy-policy");
         if(process.env.NODE_ENV==="production" && publicPolicyNotice(policy) && m.data.privacyPolicyFingerprint!==policyFingerprint(policy!))fail("PRIVACY_NOTICE_CHANGED","개인정보 안내가 변경되었습니다. 최신 안내를 확인한 뒤 같은 신청을 이어가세요.",409);
         const saved = await saveBasicApplication(tx,{owner:own,event:e,basic,now:this.now(),actor,edit:m.data.edit===true,revision:m.revision,...(publicPolicyNotice(policy)?{privacyPolicyConsent:{version:policy!.policyVersion!,fingerprint:policyFingerprint(policy!),at:now}}:{})});
@@ -1039,6 +1043,7 @@ export class EventHubService {
               salt,
               passwordHash: scryptSync(password, salt, 64).toString("hex"),
               nicknameChanges: existing?.nicknameChanges ?? 0,
+              lastActivityAt:now,
               history: [
                 ...(existing?.history ?? []),
                 audit(actor, "member.consent", now),
@@ -1051,10 +1056,13 @@ export class EventHubService {
               (v) => v.owner === a.owner,
             );
             if (existing)
+            {
               await tx.db.query(
                 "DELETE FROM event_hub_records WHERE kind='member' AND id=$1",
                 [existing.id],
               );
+              await recordPrivacyErasure(tx,owner,[{kind:'member',id:existing.id,action:'erase'}],now);
+            }
           }
           const person = await tx.get<HubOwner>("owner", a.owner);
           if (person) {
@@ -1135,6 +1143,7 @@ export class EventHubService {
             );
             if (member) {
               member.profile = a.profile;
+              member.lastActivityAt = now;
               await tx.put("member", member.id, member);
             }
           }
@@ -1539,6 +1548,7 @@ export class EventHubService {
           )
             fail("PRIZE", "당첨 기록이 없거나 이미 지급했습니다.", 409);
           a.prizesGiven.push(card);
+          a.prizeGivenAt={...a.prizeGivenAt,[card]:now};
         } else fail("ACTION", "지원하지 않는 신청 동작입니다.");
         // Admission replays still re-check cycle, consent, ownership and device binding above.
         // They must not advance the application revision or duplicate its durable audit.
@@ -1696,7 +1706,7 @@ export class EventHubService {
         const nicknameKey = nickKey(a.basic.nickname);
         if ((await tx.nicknameCandidates<HubMember>("member", nicknameKey)).some((m) => m.owner !== owner && m.nicknameKey === nicknameKey)) fail("NICKNAME", "닉네임 확인이 필요합니다. 관리자에게 문의해 주세요.", 409);
         const salt = randomUUID(), id = randomUUID();
-        await tx.put("member", id, { id, owner, nicknameKey, basic: a.basic, profile: a.profile, marketing: own.marketingConsent?.enabled ?? false, salt, passwordHash: scryptSync(input.password, salt, 64).toString("hex"), nicknameChanges: 0, history: [audit(actor, "member.setup.consent", now)] } satisfies HubMember);
+        await tx.put("member", id, { id, owner, nicknameKey, basic: a.basic, profile: a.profile, marketing: own.marketingConsent?.enabled ?? false, salt, passwordHash: scryptSync(input.password, salt, 64).toString("hex"), nicknameChanges: 0,lastActivityAt:now, history: [audit(actor, "member.setup.consent", now)] } satisfies HubMember);
         own.history = [...(own.history ?? []), audit(actor, "member.setup.consent", now, input.version)];
         await tx.put("owner", owner, own);
       } else if (
@@ -1735,6 +1745,7 @@ export class EventHubService {
             "DELETE FROM event_hub_records WHERE kind='member' AND id=$1",
             [member.id],
           );
+          await recordPrivacyErasure(tx,owner,[{kind:'member',id:member.id,action:'erase'}],now);
           for (const a of (await tx.all<HubApplication>("application")).filter(
             (a) => a.owner === owner && a.consent,
           )) {
@@ -1823,6 +1834,7 @@ export class EventHubService {
             );
           if (!admin) {
             t.status = "open";
+            t.resolvedAt=undefined;
             if (m.data.collection === true) {
               t.consentVersion = HUB_CONSENT_VERSION;
               t.consentAt ??= now;
@@ -1840,6 +1852,7 @@ export class EventHubService {
         } else if (m.action === "thread.resolve") {
           requireAdmin();
           t.status = z.enum(["open", "resolved"]).parse(m.data.status);
+          t.resolvedAt=t.status==="resolved"?(t.resolvedAt??now):undefined;
           t.history.push(
             audit(actor, `thread.${t.status}`, now, text(m.data.reason, 500)),
           );

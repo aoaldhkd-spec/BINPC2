@@ -35,6 +35,18 @@ async function command(
 async function fillBasicSteps(page: Page, values: [string, string, string, string, string]) {
   await page.getByRole("button", { name: "신청하기", exact: true }).click();
   await page.getByRole("button", { name: "혼자 신청", exact: true }).click();
+  await page.getByText("개인정보 수집 안내 · 보유기간", { exact: true }).click();
+  for (const text of ["기존 행사 주기의 익일 17시 초기화", "행사 종료 후 30일", "최종 입금·정산·지급 확인 후 180일", "처리 완료 후 90일", "최종 이용 후 1년 또는 재사용 동의 철회", "지급·정산 확인 후 원칙 30일 이내 삭제"]) {
+    await expect(page.locator("dd").filter({ hasText: text })).toBeVisible();
+  }
+  await expect(page.getByLabel("[필수] 위 개인정보")).not.toBeChecked();
+  await expect(page.getByRole("button", { name: "다음", exact: true })).toBeDisabled();
+  await expect(page.getByLabel(/전화번호|수령 연락처/)).toHaveCount(0);
+  const privacyViewport = page.viewportSize();
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.screenshot({ path: test.info().outputPath("00-approved-privacy-periods.png"), fullPage: true });
+  if (privacyViewport) await page.setViewportSize(privacyViewport);
+  await page.getByText("개인정보 수집 안내 · 보유기간", { exact: true }).click();
   await page.getByLabel("[필수] 위 개인정보").check();
   await page.getByRole("button", { name: "다음", exact: true }).click();
   await page.getByLabel("닉네임", { exact: true }).fill(values[0]);
@@ -870,6 +882,55 @@ test("inquiry drafts, participant messages and administrator replies survive reo
   const timing = { environment: "two Chromium contexts, loopback React/Express/PostgreSQL, no reload before notification", action: "administrator reply click to participant unread banner", milliseconds: replyVisibleMs, participantMessageToAdminConversationMs:adminAlertMs, targetMs: 2000, targetMet: replyVisibleMs <= 2000 };
   writeFileSync(testInfo.outputPath("v12-inquiry-visible-timing.json"), JSON.stringify(timing, null, 2));
   console.log("V12_INQUIRY_VISIBLE_TIMING", JSON.stringify(timing));
+  // A state request may finish after the participant moves to another app.
+  // Deliver that actual DB response while hidden: unread must survive until
+  // the same conversation is visible again, including the boss access recheck.
+  const retainedThread = async () => {
+    const response = await request.get("/api/event-hub/admin", { headers: adminHeaders });
+    expect(response.status()).toBe(200);
+    return (await response.json()).threads.find((thread: { id: string }) => thread.id === owner);
+  };
+  await expect.poll(async () => {
+    const thread = await retainedThread();
+    return thread.readUserAt >= thread.messages.find((message: { text: string }) => message.text === reply).at;
+  }).toBe(true);
+  const delayedReply = `앱 복귀 후 확인 ${suffix}`;
+  let responseHeld = false, releaseResponse!: () => void;
+  const responseRelease = new Promise<void>(resolve => { releaseResponse = resolve; });
+  await page.route("**/api/event-hub/state", async route => {
+    const response = await route.fetch();
+    const body = await response.json();
+    if (!responseHeld && body.threads?.some((thread: { messages: { text: string }[] }) => thread.messages.some(message => message.text === delayedReply))) {
+      responseHeld = true;
+      await responseRelease;
+    }
+    await route.fulfill({ response });
+  });
+  try {
+    await page.getByLabel("문의 내용", { exact: true }).fill("다른 앱에서도 보존할 문의 초안");
+    await admin.getByRole("textbox", { name: "관리자 답장", exact: true }).fill(delayedReply);
+    await admin.getByRole("button", { name: "수정한 답장 보내기", exact: true }).click();
+    await expect.poll(() => responseHeld).toBe(true);
+    await page.evaluate(() => {
+      Object.defineProperty(document, "visibilityState", { configurable: true, value: "hidden" });
+      document.dispatchEvent(new Event("visibilitychange"));
+    });
+    releaseResponse();
+    await expect(page.getByText(delayedReply, { exact: true })).toBeVisible();
+    const hiddenThread = await retainedThread();
+    const messageAt = hiddenThread.messages.find((message: { text: string }) => message.text === delayedReply).at;
+    expect(hiddenThread.readUserAt < messageAt).toBe(true);
+    await page.evaluate(() => {
+      Object.defineProperty(document, "visibilityState", { configurable: true, value: "visible" });
+      document.dispatchEvent(new Event("visibilitychange"));
+    });
+    await expect.poll(async () => (await retainedThread()).readUserAt >= messageAt).toBe(true);
+    await expect(page.getByLabel("문의 내용", { exact: true })).toHaveValue("다른 앱에서도 보존할 문의 초안");
+    await testInfo.attach("inquiry-delayed-hidden-response", { contentType: "application/json", body: JSON.stringify({ environment: "Chromium visibility simulation + actual React/API/PostgreSQL", delayedResponseWhileHiddenUnread: true, foregroundReadAcknowledged: true, draftPreserved: true, actualPhoneOrPush: "UNKNOWN" }) });
+  } finally {
+    releaseResponse();
+    await page.unroute("**/api/event-hub/state");
+  }
   await page
     .getByLabel("문의 내용", { exact: true })
     .fill("보내지 않은 임시 문의");

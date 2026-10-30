@@ -159,3 +159,28 @@ it("replaces through one atomic upload command without unlinking the old origina
     data: expect.objectContaining({ purpose: "map", replaceId: "existing-map", publicConfirmed: false }) }));
   expect(event.materials[0].hidden).toBe(false);
 });
+
+it("cancels replacement without writing or losing the file draft, then saves it separately from the original", async () => {
+  const event = editableEvent();
+  event.materials = [{ id: "existing-map", url: "/saved-map.png", purpose: "map", alt: "기존 지도", hidden: false, at: "2026-10-30T00:00:00Z" }];
+  event.media = ["/saved-map.png"];
+  const hub = controller(event);
+  vi.spyOn(URL, "createObjectURL").mockReturnValue("blob:map-draft");
+  vi.spyOn(URL, "revokeObjectURL").mockImplementation(() => {});
+  render(<MediaManager event={event} hub={hub} fixedPurpose="map" />);
+  fireEvent.click(screen.getByRole("button", { name: "기존 이미지 선택 (1)" }));
+  fireEvent.click(screen.getByRole("button", { name: "교체" }));
+  fireEvent.change(screen.getByLabelText("지도·약도 사진 파일 선택"), { target: { files: [new File(["cancelled image"], "cancelled.png", { type: "image/png" })] } });
+  fireEvent.change(screen.getByLabelText("사진 설명 (선택)"), { target: { value: "새 자료 작성 중" } });
+  fireEvent.click(screen.getByRole("button", { name: "교체 취소" }));
+  expect(hub.mutate).not.toHaveBeenCalled();
+  expect(screen.getByText(/cancelled.png/)).toBeTruthy();
+  expect((screen.getByLabelText("사진 설명 (선택)") as HTMLInputElement).value).toBe("새 자료 작성 중");
+  expect(screen.queryByRole("button", { name: "교체 취소" })).toBeNull();
+  fireEvent.click(screen.getByRole("button", { name: "저장" }));
+  await screen.findByText("사진 저장 완료");
+  expect(hub.mutate).toHaveBeenCalledTimes(1);
+  expect(vi.mocked(hub.mutate).mock.calls[0][0].data).not.toHaveProperty("replaceId");
+  expect(event.materials[0].hidden).toBe(false);
+  expect(event.media).toEqual(["/saved-map.png"]);
+});

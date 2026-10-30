@@ -1,20 +1,22 @@
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { canRequestRewardContact } from "../../../../lib/api-zod/src/event-reward-contact";
 import type { HubController, HubEvent, PrivateApplication } from "../lib/event-hub-client";
 import { HubButton, HubCheck, HubField, inputClass } from "./HubUi";
 
 export function RewardReceiptContact({ app, event, hub }: { app: PrivateApplication; event: HubEvent; hub: HubController }) {
-  const [phone, setPhone] = useState(app.rewardPhone ?? "");
-  const [accepted, setAccepted] = useState(false);
-  useEffect(() => setAccepted(false), [app.rewardPhoneRequest?.requestedAt]);
   const request = app.rewardPhoneRequest;
+  const scope = `${app.id}:${request?.requestedAt ?? ""}`;
+  const [entry, setEntry] = useState({ scope, phone: app.rewardPhone ?? "", accepted: false });
+  const phone = entry.scope === scope ? entry.phone : app.rewardPhone ?? "";
+  const accepted = entry.scope === scope && entry.accepted;
   if (!request || !canRequestRewardContact(app, request.source, request.resultId, event.campaign?.kind)) return null;
   const busy = hub.status === "saving" || hub.status === "checking";
   return <div className="rounded-xl border p-3 space-y-2">
     <h4 className="font-bold">상품·상금 수령 연락처</h4>
     <p className="text-sm">{request.purpose}</p>
-    <HubField label="수령 연락처 (선택)"><input type="tel" inputMode="tel" autoComplete="tel" className={inputClass} value={phone} onChange={e => setPhone(e.target.value)} /></HubField>
-    <HubCheck checked={accepted} onChange={setAccepted} label="위 수령 목적의 연락처 이용에 동의합니다 (선택)" />
+    <p className="text-sm">지급·정산 확인 후 원칙적으로 30일 안에 삭제합니다. 입력하지 않아도 신청·승인·입장할 수 있습니다.</p>
+    <HubField label="수령 연락처 (선택)"><input type="tel" inputMode="tel" autoComplete="tel" className={inputClass} value={phone} onChange={e => setEntry({ scope, phone: e.target.value, accepted })} /></HubField>
+    <HubCheck checked={accepted} onChange={value => setEntry({ scope, phone, accepted: value })} label="위 수령 목적의 연락처 이용에 동의합니다 (선택)" />
     <HubButton disabled={busy || !accepted || !phone.trim()} onClick={() => hub.mutate({ action: "application.phone", target: app.id, revision: app.revision, data: { phone, purposeAccepted: true } })}>{busy ? "저장 중…" : "연락처 저장"}</HubButton>
     {request.fulfilledAt && <p role="status" className="text-sm">연락처 저장 완료</p>}
   </div>;
@@ -34,6 +36,7 @@ export function RewardContactAdmin({ app, event, hub }: { app: PrivateApplicatio
   return <details className="rounded-xl border p-3">
     <summary className="cursor-pointer font-bold py-2">수령 연락처 {request ? request.fulfilledAt ? "· 저장됨" : "· 요청 중" : "요청"}</summary>
     <div className="space-y-2 pt-2">
+      <p className="text-sm">실제 상품·상금 수령에 필요한 경우에만 요청합니다. 전화번호는 지급·정산 확인 후 원칙적으로 30일 안에 삭제하는 기준입니다.</p>
       {request && <>
         <p className="text-sm">이용 목적: {request.purpose}</p>
         {request.fulfilledAt && app.rewardPhone && canRequestRewardContact(app, request.source, request.resultId, event?.campaign?.kind) && <p className="text-sm">수령 연락처: {app.rewardPhone}</p>}

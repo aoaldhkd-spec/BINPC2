@@ -2,6 +2,8 @@ import { PROFILE_CONSENT_VERSION } from '../../../lib/api-zod/src/event-hub';
 import { test, expect } from '@playwright/test';
 const password=process.env.HUB_E2E_BOSS_PASSWORD;
 if(!password)throw Error('Explicit isolated owner credential required');
+const isolatedApi=process.env.HUB_E2E_API_URL??'http://127.0.0.1:8123';
+if(!/^http:\/\/127\.0\.0\.1:(8123|8131)$/.test(isolatedApi))throw Error('Explicit isolated loopback API required');
 test('actual React/API/PG: boss-only login, private laboratory persistence, logout and generic-token denial',async({page,request,context},info)=>{
   await context.route('**/*',r=>new URL(r.request().url()).origin===process.env.HUB_E2E_BASE_URL?r.continue():r.abort());
   await page.setViewportSize({width:390,height:844});
@@ -10,7 +12,7 @@ test('actual React/API/PG: boss-only login, private laboratory persistence, logo
   await expect(page.getByRole('heading',{name:'현재 테스트 중입니다'})).toBeVisible();
   expect(await page.evaluate(()=>localStorage.getItem('matching_app_user_id'))).toBe('old-synthetic-profile-preserved');
   for(const path of ['/api/event-hub/state','/api/db/events','/api/db/storage-image?path=any']) expect((await request.get(path)).status()).toBe(423);
-  expect((await request.get('http://127.0.0.1:8123/API/db/op')).status()).toBe(423);
+  expect((await request.get(`${isolatedApi}/API/db/op`)).status()).toBe(423);
   await page.screenshot({path:info.outputPath('boss-locked-mobile.png'),fullPage:true});
   await page.getByRole('button',{name:'운영자 로그인'}).click();
   await page.getByLabel('전화번호',{exact:true}).fill('010-0000-0000');

@@ -2053,6 +2053,8 @@ suite("event hub V6 — actual isolated PostgreSQL transactions", () => {
       text: "synthetic private message",
       collection: true,
     });
+    // Inquiry retention starts at actual resolution; an old open thread is preserved.
+    await call("thread.resolve", owner, { status: "resolved", reason: "격리 문의 처리 완료" }, undefined, true);
     await call("privacy.request");
     const screeningId = randomUUID();
     await new HubStore(pool).transaction(async (tx) => {
@@ -2099,6 +2101,13 @@ suite("event hub V6 — actual isolated PostgreSQL transactions", () => {
   it("preserves a paid financial ledger while minimizing expired profile/contact data and blocks holds and onsite records", async () => {
     const id = await create();
     await approved(id);
+    // Ordinary requests no longer collect phone numbers. Seed an existing legacy
+    // record only inside this isolated fixture to verify hold/minimization safety.
+    await new HubStore(pool).transaction(async (tx) => {
+      const existing = (await tx.get<HubApplication>("application", id))!;
+      existing.basic.phone = basic().phone;
+      await tx.put("application", id, existing);
+    });
     await testPrivacyPolicy(3650);
     await call(
       "admin.privacy.hold",

@@ -108,6 +108,19 @@ it("never reveals a leaked location field without payment approval and keeps the
   expect(screen.getByText("상세 장소는 승인 후 열려요")).toBeTruthy();
 });
 
+it("removes an already displayed map after approval revocation even when stale location fields remain", () => {
+  const e = { ...event, media: ["/private-map.png"], materials: [{ id: "map", url: "/private-map.png", purpose: "map", alt: "승인자 지도", hidden: false, at: "2026-10-30T00:00:00Z" }] } as HubEvent;
+  const app = { payment: "approved", venue: { address: "승인자 전용 주소", mapUrl: "https://example.invalid/private" } } as PrivateApplication;
+  const view = render(<EventDetailHeader event={e} app={app} />);
+  fireEvent.click(screen.getByRole("tab", { name: "위치·지도" }));
+  expect(screen.getByAltText("승인자 지도")).toBeTruthy();
+  view.rerender(<EventDetailHeader event={e} app={{ ...app, approvalRevokedAt: "2026-10-30T13:00:00Z" }} />);
+  expect(screen.queryByAltText("승인자 지도")).toBeNull();
+  expect(view.container.textContent).not.toContain("승인자 전용 주소");
+  expect(view.container.querySelector('a[href*="private"]')).toBeNull();
+  expect(screen.getByText("상세 장소는 승인 후 열려요")).toBeTruthy();
+});
+
 it("uses the chosen public cover before logos and preserves the same public venue logos", () => {
  const v=render(<EventArtwork event={{...event,promotionLogos:[{builtinId:"jack"}],media:["/chosen-public.png"],materials:[{id:"cover",url:"/chosen-public.png",purpose:"notice",alt:"선택한 포스터",hidden:false,at:"2026-10-30T00:00:00Z"}]}}/>);
  expect(v.container.querySelector('img[src="/chosen-public.png"]')).not.toBeNull();

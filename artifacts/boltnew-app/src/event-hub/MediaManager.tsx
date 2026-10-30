@@ -193,7 +193,7 @@ export function MediaManager({ event, hub, ensureEvent, fixedPurpose, coverMode 
     </div>
     <input ref={input} type="file" className="sr-only" aria-label={`${labels[purpose]} 파일 선택`} multiple={!replacement} accept={purpose === "video" ? "video/mp4,video/webm" : "image/png,image/jpeg,image/webp"} disabled={waiting} onChange={e => { choose(Array.from(e.target.files ?? [])); e.target.value = ""; }} />
     <div hidden={panel !== "upload"} onDragOver={e => e.preventDefault()} onDrop={e => { e.preventDefault(); choose(Array.from(e.dataTransfer.files)); }} onPaste={e => { if (e.clipboardData.files.length) { e.preventDefault(); choose(Array.from(e.clipboardData.files)); } }} className="space-y-3">
-      {replacement && <p className="text-sm">교체할 사진 선택 · 이전 원본은 보존됩니다.</p>}
+      {replacement && <div className="flex items-center justify-between gap-2"><p className="text-sm">교체할 사진 선택 · 이전 원본은 보존됩니다.</p><button type="button" className="min-h-11 px-3 underline text-sm shrink-0" disabled={waiting} onClick={() => { setReplacement(null); setConfirmed(false); setSaved(""); }}>교체 취소</button></div>}
       {!files.length && <p className="text-xs">{purpose === "video" ? "MP4·WebM · 5MB 이하" : "PNG·JPEG·WebP · 2MB 이하"}</p>}
       {!!files.length && <>
         <div className="hub-compact-actions hub-media-actions"><HubButton onClick={() => setPreviewOpen(value => !value)} aria-expanded={previewOpen}>미리보기</HubButton><HubButton data-primary="true" disabled={waiting || (purpose === "notice" && !confirmed)} onClick={() => void upload()}>{busy ? "저장 중…" : "저장"}</HubButton></div>

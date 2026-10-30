@@ -119,3 +119,72 @@ it("renders benefit records safely before a companion provides their own phone",
   expect(screen.queryByLabelText(/전화번호|수령 연락처/)).toBeNull();
   expect(hub.mutate).not.toHaveBeenCalled();
 });
+
+function draftFixture() {
+  const f = fixture();
+  f.state.applications = [];
+  const draft = { id: "unsubmitted-draft", basic: { nickname: "기존친구", birthYear: 1998, location: "서울" } };
+  const sponsor = { id: "draft-sponsor", companionDrafts: { [f.event.id]: { revision: 4, items: [draft] } } };
+  f.state.owners = [sponsor];
+  return { ...f, draft, sponsor };
+}
+
+it("allows an authenticated request to bind only an unsubmitted friend's account before any application exists", async () => {
+  const { hub, state, event, request, sponsor, draft } = draftFixture();
+  sponsor.companionDrafts[event.id].items.push({ id: "removed-draft", basic: { nickname: "삭제된초안", birthYear: 1999, location: "부산" }, removedAt: "2026-10-30T12:00:00Z" } as typeof draft);
+  state.owners!.push({ id: request.owner, companionDrafts: { [event.id]: { revision: 1, items: [{ id: "self-draft", basic: { nickname: "자기초안", birthYear: 1999, location: "부산" } }] } } });
+  render(<CompanionLinkRequests applications={[]} hub={hub} eventId={event.id} />);
+  expect(screen.getByText("친구 본인 연결 · 1건")).toBeTruthy();
+  expect(screen.queryByRole("option", { name: /삭제된초안|자기초안/ })).toBeNull();
+  fireEvent.change(screen.getByLabelText(`연결할 친구 · ${request.id.slice(0, 8)}`), { target: { value: `draft:${sponsor.id}:${draft.id}` } });
+  expect((screen.getByRole("button", { name: "계정만 연결" }) as HTMLButtonElement).disabled).toBe(true);
+  fireEvent.click(screen.getByLabelText("요청자 본인과 선택한 친구가 같은 사람임을 확인했습니다."));
+  fireEvent.click(screen.getByRole("button", { name: "계정만 연결" }));
+  await waitFor(() => expect(hub.mutate).toHaveBeenCalledExactlyOnceWith({ action: "admin.companion.link-draft", target: request.id, revision: request.revision,
+    data: { eventId: event.id, sponsorOwner: sponsor.id, draftId: draft.id, groupRevision: 4, identityChecked: true } }));
+  expect(state.applications).toHaveLength(0);
+  expect(draft).not.toHaveProperty("applicationId");
+  expect(screen.queryByRole("button", { name: /신청 확정|입금 승인/ })).toBeNull();
+});
+
+it("requires a fresh identity check if an unsubmitted friend's group changes while selected", () => {
+  const { hub, event, request, sponsor, draft } = draftFixture();
+  const view = render(<CompanionLinkRequests applications={[]} hub={hub} />);
+  const label = `연결할 친구 · ${request.id.slice(0, 8)}`;
+  fireEvent.change(screen.getByLabelText(label), { target: { value: `draft:${sponsor.id}:${draft.id}` } });
+  fireEvent.click(screen.getByLabelText("요청자 본인과 선택한 친구가 같은 사람임을 확인했습니다."));
+  sponsor.companionDrafts[event.id].revision++;
+  view.rerender(<CompanionLinkRequests applications={[]} hub={hub} />);
+  expect(screen.getByRole("alert").textContent).toContain("다시 선택");
+  expect((screen.getByRole("button", { name: "계정만 연결" }) as HTMLButtonElement).disabled).toBe(true);
+  fireEvent.click(screen.getByRole("button", { name: "다시 선택" }));
+  fireEvent.change(screen.getByLabelText(label), { target: { value: `draft:${sponsor.id}:${draft.id}` } });
+  expect((screen.getByLabelText("요청자 본인과 선택한 친구가 같은 사람임을 확인했습니다.") as HTMLInputElement).checked).toBe(false);
+  expect(hub.mutate).not.toHaveBeenCalled();
+});
+
+it("shows a prepared account as not yet applied and unlinks only that pending binding", async () => {
+  const { hub, event, request, sponsor, draft, state } = draftFixture();
+  request.draftBinding = { sponsorOwner: sponsor.id, draftId: draft.id, basicFingerprint: "fixture-fingerprint", at: "2026-10-30T12:12:00Z" };
+  render(<CompanionLinkRequests applications={[]} hub={hub} />);
+  expect(screen.getByText("기존친구 · 계정 연결됨 · 신청 전")).toBeTruthy();
+  expect(screen.getByText("신청 확정 전 · 순번 미정")).toBeTruthy();
+  expect(screen.queryByRole("combobox")).toBeNull();
+  fireEvent.click(screen.getByRole("button", { name: "계정 연결 해제" }));
+  await waitFor(() => expect(hub.mutate).toHaveBeenCalledExactlyOnceWith({ action: "admin.companion.unlink-draft", target: request.id, revision: request.revision, data: { eventId: event.id } }));
+  expect(state.applications).toHaveLength(0);
+  expect(sponsor.companionDrafts[event.id].items).toContain(draft);
+});
+
+it("keeps zero-application request lists event-scoped and excludes cancelled requests", () => {
+  const { hub, state, event, request } = draftFixture();
+  const otherEvent = { ...event, id: "different-event", title: "다른 행사" };
+  state.events.push(otherEvent);
+  state.companionLinkRequests!.push({ ...request, id: "request-other", eventId: otherEvent.id });
+  const view = render(<ApplicationRoster applications={[]} hub={hub} selectedEventId={event.id} />);
+  expect(screen.getByText(`요청 ${request.id.slice(0, 8)}`)).toBeTruthy();
+  expect(screen.queryByText("다른 행사", { exact: false })).toBeNull();
+  request.cancelledAt = "2026-10-30T12:15:00Z";
+  view.rerender(<ApplicationRoster applications={[]} hub={hub} selectedEventId={event.id} />);
+  expect(screen.queryByText(/친구 본인 연결/)).toBeNull();
+});

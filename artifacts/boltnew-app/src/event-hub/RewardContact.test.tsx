@@ -28,6 +28,8 @@ it("asks optional purpose-specific contact only after actual receipt and never c
  const {app,event,hub}=fixture();
  const requested={...app,prizesGiven:["given-card"],rewardPhoneRequest:{source:"card" as const,resultId:"given-card",purpose:"상품 배송 확인",requestedAt:"2026-10-30T14:10:00Z"}};
  render(<RewardReceiptContact app={requested} event={event} hub={hub}/>);
+ expect(screen.getByText(/지급·정산 확인 후 원칙적으로 30일 안에 삭제합니다/)).toBeTruthy();
+ expect(screen.getByText(/입력하지 않아도 신청·승인·입장할 수 있습니다/)).toBeTruthy();
  const phone=screen.getByLabelText("수령 연락처 (선택)") as HTMLInputElement;
  expect(phone.value).toBe("");
  fireEvent.change(phone,{target:{value:"01099998888"}});
@@ -35,6 +37,21 @@ it("asks optional purpose-specific contact only after actual receipt and never c
  fireEvent.click(screen.getByLabelText("위 수령 목적의 연락처 이용에 동의합니다 (선택)"));
  fireEvent.click(screen.getByRole("button",{name:"연락처 저장"}));
  await waitFor(()=>expect(hub.mutate).toHaveBeenCalledExactlyOnceWith({action:"application.phone",target:app.id,revision:app.revision,data:{phone:"01099998888",purposeAccepted:true}}));
+});
+it("does not carry an unsaved reward phone or its consent into another application or a replacement request",()=>{
+ const {app,event,hub}=fixture();
+ const requested={...app,prizesGiven:["given-card"],rewardPhoneRequest:{source:"card" as const,resultId:"given-card",purpose:"상품 배송 확인",requestedAt:"2026-10-30T14:10:00Z"}};
+ const view=render(<RewardReceiptContact app={requested} event={event} hub={hub}/>);
+ fireEvent.change(screen.getByLabelText("수령 연락처 (선택)"),{target:{value:"01000001234"}});
+ fireEvent.click(screen.getByLabelText("위 수령 목적의 연락처 이용에 동의합니다 (선택)"));
+ view.rerender(<RewardReceiptContact app={{...requested,id:"different-application"}} event={event} hub={hub}/>);
+ expect((screen.getByLabelText("수령 연락처 (선택)") as HTMLInputElement).value).toBe("");
+ expect((screen.getByLabelText("위 수령 목적의 연락처 이용에 동의합니다 (선택)") as HTMLInputElement).checked).toBe(false);
+ expect((screen.getByRole("button",{name:"연락처 저장"}) as HTMLButtonElement).disabled).toBe(true);
+ view.rerender(<RewardReceiptContact app={{...requested,rewardPhoneRequest:{...requested.rewardPhoneRequest,requestedAt:"2026-10-30T14:20:00Z"}}} event={event} hub={hub}/>);
+ expect((screen.getByLabelText("수령 연락처 (선택)") as HTMLInputElement).value).toBe("");
+ expect((screen.getByLabelText("위 수령 목적의 연락처 이용에 동의합니다 (선택)") as HTMLInputElement).checked).toBe(false);
+ expect(hub.mutate).not.toHaveBeenCalled();
 });
 it("only offers actually paid item/cash receipts to administrators, never discounts or unclassified legacy rows",()=>{
  const {app,event,hub}=fixture();

@@ -49,3 +49,30 @@ it("does not accept a stale OFF response after a newer ON response and fails clo
   await act(async () => requests[3](new Response("unavailable", { status: 503 })));
   expect(result.current).toBe(true);
 });
+
+it("does not repeat the public-mode read for verified boss access and rechecks when that access ends", async () => {
+  let complete!: (response: Response) => void;
+  const fetch = vi.spyOn(globalThis, "fetch").mockImplementation(() => new Promise(resolve => { complete = resolve; }));
+  const { result, rerender } = renderHook(({ boss }) => usePublicTestMode(boss), { initialProps: { boss: true } });
+  expect(result.current).toBe(false);
+  fireEvent.focus(window);
+  fireEvent(document, new Event("visibilitychange"));
+  expect(fetch).not.toHaveBeenCalled();
+  rerender({ boss: false });
+  expect(result.current).toBe(true);
+  expect(fetch).toHaveBeenCalledOnce();
+  await act(async () => complete(new Response(JSON.stringify({ enabled: false, publicAdmissionOpen: false }))));
+  expect(result.current).toBe(true);
+});
+
+it("discards an older public-open result across the verified-boss transition", async () => {
+  const requests: ((response: Response) => void)[] = [];
+  vi.spyOn(globalThis, "fetch").mockImplementation(() => new Promise(resolve => requests.push(resolve)));
+  const { result, rerender } = renderHook(({ boss }) => usePublicTestMode(boss), { initialProps: { boss: false } });
+  rerender({ boss: true });
+  await act(async () => requests[0](new Response(JSON.stringify({ enabled: false, publicAdmissionOpen: true }))));
+  rerender({ boss: false });
+  expect(result.current).toBe(true);
+  await act(async () => requests[1](new Response("temporary error", { status: 503 })));
+  expect(result.current).toBe(true);
+});

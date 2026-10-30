@@ -1,13 +1,14 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
-import { randomBytes, randomUUID } from 'node:crypto';
+import { randomBytes, randomUUID, scryptSync } from 'node:crypto';
 import { readFileSync } from 'node:fs';
 import pg from 'pg';
 import express from 'express';
 import session from 'express-session';
 import request from 'supertest';
-import { DEFAULT_PRIVACY_POLICY, HUB_CONSENT_VERSION, PROFILE_CONSENT_VERSION, type HubApplication, type HubEvent } from '@workspace/api-zod';
-import { EventHubService, type HubOwner } from './event-hub-service.js';
-import { HubStore } from './event-hub-store.js';
+import { DEFAULT_PRIVACY_POLICY, HUB_CONSENT_VERSION, PROFILE_CONSENT_VERSION, HubBasic, HubProfile, type HubApplication, type HubEvent } from '@workspace/api-zod';
+import { EventHubService, type HubOwner, type HubMember } from './event-hub-service.js';
+import { HubStore, normalizeHubNickname } from './event-hub-store.js';
+import type { CompanionLinkRequest } from './companion-links.js';
 import { EventTestModeService } from './event-test-mode.js';
 import { isolatedFixtureDatabase } from './event-hub-isolation.js';
 import { withVerifiedBossParticipation } from './boss-participation.js';
@@ -141,7 +142,7 @@ suite('companion submission — actual isolated PostgreSQL transactions', () => 
     expect(applications.every(a => a.basic.phone === undefined)).toBe(true);
   });
 
-  it('accepts no-phone registration through the real Express route, with manual approval and personal entry still required', async () => {
+  it('ignores unsolicited phone input through the real Express route, with manual approval and personal entry still required', async () => {
     const route = await import('../routes/event-hub.js');
     const spies = [
       vi.spyOn(route.eventHubService, 'session').mockImplementation(service.session.bind(service)),
@@ -155,7 +156,7 @@ suite('companion submission — actual isolated PostgreSQL transactions', () => 
       http.use(session({ secret: 'isolated-pg-http-session', resave: false, saveUninitialized: false, cookie: { httpOnly: true, sameSite: 'lax' } }));
       http.use('/api/event-hub', route.default);
       const client = request.agent(http);
-      const input = basic();
+      const input = { ...basic(), phone: '01000008888' };
       const command = { action: 'application.basic', target: '', data: { eventId, basic: input }, requestId: randomUUID() };
       await request(http).post('/api/event-hub/mutate').send(command).expect(401);
       const recoveryCode = randomBytes(32).toString('base64url');
@@ -468,6 +469,166 @@ suite('companion submission — actual isolated PostgreSQL transactions', () => 
     expect((await app(existing)).owner).toBe(friendOwner);
     expect((await app(children[0])).companionSubmission?.linkedAt).toBeUndefined();
     expect((await account(friendOwner)).companionLinkRequests![eventId].status).toBe('pending');
+  });
+
+  it('never collects a new phone from ordinary drafts or grouped registration and preserves an existing legacy contact during edits', async () => {
+    const input = { ...basic(), phone: '01000007777' };
+    await call('application.basic-draft', '', { eventId, basic: input, nextStep: 1 }, 0);
+    expect((await account()).basicDrafts![eventId].basic.phone).toBeUndefined();
+    const friendDraft = randomUUID();
+    await call('companion.draft.save', '', { eventId, id: friendDraft, basic: { nickname: nickname(), birthYear: 1995, location: '서울', phone: '01000006666' }, permissionToProvide: true }, 0);
+    expect((await group()).items[0].basic).not.toHaveProperty('phone');
+    const saved = await call('companion.submit', '', { eventId, basic: input, draftIds: [friendDraft] }, (await group()).revision);
+    const self = String(saved.id), friend = (saved.companionApplicationIds as string[])[0];
+    expect((await app(self)).basic.phone).toBeUndefined(); expect((await app(friend)).basic.phone).toBeUndefined();
+    await service.store.transaction(async tx => {
+      const legacy = (await tx.get<HubApplication>('application', self))!;
+      legacy.basic.phone = '01000005555'; // Already stored historical contact; never a new public-form collection.
+      await tx.put('application', self, legacy);
+    });
+    await call('application.basic', '', { eventId, edit: true, basic: { ...input, phone: '01000004444' } }, (await app(self)).revision);
+    expect((await app(self)).basic.phone).toBe('01000005555');
+    expect((await app(friend)).basic.phone).toBeUndefined();
+  });
+
+  const existingMemberDraft = async () => {
+    const friend = await freshOwner(), name = nickname(), password = 'isolated-existing-member-password';
+    const salt = randomBytes(16).toString('hex');
+    const member: HubMember = { id: randomUUID(), owner: friend, nicknameKey: normalizeHubNickname(name), salt,
+      passwordHash: scryptSync(password, salt, 64).toString('hex'), basic: { ...HubBasic.parse(basic(name)), phone: '01000009999' },
+      profile: HubProfile.parse(profile), marketing: false, nicknameChanges: 0, history: [{ at: now().toISOString(), actor: friend, action: 'member.setup.consent' }] };
+    await service.store.transaction(tx => tx.put('member', member.id, member));
+    expect((await service.memberLogin(name, password)).owner).toBe(friend);
+    const preservedMember = await service.store.transaction(tx => tx.get<HubMember>('member', member.id));
+    const draftId = await saveDraft(owner, { nickname: name, birthYear: 1995, location: '서울' });
+    // These are pre-existing synthetic records, not another participant's operating data.
+    const profileId = randomUUID(), chatId = randomUUID();
+    const legacy = [
+      { table: 'profiles', id: profileId, data: { id: profileId, event_hub_owner: friend, nickname: name, pin_code: '654321' } },
+      { table: 'chats', id: chatId, data: { id: chatId, user1_id: profileId, user2_id: randomUUID() } },
+      { table: 'messages', id: randomUUID(), data: { chat_id: chatId, sender_id: profileId, content: '보존할 합성 대화' } },
+      { table: 'likes', id: randomUUID(), data: { liker_id: profileId, liked_id: randomUUID(), heart_type: 'red' } },
+    ];
+    for (const row of legacy) await pool.query('INSERT INTO app_kv_rows(table_name,row_id,data) VALUES($1,$2,$3)', [row.table, row.id, row.data]);
+    const requestResult = await requestLink(friend);
+    const linkRequest = (await account(friend)).companionLinkRequests![eventId];
+    expect(requestResult.linkRequestId).toBe(linkRequest.id);
+    const currentRequest = () => service.store.transaction(async tx => (await tx.get<CompanionLinkRequest>('settings', `companion-link:${linkRequest.id}`))!);
+    const prepare = async () => call('admin.companion.link-draft', linkRequest.id,
+      { sponsorOwner: owner, draftId, groupRevision: (await group()).revision, identityChecked: true }, (await currentRequest()).revision, true);
+    const preserved = async () => {
+      expect(await service.store.transaction(tx => tx.get<HubMember>('member', member.id))).toEqual(preservedMember);
+      for (const row of legacy) expect((await pool.query('SELECT data FROM app_kv_rows WHERE table_name=$1 AND row_id=$2', [row.table, row.id])).rows[0]?.data).toEqual(row.data);
+    };
+    return { friend, member: preservedMember!, draftId, linkRequest, currentRequest, prepare, preserved, profileId, password };
+  };
+
+  it('prelinks an existing authenticated member, persists reviewed selection across restart, and allocates/approves each person independently', async () => {
+    await call('event.save', eventId, { ...eventInput, campaign: { kind: 'halloween-saturday', round: 1, secondRoundLink: '' } }, (await event()).revision, true);
+    await createOwn(await freshOwner()); await createOwn(await freshOwner());
+    const fixture = await existingMemberDraft(), excluded = await saveDraft();
+    await expect(submit([fixture.draftId])).rejects.toMatchObject({ code: 'NICKNAME' });
+    await fixture.prepare();
+    expect((await event()).nextRank).toBe(2);
+    expect((await service.state(owner)).applications).toHaveLength(0);
+    const draftView = JSON.stringify((await service.state(owner)).companionDrafts);
+    expect(draftView).toContain('identityLinkedAt');
+    expect(draftView).not.toContain(fixture.friend); expect(draftView).not.toContain(fixture.linkRequest.id);
+    await call('companion.selection.save', '', { eventId, draftIds: [fixture.draftId] }, (await group()).revision);
+    const selected = await group();
+    const restarted = new EventHubService(new HubStore(otherPool, secret), secret, now);
+    expect((await restarted.state(owner)).companionDrafts![eventId].selection).toEqual({ draftIds: [fixture.draftId], reviewedRevision: selected.revision });
+    await expect(call('companion.submit', '', { eventId, basic: basic(), draftIds: [fixture.draftId, excluded] }, selected.revision, false, owner, randomUUID(), restarted)).rejects.toMatchObject({ code: 'COMPANION_SELECTION' });
+    const command = { action: 'companion.submit', target: '', revision: selected.revision, data: { eventId, basic: basic(), draftIds: [fixture.draftId] }, requestId: randomUUID() };
+    const [first, repeated] = await Promise.all([service.mutate(owner, false, command), restarted.mutate(owner, false, command)]);
+    expect(repeated).toEqual(first);
+    const self = String(first.id), child = (first.companionApplicationIds as string[])[0];
+    expect(await app(self)).toMatchObject({ owner, rank: 3, quote: { fee: 10000 } });
+    expect(await app(child)).toMatchObject({ owner: fixture.friend, rank: 4, quote: { fee: 13000 }, companionSubmission: { personalConsentPending: true, linkedAt: now().toISOString() }, profile: { lastStep: 1 } });
+    expect((await app(child)).basic.phone).toBeUndefined(); expect((await app(child)).consent).toBeUndefined();
+    expect((await group()).items.find(d => d.id === excluded)?.applicationId).toBeUndefined();
+    expect((await event()).nextRank).toBe(4);
+    await confirm(self, [child]); await report([self, child]);
+    expect((await app(self)).payment).toBe('reported'); expect((await app(child)).payment).toBe('reported');
+    await approve(self);
+    expect((await app(self)).payment).toBe('approved'); expect((await app(child)).payment).toBe('reported');
+    await approve(child);
+    await expect(call('application.enter', child, { deviceSecret: 'friend-own-session-required' }, (await app(child)).revision, false, fixture.friend)).rejects.toMatchObject({ code: 'COMPANION_CONSENT' });
+    for (const action of ['application.profile', 'application.enter', 'application.draw'])
+      await expect(call(action, child, { profile, deviceSecret: 'representative-cannot-enter' }, (await app(child)).revision)).rejects.toMatchObject({ code: 'APPLICATION' });
+    const projection = (await service.state(owner)).companionApplications!.find(a => a.id === child)!;
+    for (const key of ['owner', 'phone', 'profile', 'profileId', 'cards', 'recoveryHash', 'salt', 'passwordHash', 'consent']) expect(projection).not.toHaveProperty(key);
+    const childBeforePersonalCompletion = await app(child);
+    await call('application.basic', '', { eventId, edit: true, basic: basic(fixture.member.basic.nickname) }, childBeforePersonalCompletion.revision, false, fixture.friend);
+    const personalDraft = await app(child);
+    expect(personalDraft.profile).toEqual(fixture.member.profile);
+    expect(personalDraft.basic.phone).toBeUndefined();
+    expect(personalDraft.consent).toBeUndefined();
+    expect(personalDraft).toMatchObject({ owner: fixture.friend, rank: childBeforePersonalCompletion.rank, quote: childBeforePersonalCompletion.quote, payment: 'approved', confirmedAt: childBeforePersonalCompletion.confirmedAt });
+    await expect(call('application.enter', child, { deviceSecret: 'own-consent-still-required' }, personalDraft.revision, false, fixture.friend)).rejects.toMatchObject({ code: 'COMPANION_CONSENT' });
+    await call('application.consent', child, { consent }, personalDraft.revision, false, fixture.friend);
+    expect((await app(child)).companionSubmission?.personalConsentPending).toBe(false);
+    expect((await app(child)).profile).toEqual(fixture.member.profile);
+    expect((await service.state(owner)).companionApplications!.find(a => a.id === child)).not.toHaveProperty('profile');
+    const selfBefore = await app(self);
+    await call('admin.application.revoke', child, { reason: '격리 검사 개별 승인 취소' }, (await app(child)).revision, true);
+    expect((await app(child)).approvalRevokedAt).toBe(now().toISOString());
+    expect((await app(child)).payment).toBe('approved');
+    expect(await app(self)).toEqual(selfBefore);
+    await fixture.preserved();
+  });
+
+  it('rejects stale/foreign link requests and preserves cancelled nonces while friend, sponsor and admin unlink only the unsubmitted draft', async () => {
+    const fixture = await existingMemberDraft();
+    const payload = { sponsorOwner: owner, draftId: fixture.draftId, groupRevision: (await group()).revision, identityChecked: true };
+    await expect(call('admin.companion.link-draft', fixture.linkRequest.id, payload, fixture.linkRequest.revision)).rejects.toMatchObject({ code: 'ADMIN' });
+    await expect(call('admin.companion.link-draft', fixture.linkRequest.id, { ...payload, groupRevision: 0 }, fixture.linkRequest.revision, true)).rejects.toMatchObject({ code: 'REVISION' });
+    await fixture.prepare();
+    const bound = await fixture.currentRequest();
+    await expect(call('companion.link.cancel', bound.id, { eventId, owner: fixture.friend }, bound.revision)).rejects.toMatchObject({ code: 'COMPANION_ACCESS' });
+    await expect(call('companion.link.cancel', bound.id, { eventId }, bound.revision - 1, false, fixture.friend)).rejects.toMatchObject({ code: 'REVISION' });
+    await call('companion.selection.save', '', { eventId, draftIds: [fixture.draftId] }, (await group()).revision);
+    const reviewed = await group();
+    await call('companion.link.cancel', bound.id, { eventId }, bound.revision, false, fixture.friend);
+    expect(await fixture.currentRequest()).toMatchObject({ id: bound.id, status: 'pending', cancelledAt: now().toISOString(), revision: bound.revision + 1 });
+    expect((await group()).items.find(d => d.id === fixture.draftId)?.linkRequestId).toBeUndefined();
+    const restarted = new EventHubService(new HubStore(otherPool, secret), secret, now);
+    await expect(call('companion.submit', '', { eventId, basic: basic(), draftIds: [fixture.draftId] }, reviewed.revision, false, owner, randomUUID(), restarted)).rejects.toMatchObject({ code: 'REVISION' });
+    await expect(call('admin.companion.link-draft', bound.id, { ...payload, groupRevision: (await group()).revision }, bound.revision + 1, true)).rejects.toMatchObject({ code: 'COMPANION_LINK' });
+    const secondId = String((await requestLink(fixture.friend)).linkRequestId);
+    expect(secondId).not.toBe(bound.id);
+    await call('admin.companion.link-draft', secondId, { ...payload, groupRevision: (await group()).revision }, 1, true);
+    await expect(call('companion.draft.unlink', fixture.draftId, { eventId }, (await group()).revision, false, await freshOwner())).rejects.toThrow();
+    await call('companion.draft.unlink', fixture.draftId, { eventId }, (await group()).revision);
+    const second = await service.store.transaction(tx => tx.get<CompanionLinkRequest>('settings', `companion-link:${secondId}`));
+    expect(second?.cancelledAt).toBe(now().toISOString());
+    const thirdId = String((await requestLink(fixture.friend)).linkRequestId);
+    await call('admin.companion.link-draft', thirdId, { ...payload, groupRevision: (await group()).revision }, 1, true);
+    await call('admin.companion.unlink-draft', thirdId, {}, 2, true);
+    expect((await account(fixture.friend)).companionLinkRequests![eventId]).toMatchObject({ id: thirdId, cancelledAt: now().toISOString() });
+    expect((await event()).nextRank).toBe(0);
+    expect((await service.state(owner)).applications).toHaveLength(0);
+    await fixture.preserved();
+  });
+
+  it('rolls back real PG allocations if a prepared existing-member identity changes before the final group transaction', async () => {
+    const first = await saveDraft();
+    const fixture = await existingMemberDraft();
+    await fixture.prepare();
+    const prior = await event();
+    await service.store.transaction(async tx => {
+      const sponsor = (await tx.get<HubOwner>('owner', owner))!;
+      sponsor.companionDrafts![eventId].items.find(d => d.id === fixture.draftId)!.basic.location = '검사상 변경된 지역';
+      await tx.put('owner', owner, sponsor);
+    });
+    const ownersBefore = Number((await pool.query("SELECT count(*) n FROM event_hub_records WHERE kind='owner'")).rows[0].n);
+    await expect(submit([first, fixture.draftId])).rejects.toMatchObject({ code: 'COMPANION_LINK' });
+    expect((await event()).nextRank).toBe(prior.nextRank);
+    expect((await service.state(owner)).applications).toHaveLength(0);
+    expect((await service.state(fixture.friend)).applications).toHaveLength(0);
+    expect(Number((await pool.query("SELECT count(*) n FROM event_hub_records WHERE kind='owner'")).rows[0].n)).toBe(ownersBefore);
+    expect((await group()).items.every(d => !d.applicationId)).toBe(true);
+    await fixture.preserved();
   });
 
   it('allows an existing boss-test friend to finish after recruitment/module OFF without opening public admission', async () => {

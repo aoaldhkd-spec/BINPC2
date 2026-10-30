@@ -16,8 +16,8 @@ export function WaitingOverlay({ landingThemeEnabled = true, sessionActive, even
   onRecover?: (profileId: string, pinCode: string) => void;
 }) {
   const halloween = useLandingHalloween(landingThemeEnabled);
-  const testMode = usePublicTestMode();
   const bossTest = useBossTestAccess();
+  const testMode = usePublicTestMode(bossTest);
   // Use a single boundary timer rather than polling: stale session_active
   // must not leave the new-entry button enabled after the exact 01:00 cutoff.
   const [, refreshAdmissionBoundary] = useState(0);

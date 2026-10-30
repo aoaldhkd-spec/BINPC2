@@ -217,8 +217,9 @@ it('never merges a completed draft into a different login session', async () => 
     answer = await write;
   });
   expect(answer).toBeNull();
-  expect(result.current.status).toBe('failed');
-  expect(result.current.error).toContain('로그인 상태가 바뀌었습니다');
+  // A previous owner's acknowledgement must not become the new owner's error/status.
+  expect(result.current.status).toBe('');
+  expect(result.current.error).toBe('');
   expect(result.current.state?.basicDrafts).toEqual({});
 });
 
@@ -241,7 +242,7 @@ it('falls back to a durable fresh read for an incomplete draft acknowledgement',
   expect(result.current.status).toBe('saved');
 });
 
-it('does not merge a new identity draft into the previously rendered identity state', async () => {
+it('blocks a previous form submission until the new identity state is loaded', async () => {
   rememberRecoveryCode('performance-previous-owner');
   let reads = 0, release!: (value: Response) => void;
   const initial = { ...state, events: [{ id: 'event-one' }], basicDrafts: {} };
@@ -253,15 +254,16 @@ it('does not merge a new identity draft into the previously rendered identity st
   });
   const { result } = renderHook(() => useEventHub());
   await waitFor(() => expect(result.current.state).toBeTruthy());
-  rememberRecoveryCode('performance-current-owner');
+  act(() => { rememberRecoveryCode('performance-current-owner'); });
   let write!: Promise<unknown>;
   act(() => { write = result.current.mutate({ action: 'application.basic-draft', revision: 0, data: { eventId: 'event-one' } }); });
   await waitFor(() => expect(reads).toBe(2));
-  expect(result.current.status).toBe('saving');
-  expect(result.current.state?.basicDrafts).toEqual({});
-  await act(async () => { release(response({ ...initial, applications: [], basicDrafts: { 'event-one': draft } })); await write; });
+  expect(await write).toBeNull();
+  expect(result.current.status).toBe('');
+  expect(result.current.state).toBeNull();
+  await act(async () => { release(response({ ...initial, applications: [], basicDrafts: { 'event-one': draft } })); });
   expect(result.current.state?.applications).toEqual([]);
-  expect(result.current.status).toBe('saved');
+  expect(result.current.status).toBe('');
 });
 
 it('retains an approval invalidation arriving during the background draft read', async () => {

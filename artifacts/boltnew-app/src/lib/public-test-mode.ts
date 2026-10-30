@@ -9,10 +9,14 @@ export function testModeBlocksParticipation(
   return state?.bossParticipationAllowed !== true && (state?.testMode?.enabled !== false || state.testMode.publicAdmissionOpen !== true);
 }
 
-/** Homepage reads the server flag independently of participant identity. */
-export function usePublicTestMode() {
+/** Normal visitors need the authoritative flag. The already verified boss
+ * uses the same protected test route regardless of this public flag. */
+export function usePublicTestMode(verifiedBossAccess = false) {
   const [enabled, setEnabled] = useState(true);
   useEffect(() => {
+    // Never retain a prior public-open value across a boss access transition.
+    setEnabled(true);
+    if (verifiedBossAccess) return;
     let active = true;
     let sequence = 0;
     const refresh = async () => {
@@ -41,6 +45,6 @@ export function usePublicTestMode() {
       window.removeEventListener("focus", refresh);
       document.removeEventListener("visibilitychange", refresh);
     };
-  }, []);
-  return enabled;
+  }, [verifiedBossAccess]);
+  return verifiedBossAccess ? false : enabled;
 }

@@ -12,7 +12,7 @@ export const HubBasic = z.object({
   birthYear: z.number().int().min(1900).max(2100),
   location: z.string().trim().min(1).max(40),
   residence: z.object({city:z.string().trim().min(1).max(20),kind:z.enum(["city","district","neighborhood"]),value:z.string().trim().min(1).max(30)}).optional(),
-  // Kept optional for existing records/clients; ordinary applications never require it.
+  // Legacy records remain readable. General request handlers discard newly supplied phone input.
   phone: z.string().regex(/^0[0-9 -]{8,14}$/).optional(),
   depositor: z.string().trim().min(1).max(40),
   collection: z.literal(true),
@@ -198,7 +198,9 @@ export type HubApplication = {
   approvalRevokedAt?: string;
   enteredAt?: string;
   rewardPhone?: string;
-  rewardPhoneRequest?: {source:"card"|"result";resultId:string;purpose:string;requestedAt:string;fulfilledAt?:string};
+  rewardPhoneRetainFrom?: string;
+  prizeGivenAt?: Record<string,string>;
+  rewardPhoneRequest?: {source:"card"|"result";resultId:string;purpose:string;requestedAt:string;fulfilledAt?:string;retentionStartedAt?:string};
   lateArrival?: { at: string; reason: string; status: "noted"|"review"|"approved"|"declined"; reviewReason?: string };
   manualResults?: {id:string;label:string;amount:number;kind?:"item"|"cash"|"discount";at:string;reason?:string;receivedAt?:string;paidAt?:string}[];
   benefitRank?: number;

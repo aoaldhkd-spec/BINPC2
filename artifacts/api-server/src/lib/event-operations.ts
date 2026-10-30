@@ -86,7 +86,8 @@ export function applyApplicationOperation(
     const input=z.object({source:z.enum(['card','result']),resultId:z.string().uuid(),purpose:z.string().trim().min(2).max(200)}).parse(data);
     if (!canRequestRewardContact(a,input.source,input.resultId,e.campaign?.kind))
       fail('REWARD_RECEIPT','실제 상품·상금 지급 기록이 있어야 수령 연락처를 요청할 수 있습니다.',409);
-    a.rewardPhoneRequest={...input,requestedAt:now.toISOString()};
+    const retentionStartedAt=input.source==='result'?a.manualResults?.find(result=>result.id===input.resultId)?.paidAt:a.prizeGivenAt?.[input.resultId];
+    a.rewardPhoneRequest={...input,requestedAt:now.toISOString(),...(retentionStartedAt?{retentionStartedAt}:{})};
     return true;
   }
   if (action === 'application.phone') {
@@ -96,6 +97,7 @@ export function applyApplicationOperation(
       fail('REWARD_RECEIPT','수령에 필요한 연락처 요청이 있을 때만 입력할 수 있습니다.',409);
     if (data.purposeAccepted !== true) fail('PURPOSE','상품·상금 수령 연락처의 이용 목적을 확인해 주세요.');
     a.rewardPhone = z.string().regex(/^0[0-9 -]{8,14}$/).parse(data.phone);
+    a.rewardPhoneRetainFrom=request.retentionStartedAt;
     request.fulfilledAt=now.toISOString();
     return true; // Existing session ownership only; no new verification, merging or password.
   }

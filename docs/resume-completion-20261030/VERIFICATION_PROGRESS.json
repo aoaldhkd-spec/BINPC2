@@ -1,0 +1,38 @@
+{
+  "checkedAt": "2026-10-30T07:17:10.491Z",
+  "baseCommit": "98bcdc39b11304e0423ace537e9d7a42381a2db7",
+  "codeFingerprint": "8eba7509ab798872b42e7fe9a9e2abb87bd80a80c8bf4f12b8030b3531bbda0e",
+  "unit": {
+    "apiPassed": 674,
+    "uiPassed": 1017,
+    "pgCasesExcludedFromApiUnit": 149
+  },
+  "actualPostgres": {
+    "passed": 149
+  },
+  "guards": {
+    "recurrence": 598,
+    "productionTools": 28
+  },
+  "browser": {
+    "normalUnique": 29,
+    "bossUnique": 4,
+    "sourceScope": "React final changes; browser API fixture predates final normal-phone injection filter; final source CI pending"
+  },
+  "soak": {
+    "status": "RUNNING",
+    "actualMinutesRequired": 120,
+    "apiBundleSha256": "2565245d115c318800645d7eac168f006c0295324a9b1f8c339f4bfd42d0ffd3",
+    "apiProductFingerprint": "4b4810be3f4435f20bcf35e66406e486a8acf6b094909d0b2cdde5271e2b2237"
+  },
+  "physicalPhones": "UNKNOWN",
+  "backgroundPush": "UNKNOWN",
+  "deployment": "previous 0ce4ae20 remains live; current changes not deployed",
+  "logHashes": {
+    "api-unit-phone-policy-final.log": "ea1843de340ae57541f0d7efb4bdce2500390fd34dccecd81dedc6a545efdbe6",
+    "ui-unit-phone-policy-final.log": "36440f593b2f8e9820371efa3fc50a00ba8449ef438c85a7071aac96a9244f75",
+    "pg-all-phone-final-retry.log": "e12b818f27b6ab135919a2a6dc150a8ede9112d07f58f77883eb89b972a4af56",
+    "guards.log": "1dea720a6e01fb6272c9a9a8c89216d312ac167ed544940a84d62de2127a41fe",
+    "production-guards-final.log": "0db8993a3944a8ddda560664b316f67dc27b1753f8056dba1feda8b422a83449"
+  }
+}

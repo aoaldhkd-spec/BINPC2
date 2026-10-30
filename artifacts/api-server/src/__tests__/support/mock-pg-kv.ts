@@ -1,4 +1,5 @@
 import { createLegacyModeOffQuery } from './legacy-mode-off.js';
+import { emptyHubOpeningResult } from './hub-opening-result.js';
 
 /** In-memory transactional app_kv_rows test double (never used by production). */
 export function createMockPg(options: { legacyTestMode?: 'off' } = {}) {
@@ -9,7 +10,9 @@ export function createMockPg(options: { legacyTestMode?: 'off' } = {}) {
   const state: { db: State; snapshot: State | null } = { db: new Map(), snapshot: null };
   const clone = (s: State): State => new Map([...s].map(([t, v]) =>
     [t, new Map([...v].map(([k, row]) => [k, structuredClone(row)]))]));
-  const query = async (sql: string, values: unknown[] = []): Promise<{ rows: Record<string, unknown>[] }> => {
+  const query = async (sql: string, values: unknown[] = []) => {
+    const opening = emptyHubOpeningResult(sql, values);
+    if (opening) { state.snapshot = clone(state.db); return opening; }
     const mode = modeFixture?.(sql, values);
     if (mode) return mode;
     const q = sql.replace(/\s+/g, ' ').trim();

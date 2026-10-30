@@ -4,6 +4,7 @@ import {
 } from "../lib/event-hub-browser-storage";
 import { useEffect, useState, useRef, type CSSProperties } from "react";
 import { HUB_CONSENT_VERSION, type HubController } from "../lib/event-hub-client";
+import { useInquiryReadReceipt } from "./useInquiryReadReceipt";
 import {
   HubButton,
   HubCheck,
@@ -93,17 +94,15 @@ export function AdminInquiry({ hub }: { hub: HubController }) {
   const followMessages = useRef(true);
   const composing = useRef(false);
   useEffect(() => { if (open && followMessages.current) messagesEnd.current?.scrollIntoView({ block: "nearest" }); }, [open, thread?.messages.length]);
-  const unread =
-    thread?.messages.some(
+  const unreadMessage =
+    thread?.messages.filter(
       (m) => m.sender === "admin" && m.at > thread.readUserAt,
-    ) ?? false;
+    ).at(-1);
+  const unread = !!unreadMessage;
   const hasHistory =
     !!hub.state?.applications.length ||
     !!hub.state?.threads.some((t) => t.messages.length > 0);
-  const markRead = hub.mutate;
-  useEffect(() => {
-    if (open && unread) void markRead({ action: "thread.read" });
-  }, [open, unread, markRead]);
+  useInquiryReadReceipt({ active: open, threadId: thread?.id, unreadMessageId: unreadMessage?.id, status: hub.status, markRead: hub.mutate });
   useEffect(() => {
     if (!open) return;
     const marker = crypto.randomUUID();
@@ -128,13 +127,13 @@ export function AdminInquiry({ hub }: { hub: HubController }) {
   return (
     <div className="event-hub-theme" data-event-dark={dark}>
       <div
-        className="event-hub-dock fixed right-0 left-0 z-40 flex justify-end px-4 py-2"
+        className="event-hub-dock fixed right-0 z-40 flex justify-end px-4 py-2 pointer-events-none"
         style={
           { "--hub-keyboard-inset": `${viewport.inset}px` } as CSSProperties
         }
       >
         <button
-          className="min-h-11 rounded-full bg-gradient-to-r from-teal-600 to-cyan-600 px-4 py-2 text-sm font-bold text-white shadow-sm active:scale-95 transition-transform"
+          className="pointer-events-auto min-h-11 rounded-full bg-gradient-to-r from-teal-600 to-cyan-600 px-4 py-2 text-sm font-bold text-white shadow-sm active:scale-95 transition-transform"
           onClick={() => { followMessages.current = true; setOpen(true); }}
         >
           💬 관리자 문의 {unread ? "●" : ""}
@@ -142,7 +141,7 @@ export function AdminInquiry({ hub }: { hub: HubController }) {
         {unread && (
           <span
             role="status"
-            className="absolute bottom-full right-0 bg-white p-2 rounded-xl text-xs"
+            className="absolute bottom-full right-4 max-w-[calc(100vw-32px)] bg-white text-slate-900 p-2 rounded-xl shadow-sm text-xs whitespace-nowrap"
           >
             관리자에게서 연락이 왔습니다
           </span>

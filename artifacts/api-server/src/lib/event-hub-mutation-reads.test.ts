@@ -35,6 +35,12 @@ beforeEach(async()=>{
 it('batches owner applications, module settings and fixed records in one unscheduled draft read',async()=>{
  await save();expect(counts).toEqual({ownerApps:0,eventSelect:0,allEvents:0,mutationBatches:1,moduleSelect:0});const saved=await tx().get<HubOwner>('owner',owner.id);expect(saved?.basicDrafts?.[event.id].revision).toBe(1);
 });
+it('discards injected normal draft phone before validation and preserves a legacy saved phone',async()=>{
+ const command=(phone:unknown,revision=0)=>service().mutate(owner.id,false,{requestId:randomUUID(),action:'application.basic-draft',revision,data:{eventId:event.id,basic:{nickname:'합성본인',phone,collection:true,version:HUB_CONSENT_VERSION},nextStep:1}});
+ await command('not-a-phone');let saved=(await tx().get<HubOwner>('owner',owner.id))!;expect(saved.basicDrafts![event.id].basic.phone).toBeUndefined();
+ saved.basicDrafts![event.id].basic.phone='01011111111';await tx().put('owner',owner.id,saved);
+ await command('01099999999',1);saved=(await tx().get<HubOwner>('owner',owner.id))!;expect(saved.basicDrafts![event.id].basic.phone).toBe('01011111111');
+});
 it('keeps manual opening boundary despite skipping unrelated scheduler sweep',async()=>{
  event.opensAt=new Date(clock.getTime()+1).toISOString();await tx().put('event',event.id,event);await expect(save()).rejects.toMatchObject({code:'CLOSED'});expect(counts.allEvents).toBe(0);clock=new Date(event.opensAt);await save();expect((await tx().get<HubOwner>('owner',owner.id))?.basicDrafts?.[event.id].revision).toBe(1);
 });

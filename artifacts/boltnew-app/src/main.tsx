@@ -5,19 +5,30 @@ import { createRoot } from 'react-dom/client';
 import './index.css';
 import { SeasonalSkin } from './themes/SeasonalSkin';
 import { applyDisplayScale } from './lib/display-scale';
-import App from './App';
 import { clearLegacyThemeArtifacts } from './lib/theme';
 import { AppErrorBoundary } from './components/AppErrorBoundary';
 import { TestGate } from './components/TestGate';
 import { clientNavigationHref, resolveClientNavigation } from './lib/client-navigation';
 import { refreshSseAccessScope } from './lib/localdb';
 
-const UnsubscribePage = lazy(() => import('./event-hub/NotificationReadiness').then(m=>({default:m.UnsubscribePage})));
+const loadParticipantApp = () => import('./App');
+const App = lazy(loadParticipantApp);
+const loadUnsubscribePage = () => import('./event-hub/NotificationReadiness').then(m=>({default:m.UnsubscribePage}));
+const UnsubscribePage = lazy(loadUnsubscribePage);
 const loadEventHubPage = () => import('./event-hub/EventHubPage');
 const EventHubPage = lazy(loadEventHubPage);
 
 const loadAdminApp = () => import('./AdminApp');
 const AdminApp = lazy(loadAdminApp);
+
+// Fetch only static route code while the independent server access check runs.
+// The page still mounts inside BossAccessBoundary; no state API runs here.
+const initialPath = window.location.pathname.slice(import.meta.env.BASE_URL.replace(/\/$/, '').length) || '/';
+const initialCode = initialPath.startsWith('/admin') ? loadAdminApp
+  : initialPath.startsWith('/events/unsubscribe') ? loadUnsubscribePage
+  : initialPath.startsWith('/events') ? loadEventHubPage
+  : initialPath.startsWith('/test') ? null : loadParticipantApp;
+if (initialCode) void initialCode().catch(() => {});
 
 clearLegacyThemeArtifacts();
 applyDisplayScale();
