@@ -62,3 +62,12 @@ React·Express·기존 격리 PostgreSQL의 합성 데이터입니다. 운영 �
 GitHub 저장과 운영 배포는 다릅니다. Netlify는 main만 빌드 허용, Render는 main 자동배포임을 읽기로 확인했습니다. 설정은 바꾸지 않았고 PR도 만들지 않습니다. main은 `b06a900280404f79c92e17cdbc6af907a0414c30`입니다.
 
 운영 프런트는 기존 `517c3efe…` / Netlify `6ae343a9605026ceb4c1cd07`, 서버는 `1844f8d7…` / Render `dep-dbhiaq0ae00c73drokmg` 그대로입니다. 기존 주소에서는 이번 UI 수정이 아직 보이지 않습니다. 재배포는 별도 지시가 있어야 합니다. 이전 성능2초 목표·운영 정책·실기기·백업 후속 항목을 이번 UI 작업으로 완료 처리하지 않습니다.
+
+
+## 최종 GitHub 저장·검사
+
+- 기능 코드: `30186001ba44d445fc30bbf8cf208f5d7f76905c` — 기존 개발 브랜치 원격 저장 확인.
+- [GitHub Actions40984808600](https://github.com/aoaldhkd-spec/BINPC2/actions/runs/40984808600): **27/27 단계 SUCCESS**, 위 기능 코드와 정확히 일치. 빌드·API/UI 단위·보호·DB·실제 브라우저·100명 HTTP·누적 DB150명 혼합 검사 포함. [실제 CI 결과](ui-simplification-20261030/final-ci.json).
+- 이 결과를 보존하는 후속 문서 커밋은 기능 코드를 변경하지 않습니다. 최신 GitHub HEAD는 해당 문서 커밋까지 포함합니다.
+- Push 이후 읽기 확인에서도 main·Netlify 배포ID·Render 배포ID/서버 버전이 그대로입니다. [후속 확인](ui-simplification-20261030/post-push-deployment-readonly.json).
+- 검사 완료 후 유휴 격리 서버만 정상 종료했습니다. 시험 DB·로그·실패 화면·기존 키는 삭제하지 않았습니다.

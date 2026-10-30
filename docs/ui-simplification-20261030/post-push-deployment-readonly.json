@@ -1,0 +1,61 @@
+{
+  "checkedAt": "2026-10-30T01:21:39.869690+00:00",
+  "productionWrites": false,
+  "serviceSettingsChanged": false,
+  "ownerLoginAttempted": false,
+  "githubFeature": {
+    "http": 200,
+    "sha": "30186001ba44d445fc30bbf8cf208f5d7f76905c"
+  },
+  "githubMain": {
+    "http": 200,
+    "sha": "b06a900280404f79c92e17cdbc6af907a0414c30"
+  },
+  "netlify": {
+    "http": 200,
+    "siteId": "7c748100-2502-4059-99eb-d6a1810e0768",
+    "url": "https://binpc2.netlify.app",
+    "buildSettings": {
+      "repo_branch": "main",
+      "stop_builds": false,
+      "allowed_branches": [
+        "main"
+      ],
+      "skip_prs": null,
+      "skip_branches": null
+    },
+    "publishedDeploy": {
+      "id": "6ae343a9605026ceb4c1cd07",
+      "state": "ready",
+      "commit_ref": null,
+      "branch": "main",
+      "published_at": "2026-10-29T13:01:33.173Z"
+    }
+  },
+  "render": {
+    "http": 200,
+    "id": "srv-d9v9gme417fc73cf6gq0",
+    "branch": "main",
+    "autoDeploy": "yes",
+    "autoDeployTrigger": "commit",
+    "suspended": "not_suspended",
+    "updatedAt": "2026-10-29T10:54:08.958609Z"
+  },
+  "renderDeploys": {
+    "http": 200,
+    "deploys": [
+      {
+        "id": "dep-dbhiaq0ae00c73drokmg",
+        "status": "live",
+        "commit": "1844f8d74a5c1eb7ee8f56d9e17ca38226cffd4c",
+        "finishedAt": "2026-10-29T10:54:08.956715Z"
+      },
+      {
+        "id": "dep-dbhgenm1egvs73fgmhg0",
+        "status": "deactivated",
+        "commit": "ac4b2211e7c60ff7faf127b3b81301f728d67c12",
+        "finishedAt": "2026-10-29T08:45:58.905906Z"
+      }
+    ]
+  }
+}
