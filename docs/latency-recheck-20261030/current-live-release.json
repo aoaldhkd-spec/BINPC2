@@ -1,0 +1,131 @@
+{
+  "sourceSha": "0ce4ae200138725feb32b5499d2cebca4a25807e",
+  "ciRun": 41006136759,
+  "frontend": {
+    "id": "6ae427b0991bb63e826745d6",
+    "publishedAt": "2026-10-30T05:14:26.757Z",
+    "state": "ready"
+  },
+  "backend": {
+    "id": "dep-dbi2e9rbc2fs739tprgg",
+    "finishedAt": "2026-10-30T05:13:59.551528Z",
+    "state": "live"
+  },
+  "actualBrowser": {
+    "success": true,
+    "checks": [
+      "anonymous maintenance screen",
+      "anonymous API and SSE reject old token",
+      "deployed frontend identity",
+      "existing boss login",
+      "actual administrator test ON and public admission closed",
+      "normal main application waiting and entry controls",
+      "normal events controls without creating applications or test events",
+      "post-check version and mode remain protected"
+    ],
+    "frontendSha": "0ce4ae200138725feb32b5499d2cebca4a25807e",
+    "before": {
+      "sourceSha": "0ce4ae200138725feb32b5499d2cebca4a25807e",
+      "testEnabled": true,
+      "publicAdmissionOpen": false,
+      "workspaceCount": 0,
+      "workspaceHash": "44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a",
+      "modeHash": "20346c74048b05250fbeb5309ddf8f7dcc380f3e9ee7d3e8b8d46ad42a16e402"
+    },
+    "after": {
+      "sourceSha": "0ce4ae200138725feb32b5499d2cebca4a25807e",
+      "testEnabled": true,
+      "publicAdmissionOpen": false,
+      "workspaceCount": 0,
+      "workspaceHash": "44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a",
+      "modeHash": "20346c74048b05250fbeb5309ddf8f7dcc380f3e9ee7d3e8b8d46ad42a16e402"
+    },
+    "businessWritesAllowed": false,
+    "existingSession": {
+      "accessStatus": 200,
+      "locked": true,
+      "authorized": true,
+      "stateStatus": 200,
+      "hasSession": true
+    },
+    "externalEventsFirstReactionMs": 362,
+    "externalEventsReadyMs": 1665,
+    "externalEventsTwoSecondTargetMet": true,
+    "reopenReadyMs": 2916,
+    "blockedApplicationSessionCreations": 0,
+    "blockedOtherWrites": 0,
+    "laboratoryHashUnchanged": true,
+    "modeHashUnchanged": true
+  },
+  "records": {
+    "checkedAtUtc": "2026-10-30T05:16:45.495759+00:00",
+    "baselineSnapshotAtUtc": "2026-10-30T02:38:13.382241+00:00",
+    "http": 201,
+    "productionWrites": false,
+    "operatingRestoreOrRollbackPerformed": false,
+    "personalValuesOrRowIdsPrinted": false,
+    "sessionContentsRead": false,
+    "currentSessionCount": 24,
+    "application": {
+      "baselineRows": 3274,
+      "currentRows": 3274,
+      "addedRows": 0,
+      "removedRows": 0,
+      "changedExistingRows": 4,
+      "changedExistingContentRows": 0,
+      "addedByType": {},
+      "removedByType": {},
+      "changedExistingByType": {
+        "group_chats": 4
+      },
+      "changedExistingContentByType": {},
+      "existingRowsExactMatch": false,
+      "existingContentsMatch": true,
+      "changedExistingCreatedAtRows": 0
+    },
+    "images": {
+      "baselineRows": 102,
+      "currentRows": 102,
+      "addedRows": 0,
+      "removedRows": 0,
+      "changedExistingRows": 0,
+      "changedExistingContentRows": 0,
+      "addedByType": {},
+      "removedByType": {},
+      "changedExistingByType": {},
+      "changedExistingContentByType": {},
+      "existingRowsExactMatch": true,
+      "existingContentsMatch": true
+    },
+    "eventHub": {
+      "baselineRows": 30,
+      "currentRows": 32,
+      "addedRows": 2,
+      "removedRows": 0,
+      "changedExistingRows": 0,
+      "changedExistingContentRows": 0,
+      "addedByType": {
+        "owner": 2
+      },
+      "removedByType": {},
+      "changedExistingByType": {},
+      "changedExistingContentByType": {},
+      "existingRowsExactMatch": true,
+      "existingContentsMatch": true
+    },
+    "allBaselineRowsExactMatch": false,
+    "allBaselineContentsMatch": true,
+    "additionsWithinReadOnlyCheckerExpectedShape": true,
+    "allowedAdditionalOwnerRows": 2,
+    "additionExpectation": "At most the explicitly allowed owner rows and no application/image rows; matching shape does not establish actor or prove an owner is empty. Root live checker separately restricts writes.",
+    "concurrentUserChangesAttribution": "UNKNOWN; do not infer cause or revert any difference automatically."
+  },
+  "prePostReleaseCountsAndContentsSame": true,
+  "prePostLaboratorySame": true,
+  "prePostModeSame": true,
+  "settingsChanged": false,
+  "mainMergedOrPushed": false,
+  "newExternalSites": false,
+  "publicRecruitmentOpened": false,
+  "externalRecovery": "Existing private external ciphertext, re-download/hash/isolated restore, separate existing key custody verified before release; no new key. App-data scope only."
+}

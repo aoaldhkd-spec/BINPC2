@@ -1,0 +1,28 @@
+{
+  "before": {
+    "artifact": ".local/companion-release/netlify-companion-ux.zip",
+    "sha256": "ce10b42ba247ea1bd70ec956d7d59166350d70bf721dfaf2ac1a5243676ee026",
+    "bytes": 10432485,
+    "fileCount": 445,
+    "uncompressedBytes": 12098642,
+    "assetsBytes": 1867680,
+    "jsBytes": 1603322,
+    "cssBytes": 264358
+  },
+  "after": {
+    "artifact": ".local/latency-release/netlify-latency.zip",
+    "sha256": "5cb521792ba6bc34ba634e8a93ab3380c171ec94f078a245775c0f5e2514193e",
+    "bytes": 10433125,
+    "fileCount": 445,
+    "uncompressedBytes": 12101137,
+    "assetsBytes": 1870175,
+    "jsBytes": 1605817,
+    "cssBytes": 264358,
+    "allJsBytes": 1609242,
+    "jsBytesScope": "dist/public/assets/*.js, same as preceding release"
+  },
+  "compressedZipDeltaBytes": 640,
+  "assetDeltaBytes": 2495,
+  "cssUnchanged": true,
+  "originalsOrHistoryDeleted": false
+}

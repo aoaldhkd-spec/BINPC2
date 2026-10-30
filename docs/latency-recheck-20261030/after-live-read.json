@@ -1,0 +1,569 @@
+{
+  "scope": "existing authenticated boss session; read-only actual site; no new session/application/payment/reset",
+  "stages": [
+    {
+      "name": "home-0",
+      "readyMs": 2375
+    },
+    {
+      "name": "events-0",
+      "firstReactionMs": 859,
+      "readyMs": 2167
+    },
+    {
+      "name": "home-1",
+      "readyMs": 1825
+    },
+    {
+      "name": "events-1",
+      "firstReactionMs": 376,
+      "readyMs": 1681
+    },
+    {
+      "name": "home-2",
+      "readyMs": 1707
+    },
+    {
+      "name": "events-2",
+      "firstReactionMs": 315,
+      "readyMs": 1635
+    }
+  ],
+  "network": [
+    {
+      "stage": "home-0",
+      "path": "/assets/vendor-yr7EEdPk.js",
+      "method": "GET",
+      "ttfbMs": 163,
+      "durationMs": 278,
+      "serverTiming": null
+    },
+    {
+      "stage": "home-0",
+      "path": "/assets/index-Cc2aVMc4.css",
+      "method": "GET",
+      "ttfbMs": 287,
+      "durationMs": 351,
+      "serverTiming": null
+    },
+    {
+      "stage": "home-0",
+      "path": "/api/healthz",
+      "method": "GET",
+      "ttfbMs": 449,
+      "durationMs": 457,
+      "serverTiming": null
+    },
+    {
+      "stage": "home-0",
+      "path": "/assets/index-CpM1HMz5.js",
+      "method": "GET",
+      "ttfbMs": 341,
+      "durationMs": 565,
+      "serverTiming": null
+    },
+    {
+      "stage": "home-0",
+      "path": "/api/boss-access",
+      "method": "GET",
+      "ttfbMs": 492,
+      "durationMs": 502,
+      "serverTiming": null
+    },
+    {
+      "stage": "home-0",
+      "path": "/assets/stats-ranking-C3q9OoPS.js",
+      "method": "GET",
+      "ttfbMs": 169,
+      "durationMs": 193,
+      "serverTiming": null
+    },
+    {
+      "stage": "home-0",
+      "path": "/assets/birth-md-edit--9y-XoIu.js",
+      "method": "GET",
+      "ttfbMs": 217,
+      "durationMs": 241,
+      "serverTiming": null
+    },
+    {
+      "stage": "home-0",
+      "path": "/assets/ChatScreen-BaEBo4aQ.js",
+      "method": "GET",
+      "ttfbMs": 190,
+      "durationMs": 256,
+      "serverTiming": null
+    },
+    {
+      "stage": "home-0",
+      "path": "/assets/fortune-Dy_FLvgy.js",
+      "method": "GET",
+      "ttfbMs": 230,
+      "durationMs": 258,
+      "serverTiming": null
+    },
+    {
+      "stage": "home-0",
+      "path": "/assets/MainScreen-B2eKgAiN.js",
+      "method": "GET",
+      "ttfbMs": 166,
+      "durationMs": 290,
+      "serverTiming": null
+    },
+    {
+      "stage": "home-0",
+      "path": "/api/db/ready",
+      "method": "GET",
+      "ttfbMs": 607,
+      "durationMs": 627,
+      "serverTiming": null
+    },
+    {
+      "stage": "home-0",
+      "path": "/api/db/op",
+      "method": "POST",
+      "ttfbMs": 629,
+      "durationMs": 650,
+      "serverTiming": null
+    },
+    {
+      "stage": "events-0",
+      "path": "/assets/EventHubPage-CkhLP65b.css",
+      "method": "GET",
+      "ttfbMs": 178,
+      "durationMs": 195,
+      "serverTiming": null
+    },
+    {
+      "stage": "events-0",
+      "path": "/assets/HubUi-XU7UJmcv.css",
+      "method": "GET",
+      "ttfbMs": 182,
+      "durationMs": 200,
+      "serverTiming": null
+    },
+    {
+      "stage": "events-0",
+      "path": "/assets/HubUi-qDEobAmZ.js",
+      "method": "GET",
+      "ttfbMs": 233,
+      "durationMs": 254,
+      "serverTiming": null
+    },
+    {
+      "stage": "home-0",
+      "path": "/api/db/ready",
+      "method": "GET",
+      "ttfbMs": 1063,
+      "durationMs": 1086,
+      "serverTiming": null
+    },
+    {
+      "stage": "events-0",
+      "path": "/assets/EventHubPage-DFj9CkyF.js",
+      "method": "GET",
+      "ttfbMs": 190,
+      "durationMs": 308,
+      "serverTiming": null
+    },
+    {
+      "stage": "events-0",
+      "path": "/assets/TutorialModal-B0vV5JVz.js",
+      "method": "GET",
+      "ttfbMs": 354,
+      "durationMs": 420,
+      "serverTiming": null
+    },
+    {
+      "stage": "home-0",
+      "path": "/api/event-hub/test-mode",
+      "method": "GET",
+      "ttfbMs": 1020,
+      "durationMs": 1024,
+      "serverTiming": null
+    },
+    {
+      "stage": "events-0",
+      "path": "/api/event-hub/state",
+      "method": "GET",
+      "ttfbMs": 1208,
+      "durationMs": 1212,
+      "serverTiming": null
+    },
+    {
+      "stage": "home-1",
+      "path": "/assets/index-CpM1HMz5.js",
+      "method": "GET",
+      "ttfbMs": 132,
+      "durationMs": 192,
+      "serverTiming": null
+    },
+    {
+      "stage": "home-1",
+      "path": "/assets/vendor-yr7EEdPk.js",
+      "method": "GET",
+      "ttfbMs": 147,
+      "durationMs": 258,
+      "serverTiming": null
+    },
+    {
+      "stage": "home-1",
+      "path": "/assets/index-Cc2aVMc4.css",
+      "method": "GET",
+      "ttfbMs": 239,
+      "durationMs": 301,
+      "serverTiming": null
+    },
+    {
+      "stage": "home-1",
+      "path": "/api/healthz",
+      "method": "GET",
+      "ttfbMs": 425,
+      "durationMs": 431,
+      "serverTiming": null
+    },
+    {
+      "stage": "home-1",
+      "path": "/api/boss-access",
+      "method": "GET",
+      "ttfbMs": 511,
+      "durationMs": 515,
+      "serverTiming": null
+    },
+    {
+      "stage": "home-1",
+      "path": "/assets/birth-md-edit--9y-XoIu.js",
+      "method": "GET",
+      "ttfbMs": 91,
+      "durationMs": 107,
+      "serverTiming": null
+    },
+    {
+      "stage": "home-1",
+      "path": "/assets/stats-ranking-C3q9OoPS.js",
+      "method": "GET",
+      "ttfbMs": 120,
+      "durationMs": 136,
+      "serverTiming": null
+    },
+    {
+      "stage": "home-1",
+      "path": "/assets/fortune-Dy_FLvgy.js",
+      "method": "GET",
+      "ttfbMs": 195,
+      "durationMs": 213,
+      "serverTiming": null
+    },
+    {
+      "stage": "home-1",
+      "path": "/assets/ChatScreen-BaEBo4aQ.js",
+      "method": "GET",
+      "ttfbMs": 193,
+      "durationMs": 215,
+      "serverTiming": null
+    },
+    {
+      "stage": "home-1",
+      "path": "/assets/MainScreen-B2eKgAiN.js",
+      "method": "GET",
+      "ttfbMs": 144,
+      "durationMs": 221,
+      "serverTiming": null
+    },
+    {
+      "stage": "home-1",
+      "path": "/api/db/ready",
+      "method": "GET",
+      "ttfbMs": 568,
+      "durationMs": 586,
+      "serverTiming": null
+    },
+    {
+      "stage": "home-1",
+      "path": "/api/db/op",
+      "method": "POST",
+      "ttfbMs": 590,
+      "durationMs": 608,
+      "serverTiming": null
+    },
+    {
+      "stage": "events-1",
+      "path": "/assets/EventHubPage-DFj9CkyF.js",
+      "method": "GET",
+      "ttfbMs": 123,
+      "durationMs": 156,
+      "serverTiming": null
+    },
+    {
+      "stage": "events-1",
+      "path": "/assets/HubUi-XU7UJmcv.css",
+      "method": "GET",
+      "ttfbMs": 147,
+      "durationMs": 176,
+      "serverTiming": null
+    },
+    {
+      "stage": "home-1",
+      "path": "/api/db/ready",
+      "method": "GET",
+      "ttfbMs": 997,
+      "durationMs": 1015,
+      "serverTiming": null
+    },
+    {
+      "stage": "events-1",
+      "path": "/assets/EventHubPage-CkhLP65b.css",
+      "method": "GET",
+      "ttfbMs": 168,
+      "durationMs": 196,
+      "serverTiming": null
+    },
+    {
+      "stage": "events-1",
+      "path": "/assets/TutorialModal-B0vV5JVz.js",
+      "method": "GET",
+      "ttfbMs": 187,
+      "durationMs": 219,
+      "serverTiming": null
+    },
+    {
+      "stage": "events-1",
+      "path": "/assets/HubUi-qDEobAmZ.js",
+      "method": "GET",
+      "ttfbMs": 196,
+      "durationMs": 226,
+      "serverTiming": null
+    },
+    {
+      "stage": "home-1",
+      "path": "/api/event-hub/test-mode",
+      "method": "GET",
+      "ttfbMs": 1010,
+      "durationMs": 1014,
+      "serverTiming": null
+    },
+    {
+      "stage": "events-1",
+      "path": "/api/event-hub/state",
+      "method": "GET",
+      "ttfbMs": 1174,
+      "durationMs": 1178,
+      "serverTiming": null
+    },
+    {
+      "stage": "home-2",
+      "path": "/assets/index-Cc2aVMc4.css",
+      "method": "GET",
+      "ttfbMs": 95,
+      "durationMs": 110,
+      "serverTiming": null
+    },
+    {
+      "stage": "home-2",
+      "path": "/assets/vendor-yr7EEdPk.js",
+      "method": "GET",
+      "ttfbMs": 147,
+      "durationMs": 239,
+      "serverTiming": null
+    },
+    {
+      "stage": "home-2",
+      "path": "/assets/index-CpM1HMz5.js",
+      "method": "GET",
+      "ttfbMs": 203,
+      "durationMs": 272,
+      "serverTiming": null
+    },
+    {
+      "stage": "home-2",
+      "path": "/api/healthz",
+      "method": "GET",
+      "ttfbMs": 435,
+      "durationMs": 438,
+      "serverTiming": null
+    },
+    {
+      "stage": "home-2",
+      "path": "/api/boss-access",
+      "method": "GET",
+      "ttfbMs": 505,
+      "durationMs": 517,
+      "serverTiming": null
+    },
+    {
+      "stage": "home-2",
+      "path": "/assets/MainScreen-B2eKgAiN.js",
+      "method": "GET",
+      "ttfbMs": 89,
+      "durationMs": 110,
+      "serverTiming": null
+    },
+    {
+      "stage": "home-2",
+      "path": "/assets/fortune-Dy_FLvgy.js",
+      "method": "GET",
+      "ttfbMs": 120,
+      "durationMs": 145,
+      "serverTiming": null
+    },
+    {
+      "stage": "home-2",
+      "path": "/assets/birth-md-edit--9y-XoIu.js",
+      "method": "GET",
+      "ttfbMs": 129,
+      "durationMs": 149,
+      "serverTiming": null
+    },
+    {
+      "stage": "home-2",
+      "path": "/assets/ChatScreen-BaEBo4aQ.js",
+      "method": "GET",
+      "ttfbMs": 127,
+      "durationMs": 153,
+      "serverTiming": null
+    },
+    {
+      "stage": "home-2",
+      "path": "/assets/stats-ranking-C3q9OoPS.js",
+      "method": "GET",
+      "ttfbMs": 164,
+      "durationMs": 184,
+      "serverTiming": null
+    },
+    {
+      "stage": "home-2",
+      "path": "/api/db/ready",
+      "method": "GET",
+      "ttfbMs": 537,
+      "durationMs": 560,
+      "serverTiming": null
+    },
+    {
+      "stage": "home-2",
+      "path": "/api/db/ready",
+      "method": "GET",
+      "ttfbMs": 561,
+      "durationMs": 583,
+      "serverTiming": null
+    },
+    {
+      "stage": "home-2",
+      "path": "/api/db/op",
+      "method": "POST",
+      "ttfbMs": 571,
+      "durationMs": 594,
+      "serverTiming": null
+    },
+    {
+      "stage": "events-2",
+      "path": "/assets/EventHubPage-CkhLP65b.css",
+      "method": "GET",
+      "ttfbMs": 88,
+      "durationMs": 103,
+      "serverTiming": null
+    },
+    {
+      "stage": "events-2",
+      "path": "/assets/HubUi-XU7UJmcv.css",
+      "method": "GET",
+      "ttfbMs": 104,
+      "durationMs": 120,
+      "serverTiming": null
+    },
+    {
+      "stage": "events-2",
+      "path": "/assets/HubUi-qDEobAmZ.js",
+      "method": "GET",
+      "ttfbMs": 104,
+      "durationMs": 121,
+      "serverTiming": null
+    },
+    {
+      "stage": "events-2",
+      "path": "/assets/EventHubPage-DFj9CkyF.js",
+      "method": "GET",
+      "ttfbMs": 145,
+      "durationMs": 161,
+      "serverTiming": null
+    },
+    {
+      "stage": "events-2",
+      "path": "/assets/TutorialModal-B0vV5JVz.js",
+      "method": "GET",
+      "ttfbMs": 147,
+      "durationMs": 164,
+      "serverTiming": null
+    },
+    {
+      "stage": "home-2",
+      "path": "/api/event-hub/test-mode",
+      "method": "GET",
+      "ttfbMs": 995,
+      "durationMs": 998,
+      "serverTiming": null
+    },
+    {
+      "stage": "events-2",
+      "path": "/api/event-hub/state",
+      "method": "GET",
+      "ttfbMs": 1146,
+      "durationMs": 1152,
+      "serverTiming": null
+    },
+    {
+      "stage": "direct-read",
+      "path": "/api/event-hub/state",
+      "method": "GET",
+      "ttfbMs": 1117,
+      "durationMs": 1121,
+      "serverTiming": null
+    },
+    {
+      "stage": "direct-read",
+      "path": "/api/event-hub/state",
+      "method": "GET",
+      "ttfbMs": 976,
+      "durationMs": 980,
+      "serverTiming": null
+    },
+    {
+      "stage": "direct-read",
+      "path": "/api/event-hub/state",
+      "method": "GET",
+      "ttfbMs": 985,
+      "durationMs": 991,
+      "serverTiming": null
+    },
+    {
+      "stage": "direct-read",
+      "path": "/api/boss-access",
+      "method": "GET",
+      "ttfbMs": 487,
+      "durationMs": 490,
+      "serverTiming": null
+    }
+  ],
+  "writesBlocked": 0,
+  "errors": [],
+  "direct": [
+    {
+      "status": 200,
+      "ms": 1123
+    },
+    {
+      "status": 200,
+      "ms": 983
+    },
+    {
+      "status": 200,
+      "ms": 993
+    }
+  ],
+  "access": {
+    "status": 200,
+    "locked": true,
+    "authorized": true
+  },
+  "success": true,
+  "checkedAt": "2026-10-30T05:15:45.545Z"
+}

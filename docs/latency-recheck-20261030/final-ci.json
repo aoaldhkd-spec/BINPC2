@@ -1,0 +1,154 @@
+{
+  "sourceSha": "0ce4ae200138725feb32b5499d2cebca4a25807e",
+  "runId": 41006136759,
+  "runUrl": "https://github.com/aoaldhkd-spec/BINPC2/actions/runs/41006136759",
+  "conclusion": "success",
+  "passedSteps": 27,
+  "localUnitCounts": {
+    "API": 636,
+    "UI": 978
+  },
+  "actualPostgresql": 138,
+  "ciApiCountIncludingPostgresql": 774,
+  "browserPassed": 25,
+  "load": {
+    "runId": "mixed-1793336951419",
+    "mode": "mixed",
+    "environment": "real HTTP -> compiled Express -> actual PostgreSQL16; loopback only; development mode with normal rate limits and PG-backed sessions; business clock offset fixture only",
+    "sourceSha": "0ce4ae200138725feb32b5499d2cebca4a25807e",
+    "cohortSizes": [
+      100,
+      150
+    ],
+    "durationSeconds": 82,
+    "sustainedMinutes": 1,
+    "soakCycles": 5,
+    "requestCount": 4274,
+    "statusCounts": {
+      "200": 4266,
+      "409": 8
+    },
+    "failures": [],
+    "lostResponseReplay": true,
+    "restartVerified": true,
+    "preexistingOwnerRows": 5000,
+    "recordsBefore": 5000,
+    "recordsAfter": 7716,
+    "requestLatencyByStage": {
+      "fixture-activation": {
+        "requests": 6,
+        "p50Ms": 6.5,
+        "p95Ms": 11.7,
+        "p99Ms": 11.7,
+        "maxMs": 11.7
+      },
+      "150-real-sessions": {
+        "requests": 150,
+        "p50Ms": 331.9,
+        "p95Ms": 537.1,
+        "p99Ms": 578.7,
+        "maxMs": 580.7
+      },
+      "100-concurrent-applications": {
+        "requests": 100,
+        "p50Ms": 403,
+        "p95Ms": 662.4,
+        "p99Ms": 691.7,
+        "maxMs": 691.7
+      },
+      "150-mixed-applications-and-consent": {
+        "requests": 510,
+        "p50Ms": 692.6,
+        "p95Ms": 945.9,
+        "p99Ms": 1010.9,
+        "maxMs": 1043.1
+      },
+      "150-profile-payment-inquiry": {
+        "requests": 760,
+        "p50Ms": 770.4,
+        "p95Ms": 968.3,
+        "p99Ms": 981.9,
+        "maxMs": 985.4
+      },
+      "150-enter-and-three-cards": {
+        "requests": 910,
+        "p50Ms": 1090.5,
+        "p95Ms": 1384.2,
+        "p99Ms": 1416.3,
+        "maxMs": 1423.2
+      },
+      "150-social-hearts-chat": {
+        "requests": 460,
+        "p50Ms": 1019.6,
+        "p95Ms": 1129.3,
+        "p99Ms": 1143.8,
+        "maxMs": 1149.9
+      },
+      "duplicate-prize-rejection": {
+        "requests": 24,
+        "p50Ms": 8.3,
+        "p95Ms": 11.6,
+        "p99Ms": 11.6,
+        "maxMs": 11.6
+      },
+      "stored-response-lost-replay": {
+        "requests": 3,
+        "p50Ms": 4.3,
+        "p95Ms": 5.1,
+        "p99Ms": 5.1,
+        "maxMs": 5.1
+      },
+      "restart": {
+        "requests": 600,
+        "p50Ms": 510,
+        "p95Ms": 1217.8,
+        "p99Ms": 1304.3,
+        "maxMs": 1319.9
+      },
+      "sustained-150-mixed": {
+        "requests": 751,
+        "p50Ms": 395.4,
+        "p95Ms": 658.1,
+        "p99Ms": 713.8,
+        "maxMs": 732.1
+      }
+    },
+    "artifactEntry": ".local/v6-finish/mixed-1793336951419-result.json",
+    "http503": 0,
+    "http5xx": 0,
+    "failedAssertions": 0,
+    "databaseMaxConnections": 12,
+    "databaseMaxLockWaiters": 0,
+    "databaseMaxTransactionSeconds": 0.08762,
+    "successfulRequestAggregate": {
+      "sampleCount": 4266,
+      "p95Ms": 1289.9,
+      "maxMs": 1423.2,
+      "note": "Aggregate includes heterogeneous operations; use per-stage p95 for specific actions."
+    },
+    "largestStageP95Ms": 1384.2,
+    "expectedRejectedDuplicates": {
+      "http409": 8,
+      "stage": "duplicate-prize-rejection"
+    }
+  },
+  "resourceSamples": 15,
+  "resources": {
+    "maxRssMiB": 208.77,
+    "maxHeapUsedMiB": 65.99,
+    "maxProcessCpuPercent": 64.13,
+    "lastRssMiB": 111.7,
+    "scope": "82-second isolated CI, includes restart; not multi-hour leak proof or operating resource usage"
+  },
+  "artifact": {
+    "id": 12955727853,
+    "name": "isolated-v6-actual-app-evidence",
+    "sizeInBytes": 64129974,
+    "bytes": 64129974,
+    "sha256": "80fd57708cc4dce4caabb2ce28ad43ebdca68f68f62b253ae2cc9ce5c9c5a40f",
+    "fileCount": 143,
+    "pngCount": 115,
+    "videoCount": 26
+  },
+  "physicalDevices": "UNKNOWN"
+}
