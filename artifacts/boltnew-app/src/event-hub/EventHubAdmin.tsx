@@ -1,3 +1,4 @@
+import "./admin-compact.css";
 import { halloweenPrizeLabel } from "../../../../lib/api-zod/src/event-policy-halloween";
 import { VenueDirectoryEditor } from "./VenueDirectoryEditor";
 import { paymentSatisfied } from "../../../../lib/api-zod/src/event-campaign";
@@ -132,14 +133,11 @@ export default function EventHubAdmin({ active = true }: { active?: boolean }) {
     "🧪 선착순 시험실",
   ];
   return (
-    <div className="hub-admin-shell text-slate-900 pb-24">
+    <div className="hub-admin-shell hub-admin-compact text-slate-900 pb-10">
       <header className="hub-admin-header">
         <div>
           <span className="hub-eyebrow">범일NPC 술번개 · ADMIN</span>
           <h2 className="text-xl font-black">술번개 운영</h2>
-          <p className="text-sm text-slate-600">
-            신청부터 입장까지, 여기서 한 번에 관리하세요.
-          </p>
         </div>
         <button
           className="hub-admin-create"
@@ -153,7 +151,7 @@ export default function EventHubAdmin({ active = true }: { active?: boolean }) {
         </button>
       </header>
       <div className="hub-inquiry-alert" role="status" aria-live="polite" aria-atomic="true" data-latest-thread={unreadThreads[0]?.id}>
-        {unreadThreads.length ? <><span>💬 안 읽은 문의 <strong>{unreadThreads.length}건</strong></span><button type="button" onClick={()=>{setInquiryOwner(unreadThreads[0].id);setSelected('');setTab('관리자 문의');}}>새 문의 대화 열기</button></> : <span>💬 새 문의를 기다리고 있어요. 이 운영 화면이 열려 있으면 새 메시지를 알려드려요.</span>}
+        {unreadThreads.length ? <><span>💬 안 읽은 문의 <strong>{unreadThreads.length}건</strong></span><button type="button" onClick={()=>{setInquiryOwner(unreadThreads[0].id);setSelected('');setTab('관리자 문의');}}>새 문의 대화 열기</button></> : <span>💬 새 문의 없음</span>}
       </div>
       <div className="hub-admin-layout">
         <aside className="hub-admin-sidebar">
@@ -262,7 +260,6 @@ export default function EventHubAdmin({ active = true }: { active?: boolean }) {
           {tab === "공지·장소" && <VenueDirectoryEditor hub={hub} event={event}/>}
           {tab === "공지·장소" && !event && (
             <HubCard>
-              <p>사진과 장소를 수정할 날짜를 위에서 선택하세요.</p>
               {s.events.map((e) => (
                 <button
                   key={e.id}
@@ -552,7 +549,7 @@ function OperationsOverview({
         </button>
       )}
       {!state.events.length && (
-        <HubCard>등록된 행사가 없습니다. 행사 설정에서 준비해 주세요.</HubCard>
+        <HubCard>등록된 행사가 없습니다.</HubCard>
       )}
     </div>
   );
@@ -567,10 +564,6 @@ function PrizeOverview({
   const [showEmpty, setShowEmpty] = useState(false);
   return (
     <>
-      <p className="text-sm text-slate-600">
-        날짜를 바꿔도 재고와 당첨·지급 기록은 그대로 유지됩니다. 아래 수량은
-        저장된 실제 기록입니다.
-      </p>
       {!selected && (
         <HubCheck
           label="상품이 없는 행사도 보기"
@@ -628,8 +621,7 @@ function PrizeOverview({
                 })}
                 {!stocks.length && (
                   <p>
-                    등록된 재고가 없습니다. 보기 전환으로 상품을 생성하지
-                    않습니다.
+                    등록된 재고가 없습니다.
                   </p>
                 )}
               </HubCard>
@@ -1427,11 +1419,6 @@ export function ApplicationRoster({
             신청자 더 보기 ({matched.length - visible}명)
           </button>
         )}
-        {!current && !!applications.length && (
-          <p className="text-xs text-slate-500">
-            참가자를 선택하면 승인·문의·지급 처리 내용을 볼 수 있습니다.
-          </p>
-        )}
       </HubCard>
       {current && (
         <ApplicationAdmin
@@ -1521,10 +1508,6 @@ export function ApplicationAdmin({
           )[app.attendance] ?? "참가 확인 중"}{" "}
           · {app.profileId ? "입장 완료" : "입장 전"}
         </p>
-        <p className="text-xs">
-          입금 신고 시각 {formatHubTime(app.reportedAt)} · 최근 저장{" "}
-          {formatHubTime(app.updatedAt)}
-        </p>
         <p className="text-sm">
           프로필{" "}
           {profileMissing(app.profile).length
@@ -1585,7 +1568,7 @@ export function ApplicationAdmin({
               }}>승인 취소</HubButton>
             </div>
             {paymentSatisfied(app) && <HubField label="승인 취소 사유"><input className={inputClass} value={note} onChange={(e) => setNote(e.target.value)} placeholder="취소할 때만 입력" /></HubField>}
-            <p className="text-xs">승인하면 참가가 확정됩니다. 필수 프로필과 회식 시작을 확인한 실제 입장은 서버가 기록합니다.</p>
+            <p className="text-xs">입장은 필수 프로필 완료·회식 시작 후 가능합니다.</p>
           </>
         )}
         {onsite && (
@@ -1856,8 +1839,7 @@ function StockForm({ eventId, hub }: { eventId: string; hub: Hub }) {
     <HubCard>
       <h3 className="font-black">실물 재고 등록</h3>
       <p className="text-sm">
-        확인된 실물 수량만 추가하세요. 옵션별 실제 수량·배송일은 현재
-        미확인입니다.
+        확인된 실물 수량만 추가하세요.
       </p>
       <select
         aria-label="상품 종류"
@@ -1927,9 +1909,8 @@ function MemberManagement({ hub, state }: { hub: Hub; state: HubState }) {
           />
         </HubField>
         <p className="text-xs">
-          한 화면에50명씩 표시합니다. 기록을 삭제하거나 조회 권한을 바꾸지
-          않습니다. {currentPage + 1}/
-          {Math.max(1, Math.ceil(owners.length / 50))}쪽
+          {currentPage + 1}/
+          {Math.max(1, Math.ceil(owners.length / 50))}쪽 · 50명씩
         </p>
         <div className="flex gap-2">
           <HubButton
@@ -1994,8 +1975,7 @@ function MemberManagement({ hub, state }: { hub: Hub; state: HubState }) {
           ))
         ) : (
           <p className="text-sm">
-            기록된 저장 오류가 없습니다. DB 장애 중에는 익명 서버 로그의
-            요청번호로 확인합니다.
+            기록된 저장 오류가 없습니다.
           </p>
         )}
       </HubCard>

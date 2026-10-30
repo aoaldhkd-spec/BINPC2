@@ -105,6 +105,13 @@ async function loaded() {
   expect((screen.getByTestId("event-laboratory") as HTMLFieldSetElement).disabled).toBe(false);
 }
 
+function openTestSettings() {
+  const summary = screen.getByText("테스트 설정", { selector: "summary" });
+  const details = summary.parentElement as HTMLDetailsElement;
+  if (!details.open) fireEvent.click(summary);
+  expect(details.open).toBe(true);
+}
+
 async function saved(mock: ReturnType<typeof server>, count: number) {
   await waitFor(() => expect(mock.writes()).toHaveLength(count));
   await waitFor(() => expect((screen.getByTestId("event-laboratory") as HTMLFieldSetElement).disabled).toBe(false));
@@ -114,6 +121,15 @@ it("loads an empty managed workspace, saves stage/rank with the admin generation
   const mock = server();
   const view = render(<Harness />);
   await loaded();
+  const settings = screen.getByText("테스트 설정", { selector: "summary" }).parentElement as HTMLDetailsElement;
+  expect(settings.open).toBe(false);
+  expect(screen.getByText("현재 상태: ON · 테스트 및 점검 중")).toBeTruthy();
+  expect(screen.getByText("실제 모집: 차단 · 웹·오픈채팅 모두 접수 전")).toBeTruthy();
+  // Inspecting settings must not toggle test mode, clear results, or open admission.
+  openTestSettings();
+  fireEvent.click(settings.querySelector("summary")!);
+  expect(settings.open).toBe(false);
+  expect(mock.writes()).toHaveLength(0);
   expect((screen.getByLabelText("가상 진행 상태") as HTMLSelectElement).value).toBe("기본정보 작성 중");
   expect(mock.writes()).toHaveLength(0);
   expect(sessionStorage.length).toBe(0);
@@ -139,6 +155,7 @@ it("requires a global reset and fresh acknowledgement before OFF, clearing heart
   const mock = server();
   render(<Harness />);
   await loaded();
+  openTestSettings();
   expect((screen.getByRole("switch", { name: "테스트 모드 OFF" }) as HTMLButtonElement).disabled).toBe(true);
   fireEvent.click(screen.getByRole("button", { name: "가상 A 하트 보내기" }));
   await saved(mock, 1);
@@ -171,6 +188,7 @@ it("requires a distinct admission acknowledgement after OFF and revokes a stale 
   const mock = server();
   mock.state.mode = { ...mock.state.mode, enabled: false, resetGeneration: 1, resetAt: "2026-10-28T00:01:00Z" };
   render(<Harness />);
+  openTestSettings();
   const open = await screen.findByRole("button", { name: "실제 모집 오픈 확인·저장" });
   const confirmation = "테스트와 운영 준비를 마쳤으며, 웹·오픈채팅의 실제 모집을 오픈하는 것을 확인했습니다.";
   expect((open as HTMLButtonElement).disabled).toBe(true);
@@ -199,6 +217,7 @@ it("keeps admission closed and revokes confirmation when the server refuses an o
   mock.state.mode = { ...mock.state.mode, enabled: false, resetGeneration: 1, resetAt: "2026-10-28T00:01:00Z" };
   mock.rejectAdmission();
   render(<Harness />);
+  openTestSettings();
   const confirmation = "테스트와 운영 준비를 마쳤으며, 웹·오픈채팅의 실제 모집을 오픈하는 것을 확인했습니다.";
   await screen.findByRole("button", { name: "실제 모집 오픈 확인·저장" });
   fireEvent.click(screen.getByLabelText(confirmation));
@@ -236,6 +255,7 @@ it("invalidates both acknowledgements when another tab resets the generation and
   mock.state.mode.resetGeneration = 1;
   render(<Harness />);
   await loaded();
+  openTestSettings();
   const resetLabel = "모든 시험실의 가상 신청·결제·대기방·뽑기·경품·하트·채팅을 삭제하는 것을 확인했습니다.";
   const openLabel = "초기화 완료를 확인했습니다. 테스트 모드 OFF 후에도 개인정보·접수 일정 등 실제 오픈 조건을 별도로 확인합니다.";
   fireEvent.click(screen.getByLabelText(resetLabel));

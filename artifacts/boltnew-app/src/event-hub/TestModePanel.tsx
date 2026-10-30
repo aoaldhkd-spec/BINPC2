@@ -16,9 +16,13 @@ export function TestModePanel({ controller }: { controller: TestModeController }
   const clean = !!mode && !mode.dirty && mode.resetGeneration === mode.generation;
   return <HubCard>
     <h3 className="font-black">관리자 테스트 모드</h3>
-    <p className="text-sm">테스트 ON에서는 실제 신청·순위·입금·현장 입장을 차단합니다. 시험실의 신청·뽑기·하트·채팅은 별도 테스트 저장소에만 보관합니다.</p>
+    <div className="hub-test-status">
     <p role="status">현재 상태: {mode ? mode.enabled ? "ON · 테스트 및 점검 중" : "OFF · 테스트 종료" : "상태 확인 중 · 신청 차단"}</p>
     <p role="status">실제 모집: {mode && !mode.enabled && mode.publicAdmissionOpen ? "오픈 확인됨 · 행사별 접수 조건 적용" : "차단 · 웹·오픈채팅 모두 접수 전"}</p>
+    </div>
+    <details className="hub-test-settings">
+      <summary>테스트 설정</summary>
+      <div className="space-y-3 pt-3">
     <HubButton role="switch" aria-checked={mode?.enabled ?? true}
       disabled={busy || !mode || (mode.enabled && (!clean || !offConfirm))}
       onClick={async () => {
@@ -57,6 +61,8 @@ export function TestModePanel({ controller }: { controller: TestModeController }
         <p className="text-xs">개인정보 정책 등 운영 조건이 미확정이면 서버가 오픈을 거절합니다. 외부 오픈채팅방의 접수 안내는 운영자가 같은 상태로 관리해야 합니다.</p>
       </>}
     </fieldset>}
+      </div>
+    </details>
     <HubFeedback status={busy ? "saving" : ""} error={error} />
     {error && <HubButton disabled={busy} onClick={() => void load()}>테스트 상태 다시 확인</HubButton>}
   </HubCard>;

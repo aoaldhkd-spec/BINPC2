@@ -1,0 +1,23 @@
+/* Participant-only presentation: controls remain mounted, with natural text/keyboard overflow. */
+.hub-participant .hub-compact-actions {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+  margin-top: 8px;
+}
+.hub-participant .hub-compact-actions > button { min-width: 0; min-height: 44px; padding: 10px 8px; }
+.hub-participant .hub-participant-help { padding: 10px 12px; border: 1px solid var(--hub-line, #94a3b855); border-radius: 14px; }
+.hub-participant-help > [role="status"] { margin-bottom: 8px; font-size: .875rem; }
+.hub-help-controls { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.hub-help-controls > button { flex: 0 0 auto; min-height: 44px; }
+.hub-participant .hub-participant-help .hub-help-controls > button {
+  background: transparent !important;
+  color: inherit !important;
+  border: 1px solid var(--hub-line, #94a3b855);
+  box-shadow: none !important;
+}
+.hub-participant .hub-primary-action { min-height: 52px; font-size: 1rem; }
+.hub-help-controls > details { flex: 1 1 150px; min-width: 0; }
+.hub-help-controls > details[open] { flex-basis: 100%; }
+.hub-help-controls summary, .hub-optional-settings > summary { min-height: 44px; padding: 11px 4px; font-size: .875rem; cursor: pointer; }
+.hub-optional-settings > summary { padding-block: 8px; }

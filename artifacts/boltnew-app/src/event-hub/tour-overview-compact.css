@@ -1,0 +1,11 @@
+.hub-tour-disclosure > summary {
+  min-height: 52px;
+  padding: 14px 16px;
+  cursor: pointer;
+  line-height: 1.5;
+}
+.hub-tour-disclosure > summary strong { margin-inline-end: 10px; }
+.hub-tour-disclosure > summary span { color: #d1e3e7; font-size: .8rem; }
+.hub-tour-disclosure[open] > summary { border-bottom: 1px solid #57798966; }
+.hub-tour-disclosure .hub-tour-route { padding-block: 12px; }
+.hub-tour-disclosure .hub-tour-footnote { margin: 0; padding: 0 16px 12px; }

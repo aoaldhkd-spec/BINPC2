@@ -29,7 +29,7 @@
 .season-home .season-home-admin { right: 0; left: auto; }
 .season-home .season-home-hero { flex: 0 0 auto; width: 100%; height: clamp(112px, calc(100svh - 440px), 224px); margin: 0; }
 .season-home .season-home-actions { gap: 8px; margin: 4px 0 0; }
-.season-home .season-home-apply-links { width: 100%; gap: 8px; margin: 0; }
+.season-home .season-home-apply-links { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); width: 100%; gap: 8px; margin: 0; }
 .season-home .season-home-actions :is(a, button) {
   width: 100%; min-height: 50px; padding: 11px 16px; border-radius: 14px;
   font-size: 17px; line-height: 1.35; font-weight: 800;
@@ -38,6 +38,11 @@
   display: flex; align-items: center; justify-content: center; gap: 8px;
   min-height: 44px; margin: 0; padding: 8px 12px; font-size: 13px;
   border-color: transparent; background: #100b1999; box-shadow: none;
+}
+.season-home .season-home-apply-links :is(a, button) { min-width: 0; padding-inline: 8px; font-size: 15px; gap: 6px; }
+.season-home .season-home-apply-links a.underline { grid-column: 1 / -1; order: 1; min-height: 44px; }
+@media (max-width: 350px) {
+  .season-home .season-home-apply-links :is(a, button) { font-size: 14px; }
 }
 .season-home .fixed.inset-0 > div { max-height: calc(100dvh - 24px); overflow-y: auto; }
 .hub-admin-shortcut {

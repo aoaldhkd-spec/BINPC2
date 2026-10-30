@@ -1,6 +1,7 @@
 import { TOUR_WEEKS } from '../../../../lib/api-zod/src/event-policy-tour';
 import type { HubEvent } from '../lib/event-hub-client';
 import { EventArtwork } from './EventPresentation';
+import './tour-overview-compact.css';
 
 export function tourWeekFor(event: HubEvent) {
   return event.type==='tour' ? TOUR_WEEKS.find(w=>event.date>=w.start && event.date<=new Date(Date.parse(w.start+'T00:00:00Z')+3*86400000).toISOString().slice(0,10)) : undefined;
@@ -10,7 +11,8 @@ export function tourWeekFor(event: HubEvent) {
 export function TourOverview({events,selected,onSelect}:{events:HubEvent[];selected:string;onSelect:(region:string)=>void}){
   if(!events.some(e=>tourWeekFor(e)))return null;
   return <section className="hub-tour-overview" aria-label="전국투어 지역 안내">
-    <header><span className="hub-eyebrow">2026 · NOVEMBER — DECEMBER</span><h2>이번엔, 우리 동네에서.</h2><p>인천에서 대구까지 · 목·금·토·일</p></header>
+    <details className="hub-tour-disclosure">
+    <summary><strong>전국투어 일정</strong><span>{selected || '5개 지역 · 11–12월'}</span></summary>
     <div className="hub-tour-route">
       <img className="hub-korea-map" src="/event-art/korea-tour-map.svg" alt="대한민국 지도: 인천, 종로, 광주, 신림, 대구 전국투어 지역" width={400} height={500}/>
       <div className="hub-tour-stops" aria-label="전국투어 지역 선택">
@@ -26,6 +28,7 @@ export function TourOverview({events,selected,onSelect}:{events:HubEvent[];selec
         {selected&&<button className="hub-tour-show-all" type="button" onClick={()=>onSelect('')}>전체 행사 다시 보기</button>}
       </div>
     </div>
-    <p className="hub-tour-footnote">지역을 선택하면 아래 날짜별 행사를 볼 수 있어요. 웹 신청은 1차만 · 상세 장소와 지도는 참가 승인 후 안내해요.</p>
+    <p className="hub-tour-footnote">웹 신청은 1차만 · 상세 장소·지도는 승인 후 공개</p>
+    </details>
   </section>;
 }

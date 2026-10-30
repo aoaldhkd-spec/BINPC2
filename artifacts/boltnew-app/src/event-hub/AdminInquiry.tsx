@@ -172,7 +172,6 @@ export function AdminInquiry({ hub }: { hub: HubController }) {
               aria-live="polite"
               onScroll={(e) => { const node = e.currentTarget; followMessages.current = node.scrollHeight - node.scrollTop - node.clientHeight < 48; }}
             >
-              {!thread?.messages.length && <p className="text-sm leading-6">안녕하세요. 신청·입금·늦참 등 궁금한 내용을 남겨 주세요. 관리자가 확인한 뒤 이 대화로 답장합니다.</p>}
               {thread?.messages.map((m) => (
                 <p
                   key={m.id}
@@ -184,8 +183,7 @@ export function AdminInquiry({ hub }: { hub: HubController }) {
                 </p>
               )) ?? (
                 <p className="text-sm">
-                  신청 전에도 문의할 수 있습니다. 전화번호·입금정보는 필요한
-                  경우에만 알려주세요.
+                  전화번호·입금정보는 필요한 경우에만 보내세요.
                 </p>
               )}
               <div ref={messagesEnd} />

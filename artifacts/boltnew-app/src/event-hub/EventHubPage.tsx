@@ -2,7 +2,7 @@ import { halloweenPrizeLabel } from "../../../../lib/api-zod/src/event-policy-ha
 import { Settings } from 'lucide-react';
 import { eventEnded } from "../../../../lib/api-zod/src/event-hub-modules";
 import { ResidenceInput } from "./ResidenceInput";
-import { CompanionCards, CompanionClaimForm } from './CompanionCards';
+import { CompanionCards } from './CompanionCards';
 import { PaymentAccounts } from "./PaymentAccounts";
 import { halloweenCardTimes, cardSlotAvailable } from "../../../../lib/api-zod/src/event-card-clock";
 import {
@@ -30,6 +30,7 @@ import {
   canStoreHubOnsiteIdentity,
 } from "../lib/event-hub-browser-storage";
 import "./event-hub.css";
+import "./participant-compact.css";
 import { NoticeHistory } from "./NoticeHistory";
 import { NoticePages } from "./NoticePages";
 import { TEST_MODE_BANNER, testModeBlocksParticipation } from "../lib/public-test-mode";
@@ -166,13 +167,12 @@ function EventHubContent({ path, hub }: { path: string; hub: Hub }) {
         </header>
         <div className="max-w-2xl mx-auto p-4 space-y-4">
           <HubFeedback status={hub.status} error={hub.error} />
-          {s.bossParticipationAllowed && !event && <HubCard><HubButton disabled={hub.status==='saving'} onClick={async()=>{try{await hubFetch('/boss-participant-events',{});await hub.load();}catch(e){hub.setError((e as Error).message);}}}>금요일·토요일 신청 열기 / 이어하기</HubButton></HubCard>}
+          {s.bossParticipationAllowed && !event && <HubCard><HubButton disabled={hub.status==='saving'} onClick={async()=>{try{await hubFetch('/boss-participant-events',{});await hub.load();}catch(e){hub.setError((e as Error).message);}}}>할로윈 신청·이어하기</HubButton></HubCard>}
           {testMode && <HubCard><p role="status" className="font-bold text-amber-800">{s.testMode?.enabled !== false ? TEST_MODE_BANNER : '아직 신청을 받지 않습니다. 웹·오픈채팅 모두 접수 전입니다.'}</p></HubCard>}
           {!testMode && s.publicationBlocked && !s.bossParticipationAllowed && <HubCard><p role="status">아직 신청을 받지 않습니다. 웹·오픈채팅 모두 접수 전입니다.</p></HubCard>}
-          {event && <details hidden={writing} className="rounded-2xl border p-3"><summary className="font-bold cursor-pointer">친구와 함께 신청 · 본인/친구 따로 관리</summary>
+          {event && <details hidden={writing} className="rounded-2xl border p-3"><summary className="font-bold cursor-pointer">친구와 함께 신청</summary>
             {app && <p className="my-3">본인: {app.basic.nickname} · {app.basic.birthYear}년생 · {app.basic.location}</p>}
             <CompanionCards key={event.id} eventId={event.id} group={s.companionDrafts?.[event.id]} mutate={hub.mutate} busy={hub.status==='saving'} blocked={testMode||!event.recruitment} onOwn={()=>setApplying(true)} privacyPolicyFingerprint={s.privacyNotice?.fingerprint}/>
-            {!app && <CompanionClaimForm eventId={event.id} mutate={hub.mutate} busy={hub.status==='saving'} blocked={testMode||!event.recruitment} onClaimed={()=>setApplying(true)} privacyPolicyFingerprint={s.privacyNotice?.fingerprint} privacyNotice={<p className="whitespace-pre-line text-sm my-3">{s.privacyNotice?.notice??'이번 행사 신청·입금 확인·연락을 위한 닉네임·출생연도·지역을 수집합니다. 필수 수집을 거부하면 신청할 수 없습니다. 운영 개인정보 보관기간은 검토 중이며 일반 모집은 별도 확정 후 열립니다.'}</p>}/>}
           </details>}
           {event && !writing && (
             <ApplicationGuide
@@ -229,7 +229,7 @@ function EventHubContent({ path, hub }: { path: string; hub: Hub }) {
               {!applying && <EventDetailHeader key={event.id} event={event} />}
               {event.recruitment ? (
                 applying ? <BasicForm key={event.id} eventId={event.id} hub={hub} /> :
-                <HubButton disabled={testMode || !s.enabled || !!s.publicationBlocked} onClick={() => setApplying(true)}>신청하기</HubButton>
+                <HubButton className="hub-primary-action w-full" disabled={testMode || !s.enabled || !!s.publicationBlocked} onClick={() => setApplying(true)}>신청하기</HubButton>
               ) : (
                 <ScheduledOpening event={event} hub={hub} />
               )}
@@ -453,7 +453,7 @@ function EventHubContent({ path, hub }: { path: string; hub: Hub }) {
           {!s.member && s.hasSession && (
             <HubCard>
               {s.applications.length > 0 && <MemberSetup hub={hub} />}
-              <h2 className="font-black">향후 행사 안내 수신</h2>
+              <details className="hub-optional-settings"><summary>행사 알림 설정</summary>
               <HubCheck
                 label="향후 행사 광고성 안내 받기 (재사용 회원 동의와 별도)"
                 checked={s.marketingPreference?.enabled ?? false}
@@ -464,6 +464,7 @@ function EventHubContent({ path, hub }: { path: string; hub: Hub }) {
                   });
                 }}
               />
+              </details>
             </HubCard>
           )}
           {s.member && (
@@ -491,9 +492,6 @@ function EventHubContent({ path, hub }: { path: string; hub: Hub }) {
               >
                 재사용 동의 철회
               </HubButton>
-              <p className="text-xs">
-                새 기기에서도 닉네임과 비밀번호로 같은 신청을 이어갈 수 있습니다.
-              </p>
             </HubCard>
           )}
           <HubCard>
@@ -534,7 +532,6 @@ function EventHubContent({ path, hub }: { path: string; hub: Hub }) {
                     추가 복구 방법
               </summary>
               <p className="text-sm my-3">
-                다른 기기나 브라우저에서도 신청·입금 상태를 이어볼 수 있습니다.
                 복구코드는 비밀번호처럼 보관하고 다른 사람에게 알려주지 마세요.
               </p>
               <button
@@ -561,7 +558,7 @@ function MemberSetup({ hub }: { hub: Hub }) {
   const [confirm, setConfirm] = useState("");
   const [reuse, setReuse] = useState(false);
   return <details className="mb-4"><summary className="font-bold">다음에도 닉네임으로 로그인하기</summary>
-    <p className="text-sm py-2">현재 연결된 본인 신청에 비밀번호를 한 번 설정합니다. 광고 수신과는 별개이며 신청·입금 상태는 그대로 유지됩니다.</p>
+    <p className="text-sm py-2">다음 행사에도 사용할 선택 설정입니다. 광고 수신 동의는 별도입니다.</p>
     <form className="space-y-3" onSubmit={async (e) => {
       e.preventDefault();
       if (password !== confirm) { hub.setError("비밀번호 확인이 일치하지 않습니다."); return; }
@@ -614,8 +611,8 @@ export function BasicForm({ eventId, hub, app, onSaved }: {
     } finally { setAdvancing(false); }
   };
   return <HubCard>
-    <div className="flex items-center justify-between gap-2"><h2 className="font-black text-lg">{step === 0 ? "신청 전 개인정보 안내" : field[1]}</h2><small>{step === 0 ? "먼저 확인해 주세요" : `${step} / ${fields.length}`}</small></div>
-    {member && step === 1 && <p className="text-sm">기존 프로필의 닉네임을 불러왔습니다. 수정 없이 이어갈 수 있습니다.</p>}
+    <div className="flex items-center justify-between gap-2"><h2 className="font-black text-lg">{step === 0 ? "신청 전 개인정보 안내" : field[1]}</h2>{step > 0 && <small>{step} / {fields.length}</small>}</div>
+    {member && step === 1 && <p className="text-sm">기존 닉네임을 불러왔습니다.</p>}
     <form className="space-y-4" onSubmit={(e) => { e.preventDefault(); void next(); }}>
       {step > 0 && field[0]==="location" && <ResidenceInput value={v.location} residence={residence} onChange={(location,value)=>{setV({...v,location});setResidence(value);}}/>}
       {step > 0 && field[0]!=="location" && <HubField key={field[0]} label={field[1]}><input required autoFocus className={inputClass} value={v[field[0]]}
@@ -672,7 +669,7 @@ export function BasicForm({ eventId, hub, app, onSaved }: {
           onChange={setCollection}
         />
       </>}
-      {step === 4 && <p className="text-sm">연락·상품·상금·할인 확인에 사용합니다. 번호 인증이나 별도 승인은 요구하지 않습니다.</p>}
+      {step === 4 && <p className="text-sm">연락·상품·상금·할인 확인용입니다.</p>}
       <div className="flex gap-2">
         {step > 0 && <HubButton disabled={advancing || hub.status === "saving"} onClick={() => setStep(step - 1)}>← 이전</HubButton>}
         <HubButton type="submit" disabled={!collection || advancing || hub.status === "saving"}>{hub.status === "saving" ? "저장 중…" : advancing ? "저장되었습니다 ✓" : "다음"}</HubButton>
@@ -827,12 +824,9 @@ export function ApplicationSteps({
           </details>
           <fieldset>
             <legend className="font-bold text-sm">
-              프로필을 미리 설정하시겠습니까?
+              프로필은 언제 작성할까요?
             </legend>
-            <div className="flex gap-2"><HubButton onClick={() => setC({ ...c, profileNow: true })} aria-pressed={c.profileNow}>지금 설정</HubButton><HubButton onClick={() => setC({ ...c, profileNow: false })} aria-pressed={!c.profileNow}>대기방에서 나중에</HubButton></div>
-            <p className="text-xs">
-              어느 쪽을 선택해도 대기방에서 언제든 작성할 수 있습니다.
-            </p>
+            <div className="hub-compact-actions"><HubButton onClick={() => setC({ ...c, profileNow: true })} aria-pressed={c.profileNow}>프로필 작성</HubButton><HubButton onClick={() => setC({ ...c, profileNow: false })} aria-pressed={!c.profileNow}>나중에 작성</HubButton></div>
           </fieldset>
           <HubButton
             disabled={
@@ -873,8 +867,7 @@ export function ApplicationSteps({
           <p>입금 기한: {app.billing?.deadline}</p>
           <PaymentAccounts app={app} hub={hub} blocked={testModeBlocksParticipation(hub.state)}/>
           <p className="text-sm">
-            금액을 확인하고 신청을 확정하세요. 이 버튼으로 송금이나 입금 승인이
-            이루어지지 않습니다.
+            신청 확정은 송금·입금 승인이 아닙니다.
           </p>
           <HubButton
             disabled={testModeBlocksParticipation(hub.state) || hub.status === "saving"}
@@ -986,10 +979,8 @@ export function WaitingRoom({
         <fieldset disabled={blocked}><ParticipantOperations app={app} event={event} hub={hub} /></fieldset>
         <HalloweenRecognitionNotice app={app} />
         {app.eligibility && <fieldset disabled={blocked}><ScreeningPhoto app={app} hub={hub} /></fieldset>}
-        <h2 className="font-black">{participantEventTitle(event)}</h2>
-        <p>
-          {event.date} {event.start}~{event.end}
-        </p>
+        <h2 className="font-black">참가·입금 상태</h2>
+        <p className="text-sm">진행 {event.start}~{event.end <= event.start ? "익일 " : ""}{event.end}</p>
         <strong>
           {app.approvalRevokedAt ? "승인이 취소되었습니다 · 재입금하지 말고 관리자에게 문의해 주세요" : app.waivedAt
             ? "무료 참가 승인 완료 · 재입금 불필요"
@@ -1138,9 +1129,6 @@ export function WaitingRoom({
         >
           {missing.length ? "남은 프로필 설정 완료하기" : "술번개 입장하기"}
         </HubButton>
-        <p className="text-xs">
-          입장 시 서버에서 참가 승인·회식 시작·필수 프로필을 확인하고 입장을 기록합니다.
-        </p>
       </HubCard>
 
     </>

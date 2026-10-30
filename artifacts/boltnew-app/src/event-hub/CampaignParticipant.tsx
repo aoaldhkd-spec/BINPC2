@@ -1,7 +1,6 @@
 import { useEffect, useState } from "react";
 import { TutorialModal } from "../components/TutorialModal";
 import {
-  readHubBrowserValue,
   writeHubBrowserValue,
 } from "../lib/event-hub-browser-storage";
 import type {
@@ -19,13 +18,6 @@ export function ApplicationGuide({
 }) {
   const key = `binpc2_application_guide_v6:${event?.campaign?.kind ?? "normal"}`;
   const [open, setOpen] = useState(false);
-  const shouldOffer = !!event?.campaign;
-  useEffect(() => {
-    if (!shouldOffer || readHubBrowserValue("session", key)) return;
-    // Defer initial open past StrictMode's mount/cleanup probe; no phantom history entry.
-    const timer = window.setTimeout(() => setOpen(true), 0);
-    return () => window.clearTimeout(timer);
-  }, [key, shouldOffer]);
   const dark = useHubDark();
   const close = () => {
     setOpen(false);
@@ -56,25 +48,20 @@ export function ApplicationGuide({
     };
   }, [open, key]);
   return (
-    <HubCard>
-      <h2 className="font-black">웹·오픈채팅 신청 안내</h2>
-      <p className="font-bold" role="status">
-        {webOpen
-          ? "웹 접수 중 · 신청할 행사·날짜를 확인해 주세요"
-          : "웹·오픈채팅 모두 접수 전 · 송금하지 마세요"}
-      </p>
+    <section className="hub-participant-help" aria-label="신청 도움말">
+      {!webOpen && <p className="font-bold" role="status">웹·오픈채팅 모두 접수 전 · 송금하지 마세요</p>}
+      <div className="hub-help-controls">
+      <HubButton onClick={() => setOpen(true)}>ⓘ 신청 안내</HubButton>
       <details>
-        <summary className="cursor-pointer font-bold">신청 주소·수동 신청 방법 보기</summary>
+        <summary className="cursor-pointer font-bold">오픈채팅 신청 방법</summary>
         <div className="mt-3 space-y-3 text-sm">
           <p>
-            할로윈 금·토 양일과 전국투어 1차 웹 신청 주소:{" "}
+            웹 신청:{" "}
             <a className="underline break-all" href="https://binpc2.netlify.app">
               https://binpc2.netlify.app
             </a>
-            . 접수 시작 후 행사·지역·날짜·도착 예정시간을 확인해 주세요.
           </p>
           {webOpen ? <>
-            <p>오픈채팅 수동 신청은 운영자의 오픈 확인 후 아래 순서로 진행합니다.</p>
             <ol className="list-decimal pl-5 space-y-2">
             <li>신청방 입장</li>
             <li>오픈채팅 닉네임을 ‘년생 / 사는곳 / 인원’으로 설정</li>
@@ -83,10 +70,9 @@ export function ApplicationGuide({
             <li>운영자의 실제 입금 확인·참가 승인 확인</li>
             </ol>
             <p>이 닉네임 형식은 오픈채팅용입니다. 앱 닉네임은 앱의 기존 규칙을 따릅니다.</p>
-          </> : <p>운영자가 테스트 완료와 오픈을 확인하기 전에는 웹·오픈채팅 모두 신규 신청을 받지 않습니다. 신청이나 송금을 하지 말고 공지·기존 내역·관리자 문의만 확인해 주세요.</p>}
+          </> : <p>접수 전에는 신청이나 송금을 하지 말고 공지·기존 내역·관리자 문의만 확인해 주세요.</p>}
           <HubButton disabled>오픈채팅 신청방 준비 중</HubButton>
-          <p>새 신청방 URL이 아직 없어 링크·QR·입장 버튼은 제공하지 않습니다. 새 주소 확인 후 안내합니다.</p>
-          <p>전국투어 2차는 별도 오픈채팅 신청, 3차는 현장 안내입니다. 할로윈은 1차만 진행합니다. 모든 신규 신청은 운영자 오픈 확인 후 가능합니다.</p>
+          <p>전국투어 2차는 별도 오픈채팅 신청, 3차는 현장 안내입니다. 할로윈은 1차만 진행합니다.</p>
           <p>
             수동 신청과 웹 신청은 자동으로 합쳐지지 않습니다. 이미 신청하거나
             입금했다면 다시 신청·입금하지 말고 기존 내역을 관리자 1:1 문의로 확인해 주세요.
@@ -94,7 +80,7 @@ export function ApplicationGuide({
           </p>
         </div>
       </details>
-      <HubButton onClick={() => setOpen(true)}>ⓘ 신청 안내</HubButton>
+      </div>
       {open && (
         <TutorialModal
           applicationMode={
@@ -109,7 +95,7 @@ export function ApplicationGuide({
           onClose={close}
         />
       )}
-    </HubCard>
+    </section>
   );
 }
 export function ScreeningPhoto({

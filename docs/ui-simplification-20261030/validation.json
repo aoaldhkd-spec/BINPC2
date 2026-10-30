@@ -1,0 +1,65 @@
+{
+  "uiUnits": {
+    "passed": 916,
+    "files": 127,
+    "seconds": 44.79,
+    "phase": "final companion UI correction"
+  },
+  "guards": {
+    "passed": 598,
+    "total": 598
+  },
+  "typecheck": "PASS",
+  "productionUiBuild": "PASS",
+  "actualAppBrowserInitial": {
+    "passed": 18,
+    "failed": 4,
+    "total": 22,
+    "minutes": 8.4
+  },
+  "failures": [
+    {
+      "test": "campaign guide / tour guide / private screening guide",
+      "count": 3,
+      "cause": "Old tests expected automatic help dialog. New UI opens help only on explicit button action.",
+      "fix": "Click help button; retain all eligibility, fee, approval, media ACL and consent assertions.",
+      "retest": {
+        "passed": 3,
+        "total": 3,
+        "seconds": 56.6
+      }
+    },
+    {
+      "test": "administrator inquiry latest unread thread",
+      "cause": "Retained isolated fixture has a previous unread message at 17:02:11Z but restarted fixture clock was 14:28Z. Latest timestamp ordering correctly chose prior future fixture record.",
+      "productCodeChange": false,
+      "recordsDeleted": false,
+      "firstFocusedRetry": "Setup event recruitment correctly rejected after 01:00; unrelated suite-wide event seeding bypassed using existing focused-test fixture option.",
+      "retest": {
+        "clock": "2026-10-30T17:10:00Z",
+        "existingRecords": "retained",
+        "passed": 1,
+        "total": 1,
+        "seconds": 13.1,
+        "participantMessageToAdminMs": 1361,
+        "adminReplyToParticipantMs": 537
+      }
+    }
+  ],
+  "bossBrowserFinal": {
+    "passed": 4,
+    "total": 4,
+    "seconds": 54.3,
+    "covers": [
+      "anonymous screen/API/SSE block",
+      "boss login/logout",
+      "friend draft save/reopen",
+      "ordinary application approval/profile/entry",
+      "profile identity reload",
+      "compact viewport and explicit help"
+    ]
+  },
+  "realDevices": "UNKNOWN",
+  "backgroundPush": "UNKNOWN",
+  "productionDeploy": false
+}

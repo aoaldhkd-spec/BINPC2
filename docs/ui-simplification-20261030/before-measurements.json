@@ -1,0 +1,110 @@
+[
+  {
+    "screen": "home",
+    "file": "before-home-390.png",
+    "scrollHeight": 844,
+    "scrollWidth": 390,
+    "viewportWidth": 390,
+    "viewportHeight": 844,
+    "bodyTextLength": 85
+  },
+  {
+    "screen": "home",
+    "file": "before-home-768.png",
+    "scrollHeight": 1024,
+    "scrollWidth": 768,
+    "viewportWidth": 768,
+    "viewportHeight": 1024,
+    "bodyTextLength": 85
+  },
+  {
+    "screen": "home",
+    "file": "before-home-1440.png",
+    "scrollHeight": 900,
+    "scrollWidth": 1440,
+    "viewportWidth": 1440,
+    "viewportHeight": 900,
+    "bodyTextLength": 85
+  },
+  {
+    "screen": "events",
+    "file": "before-events-390.png",
+    "scrollHeight": 2961,
+    "scrollWidth": 390,
+    "viewportWidth": 390,
+    "viewportHeight": 844,
+    "bodyTextLength": 941
+  },
+  {
+    "screen": "events",
+    "file": "before-events-768.png",
+    "scrollHeight": 2789,
+    "scrollWidth": 768,
+    "viewportWidth": 768,
+    "viewportHeight": 1024,
+    "bodyTextLength": 941
+  },
+  {
+    "screen": "events",
+    "file": "before-events-1440.png",
+    "scrollHeight": 2822,
+    "scrollWidth": 1440,
+    "viewportWidth": 1440,
+    "viewportHeight": 900,
+    "bodyTextLength": 941
+  },
+  {
+    "screen": "detail",
+    "file": "before-detail-390.png",
+    "scrollHeight": 2139,
+    "scrollWidth": 390,
+    "viewportWidth": 390,
+    "viewportHeight": 844,
+    "bodyTextLength": 998
+  },
+  {
+    "screen": "detail",
+    "file": "before-detail-768.png",
+    "scrollHeight": 2007,
+    "scrollWidth": 768,
+    "viewportWidth": 768,
+    "viewportHeight": 1024,
+    "bodyTextLength": 998
+  },
+  {
+    "screen": "detail",
+    "file": "before-detail-1440.png",
+    "scrollHeight": 2036,
+    "scrollWidth": 1440,
+    "viewportWidth": 1440,
+    "viewportHeight": 900,
+    "bodyTextLength": 998
+  },
+  {
+    "screen": "admin",
+    "file": "before-admin-390.png",
+    "scrollHeight": 3285,
+    "scrollWidth": 390,
+    "viewportWidth": 390,
+    "viewportHeight": 844,
+    "bodyTextLength": 2295
+  },
+  {
+    "screen": "admin",
+    "file": "before-admin-768.png",
+    "scrollHeight": 2560,
+    "scrollWidth": 768,
+    "viewportWidth": 768,
+    "viewportHeight": 1024,
+    "bodyTextLength": 2303
+  },
+  {
+    "screen": "admin",
+    "file": "before-admin-1440.png",
+    "scrollHeight": 2554,
+    "scrollWidth": 1440,
+    "viewportWidth": 1440,
+    "viewportHeight": 900,
+    "bodyTextLength": 2303
+  }
+]

@@ -1298,6 +1298,8 @@ test("latest campaign actual API: first-rank free approval stays separate from b
   );
   await page.setViewportSize({ width: 390, height: 844 });
   await page.goto(`/events/e/${id}`);
+  await expect(page.getByRole("dialog")).toHaveCount(0);
+  await page.getByRole("button", { name: "ⓘ 신청 안내", exact: true }).click();
   await expect(page.getByRole("dialog")).toBeVisible();
   expect(await page.locator(".application-tutorial .line-clamp-2").evaluateAll(elements=>elements.every(element=>element.scrollHeight<=element.clientHeight+1))).toBe(true);
   await page.screenshot({
@@ -1417,6 +1419,7 @@ test("tour actual API advance and shared-component lab enforce rank ten/eleven w
     e.revision,
   );
   await page.goto(`/events/e/${id}`);
+  await page.getByRole("button", { name: "ⓘ 신청 안내", exact: true }).click();
   await page.getByRole("dialog").getByRole("button", { name: "다음", exact: true }).click();
   await page.getByRole("dialog").getByRole("button", { name: "다음", exact: true }).click();
   await page.getByRole("button", { name: "알겠어요", exact: true }).click();
@@ -1514,6 +1517,7 @@ test("private screening photo UI requires explicit consent, administrator review
     e.revision,
   );
   await page.goto(`/events/e/${id}`);
+  await page.getByRole("button", { name: "ⓘ 신청 안내", exact: true }).click();
   await page.getByRole("dialog").getByRole("button", { name: "다음", exact: true }).click();
   await page.getByRole("dialog").getByRole("button", { name: "다음", exact: true }).click();
   await page.getByRole("button", { name: "알겠어요", exact: true }).click();
@@ -1903,6 +1907,8 @@ test("test mode real browser: isolated campaigns, durable restore, global reset 
     const tools = admin.getByText("행사 설정·기록·관리 도구", { exact: true });
     if (!await tools.evaluate(element => (element.parentElement as HTMLDetailsElement).open)) await tools.click();
     await admin.getByRole("button", { name: "🧪 선착순 시험실", exact: true }).click();
+    const settings = admin.getByText("테스트 설정", { exact: true });
+    if (!await settings.evaluate(element => (element.parentElement as HTMLDetailsElement).open)) await settings.click();
   };
   const lab = admin.getByTestId("event-laboratory");
   const savedAction = async (operation: string, action: () => Promise<unknown>) => {

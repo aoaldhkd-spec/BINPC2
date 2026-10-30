@@ -474,7 +474,7 @@ it("notice history renders only public notices and dates, without old venue or b
   expect(screen.queryByText(/99999/)).toBeNull();
 });
 
-it("keeps the first application tutorial open through StrictMode mount probes and allows reopening", async () => {
+it("opens application help only on request through StrictMode mount probes and allows reopening", async () => {
   vi.spyOn(window.history, "back").mockImplementation(() => {});
   const e = new EventLaboratoryStore().value.event;
   e.campaign = { kind: "tour", round: 1, advance: 17000, secondRoundLink: "" };
@@ -483,6 +483,8 @@ it("keeps the first application tutorial open through StrictMode mount probes an
       <ApplicationGuide event={e} />
     </StrictMode>,
   );
+  expect(screen.queryByRole("dialog")).toBeNull();
+  fireEvent.click(screen.getByRole("button", { name: "ⓘ 신청 안내" }));
   await waitFor(() => expect(screen.getByRole("dialog")).toBeTruthy());
   fireEvent.click(screen.getByRole("button", { name: "다음" }));
   fireEvent.click(screen.getByRole("button", { name: "다음" }));
@@ -507,7 +509,7 @@ it("keeps the manual room unavailable until its new URL exists and explains the 
   expect(view.container.textContent).toContain("다시 신청·입금하지 말고 기존 내역");
   view.rerender(<ApplicationGuide webOpen />);
   expect(screen.queryByText("웹·오픈채팅 모두 접수 전 · 송금하지 마세요")).toBeNull();
-  expect(screen.getByText("웹 접수 중 · 신청할 행사·날짜를 확인해 주세요")).toBeTruthy();
+  expect(screen.getByRole("button", { name: "ⓘ 신청 안내" })).toBeTruthy();
   expect(view.container.textContent).toContain("‘년생 / 사는곳 / 인원’");
   expect(view.container.textContent).toContain("이 닉네임 형식은 오픈채팅용입니다");
   expect(view.container.textContent).toContain("행사·지역·날짜·차수·도착시각 전달");
@@ -520,6 +522,8 @@ it("labels the tutorial as future instructions and does not request a transfer w
   const event = new EventLaboratoryStore().value.event;
   event.campaign = { kind: "tour", round: 1, advance: 17000, secondRoundLink: "" };
   render(<ApplicationGuide event={event} webOpen={false} />);
+  expect(screen.queryByRole("dialog")).toBeNull();
+  fireEvent.click(screen.getByRole("button", { name: "ⓘ 신청 안내" }));
   await screen.findByRole("dialog");
   expect(screen.getByText(/아래 내용은 오픈 후 이용 방법입니다/)).toBeTruthy();
   fireEvent.click(screen.getByRole("button", { name: "다음" }));

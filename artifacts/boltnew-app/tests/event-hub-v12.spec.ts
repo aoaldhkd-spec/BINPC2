@@ -127,11 +127,14 @@ test("V12 Daegu four days use provided BLACK, preserve all 20 tour dates and ren
   expect((await tourCard.boundingBox())!.height).toBeLessThan(240);
   await expect(tourCard.getByAltText("블랙 · BLACK", { exact: true })).toBeVisible();
   await page.screenshot({ path: info.outputPath("v12-tour-list-compact.png"), fullPage: true });
+  await expect(page.locator('.hub-tour-disclosure')).not.toHaveAttribute('open');
+  await page.locator('.hub-tour-disclosure > summary').click();
   for(const width of [320,390,768,1440]){
     await page.setViewportSize({width,height:900});
     await expect(page.getByRole('region',{name:'전국투어 지역 안내'})).toBeVisible();
     expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth+1)).toBe(true);
     const map=page.getByAltText('대한민국 지도: 인천, 종로, 광주, 신림, 대구 전국투어 지역');
+    await expect(map).toBeVisible();
     expect(await map.evaluate((i:HTMLImageElement)=>i.complete&&i.naturalWidth>0)).toBe(true);
     await page.screenshot({path:info.outputPath(`v12-korea-tour-map-${width}.png`),fullPage:true});
   }

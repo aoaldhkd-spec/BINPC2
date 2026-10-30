@@ -40,10 +40,12 @@ test('boss uses the ordinary application UI and actual admission API while publi
   await page.goto('/events');await page.getByRole('button',{name:'운영자 로그인'}).click();
   await page.getByLabel('전화번호',{exact:true}).fill('010-0000-0000');await page.getByLabel('비밀번호',{exact:true}).fill(password!);
   await page.getByRole('button',{name:'로그인',exact:true}).click();
-  await page.getByRole('button',{name:'금요일·토요일 신청 열기 / 이어하기'}).click();
+  await page.getByRole('button',{name:'할로윈 신청·이어하기'}).click();
   await page.getByRole('button',{name:/신청 가능.*10월 30/}).click();
+  await expect(page.getByRole('dialog')).toHaveCount(0);
+  await page.getByRole('button',{name:'ⓘ 신청 안내',exact:true}).click();
   await page.getByRole('button',{name:'신청 안내 닫기',exact:true}).click();
-  await page.getByText('친구와 함께 신청 · 본인/친구 따로 관리',{exact:true}).click();
+  await page.getByText('친구와 함께 신청',{exact:true}).click();
   await page.getByRole('button',{name:'친구 추가',exact:true}).click();
   await page.getByLabel('친구 닉네임',{exact:true}).fill('동반시험');
   await page.getByLabel('친구 출생연도 (네 자리)',{exact:true}).fill('1998');
@@ -51,7 +53,7 @@ test('boss uses the ordinary application UI and actual admission API while publi
   await page.getByRole('button',{name:'친구 정보 저장',exact:true}).click();
   await expect(page.getByRole('heading',{name:'친구 1 · 동반시험'})).toBeVisible();
   await page.reload();
-  await page.getByText('친구와 함께 신청 · 본인/친구 따로 관리',{exact:true}).click();
+  await page.getByText('친구와 함께 신청',{exact:true}).click();
   await expect(page.getByRole('heading',{name:'친구 1 · 동반시험'})).toBeVisible();
   await page.getByRole('button',{name:'신청하기',exact:true}).click();
   await page.getByLabel('[필수] 위 개인정보').check();await page.getByRole('button',{name:'다음',exact:true}).click();
@@ -113,8 +115,10 @@ test('compact Halloween home and normal application keep controls visible withou
   await page.setViewportSize({width:390,height:700});
   await page.getByRole('link',{name:'술번개 신청',exact:true}).click();
   await expect(page.getByRole('heading',{name:'술번개 신청',exact:true})).toBeVisible();
-  await page.getByRole('button',{name:'금요일·토요일 신청 열기 / 이어하기'}).click();
+  await page.getByRole('button',{name:'할로윈 신청·이어하기'}).click();
   await page.getByRole('button',{name:/신청 가능.*10월 30/}).click();
+  await expect(page.getByRole('dialog')).toHaveCount(0);
+  await page.getByRole('button',{name:'ⓘ 신청 안내',exact:true}).click();
   await page.getByRole('button',{name:'신청 안내 닫기',exact:true}).click();
   await page.getByRole('button',{name:'신청하기',exact:true}).click();
   await page.getByLabel('[필수] 위 개인정보').check();await page.getByRole('button',{name:'다음',exact:true}).click();

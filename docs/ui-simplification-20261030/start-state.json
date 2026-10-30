@@ -1,0 +1,29 @@
+{
+  "localHead": "c0909c3b7117e351a938324c15307ac2e490fe05",
+  "remoteHead": "c0909c3b7117e351a938324c15307ac2e490fe05",
+  "sameHead": true,
+  "mainHead": "b06a900280404f79c92e17cdbc6af907a0414c30",
+  "recentCommits": [
+    {
+      "sha": "c0909c3b7117e351a938324c15307ac2e490fe05",
+      "message": "Pause BINPC2 development and hand off UI-only changes to Cursor"
+    },
+    {
+      "sha": "346791070239a7e7a027b1f5d0e5847a072c1087",
+      "message": "Record verified compact Halloween deployment and preserved access controls"
+    },
+    {
+      "sha": "517c3efeb2d0ea01526084d98d4cb784554ff86a",
+      "message": "Preserve account recovery controls and explicit closed admission messaging"
+    },
+    {
+      "sha": "fcd6b5fb8e513c95871d6edc1da1752ddf55a9dd",
+      "message": "Refine compact Halloween UI and remove test banners without changing access gates"
+    },
+    {
+      "sha": "830a6adbbb81c08810926509295ba434e6e2237a",
+      "message": "Record verified boss participant deployment and preserved operating records"
+    }
+  ],
+  "activeRuns": []
+}

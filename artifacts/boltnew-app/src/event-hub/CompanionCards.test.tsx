@@ -28,3 +28,24 @@ it('a stale friend list keeps typed input and blocks overwriting newer saved dat
   expect((screen.getByRole('button',{name:'친구 정보 저장'}) as HTMLButtonElement).disabled).toBe(true);
   expect(mutate).not.toHaveBeenCalled();
 });
+
+it('preserves existing person drafts and linked records without offering an invitation-code flow',()=>{
+  const mutate=vi.fn();
+  const group={revision:4,items:[
+    {id:'draft-one',basic:{nickname:'동반친구',birthYear:1998,location:'파주'}},
+    {id:'linked-one',basic:{nickname:'기존친구',birthYear:1992,location:'서울'},claimedAt:'2026-10-29T12:00:00Z'},
+  ]};
+  const snapshot=structuredClone(group);
+  const {container}=render(<CompanionCards eventId="existing-event" group={group} mutate={mutate} busy={false} blocked={false} onOwn={vi.fn()}/>);
+  expect(screen.getByRole('heading',{name:'동반신청'})).toBeTruthy();
+  expect(screen.getByText('친구 정보 저장됨 · 신청 미확정')).toBeTruthy();
+  expect(screen.getByText('본인 계정에 연결됨')).toBeTruthy();
+  expect(screen.getByRole('heading',{name:'친구 1 · 동반친구'})).toBeTruthy();
+  expect(screen.getByRole('heading',{name:'친구 2 · 기존친구'})).toBeTruthy();
+  expect(screen.queryByRole('button',{name:/초대코드|연결코드/})).toBeNull();
+  expect(screen.queryByLabelText(/초대코드|연결코드/)).toBeNull();
+  expect(container.querySelector('code')).toBeNull();
+  expect(screen.getAllByRole('button',{name:'친구 정보 수정'})).toHaveLength(1);
+  expect(group).toEqual(snapshot);
+  expect(mutate).not.toHaveBeenCalled();
+});
