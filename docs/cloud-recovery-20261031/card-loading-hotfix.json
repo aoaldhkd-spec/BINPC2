@@ -1,0 +1,135 @@
+{
+  "format": "BINPC2-card-loading-hotfix-v1",
+  "checkedAt": "2026-10-31T14:29:36.600120+00:00",
+  "sourceSha": "5f4c671a852d03a9acf2b22445c5cc3694ca2bc0",
+  "deployment": {
+    "checkedAt": "2026-10-31T14:28:29.059198+00:00",
+    "sourceSha": "5f4c671a852d03a9acf2b22445c5cc3694ca2bc0",
+    "remoteHead": "5f4c671a852d03a9acf2b22445c5cc3694ca2bc0",
+    "apiDeployId": "dep-dbivjnvlk1mc73fs2j80",
+    "apiStatus": "live",
+    "apiLiveAt": "2026-10-31T14:25:27.010716Z",
+    "frontendDeployId": "6ae5fa63e336e884dafe095c",
+    "frontendPublishedAt": "2026-10-31T14:25:42.338Z",
+    "providerSettings": {
+      "netlify": {
+        "repo_branch": "main",
+        "stop_builds": false,
+        "allowed_branches": [
+          "main"
+        ],
+        "skip_prs": null,
+        "skip_branches": null
+      },
+      "render": {
+        "branch": "main",
+        "autoDeploy": "no",
+        "autoDeployTrigger": "off",
+        "suspended": "not_suspended"
+      }
+    },
+    "mainUnchanged": true,
+    "mainSha": "b06a900280404f79c92e17cdbc6af907a0414c30",
+    "activeDeployments": 0,
+    "pausedApplicationWorkPreserved": true
+  },
+  "ci": {
+    "sourceSha": "5f4c671a852d03a9acf2b22445c5cc3694ca2bc0",
+    "runId": 41209062210,
+    "url": "https://github.com/aoaldhkd-spec/BINPC2/actions/runs/41209062210",
+    "conclusion": "success",
+    "passedSteps": 27,
+    "testSummaries": [
+      "2026-10-31T14:14:11.5490107Z  Test Files  102 passed (102)",
+      "2026-10-31T14:14:11.5494469Z       Tests  844 passed (844)",
+      "2026-10-31T14:14:47.2587268Z  Test Files  143 passed (143)",
+      "2026-10-31T14:14:47.2591842Z       Tests  1059 passed (1059)",
+      "2026-10-31T14:15:04.6082574Z  Test Files  7 passed (7)",
+      "2026-10-31T14:15:04.6083841Z       Tests  164 passed (164)",
+      "2026-10-31T14:20:49.9276716Z   29 passed (5.4m)",
+      "2026-10-31T14:20:49.9304748Z ##[notice]  29 passed (5.4m)"
+    ]
+  },
+  "isolatedRealAppCards": {
+    "environment": "Frozen exact production React build + Express + existing isolated PostgreSQL; loopback only",
+    "operatingRequests": 0,
+    "checks": [
+      "normal verified profile enters original participant app",
+      "event tab opens real server-backed cards",
+      "first unlocked slot persists exactly one server result",
+      "15 actual HTTP replays return the same saved card without duplicate entitlement",
+      "three full reloads keep card1 revealed with no second draw button",
+      "network/app return coalesces state reloads and preserves the revealed card"
+    ],
+    "cardLoadMs": 83,
+    "success": true,
+    "checkedAt": "2026-10-31T14:17:46.061Z"
+  },
+  "liveChecksPassed": 20,
+  "ordinaryOwnerAccessRequests": 0,
+  "ordinaryTesterAuthorityRequests": 0,
+  "operatingFakeProfilesCreated": 0,
+  "operatingDrawsOrGivesAttempted": 0,
+  "actualOperatingReadOnlyCardResultCheck": {
+    "checkedAt": "2026-10-31T14:26:33.815551+00:00",
+    "sourceSha": "5f4c671a852d03a9acf2b22445c5cc3694ca2bc0",
+    "adminResultsHttp": 200,
+    "adminResultsMs": 1685,
+    "existingResultsReadable": true,
+    "onlyAuthenticatedAdminProjectionRead": true,
+    "participantImpersonation": false,
+    "drawRequests": 0,
+    "giveRequests": 0,
+    "resets": 0,
+    "operatingFakeProfiles": 0,
+    "recordsNamesTokensOrIdsPrinted": false,
+    "physicalDeviceClaim": "UNKNOWN"
+  },
+  "recordComparison": {
+    "snapshotAt": "2026-10-31T14:14:30.866323+00:00",
+    "checkedAt": "2026-10-31T14:28:53.681355+00:00",
+    "source": "current encrypted local point-in-time snapshot; not an external-backup assertion",
+    "http": 201,
+    "operatingWrites": false,
+    "baselineHubRows": 70,
+    "currentHubRows": 70,
+    "removedHubRows": 0,
+    "changedBaselineHubCiphertexts": 0,
+    "existingDrawStockDeliveryLedgerUnchanged": true,
+    "removedApplicationRows": 4,
+    "removedApplicationRowsByTable": {
+      "rate_limits": 4
+    },
+    "removedImageRows": 0,
+    "changedImageOriginals": 0,
+    "personalRowsKeysOrIdsPrinted": false,
+    "concurrentChangesAttribution": "UNKNOWN; no rollback performed"
+  },
+  "protection": {
+    "testMode": true,
+    "publicAdmissionOpen": false,
+    "operatingCycleReset": false,
+    "mainMerged": false,
+    "operatingKeysChanged": false,
+    "destructiveDDL": false,
+    "drawAndHandoverExclusiveLocksRetained": true,
+    "readOnlyDatabaseWritesRejected": true,
+    "oldProfileRecordsOrInventoryManuallyReinitialized": false
+  },
+  "backups": {
+    "existingVerifiedPrivateDriveBackupRetained": true,
+    "latestEncryptedLocalSnapshot": {
+      "sourceSnapshotAt": "2026-10-31T14:14:30.866323+00:00",
+      "bytes": 37720557,
+      "sha256": "d8bacc30bd6541eb882d96a9b29cf527281f229bc5f9e18d4cdd42617ea66c2c",
+      "kvRows": 3420,
+      "imageRows": 105,
+      "hubRows": 70
+    },
+    "latestDriveUploadStatus": "Previous actual401 unresolved; no repeated request or new token claim",
+    "keyReplacedOrPrinted": false
+  },
+  "physicalAffectedGalaxyAndIphone": "UNKNOWN",
+  "backgroundPush": "UNKNOWN",
+  "pausedApplicationWorkPreserved": true
+}
