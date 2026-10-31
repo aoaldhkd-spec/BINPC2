@@ -1,0 +1,378 @@
+{
+  "format": "BINPC2-entry-performance-release-v1",
+  "checkedAt": "2026-10-31T13:42:43.848119+00:00",
+  "sourceSha": "6af95f0e4bae26be812d62238b7f059edcdec020",
+  "deployment": {
+    "checkedAt": "2026-10-31T13:41:05.983688+00:00",
+    "sourceSha": "6af95f0e4bae26be812d62238b7f059edcdec020",
+    "remoteHead": "6af95f0e4bae26be812d62238b7f059edcdec020",
+    "apiDeployId": "dep-dbiut8bbc2fs73bcuqd0",
+    "apiStatus": "live",
+    "apiLiveAt": "2026-10-31T13:37:19.717746Z",
+    "frontendDeployId": "6ae5ef1c6369c13da77875bf",
+    "frontendPublishedAt": "2026-10-31T13:37:35.907Z",
+    "providerSettings": {
+      "netlify": {
+        "repo_branch": "main",
+        "stop_builds": false,
+        "allowed_branches": [
+          "main"
+        ],
+        "skip_prs": null,
+        "skip_branches": null
+      },
+      "render": {
+        "branch": "main",
+        "autoDeploy": "no",
+        "autoDeployTrigger": "off",
+        "suspended": "not_suspended"
+      }
+    },
+    "mainUnchanged": true,
+    "mainSha": "b06a900280404f79c92e17cdbc6af907a0414c30",
+    "activeDeployments": 0,
+    "pausedApplicationWorkPreserved": true
+  },
+  "ci": {
+    "sourceSha": "6af95f0e4bae26be812d62238b7f059edcdec020",
+    "runId": 41205550242,
+    "url": "https://github.com/aoaldhkd-spec/BINPC2/actions/runs/41205550242",
+    "conclusion": "success",
+    "passedSteps": 27,
+    "testSummaries": [
+      "2026-10-31T13:27:35.8683131Z  Test Files  102 passed (102)",
+      "2026-10-31T13:27:35.8685692Z       Tests  841 passed (841)",
+      "2026-10-31T13:27:58.6321296Z  Test Files  142 passed (142)",
+      "2026-10-31T13:27:58.6325565Z       Tests  1052 passed (1052)",
+      "2026-10-31T13:28:09.7400715Z  Test Files  7 passed (7)",
+      "2026-10-31T13:28:09.7401369Z       Tests  161 passed (161)",
+      "2026-10-31T13:33:17.8111143Z   29 passed (4.5m)",
+      "2026-10-31T13:33:17.8130598Z ##[notice]  29 passed (4.5m)"
+    ],
+    "artifactMetadata": [
+      {
+        "id": 13043833545,
+        "name": "isolated-v6-actual-app-evidence",
+        "bytes": 69191726,
+        "expired": false
+      }
+    ],
+    "mediaNotDownloadedOrBulkRead": true,
+    "checkedAt": "2026-10-31T13:35:56.485799+00:00"
+  },
+  "actualSite": {
+    "environment": "live HTTPS via workspace proxy; browser requests routed, cache disabled",
+    "samplesPerVersion": 3,
+    "firstVisitEnabledMs": {
+      "before": [
+        4125,
+        2767,
+        4212
+      ],
+      "after": [
+        4439,
+        2649,
+        2350
+      ]
+    },
+    "medianFirstVisitMs": {
+      "before": 4125,
+      "after": 2649
+    },
+    "warmReloadMs": [
+      2729,
+      1662,
+      2053
+    ],
+    "buttonToConsentMs": [
+      45,
+      39,
+      51
+    ],
+    "consentToProfileMs": [
+      68,
+      78,
+      74
+    ],
+    "networkVariationNotControlled": true,
+    "twoSecondGoalConsistentlyMet": false
+  },
+  "controlledFrozenComparison": {
+    "environment": "Frozen production before87710b69/after6af95f0e; same React/Express/isolated PG; 80ms emulated browser latency,10Mbps down; cache disabled by safety routing; no operating requests",
+    "samples": [
+      {
+        "name": "before",
+        "n": 0,
+        "firstEntryEnabledMs": 1540,
+        "clickToFormMs": 119,
+        "assetsBeforeEntry": 21,
+        "readyReadsBeforeEntry": 3,
+        "settingsSelectBeforeEntry": 1
+      },
+      {
+        "name": "after",
+        "n": 0,
+        "firstEntryEnabledMs": 1520,
+        "clickToFormMs": 149,
+        "assetsBeforeEntry": 13,
+        "readyReadsBeforeEntry": 1,
+        "settingsSelectBeforeEntry": 0
+      },
+      {
+        "name": "before",
+        "n": 1,
+        "firstEntryEnabledMs": 1520,
+        "clickToFormMs": 141,
+        "assetsBeforeEntry": 21,
+        "readyReadsBeforeEntry": 3,
+        "settingsSelectBeforeEntry": 1
+      },
+      {
+        "name": "after",
+        "n": 1,
+        "firstEntryEnabledMs": 1518,
+        "clickToFormMs": 133,
+        "assetsBeforeEntry": 13,
+        "readyReadsBeforeEntry": 1,
+        "settingsSelectBeforeEntry": 0
+      },
+      {
+        "name": "before",
+        "n": 2,
+        "firstEntryEnabledMs": 1515,
+        "clickToFormMs": 98,
+        "assetsBeforeEntry": 21,
+        "readyReadsBeforeEntry": 3,
+        "settingsSelectBeforeEntry": 1
+      },
+      {
+        "name": "after",
+        "n": 2,
+        "firstEntryEnabledMs": 1513,
+        "clickToFormMs": 127,
+        "assetsBeforeEntry": 13,
+        "readyReadsBeforeEntry": 1,
+        "settingsSelectBeforeEntry": 0
+      }
+    ],
+    "medianFirstEntryMs": {
+      "before": 1520,
+      "after": 1518
+    },
+    "success": true
+  },
+  "controlledSlowSettingsComparison": {
+    "environment": "Frozen production before87710b69/after6af95f0e; same React/Express/isolated PG; 80ms emulated browser latency,10Mbps down,additional500ms settings-response delay; cache disabled by safety routing; no operating requests",
+    "samples": [
+      {
+        "name": "before",
+        "n": 0,
+        "firstEntryEnabledMs": 2037,
+        "clickToFormMs": 121,
+        "assetsBeforeEntry": 21,
+        "readyReadsBeforeEntry": 3,
+        "settingsSelectBeforeEntry": 1
+      },
+      {
+        "name": "after",
+        "n": 0,
+        "firstEntryEnabledMs": 1524,
+        "clickToFormMs": 135,
+        "assetsBeforeEntry": 13,
+        "readyReadsBeforeEntry": 1,
+        "settingsSelectBeforeEntry": 0
+      },
+      {
+        "name": "before",
+        "n": 1,
+        "firstEntryEnabledMs": 2021,
+        "clickToFormMs": 142,
+        "assetsBeforeEntry": 21,
+        "readyReadsBeforeEntry": 3,
+        "settingsSelectBeforeEntry": 1
+      },
+      {
+        "name": "after",
+        "n": 1,
+        "firstEntryEnabledMs": 1504,
+        "clickToFormMs": 138,
+        "assetsBeforeEntry": 13,
+        "readyReadsBeforeEntry": 1,
+        "settingsSelectBeforeEntry": 0
+      },
+      {
+        "name": "before",
+        "n": 2,
+        "firstEntryEnabledMs": 2029,
+        "clickToFormMs": 143,
+        "assetsBeforeEntry": 21,
+        "readyReadsBeforeEntry": 3,
+        "settingsSelectBeforeEntry": 1
+      },
+      {
+        "name": "after",
+        "n": 2,
+        "firstEntryEnabledMs": 1509,
+        "clickToFormMs": 152,
+        "assetsBeforeEntry": 13,
+        "readyReadsBeforeEntry": 1,
+        "settingsSelectBeforeEntry": 0
+      }
+    ],
+    "medianFirstEntryMs": {
+      "before": 2029,
+      "after": 1509
+    },
+    "success": true
+  },
+  "liveChecks": [
+    {
+      "name": "published frontend identity matches exact tested API source",
+      "status": "PASS"
+    },
+    {
+      "name": "ordinary homepage needs no operator password",
+      "status": "PASS"
+    },
+    {
+      "name": "ordinary application links remain hidden",
+      "status": "PASS"
+    },
+    {
+      "name": "active existing session enables ordinary entry",
+      "status": "PASS"
+    },
+    {
+      "name": "no horizontal overflow at 320",
+      "status": "PASS"
+    },
+    {
+      "name": "no horizontal overflow at 390",
+      "status": "PASS"
+    },
+    {
+      "name": "no horizontal overflow at 768",
+      "status": "PASS"
+    },
+    {
+      "name": "no horizontal overflow at 1440",
+      "status": "PASS"
+    },
+    {
+      "name": "rendered public images load",
+      "status": "PASS"
+    },
+    {
+      "name": "landing settings icon uses SVG",
+      "status": "PASS"
+    },
+    {
+      "name": "three reloads retain original landing and correct release",
+      "status": "PASS"
+    },
+    {
+      "name": "ordinary reload/app return/reconnection make zero owner-access requests even when that endpoint is blocked",
+      "status": "PASS"
+    },
+    {
+      "name": "actual active session entry reaches original profile setup rather than application waiting",
+      "status": "PASS"
+    },
+    {
+      "name": "profile form selection stays mounted through app-return events without any owner check",
+      "status": "PASS"
+    },
+    {
+      "name": "retained tester credential is not attached to ordinary production-page reads",
+      "status": "PASS"
+    },
+    {
+      "name": "event admin/application APIs stay locked and card state requires a real profile",
+      "status": "PASS"
+    },
+    {
+      "name": "direct application waiting URL remains protected",
+      "status": "PASS"
+    },
+    {
+      "name": "existing owner authentication works on existing site",
+      "status": "PASS"
+    },
+    {
+      "name": "live API/frontend fingerprint and test ON/public admission closed match",
+      "status": "PASS"
+    },
+    {
+      "name": "existing owner authentication survives reload",
+      "status": "PASS"
+    }
+  ],
+  "ordinaryOwnerAccessRequests": 0,
+  "ordinaryTesterAuthorityRequests": 0,
+  "operatingProfilesCreatedByChecker": 0,
+  "operatingDrawRequests": 0,
+  "operatingResetOrStartStop": false,
+  "recordComparison": {
+    "removedExistingApplicationRows": 0,
+    "removedExistingImageRows": 0,
+    "removedExistingEventRows": 0,
+    "existingCreationTimesChanged": 0,
+    "existingImageBytesUnchanged": true,
+    "eventLedgerExactMatch": true,
+    "concurrentExistingContentChangesObserved": true,
+    "attribution": "UNKNOWN; no concurrent user data reverted"
+  },
+  "isolatedNativeEntry": {
+    "profileSaveHttp": 200,
+    "saveResponseMs": 123,
+    "entryReadyMs": 558,
+    "checks": [
+      "valid retained tester token is not attached to native profile insert",
+      "real native registration enters participant screen without deleting stored tester login",
+      "same profile survives app return and reload",
+      "all ordinary profile and session-backed data operations omit tester authority",
+      "actual deprecated tester mutation remains rejected with 423",
+      "last-step ideal and feature selections are durably saved for the correct profile"
+    ],
+    "environment": "actual React/Express/retained isolated PostgreSQL; loopback only",
+    "operatingRequests": 0
+  },
+  "backups": {
+    "predeploy": {
+      "phase": "predeploy",
+      "sourceSnapshotAt": "2026-10-31T13:27:58.258344+00:00",
+      "sha256": "8f6f4eada88ea66e6dea3eed6a5925d8a24fc7cf8b9f5c7ea3ec1ebaead59bf3",
+      "bytes": 36086263,
+      "kvRows": 3280,
+      "images": 102,
+      "hubRows": 51,
+      "externalCopyRestoreVerified": true,
+      "privateDriveRedownloadHashVerified": true,
+      "existingSeparateKeysVerified": true,
+      "productionWrites": false,
+      "checkedAt": "2026-10-31T13:28:44.861982+00:00"
+    },
+    "postdeploy": {
+      "status": "BLOCKED_GOOGLE_HTTP_401",
+      "snapshotAt": "2026-10-31T13:39:48.276445+00:00",
+      "bytes": 36338509,
+      "sha256": "9f67855f89947250dfa473806ed499dd8fdf5a951171e7ede608fd2c793e001a",
+      "kvRows": 3371,
+      "images": 103,
+      "hubRows": 51,
+      "localEncryptedCopyPreserved": true,
+      "externalUploadVerified": false,
+      "externalRedownloadVerified": false,
+      "externalCopyRestoreVerified": false,
+      "sameExistingRecoveryKey": true,
+      "newKeyCreated": false
+    },
+    "olderVerifiedCopiesPreserved": true,
+    "keysPrinted": false,
+    "fullSupabasePlatformPg17RestoreVerified": false
+  },
+  "physicalDevices": "UNKNOWN",
+  "backgroundPush": "UNKNOWN",
+  "pausedApplicationWorkPreserved": true,
+  "noMainMergeOrSettingsChange": true
+}
