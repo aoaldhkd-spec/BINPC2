@@ -10,7 +10,7 @@ import type { CampaignStock } from "./event-campaign-service.js";
 export async function drawHalloween(
   tx: HubTx,
   e: HubEvent,
-  a: HubApplication,
+  a: Pick<HubApplication,"rank"|"benefitRank"|"benefitExcluded"|"owner"|"cards">,
   now: string,
   pick: (max: number) => number,
 ) {

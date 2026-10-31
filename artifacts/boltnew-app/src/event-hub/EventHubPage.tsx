@@ -1,3 +1,4 @@
+import {EventCardFaces} from './EventCardFaces';
 import { halloweenPrizeLabel } from "../../../../lib/api-zod/src/event-policy-halloween";
 import { Settings } from 'lucide-react';
 import { eventEnded } from "../../../../lib/api-zod/src/event-hub-modules";
@@ -1157,7 +1158,6 @@ export function WaitingRoom({
 }
 
 export function EventCards({ app, event, hub, fixedClock=false }: { app: PrivateApplication; event: HubState["events"][number]; hub: Hub; fixedClock?:boolean }) {
-  const currentTheme = useEventTheme(event);
   const [clock, setClock] = useState(() => new Date(hub.state?.serverNow ?? Date.now()));
   useEffect(() => {
     const server = Date.parse(hub.state?.serverNow ?? new Date().toISOString());
@@ -1182,31 +1182,7 @@ export function EventCards({ app, event, hub, fixedClock=false }: { app: Private
                 : "🎃 행사 카드"}{" "}
             · {app.cards.length}/{campaignCardLimit(event)}
           </h2>
-          <div
-            className={`grid ${campaignCardLimit(event) === 2 ? "grid-cols-2" : "grid-cols-3"} gap-2`}
-            data-campaign-theme={currentTheme}
-          >
-            {Array.from({ length: campaignCardLimit(event) }, (_, i) => i).map(
-              (i) => (
-                <button
-                  type="button"
-                  key={i}
-                  disabled={blocked || !event.cardsEnabled || !!app.cards[i] || i !== app.cards.length || !cardSlotAvailable(event, i, clock) || hub.status === "saving"}
-                  onClick={() => hub.mutate({action:"application.draw",target:app.id,revision:app.revision,data:{slot:i}})}
-                  aria-label={`카드 ${i+1} ${app.cards[i] ? "결과" : eventEnded(event,clock) ? "종료" : slots.length && clock.getTime()<slots[i] ? "잠김" : "열기"}`}
-                  className={`aspect-[2/3] rounded-xl grid place-items-center p-2 text-center text-sm transition-transform duration-500 ${app.cards[i] ? "hub-card-revealed bg-teal-50 border border-teal-300" : "bg-slate-800 text-white"}`}
-                >
-                  {app.cards[i]
-                    ? app.cards[i].prize === "다음 기회에"
-                      ? event.campaign?.kind === "tour"
-                        ? "꽝"
-                        : "다음 기회에"
-                      : `🎁 ${halloweenPrizeLabel(app.cards[i].prizeLabel ?? "당첨 상품 · 관리자에게 확인해 주세요")}`
-                    : <span><strong className="block text-2xl">🎃</strong><span className="block">카드 {i+1}</span>{slots.length > 0 && <><span className="block">{["23:00","00:00","00:30"][i]} 해제</span><span className="block">{eventEnded(event,clock) ? "뽑기 종료" : clock.getTime() < slots[i] ? `🔒 ${Math.ceil((slots[i]-clock.getTime())/60000)}분 후` : "열림"}</span></>}</span>}
-                </button>
-              ),
-            )}
-          </div>
+          <EventCardFaces event={event} cards={app.cards} clock={clock} disabled={blocked || hub.status === "saving"} onDraw={slot=>void hub.mutate({action:"application.draw",target:app.id,revision:app.revision,data:{slot}})} />
           <HubButton
             disabled={
               blocked ||

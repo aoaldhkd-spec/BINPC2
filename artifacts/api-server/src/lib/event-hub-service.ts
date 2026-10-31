@@ -888,7 +888,7 @@ export class EventHubService {
             403,
           );
         if(on&&!hasPublicEventNotice(e))fail("NOTICE","공지를 작성하거나 공개 공지 사진을 등록해 주세요.",409);
-        if (on && (!e.account || !e.deadline || !e.area))
+        if (on && ((!e.account && !e.accounts?.length) || !e.deadline || !e.area))
           fail("CONFIG", "계좌·입금기한·지역을 먼저 설정해 주세요.");
         if (on && e.campaign?.kind === "tour" && !e.campaign.advance)
           fail("ADVANCE", "전국투어 선입금액을 먼저 입력하세요.");
@@ -1010,7 +1010,11 @@ export class EventHubService {
         m.action.startsWith("admin.application.")
       ) {
         const a = await this.app(tx, m.target, owner, admin);
-        const e = await this.event(tx, a.eventId);
+        // This application branch has not changed the event under this lock.
+        // Keep ownership/revision/expiry checks; avoid a duplicate DB round trip.
+        const e = targetEvent?.id === a.eventId
+          ? { ...targetEvent, ...effectiveHalloweenHours(targetEvent) }
+          : await this.event(tx, a.eventId);
         if (!prior) revision(a.revision);
         if (applyApplicationOperation(a,e,m.action,m.data,this.now(),admin)) {
           // Ownership, revision, durable receipt, audit and encryption use the common engine.
@@ -1490,6 +1494,8 @@ export class EventHubService {
             !paymentSatisfied(a)
           )
             fail("CARDS", "입장 및 카드 활성화가 필요합니다.", 403);
+          const onsiteCards = a.profileId ? await tx.get<{cards:unknown[]}>("settings",`onsite-halloween:${e.id}:${a.profileId}`) : undefined;
+          if (onsiteCards?.cards.length) fail("CARD_IDENTITY_CONFLICT","기존 현장 카드 결과를 운영자에게 확인해 주세요. 다시 뽑지 마세요.",409);
           if (a.cards.length >= campaignCardLimit(e))
             fail("CARD_LIMIT", `행사별 카드는 ${campaignCardLimit(e)}장까지 뽑을 수 있습니다.`, 409);
           if (!cardSlotAvailable(e, a.cards.length, this.now())) fail("CARD_LOCKED", "아직 카드 해제 시각이 아닙니다.", 403);

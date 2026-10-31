@@ -114,3 +114,17 @@ describe('full-site boss-only restriction', () => {
     expect(bossOnlyLocked()).toBe(true);
   });
 });
+
+it('opens only legacy transports with explicit HeartNow opt-in; grants no boss event access',async()=>{
+ vi.stubEnv('HEARTNOW_PUBLIC_ACCESS','1');
+ const server=app();
+ await request(server).get('/api/db/ready').expect(200,saved);
+ await request(server).post('/api/db/op').send({}).expect(200,saved);
+ await request(server).post('/api/db/op').send({adminToken:deriveAdminToken(owner.admin_password)}).expect(423);
+ await request(server).post('/api/db/rpc/admin_toggle_session').send({}).expect(423);
+ for(const path of ['/api/event-hub/state','/api/event-hub/admin','/api/event-hub/laboratory','/api/db/health'])await request(server).get(path).expect(423);
+ await request(server).post('/api/db/push/notify').send({}).expect(423);
+ const status=await request(server).get('/api/boss-access').expect(200);
+ expect(status.body).toMatchObject({locked:true,authorized:false,heartnowPublic:true});
+ expect(status.body.sseTicket).toBeUndefined();
+});

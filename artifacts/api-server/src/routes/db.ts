@@ -1,4 +1,6 @@
 import { configureBossAccess, bossProtectedSseWrite, bossOnlyLocked } from "../lib/boss-access.js";
+import { OnsiteHalloweenService } from '../lib/onsite-halloween.js';
+import { heartNowPublicAccess } from '../lib/heartnow-access.js';
 import { assertBossTestSocialScope, assertOnsiteSocialWrite, onsiteWriteActor, ONSITE_SOCIAL_WRITE_TABLES, BOSS_SCOPED_WRITE_TABLES } from '../lib/event-onsite-access.js';
 import '../lib/dns-ipv4-first.js';
 import { atomicEventReset } from '../lib/db-event-reset-transaction.js';
@@ -3121,10 +3123,10 @@ router.post('/op', async (req: Request, res: Response) => {
         row != null && !tableData.some(existing => safeConflictCols.length
           ? safeConflictCols.every(col => String(existing[col]) === String(row[col]) || existing[col] === row[col])
           : row.id != null && existing.id === row.id));
-      if (createsProfile) await registrationModeStore.transaction(assertTestModeAllowsPublicMutation);
+      if (createsProfile && !heartNowPublicAccess()) await registrationModeStore.transaction(assertTestModeAllowsPublicMutation);
     }
     // Event applicants may only create a public profile through atomic admission.
-    if (!isAdmin && moduleEnabled(getTable('app_settings')[0]?.module_flags, 'event_hub')
+    if (!isAdmin && !heartNowPublicAccess() && moduleEnabled(getTable('app_settings')[0]?.module_flags, 'event_hub')
       && table === 'profiles' && (op === 'insert' || op === 'upsert')) {
       const rows = Array.isArray(payload) ? payload : [payload];
       if (rows.some((r: Record<string, unknown> | null) => !r?.id || !getTable('profiles').some(p => p.id === r.id))) {
@@ -4400,6 +4402,27 @@ router.post('/op', async (req: Request, res: Response) => {
 
 // ─── RPC allowlist: ../lib/db-rpc-allowlist.ts ─────────────────────────────────
 // ─── RPC endpoint ─────────────────────────────────────────────────────────────
+const onsiteHalloween = new OnsiteHalloweenService(registrationModeStore);
+router.post('/halloween-cards',async(req:Request,res:Response)=>{
+  res.setHeader('Cache-Control','private, no-store');
+  try {
+    if(!req.is('application/json')||req.get('sec-fetch-site')==='cross-site')return void res.sendStatus(403);
+    const body=req.body??{};
+    if(['admin-results','give'].includes(body.action)){
+      if(!verifyAdminToken(req.get('x-admin-token')))return void res.sendStatus(403);
+      return void res.json(body.action==='admin-results'?await onsiteHalloween.results():await onsiteHalloween.give(String(body.eventId??''),String(body.profileId??''),body.cardId?String(body.cardId):undefined));
+    }
+    if(!heartNowPublicAccess())throw new HubError(423,'HEARTNOW_CLOSED','현장 뽑기가 준비되지 않았습니다.');
+    const userId=resolveAuthUserId(req,body);if(!userId)throw new HubError(401,'AUTH','본인 프로필 인증이 필요합니다.');
+    if(body.action==='draw'){
+      if(!Number.isInteger(body.slot)||body.slot<0||body.slot>2||typeof body.eventId!=='string')throw new HubError(400,'CARD_SLOT','카드를 확인해 주세요.');
+      return void res.json(await onsiteHalloween.draw(userId,body.eventId,body.slot));
+    }
+    if(body.action&&body.action!=='state')throw new HubError(400,'ACTION','요청을 확인해 주세요.');
+    res.json(await onsiteHalloween.state(userId,typeof body.eventId==='string'?body.eventId:undefined));
+  }catch(e){if(e instanceof HubError)return void res.status(e.status).json({error:{code:e.code,message:e.message}});logger.error({err:e},'[onsite-halloween] request failed');res.status(503).json({error:{code:'SAVE_FAILED',message:'결과를 확인하지 못했습니다. 같은 카드를 다시 확인해 주세요.'}});}
+});
+
 router.post('/rpc/:name', async (req: Request, res: Response) => {
   const { name } = req.params;
 

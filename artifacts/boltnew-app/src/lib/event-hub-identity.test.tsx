@@ -16,6 +16,41 @@ const state = (owner: string) => ({ enabled: true, hasSession: true, serverNow: 
 beforeEach(() => { rememberRecoveryCode(aCode); });
 afterEach(() => { cleanup(); vi.restoreAllMocks(); localStorage.clear(); sessionStorage.clear(); rememberRecoveryCode(''); });
 
+it('sends a newer credential request only after the older response can no longer replace its cookie',async()=>{
+  let finish!: (value:Response)=>void;
+  const fetch=vi.spyOn(globalThis,'fetch').mockImplementationOnce(()=>new Promise<Response>(resolve=>{finish=resolve;})).mockResolvedValueOnce(response({ok:true,recoveryCode:bCode}));
+  const first=hubFetch('/member-login',{nickname:'first-synthetic',password:'synthetic-only'}).catch(error=>error);
+  await waitFor(()=>expect(fetch).toHaveBeenCalledTimes(1));
+  const second=hubFetch<{recoveryCode:string}>('/member-login',{nickname:'second-synthetic',password:'synthetic-only'});
+  await Promise.resolve();expect(fetch).toHaveBeenCalledTimes(1);
+  finish(response({ok:true,recoveryCode:aCode}));
+  expect(await first).toMatchObject({code:'SESSION_CHANGED'});
+  expect((await second).recoveryCode).toBe(bCode);
+  expect(fetch).toHaveBeenCalledTimes(2);
+});
+
+it.each(['network','http','json'] as const)('releases a failed %s credential request before sending the next login',async failure=>{
+  let finish!:()=>void;
+  const fetch=vi.spyOn(globalThis,'fetch').mockImplementationOnce(()=>new Promise<Response>((resolve,reject)=>{finish=()=>failure==='network'?reject(new TypeError('offline')):resolve(failure==='http'?response({error:'rejected',code:'AUTH'},401):new Response('not-json'));})).mockResolvedValueOnce(response({ok:true,recoveryCode:bCode}));
+  const first=hubFetch('/member-login',{nickname:'first-synthetic',password:'synthetic-only'}).catch(error=>error);
+  await waitFor(()=>expect(fetch).toHaveBeenCalledTimes(1));
+  const second=hubFetch<{recoveryCode:string}>('/member-login',{nickname:'second-synthetic',password:'synthetic-only'});
+  expect(fetch).toHaveBeenCalledTimes(1);finish();
+  expect(await first).toBeInstanceOf(Error);expect((await second).recoveryCode).toBe(bCode);expect(fetch).toHaveBeenCalledTimes(2);
+});
+
+it('skips credentials superseded while queued and does not queue ordinary state reads',async()=>{
+  let finish!: (value:Response)=>void;
+  const fetch=vi.spyOn(globalThis,'fetch').mockImplementationOnce(()=>new Promise<Response>(resolve=>{finish=resolve;})).mockImplementation(async(path)=>response(String(path).endsWith('/state')?state('owner-a'):{ok:true,recoveryCode:bCode}));
+  const first=hubFetch('/session',{recoveryCode:aCode,create:false}).catch(error=>error);
+  await waitFor(()=>expect(fetch).toHaveBeenCalledTimes(1));
+  const superseded=hubFetch('/member-login',{nickname:'superseded',password:'synthetic-only'}).catch(error=>error);
+  const latest=hubFetch<{recoveryCode:string}>('/member-login',{nickname:'latest',password:'synthetic-only'});
+  await hubFetch('/state');expect(fetch).toHaveBeenCalledTimes(2);
+  finish(response({ok:true}));expect(await first).toMatchObject({code:'SESSION_CHANGED'});expect(await superseded).toMatchObject({code:'SESSION_CHANGED'});expect((await latest).recoveryCode).toBe(bCode);
+  expect(fetch.mock.calls.filter(([path])=>String(path).endsWith('/member-login'))).toHaveLength(1);
+});
+
 it('keeps the current private state and numeric UI scope after ordinary network failure or rejected login', async () => {
   const fetch = vi.spyOn(globalThis, 'fetch').mockResolvedValue(response(state('owner-a')));
   const { result } = renderHook(() => useEventHub());
@@ -112,14 +147,15 @@ it('cannot turn a late previous-owner receipt into a successful save for the new
   expect(result.current.state?.applications[0].id).toBe('owner-b');
 });
 
-it('rejects a delayed credential acknowledgement after a newer credential change completed', async () => {
+it('rejects a delayed credential acknowledgement after an externally confirmed identity change', async () => {
   let release!: (value: Response) => void;
-  vi.spyOn(globalThis, 'fetch').mockImplementation(async path => String(path).endsWith('/member-login')
+  const fetch=vi.spyOn(globalThis, 'fetch').mockImplementation(async path => String(path).endsWith('/member-login')
     ? new Promise<Response>(resolve => { release = resolve; }) : response({ ok: true }));
-  const oldLogin = hubFetch('/member-login', { nickname: '합성', password: 'synthetic' });
-  await recoverHub(bCode);
+  const oldLogin = hubFetch('/member-login', { nickname: '합성', password: 'synthetic' }).catch(error=>error);
+  await waitFor(()=>expect(fetch).toHaveBeenCalledTimes(1));
+  rememberRecoveryCode(bCode);
   release(response({ ok: true, recoveryCode: aCode }));
-  await expect(oldLogin).rejects.toMatchObject({ code: 'SESSION_CHANGED' });
+  expect(await oldLogin).toMatchObject({ code: 'SESSION_CHANGED' });
   expect(savedRecoveryCode()).toBe(bCode);
 });
 

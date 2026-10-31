@@ -64,7 +64,7 @@ jobs:
       - name: Production-entry guards and redaction
         run: node --test scripts/test/production-entry-guards.test.mjs scripts/test/ops-client.test.mjs scripts/test/code-fingerprint.test.mjs scripts/test/event-hub-lookup-cli.test.mjs
       - name: Actual PostgreSQL invariants and existing reset safety
-        run: pnpm --filter @workspace/api-server exec vitest run src/lib/event-hub.pg.test.ts src/lib/event-test-mode.pg.test.ts src/lib/db-event-reset-transaction.pg.test.ts src/lib/companion-submission.pg.test.ts src/lib/event-hub-privacy-companion.pg.test.ts src/lib/event-hub-retention.pg.test.ts
+        run: pnpm --filter @workspace/api-server exec vitest run src/lib/event-hub.pg.test.ts src/lib/event-test-mode.pg.test.ts src/lib/db-event-reset-transaction.pg.test.ts src/lib/companion-submission.pg.test.ts src/lib/event-hub-privacy-companion.pg.test.ts src/lib/event-hub-retention.pg.test.ts src/lib/onsite-halloween.pg.test.ts
       - run: pnpm --filter @workspace/boltnew-app exec playwright install --with-deps chromium
       - name: Pin an explicit internal business clock for admission and mobile regression
         run: |

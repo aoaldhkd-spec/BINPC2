@@ -1,3 +1,5 @@
+> 2026-10-31 최신 복구·하트나우·현장 할로윈 상태: [현재 보고서](CLOUD_RECOVERY_HEARTNOW_2026-10-31.md). 아래 기록은 이전 검증 이력으로 보존합니다.
+
 > 최신 기능별 미완료 포함 대조표: [V6/V3 통합 체크리스트](EVENT_HUB_V6_INTEGRATED_CHECKLIST_2026-10-27.md). 실기기·외부HTTPS·개인정보 정책은 완료 추정 금지.
 
 # BINPC2 CURRENT STATUS — 2026-10-06

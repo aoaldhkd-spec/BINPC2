@@ -47,6 +47,7 @@ function Root() {
 
   useEffect(() => {
     const syncPath = () => {
+      window.dispatchEvent(new Event("app-route-changed"));
       refreshSseAccessScope();
       startTransition(() => setPath(window.location.pathname));
     };

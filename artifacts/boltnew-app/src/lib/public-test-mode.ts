@@ -11,12 +11,13 @@ export function testModeBlocksParticipation(
 
 /** Normal visitors need the authoritative flag. The already verified boss
  * uses the same protected test route regardless of this public flag. */
-export function usePublicTestMode(verifiedBossAccess = false) {
+export function usePublicTestMode(verifiedBossAccess = false, legacyPublic = false) {
   const [enabled, setEnabled] = useState(true);
   useEffect(() => {
     // Never retain a prior public-open value across a boss access transition.
     setEnabled(true);
-    if (verifiedBossAccess) return;
+    // Legacy access never opens event recruitment and needs no forbidden event polling.
+    if (verifiedBossAccess || legacyPublic) return;
     let active = true;
     let sequence = 0;
     const refresh = async () => {
@@ -45,6 +46,6 @@ export function usePublicTestMode(verifiedBossAccess = false) {
       window.removeEventListener("focus", refresh);
       document.removeEventListener("visibilitychange", refresh);
     };
-  }, [verifiedBossAccess]);
+  }, [verifiedBossAccess, legacyPublic]);
   return verifiedBossAccess ? false : enabled;
 }

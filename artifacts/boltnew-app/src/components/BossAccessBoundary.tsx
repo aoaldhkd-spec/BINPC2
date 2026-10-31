@@ -2,10 +2,13 @@ import { createContext, useContext, useCallback, useEffect, useRef, useState, ty
 import { LoginScreen } from '../admin/LoginScreen';
 import { setBossSseTicket } from '../lib/boss-access-client';
 
-type Status = { locked: boolean; authorized: boolean; sseTicket?: string };
+type Status = { locked: boolean; authorized: boolean; sseTicket?: string; heartnowPublic?: boolean };
 const BossTestContext = createContext(false);
+const HeartNowContext = createContext(false);
+export const useHeartNowPublicAccess = () => useContext(HeartNowContext);
 export const useBossTestAccess = () => useContext(BossTestContext);
 export function BossAccessBoundary({ children }: { children: ReactNode }) {
+  const [path, setPath] = useState(window.location.pathname);
   const [status, setStatus] = useState<Status | null>(null), [failed, setFailed] = useState(false), [login, setLogin] = useState(false);
   const request = useRef(0);
   const [mayMount, setMayMount] = useState(false);
@@ -18,7 +21,7 @@ export function BossAccessBoundary({ children }: { children: ReactNode }) {
       if (typeof next.locked !== 'boolean' || typeof next.authorized !== 'boolean') throw Error('Incomplete access response');
       if (current !== request.current) return;
       setBossSseTicket(next.authorized ? next.sseTicket ?? '' : '');
-      setStatus(next); setMayMount(!next.locked || next.authorized); setFailed(false);
+      setStatus(next); setMayMount(!next.locked || next.authorized || next.heartnowPublic === true); setFailed(false);
     } catch {
       if (current === request.current) { setFailed(true); setStatus(null); setBossSseTicket(''); }
     }
@@ -34,12 +37,21 @@ export function BossAccessBoundary({ children }: { children: ReactNode }) {
     document.addEventListener('visibilitychange', visible);
     return () => { request.current++; clearInterval(interval); window.removeEventListener('pageshow', refresh); window.removeEventListener('online', refresh); window.removeEventListener('boss-access-changed', refresh); document.removeEventListener('visibilitychange', visible); };
   }, [check]);
+  useEffect(() => {
+    const sync = () => setPath(window.location.pathname);
+    window.addEventListener('popstate', sync);
+    window.addEventListener('app-route-changed', sync);
+    return () => { window.removeEventListener('popstate', sync); window.removeEventListener('app-route-changed', sync); };
+  }, []);
+  const base = import.meta.env.BASE_URL.replace(/\/$/, '');
+  const publicHeartNow = status?.heartnowPublic === true && (path === base + '/' || path === base + '/index.html');
+  const denied = !!status && status.locked && !status.authorized && !publicHeartNow;
   const overlay = !status ? <main className="brand-auth-screen min-h-screen bg-slate-950 text-white grid place-items-center p-6"><div role="status"><p>{failed ? '접근 권한을 확인하지 못했습니다.' : '접근 권한 확인 중…'}</p><button className="mt-4 rounded-xl border px-5 py-3" onClick={() => void check()}>다시 확인</button></div></main>
-    : status.locked && !status.authorized ? login
+    : denied ? login
       ? <LoginScreen bossOnly onLogin={() => { setLogin(false); void check(); }} />
       : <main className="brand-auth-screen min-h-screen bg-slate-950 text-white grid place-items-center p-6 text-center"><div className="max-w-md"><h1 className="text-2xl font-bold">현재 테스트 중입니다</h1><button className="mt-8 rounded-xl border border-slate-600 px-5 py-3" onClick={() => setLogin(true)}>운영자 로그인</button></div></main>
     : null;
   // A transient access lookup must hide, not destroy, the already mounted profile/chat draft.
   // A confirmed unauthenticated result unmounts service screens; saved records stay untouched.
-  return <BossTestContext.Provider value={status?.locked === true && status.authorized === true}>{overlay}<div hidden={!!overlay} data-boss-access={status?.authorized ? 'authorized' : 'locked'}>{mayMount && children}</div></BossTestContext.Provider>;
+  return <HeartNowContext.Provider value={publicHeartNow}><BossTestContext.Provider value={status?.locked === true && status.authorized === true}>{overlay}<div hidden={!!overlay} data-boss-access={status?.authorized ? 'authorized' : 'locked'}>{mayMount && !denied && children}</div></BossTestContext.Provider></HeartNowContext.Provider>;
 }

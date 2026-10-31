@@ -1,5 +1,5 @@
 import { useLandingHalloween } from '../lib/landing-season';
-import { useBossTestAccess } from './BossAccessBoundary';
+import { useBossTestAccess, useHeartNowPublicAccess } from './BossAccessBoundary';
 import { TEST_MODE_BANNER, usePublicTestMode } from '../lib/public-test-mode';
 import { useState, useRef, useEffect } from 'react';
 import { Users, Settings, ShieldAlert, Wine, List, DoorOpen, LockKeyhole, KeyRound } from 'lucide-react';
@@ -17,7 +17,8 @@ export function WaitingOverlay({ landingThemeEnabled = true, sessionActive, even
 }) {
   const halloween = useLandingHalloween(landingThemeEnabled);
   const bossTest = useBossTestAccess();
-  const testMode = usePublicTestMode(bossTest);
+  const heartNowPublic = useHeartNowPublicAccess();
+  const testMode = usePublicTestMode(bossTest, heartNowPublic);
   // Use a single boundary timer rather than polling: stale session_active
   // must not leave the new-entry button enabled after the exact 01:00 cutoff.
   const [, refreshAdmissionBoundary] = useState(0);
@@ -31,7 +32,7 @@ export function WaitingOverlay({ landingThemeEnabled = true, sessionActive, even
     const timeout = setTimeout(() => refreshAdmissionBoundary(x => x + 1), delay);
     return () => clearTimeout(timeout);
   }, [closeAt]);
-  const isActive = !testMode && eventCycleAdmissionOpen({
+  const isActive = (!testMode || heartNowPublic) && eventCycleAdmissionOpen({
     sessionActive, startedAt: eventCycleStartedAt,
     resetComplete: eventCycleResetComplete, now: new Date(),
   });
@@ -265,7 +266,7 @@ export function WaitingOverlay({ landingThemeEnabled = true, sessionActive, even
           <img src="/event-art/halloween-party.webp" alt="" width="1200" height="900"/>
         </div>}
 
-        {testMode && !bossTest && <div className="w-[88%] rounded-xl border border-amber-300/40 bg-amber-950/60 p-3 text-center text-sm font-bold text-amber-100 mb-3"><p role="status">{TEST_MODE_BANNER}</p><p className="mt-1 text-xs">웹·오픈채팅 모두 접수 전입니다. 오픈 확인 전에는 신청하거나 송금하지 마세요.</p></div>}
+        {testMode && !bossTest && !heartNowPublic && <div className="w-[88%] rounded-xl border border-amber-300/40 bg-amber-950/60 p-3 text-center text-sm font-bold text-amber-100 mb-3"><p role="status">{TEST_MODE_BANNER}</p><p className="mt-1 text-xs">웹·오픈채팅 모두 접수 전입니다. 오픈 확인 전에는 신청하거나 송금하지 마세요.</p></div>}
 
         {/* 피라미드형 버튼 그룹 */}
         <div className="season-home-actions w-full flex flex-col items-center gap-2 mb-2">
@@ -288,7 +289,7 @@ export function WaitingOverlay({ landingThemeEnabled = true, sessionActive, even
         </div>
 
         {/* 개인정보 동의 모달 */}
-        {showConsentModal && !testMode && (
+        {showConsentModal && (!testMode || heartNowPublic) && (
           <div className="fixed inset-0 z-50 flex items-center justify-center p-6 bg-black/75 backdrop-blur-sm">
             <div className="w-full max-w-sm rounded-3xl bg-slate-900 border border-slate-700 overflow-hidden shadow-2xl">
               {/* 헤더 */}

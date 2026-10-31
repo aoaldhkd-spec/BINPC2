@@ -183,6 +183,26 @@ describe('real ephemeral PostgreSQL reset and rollback (no production data)', ()
     expect((await rows('device_secrets')).map(x => x.user_id)).toContain('registered');
   });
 
+  test('explicit HeartNow access separates legacy registration from event test mode but keeps reset and 01:00 guards', async () => {
+    const laboratory = new EventTestModeService(new HubStore(pool!));
+    const current = await laboratory.state(true);
+    await laboratory.mutate(true,{operation:'mode',enabled:true,generation:current.mode.generation,revision:current.mode.revision});
+    await pool!.query("UPDATE app_kv_rows SET data = jsonb_set(data, '{session_active}', 'true'::jsonb) WHERE table_name = 'app_settings'");
+    vi.stubEnv('HEARTNOW_PUBLIC_ACCESS','1');
+    try {
+      await persistNewParticipantForCycle(adapter(),{id:'legacy-independent',nickname:'synthetic-only'},id,
+        {id:'legacy-binding',user_id:'legacy-independent',secret_hash:'synthetic-hash'},
+        () => new Date('2026-10-13T20:00:00+09:00'));
+      expect((await rows('profiles')).some(p=>p.id==='legacy-independent')).toBe(true);
+      await expect(persistNewParticipantForCycle(adapter(),{id:'event-bypass',event_hub_application:'not-approved'},id,null,
+        () => new Date('2026-10-13T20:00:00+09:00'))).rejects.toMatchObject({code:'TEST_MODE'});
+      await expect(persistNewParticipantForCycle(adapter(),{id:'legacy-after-close'},id,null,
+        () => new Date('2026-10-14T01:00:00+09:00'))).rejects.toBeInstanceOf(EventAdmissionClosedDuringWrite);
+      expect((await rows('device_secrets')).some(p=>p.user_id==='legacy-independent')).toBe(true);
+      expect((await rows('profiles')).some(p=>p.id==='legacy-after-close'||p.id==='event-bypass')).toBe(false);
+    } finally { vi.unstubAllEnvs(); }
+  });
+
   test('missing mode metadata blocks registration without changing existing operational records', async () => {
     await pool!.query('DELETE FROM event_hub_records WHERE kind=$1', [TEST_MODE_KIND]);
     await pool!.query("UPDATE app_kv_rows SET data = jsonb_set(data, '{session_active}', 'true'::jsonb) WHERE table_name = 'app_settings'");

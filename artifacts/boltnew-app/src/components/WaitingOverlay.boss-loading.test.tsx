@@ -3,7 +3,7 @@ import {afterEach,expect,it,vi} from 'vitest';
 import {cleanup,render,screen} from '@testing-library/react';
 import {WaitingOverlay} from './WaitingOverlay';
 const access=vi.hoisted(()=>({authorized:true}));
-vi.mock('./BossAccessBoundary',()=>({useBossTestAccess:()=>access.authorized}));
+vi.mock('./BossAccessBoundary',()=>({useBossTestAccess:()=>access.authorized,useHeartNowPublicAccess:()=>false}));
 vi.mock('../lib/public-test-mode',()=>({TEST_MODE_BANNER:'시험 중 안내',usePublicTestMode:()=>true}));
 vi.mock('../lib/landing-season',()=>({useLandingHalloween:()=>true}));
 afterEach(()=>{cleanup();access.authorized=true;});

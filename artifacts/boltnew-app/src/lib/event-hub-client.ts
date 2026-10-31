@@ -161,6 +161,10 @@ let sessionEpoch = 0;
 // Opaque UI scope only; credentials never become React keys or DOM attributes.
 let identityRevision = 0;
 const identityListeners = new Set<() => void>();
+// The browser applies Set-Cookie before JS can reject a stale login response.
+// Serialize credential requests in this document so the latest requested login
+// is sent only after earlier responses can no longer replace its cookie.
+let credentialQueue: Promise<void> = Promise.resolve();
 export async function hubFetch<T>(
   path: string,
   body?: unknown,
@@ -169,33 +173,47 @@ export async function hubFetch<T>(
   const credentialRequest = body !== undefined && (path === "/session" || path === "/member-login");
   if (credentialRequest) sessionEpoch++;
   const credentialEpoch = sessionEpoch;
-  const response = await fetch(`/api/event-hub${path}`, {
-    credentials: "include",
-    method: body === undefined ? "GET" : "POST",
-    headers: {
-      "Content-Type": "application/json",
-      ...(admin
-        ? { "x-admin-token": localStorage.getItem("admin_token_v1") ?? "" }
-        : {}),
-    },
-    ...(body === undefined ? {} : { body: JSON.stringify(body) }),
-    signal: AbortSignal.timeout(20000),
-  });
-  const data = await response.json();
-  if (!response.ok)
-    throw new HubClientError(
-      data.error ?? "저장에 실패했습니다.",
-      data.code ?? "UNKNOWN",
-      response.status,
-    );
+  let releaseCredential: (() => void) | undefined;
   if (credentialRequest) {
-    if (credentialEpoch !== sessionEpoch)
-      throw new HubClientError("로그인 상태가 바뀌었습니다. 현재 신청을 확인해 주세요.", "SESSION_CHANGED", 409);
-    if (data?.ok !== true || (path === "/member-login" &&
-      (typeof data.recoveryCode !== "string" || !/^[A-Za-z0-9_-]{43,100}$/.test(data.recoveryCode))))
-      throw new HubClientError("로그인 응답을 확인하지 못했습니다. 다시 확인해 주세요.", "SESSION_UNCONFIRMED", 502);
+    const previousCredential = credentialQueue;
+    credentialQueue = new Promise<void>(resolve => { releaseCredential = resolve; });
+    await previousCredential;
   }
-  return data;
+  try {
+    if (credentialRequest && credentialEpoch !== sessionEpoch)
+      throw new HubClientError("로그인 상태가 바뀌었습니다. 현재 신청을 확인해 주세요.", "SESSION_CHANGED", 409);
+    const response = await fetch(`/api/event-hub${path}`, {
+      credentials: "include",
+      method: body === undefined ? "GET" : "POST",
+      headers: {
+        "Content-Type": "application/json",
+        ...(admin
+          ? { "x-admin-token": localStorage.getItem("admin_token_v1") ?? "" }
+          : {}),
+      },
+      ...(body === undefined ? {} : { body: JSON.stringify(body) }),
+      signal: AbortSignal.timeout(20000),
+    });
+    const data = await response.json();
+    if (!response.ok)
+      throw new HubClientError(
+        data.error ?? "저장에 실패했습니다.",
+        data.code ?? "UNKNOWN",
+        response.status,
+      );
+    if (credentialRequest) {
+      if (credentialEpoch !== sessionEpoch)
+        throw new HubClientError("로그인 상태가 바뀌었습니다. 현재 신청을 확인해 주세요.", "SESSION_CHANGED", 409);
+      if (data?.ok !== true || (path === "/member-login" &&
+        (typeof data.recoveryCode !== "string" || !/^[A-Za-z0-9_-]{43,100}$/.test(data.recoveryCode))))
+        throw new HubClientError("로그인 응답을 확인하지 못했습니다. 다시 확인해 주세요.", "SESSION_UNCONFIRMED", 502);
+    }
+    return data;
+  } finally {
+    // Failed credentials, network failures, and invalid JSON must not strand
+    // a later explicit login behind an unresolved lock.
+    releaseCredential?.();
+  }
 }
 const RECOVERY_KEY = "binpc2_event_recovery_v6";
 const BOOTSTRAP_KEY = RECOVERY_KEY + ":creating";

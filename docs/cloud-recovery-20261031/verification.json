@@ -1,0 +1,134 @@
+{
+  "auto-deploy-stopped-proof": {
+    "checkedAt": "2026-10-31T05:25:51.196803+00:00",
+    "netlifyStoppedBuilds": true,
+    "renderAutoDeployOff": true,
+    "otherSettingsUnchanged": true,
+    "publishedFrontendUnchanged": true,
+    "deploymentRequested": false,
+    "databaseOrKeysChanged": false
+  },
+  "legacy-verification": {
+    "source": "working-tree",
+    "environment": "actual React/Express/isolated PostgreSQL; loopback only",
+    "checks": [
+      {
+        "name": "ordinary HeartNow access does not grant event/laboratory access",
+        "result": "PASS"
+      },
+      {
+        "name": "two ordinary profiles created without applications, phone or boss authentication",
+        "result": "PASS"
+      },
+      {
+        "name": "own profile saved and read back",
+        "result": "PASS"
+      },
+      {
+        "name": "four ordinary heart types sent/received",
+        "result": "PASS"
+      },
+      {
+        "name": "direct message preserved and visible only to the chat participant",
+        "result": "PASS"
+      },
+      {
+        "name": "existing group membership and group-message save/read",
+        "result": "PASS"
+      },
+      {
+        "name": "authenticated SSE works; forged-token stream rejected",
+        "result": "PASS"
+      },
+      {
+        "name": "390px actual settings screen uses SVG gear",
+        "result": "PASS"
+      },
+      {
+        "name": "tablet/PC settings layout and no horizontal overflow",
+        "result": "PASS"
+      },
+      {
+        "name": "refresh recovers same profile and settings",
+        "result": "PASS"
+      }
+    ],
+    "operatingRequests": 0,
+    "physicalDevices": "UNKNOWN",
+    "backgroundPush": "UNKNOWN",
+    "status": "PASS",
+    "checkedAt": "2026-10-31T05:50:02.440Z"
+  },
+  "cards-verification": {
+    "actualApplication": true,
+    "actualIsolatedPostgres": true,
+    "operatingRequests": 0,
+    "checks": [
+      {
+        "name": "entered original home links to three card backs inside MY, without an application page",
+        "result": "PASS"
+      },
+      {
+        "name": "three actual UI draws plus nine simultaneous replays per slot commit exactly three results",
+        "result": "PASS"
+      },
+      {
+        "name": "second device identity has independent three cards; inventory changes once per winning result",
+        "result": "PASS"
+      },
+      {
+        "name": "refresh retains the same three result IDs",
+        "result": "PASS"
+      },
+      {
+        "name": "ordinary card access grants no administrator result list or application access",
+        "result": "PASS"
+      },
+      {
+        "name": "individual prize and single Haribo handover are idempotent and do not decrement inventory twice",
+        "result": "PASS"
+      }
+    ],
+    "physicalPhones": "UNKNOWN",
+    "parallelDrawHttpRequests": 57,
+    "duplicateReplayRequests": 54,
+    "uiDraws": 3,
+    "totalCards": 6,
+    "stockInitial": 21,
+    "stockReserved": 2,
+    "status": "PASS",
+    "checkedAt": "2026-10-31T05:50:48.144Z"
+  },
+  "settings-ui-verification": {
+    "environment": "actual app and isolated PostgreSQL",
+    "checks": [
+      {
+        "name": "profile setting edited, saved via actual UI, closed/reopened",
+        "result": "PASS"
+      },
+      {
+        "name": "network loss/reconnection and refresh preserve profile identity and saved setting",
+        "result": "PASS"
+      }
+    ],
+    "physicalPhones": "UNKNOWN",
+    "status": "PASS",
+    "checkedAt": "2026-10-31T05:48:57.082Z"
+  },
+  "rainbow-verification": {
+    "status": "PASS",
+    "grantHearts": 4,
+    "separateRainbowHearts": 4,
+    "fifthRainbowRejected": true,
+    "recipientSseReceived": true,
+    "operatingRequests": 0,
+    "backgroundPush": "UNKNOWN",
+    "checkedAt": "2026-10-31T05:51:21.910Z"
+  },
+  "restart-after": {
+    "rows": 46,
+    "sha256": "fea43679b098410842c68d743bd4e4e6d09f0241e730b6b90132ef4db1ac3aea"
+  },
+  "checkedAt": "2026-10-31T05:57:02.317981+00:00",
+  "productionDeploymentExecuted": false
+}

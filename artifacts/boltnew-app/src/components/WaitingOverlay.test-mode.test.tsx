@@ -76,3 +76,9 @@ it("discards an older public-open result across the verified-boss transition", a
   await act(async () => requests[1](new Response("temporary error", { status: 503 })));
   expect(result.current).toBe(true);
 });
+
+it("keeps recruitment closed without polling event APIs during independently permitted HeartNow access",()=>{
+ const fetch=vi.spyOn(globalThis,"fetch");
+ const {result}=renderHook(()=>usePublicTestMode(false,true));
+ expect(result.current).toBe(true);fireEvent.focus(window);expect(fetch).not.toHaveBeenCalled();
+});

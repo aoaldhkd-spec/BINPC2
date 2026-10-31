@@ -28,3 +28,15 @@ it('temporarily hides private content while preserving its draft across failed a
  await waitFor(()=>expect(input.closest('[hidden]')).toBeNull());
  expect((input as HTMLInputElement).value).toBe('보존할 입력');
 });
+
+it('allows the legacy home only and immediately blocks navigation into event screens',async()=>{
+ window.history.replaceState({},'', '/');
+ vi.stubGlobal('fetch',vi.fn().mockImplementation(()=>Promise.resolve(new Response(JSON.stringify({locked:true,authorized:false,heartnowPublic:true})))));
+ render(<BossAccessBoundary><Draft/></BossAccessBoundary>);
+ await screen.findByLabelText('작성 중 프로필');
+ await act(async()=>{window.history.pushState({},'', '/events');window.dispatchEvent(new Event('app-route-changed'));});
+ await screen.findByText('현재 테스트 중입니다');
+ expect(screen.queryByLabelText('작성 중 프로필')).toBeNull();
+ await act(async()=>{window.history.replaceState({},'', '/');window.dispatchEvent(new PopStateEvent('popstate'));});
+ await screen.findByLabelText('작성 중 프로필');
+});

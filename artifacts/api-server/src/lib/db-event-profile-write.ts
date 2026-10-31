@@ -5,6 +5,7 @@ import type { PoolClient } from 'pg';
 import { eventHubEncryptionKey, fail, HubTx } from './event-hub-store.js';
 import { assertTestModeAllowsPublicMutation } from './event-test-mode.js';
 import { publicationBlockedForTx } from './event-hub-publication.js';
+import { heartNowPublicAccess } from './heartnow-access.js';
 
 /** A new participant must not be written after the event was safely reset. */
 export class EventAdmissionClosedDuringWrite extends Error {
@@ -40,10 +41,12 @@ export async function persistNewParticipantForCycle(
     // Mode switches use this same lock. Recheck durable encrypted metadata
     // before either the profile or its device binding can become visible.
     const tx = new HubTx(client as PoolClient, eventHubEncryptionKey());
-    await assertTestModeAllowsPublicMutation(tx);
+    const legacyOnly = heartNowPublicAccess() && !profile.event_hub_application
+      && !profile.event_hub_owner && !profile.boss_test_event;
+    if (!legacyOnly) await assertTestModeAllowsPublicMutation(tx);
     // A past opening acknowledgement does not authorize a newly changed or
     // unapproved policy. Check it again under the same lock before any INSERT.
-    if (await publicationBlockedForTx(tx)) {
+    if (!legacyOnly && await publicationBlockedForTx(tx)) {
       fail('PRIVACY_POLICY_UNCONFIRMED', '운영 개인정보 정책 확정 전 신규 등록은 차단됩니다. 기존 프로필은 복구할 수 있습니다.', 403);
     }
     const settings = (await client.query(

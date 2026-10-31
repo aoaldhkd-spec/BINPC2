@@ -5,6 +5,7 @@ import session, { type SessionData } from 'express-session';
 import { deriveAdminToken } from './db-panel-tokens.js';
 import { isDefaultPanelPassword } from './db-panel-secrets.js';
 import { withVerifiedBossParticipation } from './boss-participation.js';
+import { heartNowPublicAccess, isHeartNowPublicRequest } from './heartnow-access.js';
 
 type Grant = { fingerprint: string; expires: number; nonce: string };
 declare module 'express-session' { interface SessionData { bossAccessId?: string; bossGrant?: Grant } }
@@ -33,8 +34,12 @@ function valid(grant?: Grant) {
   return !!grant && typeof grant.fingerprint === 'string' && typeof grant.nonce === 'string' && Number.isFinite(grant.expires) && grant.expires > Date.now() && equal(grant.fingerprint, fingerprint());
 }
 const streams = new Map<Response, { nonce: string; check: () => Promise<boolean>; queue: Promise<void>; pending: number }>();
+const heartNowStreams = new WeakSet<Response>();
 function closeStream(res: Response) { streams.delete(res); res.end(); }
 export function bossProtectedSseWrite(res: Response, chunk: string) {
+  // The DB router still authenticates each user and scopes every event. This
+  // grants no boss ticket, administrator role or access to event-hub records.
+  if (heartNowPublicAccess() && heartNowStreams.has(res)) return res.write(chunk);
   if (!bossOnlyLocked()) return res.write(chunk);
   const stream = streams.get(res);
   if (!stream) { res.end(); return false; }
@@ -85,6 +90,7 @@ export const bossAccessGate: RequestHandler = async (req, res, next) => {
     if (path === '/api/boss-access' && req.method === 'GET') {
       const authorized = await grantValid(req, req.session?.bossAccessId);
       return void res.json({ locked: bossOnlyLocked(), authorized, message,
+        ...(heartNowPublicAccess() ? { heartnowPublic: true } : {}),
         ...(authorized ? { sseTicket: ticket(req), ticketExpiresAt: Date.now() + 120_000 } : {}) });
     }
     if (path === '/api/boss-access/login' && req.method === 'POST') {
@@ -121,6 +127,14 @@ export const bossAccessGate: RequestHandler = async (req, res, next) => {
       if (path === '/api/db/push/self-test' || path === '/api/db/push/notify')
         return void res.status(423).json({ error: { code: 'BOSS_PUSH_PAUSED', message: '테스트 기간에는 외부 푸시 발송을 중지합니다.' } });
       return withVerifiedBossParticipation(next);
+    }
+    if (isHeartNowPublicRequest(req.method, path)) {
+      // Public legacy access must not promote an old administrator/test token
+      // to owner access. The verified owner branch above retains those tools.
+      if (req.get('x-admin-token') || req.body?.adminToken || req.body?.testToken || req.query.adminToken)
+        return void res.status(423).json({ data: null, error: { code: 'BOSS_ONLY', message } });
+      if (path === '/api/db/events') heartNowStreams.add(res);
+      return next();
     }
     res.status(423).json({ data: null, error: { code: 'BOSS_ONLY', message } });
   } catch { res.status(503).json({ data: null, error: { code: 'ACCESS_CHECK_UNAVAILABLE', message: '접근 권한 확인 중입니다. 잠시 후 다시 시도해 주세요.' } }); }

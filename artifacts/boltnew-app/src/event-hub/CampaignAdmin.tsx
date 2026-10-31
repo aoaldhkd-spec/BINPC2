@@ -1,3 +1,4 @@
+import {OnsiteHalloweenAdmin} from './OnsiteHalloweenAdmin';
 import { useState } from "react";
 import {
   campaignPresets,
@@ -76,6 +77,7 @@ export function CampaignOperations({
   return (
     <HubCard>
       <h3 className="font-black">행사 준비상태·선착순 승계</h3>
+      {event.type==='halloween' && !event.bossTestOnly && <OnsiteHalloweenAdmin eventId={event.id}/>}
       <p>
         {event.campaign ? "범일NPC 술번개 1차 전용" : "일반 술번개"} · 확정 {confirmed}
         명 / 최소5명 ·{" "}

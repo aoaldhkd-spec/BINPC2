@@ -2942,6 +2942,32 @@ suite("event hub V6 — actual isolated PostgreSQL transactions", () => {
     await expect(call("event.address.select",eventId,{addressId:unknown.id,confirmedFirstRound:true},updated.revision,true)).rejects.toMatchObject({code:"VENUE_ASSIGNMENT"});
     expect((await adminState()).venueDirectory?.items).toHaveLength(2);
   });
+  it("CURRENT structured alternative accounts satisfy recruitment readiness while missing accounts, deadline or area remain blocked", async () => {
+    let e=(await adminState()).events.find(e=>e.id===eventId)!;
+    await call("event.recruitment",eventId,{enabled:false},e.revision,true);
+    const accounts=[{id:randomUUID(),bank:"시험은행A",number:"0000-0000-0001"},{id:randomUUID(),bank:"시험은행B",number:"0000-0000-0002"}];
+    const save = async (changes: Record<string, unknown>) => {
+      e=(await adminState()).events.find(e=>e.id===eventId)!;
+      await call("event.save",eventId,{...e,...changes},e.revision,true);
+      return (await adminState()).events.find(e=>e.id===eventId)!;
+    };
+    for(const changes of [
+      {account:"",accounts:[],deadline:event.deadline,area:event.area},
+      {account:"",accounts,deadline:"",area:event.area},
+      {account:"",accounts,deadline:event.deadline,area:""},
+    ]) {
+      e=await save(changes);
+      await expect(call("event.recruitment",eventId,{enabled:true,immediate:true},e.revision,true)).rejects.toMatchObject({code:"CONFIG"});
+      expect((await adminState()).events.find(e=>e.id===eventId)!.recruitment).toBe(false);
+    }
+    e=await save({account:"",accounts,deadline:event.deadline,area:event.area});
+    await expect(call("event.recruitment",eventId,{enabled:true,immediate:true},e.revision,false)).rejects.toMatchObject({code:"ADMIN"});
+    await call("event.recruitment",eventId,{enabled:true,immediate:true},e.revision,true);
+    const ready=(await adminState()).events.find(e=>e.id===eventId)!;
+    expect(ready.recruitment).toBe(true);
+    expect(ready.account).toBe("");
+    expect(ready.accounts).toEqual(accounts);
+  });
   it("CURRENT alternative accounts require one choice and preserve the confirmed snapshot when administrator settings change", async () => {
     let e=(await adminState()).events.find(e=>e.id===eventId)!;
     const accounts=[{id:randomUUID(),bank:"시험은행A",number:"0000-0000-0001"},{id:randomUUID(),bank:"시험은행B",number:"0000-0000-0002"}];

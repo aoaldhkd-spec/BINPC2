@@ -1528,3 +1528,11 @@ export function getDeviceSecret(userId: string): string {
   if (!ls.hasPersistentValue(key)) throw new Error('DEVICE_STORAGE_RECOVERY_REQUIRED');
   return secret;
 }
+
+/** Same verified legacy identity/bearer used by profiles, hearts and chats. */
+export async function onsiteHalloweenRequest<T>(data:Record<string,unknown>,admin=false):Promise<T>{
+  const identity=_currentUserId;
+  if(!admin&&(!identity||!await ensureWriteSession()||_currentUserId!==identity))throw Error('본인 프로필 인증을 다시 확인해 주세요.');
+  const response=await fetch('/api/db/halloween-cards',{method:'POST',credentials:'include',headers:{'Content-Type':'application/json',...(admin?{'x-admin-token':localStorage.getItem('admin_token_v1')??''}:{})},body:JSON.stringify({...data,...(!admin?{requesterId:identity,sessionToken:_sessionBearerToken}:{})}),signal:AbortSignal.timeout(20000)});
+  const value=await response.json();if(!admin&&_currentUserId!==identity)throw Error('프로필이 바뀌었습니다. 현재 카드 결과를 다시 확인해 주세요.');if(!response.ok)throw Error(value.error?.message??'카드 결과를 확인하지 못했습니다.');return value as T;
+}
