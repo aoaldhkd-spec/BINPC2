@@ -1,0 +1,78 @@
+{
+  "sourceSha": "98f30a5a45ad77b2c754ff11cfbc932bd0d1d03e",
+  "environment": "actual HTTP/Express/isolated PostgreSQL",
+  "operatingWrites": 0,
+  "ci": {
+    "url": "https://github.com/aoaldhkd-spec/BINPC2/actions/runs/41185109250",
+    "conclusion": "success",
+    "passedSteps": 27
+  },
+  "additionalTodayCardLoad": {
+    "environment": "actual HTTP/Express/isolated PostgreSQL",
+    "operatingWrites": 0,
+    "usersCreated": 150,
+    "requestCount": 900,
+    "statusCounts": {
+      "200": 900
+    },
+    "stages": {
+      "create": {
+        "samples": 150,
+        "p95Ms": 5305,
+        "maxMs": 5363
+      },
+      "login": {
+        "samples": 150,
+        "p95Ms": 10,
+        "maxMs": 19
+      },
+      "draw0": {
+        "samples": 150,
+        "p95Ms": 1688,
+        "maxMs": 1748
+      },
+      "draw1": {
+        "samples": 150,
+        "p95Ms": 1566,
+        "maxMs": 1581
+      },
+      "draw2": {
+        "samples": 150,
+        "p95Ms": 1537,
+        "maxMs": 1546
+      },
+      "replay": {
+        "samples": 150,
+        "p95Ms": 1257,
+        "maxMs": 1282
+      }
+    },
+    "failures": [],
+    "uniqueCards": 450,
+    "status": "PASS",
+    "durationSeconds": 64.5,
+    "functionalResult": "PASS",
+    "targetMs": 2000,
+    "performanceTargets": {
+      "create": false,
+      "login": true,
+      "draw0": true,
+      "draw1": true,
+      "draw2": true,
+      "replay": true
+    },
+    "registrationTargetMet": false,
+    "cardDrawTargetMet": true
+  },
+  "endingStock": {
+    "status": "PASS",
+    "remaining": 8,
+    "specialReserved": 8,
+    "generalRemaining": 0,
+    "negativeInventory": false,
+    "duplicateInitializations": false,
+    "operatingWrites": 0
+  },
+  "physicalDevices": "UNKNOWN",
+  "operatingDeploymentPerformed": false
+}
