@@ -57,8 +57,8 @@ test('boss uses the ordinary application UI and actual admission API while publi
   await page.getByRole('button',{name:'+ 지인 추가',exact:true}).click();
   const friendName='동반'+crypto.randomUUID().slice(0,4);
   await page.getByLabel('친구 닉네임',{exact:true}).fill(friendName);
-  await page.getByLabel('친구 출생연도',{exact:true}).selectOption('1998');
-  await page.getByLabel('도시',{exact:true}).selectOption('경기 파주');
+  await page.getByRole('button', { name: '1998년생', exact: true }).click();
+  await page.getByRole('button',{name:'경기',exact:true}).click();await page.getByRole('button',{name:'파주',exact:true}).click();
   await page.getByLabel(/친구에게 이번 행사/).check();
   await page.getByRole('button',{name:'친구 정보 저장',exact:true}).click();
   await expect(page.getByRole('heading',{name:`친구 1 · ${friendName}`})).toBeVisible();
@@ -70,7 +70,7 @@ test('boss uses the ordinary application UI and actual admission API while publi
   await page.getByLabel('[필수] 위 개인정보').check();await page.getByRole('button',{name:'다음',exact:true}).click();
   const nickname='실앱'+crypto.randomUUID().slice(0,4);
   for(const [label,value] of [['닉네임',nickname],['태어난 년도','1995'],['도시','서울'],['실제 은행 입금 시 보내는 분 이름','가상확인']]){
-    if(label==='태어난 년도'||label==='도시')await page.getByLabel(label,{exact:true}).selectOption(value);else await page.getByLabel(label,{exact:true}).fill(value);
+    if(label==='태어난 년도')await page.getByRole('button',{name:`${value}년생`,exact:true}).click();else if(label==='도시')await page.getByRole('button',{name:value,exact:true}).click();else await page.getByLabel(label,{exact:true}).fill(value);
     await page.getByRole('button',{name:label==='실제 은행 입금 시 보내는 분 이름'?'2명 함께 신청':'다음',exact:true}).click();
   }
   await page.getByLabel('필수 안내를 모두 확인하고 동의합니다',{exact:true}).check();

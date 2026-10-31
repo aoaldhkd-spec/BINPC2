@@ -398,10 +398,10 @@ test("V4 notice/map actual file preview, save, reopen, approval ACL and context-
       .getByLabel("닉네임", { exact: true })
       .fill("사진" + String(Date.now()).slice(-4));
     await user.getByRole("button", { name: "다음", exact: true }).click();
-    await user.getByLabel("태어난 년도").selectOption("1995");
+    await user.getByRole('button', { name: '1995년생', exact: true }).click();
     await user.getByRole("button", { name: "다음", exact: true }).click();
-    await user.getByLabel("도시", { exact: true }).selectOption("부산");
-    await user.getByLabel("부산 구", { exact: true }).selectOption("부산진구");
+    await user.getByRole('button', { name: '부산', exact: true }).click();
+    await user.getByRole('button', { name: '부산진구', exact: true }).click();
     await user.getByRole("button", { name: "다음", exact: true }).click();
     await user.getByLabel("실제 은행 입금 시 보내는 분 이름").fill("가상");
     await user.getByRole("button", { name: "다음", exact: true }).click();

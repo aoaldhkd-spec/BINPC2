@@ -38,3 +38,12 @@
 .hub-participant[data-hub-writing] main { padding-bottom:76px; }
 .hub-participant .hub-choice-button[aria-pressed="false"] { background:transparent !important;color:var(--hub-ink,#0f172a) !important;border:1px solid var(--hub-line,#94a3b8);box-shadow:none !important; }
 .hub-participant .hub-choice-button[aria-pressed="true"] { background:var(--boo-lilac,#bce7e1) !important;color:#251932 !important;border:1px solid transparent; }
+.hub-profile-choice { min-width:0; }
+.hub-choice-tabs { display:flex;flex-wrap:wrap;gap:6px; }
+.hub-profile-choice .hub-choice-tabs > button { min-width:54px;min-height:40px;padding:8px 12px;font-size:.8rem; }
+.hub-choice-grid { display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:6px; }
+.hub-year-grid { grid-template-columns:repeat(5,minmax(0,1fr)); }
+.hub-profile-choice .hub-choice-grid > button { min-width:0;min-height:44px;padding:8px 3px;font-size:.8rem;white-space:nowrap; }
+.hub-area-grid { max-height:232px;overflow-y:auto;overscroll-behavior:contain;scrollbar-gutter:stable; }
+.hub-choice-other > summary { min-height:40px;padding-block:10px;cursor:pointer;font-size:.8rem; }
+.hub-choice-other[open] > label { margin-top:4px; }

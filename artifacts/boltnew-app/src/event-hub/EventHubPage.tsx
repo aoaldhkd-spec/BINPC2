@@ -178,8 +178,8 @@ export function EventHubContent({ path, hub }: { path: string; hub: Hub }) {
     <div className="event-hub-theme hub-participant" data-event-dark={dark} data-hub-writing={writing || undefined}>
       <main className="min-h-screen bg-slate-50 text-slate-900 pb-28">
         <header className="hub-participant-header">
-          <div className="max-w-2xl mx-auto relative">
-            {s.bossParticipationAllowed && <a className="hub-admin-shortcut" href="/admin" aria-label="관리자" title="관리자"><Settings size={19} aria-hidden="true"/></a>}
+          <div className="hub-participant-heading max-w-2xl mx-auto relative">
+            {s.bossParticipationAllowed && <a className="hub-admin-shortcut" href="/admin" aria-label="관리자" title="관리자 설정"><Settings className="hub-settings-icon" size={20} aria-hidden="true" focusable="false"/></a>}
             <a href="/" className="text-sm">
               ← 범일NPC 술번개
             </a>
@@ -625,9 +625,10 @@ export function BasicForm({ eventId, hub, app, onSaved, includeCompanions=true }
   // Keep legacy draft step IDs: the retired phone step 4 resumes at depositor step 5.
   const fields = [["nickname", "닉네임",1], ["birthYear", "태어난 년도",2], ["location", "사는 지역",3], ["depositor", "실제 은행 입금 시 보내는 분 이름",5]] as const;
   const field = fields.find(([, , fieldStep])=>fieldStep===step)??fields[0];
+  const fieldComplete=step===0||!!v[field[0]].trim();
   if (testModeBlocksParticipation(hub.state)) return <HubCard><HubButton disabled>술번개 신청</HubButton><p className="text-sm">행사 공지와 관리자 문의는 계속 확인할 수 있습니다.</p></HubCard>;
   const next = async () => {
-    if (advancing || !collection || selectionBlocked) return;
+    if (advancing || !collection || selectionBlocked || !fieldComplete) return;
     setAdvancing(true);
     try {
       const basic: Record<string, unknown> = { collection, version: HUB_CONSENT_VERSION };
@@ -658,7 +659,7 @@ export function BasicForm({ eventId, hub, app, onSaved, includeCompanions=true }
     <div className="flex items-center justify-between gap-2"><h2 className="font-black text-lg">{step === 0 ? "신청 전 개인정보 안내" : field[1]}</h2>{step > 0 && <small>{step===5?4:step} / {fields.length}</small>}</div>
     <form className="space-y-3" onSubmit={(e) => { e.preventDefault(); void next(); }}>
       {step > 0 && field[0]==="location" && <ResidenceInput value={v.location} residence={residence} onChange={(location,value)=>{setV({...v,location});setResidence(value);}}/>}
-      {step>0&&field[0]==='birthYear'&&<BirthYearSelect value={v.birthYear} onChange={birthYear=>setV({...v,birthYear})} readOnly={completingCompanion}/>}
+      {step>0&&field[0]==='birthYear'&&<BirthYearSelect value={v.birthYear} onChange={birthYear=>setV({...v,birthYear})} readOnly={completingCompanion} hideLabel/>}
       {step > 0 && field[0]!=="location"&&field[0]!=='birthYear' && <HubField key={field[0]} label={field[1]}><input required autoFocus className={inputClass} value={v[field[0]]}
         readOnly={completingCompanion&&field[0]==='nickname'}
         autoComplete="off" maxLength={field[0] === "nickname" ? 12 : 40}
@@ -681,7 +682,7 @@ export function BasicForm({ eventId, hub, app, onSaved, includeCompanions=true }
       </fieldset>}
       <div className="flex gap-2">
         {step > 0 && <HubButton className="hub-application-back" disabled={advancing || hub.status === "saving"||hub.status==='checking'} onClick={() => setStep(step===5?3:step-1)}>← 이전</HubButton>}
-        <HubButton type="submit" className="flex-1" pending={advancing||hub.status==='saving'||hub.status==='checking'} pendingLabel={hub.status==='checking'?'저장 확인 중…':'저장 중…'} disabled={!collection||selectionBlocked}>{!app&&step===5&&selectedFriends.length>0 ? `${selectedFriends.length+1}명 함께 신청` : "다음"}</HubButton>
+        <HubButton type="submit" className="flex-1" pending={advancing||hub.status==='saving'||hub.status==='checking'} pendingLabel={hub.status==='checking'?'저장 확인 중…':'저장 중…'} disabled={!collection||selectionBlocked||!fieldComplete}>{!app&&step===5&&selectedFriends.length>0 ? `${selectedFriends.length+1}명 함께 신청` : "다음"}</HubButton>
       </div>
       {step === 0 && <p className="text-xs">기본정보 입력을 마쳐야 신청 순번이 정해집니다.</p>}
     </form>

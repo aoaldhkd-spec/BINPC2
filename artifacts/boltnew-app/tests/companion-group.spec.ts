@@ -54,8 +54,8 @@ test('actual app + PostgreSQL: together submission/deposit, separate approval an
   await page.getByRole('button', { name: '지인과 함께', exact: true }).click();
   await page.getByRole('button', { name: '+ 지인 추가', exact: true }).click();
   await page.getByLabel('친구 닉네임', { exact: true }).fill(friendName);
-  await page.getByLabel('친구 출생연도', { exact: true }).selectOption('1995');
-  await page.getByLabel('도시', { exact: true }).selectOption('서울');
+  await page.getByRole('button', { name: '1995년생', exact: true }).click();
+  await page.getByRole('button', { name: '서울', exact: true }).click();
   await page.getByLabel('친구에게 이번 행사 신청에 필요한 정보를 전달해도 된다는 확인을 받았습니다').check();
   await page.getByRole('button', { name: '친구 정보 저장', exact: true }).click();
   await expect(page.getByText('친구 정보 저장됨 · 신청 미확정', { exact: true })).toBeVisible();
@@ -67,11 +67,11 @@ test('actual app + PostgreSQL: together submission/deposit, separate approval an
   await page.getByRole('button', { name: '다음', exact: true }).click();
   await page.getByLabel('닉네임', { exact: true }).fill(ownName);
   await page.getByRole('button', { name: '다음', exact: true }).click();
-  await page.getByLabel('태어난 년도', { exact: true }).selectOption('1995');
+  await page.getByRole('button', { name: '1995년생', exact: true }).click();
   await page.getByRole('button', { name: '다음', exact: true }).click();
-  await page.getByLabel('도시', { exact: true }).selectOption('부산');
+  await page.getByRole('button', { name: '부산', exact: true }).click();
   await page.getByRole('button', { name: '동으로 입력', exact: true }).click();
-  await page.getByLabel('부산 동', { exact: true }).selectOption('전포동');
+  await page.getByRole('button', { name: '전포동', exact: true }).click();
   await page.getByRole('button', { name: '다음', exact: true }).click();
   await expect(page.getByLabel('연락용 전화번호', { exact: false })).toHaveCount(0);
   await page.getByLabel('실제 은행 입금 시 보내는 분 이름', { exact: true }).fill('격리합산');

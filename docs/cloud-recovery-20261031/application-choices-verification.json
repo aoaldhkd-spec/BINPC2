@@ -1,0 +1,82 @@
+{
+  "actualApplication": true,
+  "actualIsolatedPostgres": true,
+  "operatingWrites": 0,
+  "deploymentExecuted": false,
+  "checks": [
+    "solo: explicit choices, required fields, actual save/reload/back preserve year and Busan area, no phone/application auto-submit; SVG gear and no horizontal overflow at 390/768/1440",
+    "friend year/city saved to isolated server and recovered after reload without a representative profile overwrite",
+    "together: explicit choices, required fields, actual save/reload/back preserve year and Busan area, no phone/application auto-submit; SVG gear and no horizontal overflow at 390/768/1440"
+  ],
+  "screens": [
+    "solo-birth-390.png",
+    "solo-birth-768.png",
+    "solo-birth-1440.png",
+    "solo-residence-390.png",
+    "solo-residence-768.png",
+    "solo-residence-1440.png",
+    "friend-buttons-390.png",
+    "together-birth-390.png",
+    "together-birth-768.png",
+    "together-birth-1440.png",
+    "together-residence-390.png",
+    "together-residence-768.png",
+    "together-residence-1440.png"
+  ],
+  "physicalPhones": "UNKNOWN",
+  "friendInputStyle": {
+    "length": 6,
+    "color": "rgb(255, 245, 233)",
+    "background": "rgb(24, 16, 33)"
+  },
+  "status": "PASS",
+  "checkedAt": "2026-10-31T07:10:23.374Z",
+  "sourceBase": "d917e3d73ddfbce32f7b9ace5cf08a7bccecbc6e",
+  "sourceScope": "reviewed working-tree UI changes; remote CI must be checked on the resulting commit",
+  "previousVerificationPreserved": true,
+  "localChecks": {
+    "uiTests": 1032,
+    "uiFiles": 139,
+    "typecheck": "PASS",
+    "build": "PASS",
+    "recurrenceGuards": 598
+  },
+  "legacyProfileRegression": {
+    "environment": "actual app and isolated PostgreSQL",
+    "checks": [
+      {
+        "name": "profile setting edited, saved via actual UI, closed/reopened",
+        "result": "PASS"
+      },
+      {
+        "name": "network loss/reconnection and refresh preserve profile identity and saved setting",
+        "result": "PASS"
+      }
+    ],
+    "physicalPhones": "UNKNOWN",
+    "status": "PASS",
+    "checkedAt": "2026-10-31T07:11:51.932Z"
+  },
+  "eventTabRegression": {
+    "status": "PASS",
+    "viewports": [
+      320,
+      390,
+      768,
+      1440
+    ],
+    "visibleEventTab": true,
+    "originalHeartsChatsTabPreserved": true,
+    "settingsSvgPreserved": true,
+    "applicationRouteVisited": false,
+    "repeatNavigationAndReloadResultPreserved": true,
+    "operatingRequests": 0,
+    "checkedAt": "2026-10-31T07:11:52.737Z"
+  },
+  "liveReadOnly": {
+    "bossLocked": true,
+    "authorizedWithoutLogin": false,
+    "heartnowPublic": false,
+    "operatingChanges": false
+  }
+}

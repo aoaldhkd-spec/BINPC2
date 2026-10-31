@@ -51,10 +51,10 @@ async function fillBasicSteps(page: Page, values: [string, string, string, strin
   await page.getByRole("button", { name: "다음", exact: true }).click();
   await page.getByLabel("닉네임", { exact: true }).fill(values[0]);
   await page.getByRole("button", { name: "다음", exact: true }).click();
-  await page.getByLabel("태어난 년도", { exact: true }).selectOption(values[1]);
+  await page.getByRole('button', { name: `${values[1]}년생`, exact: true }).click();
   await page.getByRole("button", { name: "다음", exact: true }).click();
-  await page.getByLabel("도시", { exact: true }).selectOption(values[2] === "부산" ? "부산" : "서울");
-  if (values[2] === "부산") await page.getByLabel("부산 구", { exact: true }).selectOption("부산진구");
+  await page.getByRole('button', { name: values[2] === '부산' ? '부산' : '서울', exact: true }).click();
+  if (values[2] === "부산") await page.getByRole('button', { name: '부산진구', exact: true }).click();
   await page.getByRole("button", { name: "다음", exact: true }).click();
   await expect(page.getByLabel("연락용 전화번호", { exact: false })).toHaveCount(0);
   await page.getByLabel("실제 은행 입금 시 보내는 분 이름", { exact: true }).fill(values[4]);

@@ -45,10 +45,6 @@
   .season-home .season-home-apply-links :is(a, button) { font-size: 14px; }
 }
 .season-home .fixed.inset-0 > div { max-height: calc(100dvh - 24px); overflow-y: auto; }
-.hub-admin-shortcut {
-  position: absolute; top: 0; right: 0; width: 40px; height: 40px;
-  display: grid; place-items: center; border: 1px solid currentColor; border-radius: 50%; font-size: 22px;
-}
 .hub-participant[data-hub-writing] .hub-participant-header { padding-block: 12px; }
 .hub-participant[data-hub-writing] .hub-participant-header h1 { margin-top: 4px; font-size: 21px; }
 .hub-participant[data-hub-writing] main > .max-w-2xl { padding-top: 12px; }
