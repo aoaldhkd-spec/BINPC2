@@ -143,11 +143,10 @@ test("V4 main uses central actions; actual server start activates entry and inqu
         exact: true,
       }),
       waiting = page.getByRole("link", { name: "신청대기방", exact: true });
-    const rects = await Promise.all(
-      [application, waiting, entry].map((l) => l.boundingBox()),
-    );
-    expect(rects[0]!.y + rects[0]!.height).toBeLessThanOrEqual(rects[2]!.y);
-    expect(rects[1]!.y + rects[1]!.height).toBeLessThanOrEqual(rects[2]!.y);
+    // Ordinary HeartNow is independent of owner/application access. Event
+    // application routes remain separately guarded; they are hidden here.
+    await expect(application).toHaveCount(0);
+    await expect(waiting).toHaveCount(0);
     await page.screenshot({
       path: info.outputPath("v4-home-before-start.png"),
       fullPage: true,
@@ -158,7 +157,10 @@ test("V4 main uses central actions; actual server start activates entry and inqu
       path: info.outputPath("v4-home-after-start.png"),
       fullPage: true,
     });
-    await application.click();
+    await entry.click();
+    await expect(page).toHaveURL(/\/$/);
+    await expect(page.getByRole("button", { name: "안내 확인 · 프로필 설정", exact: true })).toBeVisible();
+    await page.goto("/events");
     const inquiry = page.getByRole("button", { name: /관리자 문의/ });
     await expect(inquiry).toBeVisible();
     const bounds = await inquiry.boundingBox();
