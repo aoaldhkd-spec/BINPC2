@@ -1,0 +1,177 @@
+{
+  "sourceSha": "98f30a5a45ad77b2c754ff11cfbc932bd0d1d03e",
+  "codeFingerprint": "8a907d6515b29ed2ff9c7080a85a192f017229b08ecb0685f1cba9bae6137afd",
+  "publishedAtKst": "2026-10-31 20:34:46 +09:00",
+  "frontendDeployId": "6ae5d252f8574da79d6a78a0",
+  "apiDeployId": "dep-dbit3d4s728c73880s6g",
+  "apiCommit": "98f30a5a45ad77b2c754ff11cfbc932bd0d1d03e",
+  "mainUnchanged": true,
+  "automaticDeploySettingsUnchanged": true,
+  "netlifyAutomaticBuilds": "ON per user preference; main only",
+  "renderAutomaticDeploy": "OFF per prior setting",
+  "apiCheck": {
+    "checkedAt": "2026-10-31T11:34:54.319123+00:00",
+    "sourceSha": "98f30a5a45ad77b2c754ff11cfbc932bd0d1d03e",
+    "fingerprint": "8a907d6515b29ed2ff9c7080a85a192f017229b08ecb0685f1cba9bae6137afd",
+    "moduleWasEnabled": false,
+    "moduleEnabledNow": true,
+    "moduleUpdated": true,
+    "otherModulesUnchanged": true,
+    "cycleUnchanged": true,
+    "sessionActive": false,
+    "resetComplete": true,
+    "testMode": true,
+    "publicAdmissionOpen": false,
+    "laboratoryExactMatch": true,
+    "noProfilePaymentStockOrKeyChanges": true
+  },
+  "actualPublishedSiteBrowser": {
+    "checks": [
+      {
+        "name": "published frontend identity matches exact tested API source",
+        "status": "PASS"
+      },
+      {
+        "name": "ordinary homepage needs no operator password",
+        "status": "PASS"
+      },
+      {
+        "name": "ordinary application links remain hidden",
+        "status": "PASS"
+      },
+      {
+        "name": "before operator starts the actual session, new entry stays disabled",
+        "status": "PASS"
+      },
+      {
+        "name": "no horizontal overflow at 320",
+        "status": "PASS"
+      },
+      {
+        "name": "no horizontal overflow at 390",
+        "status": "PASS"
+      },
+      {
+        "name": "no horizontal overflow at 768",
+        "status": "PASS"
+      },
+      {
+        "name": "no horizontal overflow at 1440",
+        "status": "PASS"
+      },
+      {
+        "name": "rendered public images load",
+        "status": "PASS"
+      },
+      {
+        "name": "landing settings icon uses SVG",
+        "status": "PASS"
+      },
+      {
+        "name": "three reloads retain original landing and correct release",
+        "status": "PASS"
+      },
+      {
+        "name": "event admin/application APIs stay locked and card state requires a real profile",
+        "status": "PASS"
+      },
+      {
+        "name": "direct application waiting URL remains protected",
+        "status": "PASS"
+      },
+      {
+        "name": "existing owner authentication works on existing site",
+        "status": "PASS"
+      },
+      {
+        "name": "live API/frontend fingerprint and test ON/public admission closed match",
+        "status": "PASS"
+      },
+      {
+        "name": "existing owner authentication survives reload",
+        "status": "PASS"
+      }
+    ],
+    "operatingBusinessWritesAllowed": false,
+    "loginSessionOnly": true,
+    "physicalDevices": "UNKNOWN",
+    "backgroundPush": "UNKNOWN",
+    "newProfilesCreated": 0,
+    "drawRequestsSent": 0,
+    "sessionStartStopAttempted": false,
+    "firstLandingReadyMs": 1807,
+    "sessionActive": false,
+    "cycleResetComplete": true,
+    "warmReloadReadyMs": [
+      1162,
+      1518,
+      1476
+    ],
+    "anonymousStatuses": {
+      "/api/event-hub/admin": 423,
+      "/api/event-hub/laboratory": 423,
+      "/api/event-hub/state": 423,
+      "cardStateWithoutProfile": 401
+    },
+    "adminMetadata": {
+      "version": "98f30a5a45ad77b2c754ff11cfbc932bd0d1d03e",
+      "fingerprint": "8a907d6515b29ed2ff9c7080a85a192f017229b08ecb0685f1cba9bae6137afd",
+      "enabled": true,
+      "admission": false,
+      "workspaceCount": 0
+    },
+    "status": "PASS",
+    "checkedAt": "2026-10-31T11:36:04.158Z"
+  },
+  "preservation": {
+    "checkedAt": "2026-10-31T11:37:21.185089+00:00",
+    "readOnly": true,
+    "changedSettingsFields": [
+      "id",
+      "module_flags",
+      "updated_at"
+    ],
+    "onlyEventModuleEnabled": true,
+    "cycleAndKeysUnchanged": true,
+    "existingSettingsMergeCanonicalizedJsonId": true,
+    "databaseRowIdUnchanged": true,
+    "originalGroupRoomIdsCreatedAtAndContentsUnchanged": true,
+    "groupRoomOnlyRowMetadataTouchedDuringBoot": true
+  },
+  "postDeploymentIsolatedTests": {
+    "actualPostgresqlAndCycleTests": 13,
+    "entryAndCardUiTests": 13,
+    "allPassed": true
+  },
+  "externalBackup": {
+    "snapshotAt": "2026-10-31T11:37:23.014488+00:00",
+    "bytes": 36083365,
+    "sha256": "88b95f18e40f492014cc8bdda2d1156252571267d9b1ac5bf8274276fb486df5",
+    "privateFolderVerified": true,
+    "privateFileVerified": true,
+    "externalRedownloadHashVerified": true,
+    "externalCopyIsolatedRestoreVerified": true,
+    "existingSeparateKeysReadMatches": true,
+    "rows": 3274,
+    "images": 102,
+    "encryptedHubRows": 51,
+    "fullSupabasePlatformRestoreVerified": false,
+    "sourcePostgres": "17",
+    "restorePostgres": "16",
+    "privacyCheckpointVerified": true,
+    "currentSupportedGrantsAndRlsMatch": true,
+    "existingBackupsDeleted": false
+  },
+  "operatingDatabaseDdlPerformed": false,
+  "realProfilesOrDrawResultsCreatedForTesting": false,
+  "newServiceCreated": false,
+  "newKeysCreated": false,
+  "pausedApplicationWorkPreserved": true,
+  "limitations": [
+    "Existing session is not started; real participant entry/heart/chat/draw writes are not tested on production. Isolated functional tests cover them.",
+    "Physical Galaxy/iPhone/background push UNKNOWN.",
+    "Isolated 150-person burst profile registration p95 5305ms remains above the 2000ms goal.",
+    "Time-bound direct integration expires at 2026-11-01 17:00 KST.",
+    "Future main deployment can overwrite the manual feature release; settings were not changed."
+  ]
+}
