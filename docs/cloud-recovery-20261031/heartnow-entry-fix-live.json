@@ -1,0 +1,223 @@
+{
+  "format": "BINPC2-heartnow-entry-release-proof-v1",
+  "sourceSha": "87710b69bd0689842973c1f03db4f43f721a6867",
+  "deployment": {
+    "apiDeployId": "dep-dbiudfgae00c73cngrs0",
+    "apiStatus": "live",
+    "frontendDeployId": "6ae5e747f4c5d311ec6e6647",
+    "frontendPublishedAt": "2026-10-31T13:04:10.331Z",
+    "mainUnchanged": true,
+    "mainSha": "b06a900280404f79c92e17cdbc6af907a0414c30",
+    "providerSettings": {
+      "netlify": {
+        "repo_branch": "main",
+        "stop_builds": false,
+        "allowed_branches": [
+          "main"
+        ],
+        "skip_prs": null,
+        "skip_branches": null
+      },
+      "render": {
+        "branch": "main",
+        "autoDeploy": "no",
+        "autoDeployTrigger": "off",
+        "suspended": "not_suspended"
+      }
+    }
+  },
+  "ci": {
+    "sourceSha": "87710b69bd0689842973c1f03db4f43f721a6867",
+    "runId": 41201753944,
+    "url": "https://github.com/aoaldhkd-spec/BINPC2/actions/runs/41201753944",
+    "conclusion": "success",
+    "passedSteps": 27
+  },
+  "liveBrowser": {
+    "checks": [
+      {
+        "name": "published frontend identity matches exact tested API source",
+        "status": "PASS"
+      },
+      {
+        "name": "ordinary homepage needs no operator password",
+        "status": "PASS"
+      },
+      {
+        "name": "ordinary application links remain hidden",
+        "status": "PASS"
+      },
+      {
+        "name": "active existing session enables ordinary entry",
+        "status": "PASS"
+      },
+      {
+        "name": "no horizontal overflow at 320",
+        "status": "PASS"
+      },
+      {
+        "name": "no horizontal overflow at 390",
+        "status": "PASS"
+      },
+      {
+        "name": "no horizontal overflow at 768",
+        "status": "PASS"
+      },
+      {
+        "name": "no horizontal overflow at 1440",
+        "status": "PASS"
+      },
+      {
+        "name": "rendered public images load",
+        "status": "PASS"
+      },
+      {
+        "name": "landing settings icon uses SVG",
+        "status": "PASS"
+      },
+      {
+        "name": "three reloads retain original landing and correct release",
+        "status": "PASS"
+      },
+      {
+        "name": "ordinary reload/app return/reconnection make zero owner-access requests even when that endpoint is blocked",
+        "status": "PASS"
+      },
+      {
+        "name": "actual active session entry reaches original profile setup rather than application waiting",
+        "status": "PASS"
+      },
+      {
+        "name": "profile form selection stays mounted through app-return events without any owner check",
+        "status": "PASS"
+      },
+      {
+        "name": "retained tester credential is not attached to ordinary production-page reads",
+        "status": "PASS"
+      },
+      {
+        "name": "event admin/application APIs stay locked and card state requires a real profile",
+        "status": "PASS"
+      },
+      {
+        "name": "direct application waiting URL remains protected",
+        "status": "PASS"
+      },
+      {
+        "name": "existing owner authentication works on existing site",
+        "status": "PASS"
+      },
+      {
+        "name": "live API/frontend fingerprint and test ON/public admission closed match",
+        "status": "PASS"
+      },
+      {
+        "name": "existing owner authentication survives reload",
+        "status": "PASS"
+      }
+    ],
+    "operatingBusinessWritesAllowed": false,
+    "loginSessionOnly": true,
+    "physicalDevices": "UNKNOWN",
+    "backgroundPush": "UNKNOWN",
+    "newProfilesCreated": 0,
+    "drawRequestsSent": 0,
+    "sessionStartStopAttempted": false,
+    "firstLandingReadyMs": 3717,
+    "sessionActive": true,
+    "cycleResetComplete": false,
+    "warmReloadReadyMs": [
+      3285,
+      2893,
+      2866
+    ],
+    "ordinaryTesterAuthorityRequests": 0,
+    "ordinaryOwnerAccessRequests": 0,
+    "anonymousStatuses": {
+      "/api/event-hub/admin": 423,
+      "/api/event-hub/laboratory": 423,
+      "/api/event-hub/state": 423,
+      "cardStateWithoutProfile": 401
+    },
+    "adminMetadata": {
+      "version": "87710b69bd0689842973c1f03db4f43f721a6867",
+      "fingerprint": "46cae07fba5edd5d95b209bf9292b05f32603f8851377349903f3a3b56f0514d",
+      "enabled": true,
+      "admission": false,
+      "workspaceCount": 0
+    },
+    "status": "PASS",
+    "checkedAt": "2026-10-31T13:04:55.036Z"
+  },
+  "isolatedNativeRegistration": {
+    "environment": "actual React/Express/retained isolated PostgreSQL; loopback only",
+    "operatingRequests": 0,
+    "checks": [
+      "valid retained tester token is not attached to native profile insert",
+      "real native registration enters participant screen without deleting stored tester login",
+      "same profile survives app return and reload",
+      "all ordinary profile and session-backed data operations omit tester authority",
+      "actual deprecated tester mutation remains rejected with 423",
+      "last-step ideal and feature selections are durably saved for the correct profile"
+    ],
+    "profileSaveHttp": 200,
+    "status": "PASS",
+    "checkedAt": "2026-10-31T12:29:23.070Z"
+  },
+  "operatingFakeBusinessWrites": 0,
+  "operatingCycleReset": false,
+  "pausedApplicationChangesPreserved": true,
+  "operatingBackup": {
+    "sourceSnapshotAt": "2026-10-31T13:13:50.707527+00:00",
+    "bytes": 36089365,
+    "sha256": "8a808e114eecb93dc48713a47727377048e6eff939b3e69a9ed9e6b7e984b0ef",
+    "kvRows": 3288,
+    "imageRows": 102,
+    "hubRows": 51,
+    "sameExistingRecoveryKey": true,
+    "sessionContentsIncluded": false,
+    "productionWrites": false,
+    "fullSupabasePlatformBackup": false,
+    "externalCopyRestoreVerified": true,
+    "currentSeparateExternalKeysVerified": true,
+    "userConfirmedIndependentKeyCustody": true,
+    "privacyRestoreCheckpoint": {
+      "verified": true,
+      "scope": "current independent event-hub erasure ledger plus backup-scoped legacy privacy KV hashes/cycle markers",
+      "ledgerCount": 0,
+      "entryCount": 0,
+      "legacyPrivacyCheckedTableCount": 10,
+      "legacyPrivacyCheckedRowCount": 3286,
+      "latestAdditionalRowCount": 0,
+      "checkpointSha256": "997205862af75dfbc5e34af3a3d3bf6acebdd7e7d136975af86b7524db705e23",
+      "checkpointSourceSnapshotAt": "2026-10-31T13:14:34.798037+00:00",
+      "dataBackupSha256": "8a808e114eecb93dc48713a47727377048e6eff939b3e69a9ed9e6b7e984b0ef",
+      "externalRedownloadHashVerified": true,
+      "separateCheckpointFileVerified": true,
+      "readOnlyRestoreCheck": true,
+      "loopbackClientTransportVerified": true,
+      "dockerBridgeConfirmed": true,
+      "productionWrites": false,
+      "historicalDeletionCompletenessVerified": false,
+      "futureDeletionsAutomaticallyCovered": false,
+      "legacyBackupRowsComparedToCurrent": true,
+      "legacyUnlistedTablesCovered": false,
+      "pointInTimeOnly": true,
+      "checkedAt": "2026-10-31T13:14:51.029Z"
+    },
+    "applicationDataOffsiteRecoveryVerified": true,
+    "exactPg17PlatformRestoreVerified": false,
+    "checkedAt": "2026-10-31T13:14:51.029Z",
+    "success": true,
+    "privateDriveUploadAndRedownloadHashVerified": true,
+    "olderBackupsPreserved": true,
+    "priorPostdeployRestoreAttempt": {
+      "sourceSnapshotAt": "2026-10-31T13:09:35.016774+00:00",
+      "exactContentRestore": true,
+      "privacyGate": "LEGACY_RESTORE_CONTENT_REVIEW_REQUIRED",
+      "success": false,
+      "evidencePreserved": true,
+      "resolution": "Fresh read-only snapshot and independently read checkpoint passed without weakening checks."
+    }
+  }
+}
