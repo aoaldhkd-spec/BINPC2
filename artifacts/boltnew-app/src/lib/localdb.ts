@@ -1,6 +1,7 @@
 import { adminRequestScope, testerRequestScope } from './admin-request-scope';
 import { bossSseTicket } from "./boss-access-client";
 import { ls } from './storage';
+import { withRequestDeadline } from './request-deadline';
 /**
  * localdb.ts — HTTP client that calls the shared API server.
  *
@@ -1464,6 +1465,7 @@ async function _loginSessionAttempt(userId: string, attempt: number): Promise<bo
     const testToken = readTesterTokenFromStorage();
     const resp = await fetch(`${API}/auth/login`, {
       method: 'POST',
+      signal: AbortSignal.timeout(FETCH_TIMEOUT),
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         userId,
@@ -1503,7 +1505,8 @@ async function _loginSessionAttempt(userId: string, attempt: number): Promise<bo
     }
     if (_currentUserId === userId) _markSessionReady();
     return true;
-  } catch {
+  } catch (error) {
+    if (error instanceof Error && (error.name === 'AbortError' || error.name === 'TimeoutError')) return false;
     if (attempt + 1 < LOGIN_MAX_ATTEMPTS) {
       await new Promise<void>(r => setTimeout(r, 1_000 * Math.pow(2, attempt)));
       return _loginSessionAttempt(userId, attempt + 1);
@@ -1539,8 +1542,18 @@ export function getDeviceSecret(userId: string): string {
 
 /** Same verified legacy identity/bearer used by profiles, hearts and chats. */
 export async function onsiteHalloweenRequest<T>(data:Record<string,unknown>,admin=false):Promise<T>{
+ return withRequestDeadline(async signal=>{
   const identity=_currentUserId;
   if(!admin&&(!identity||!await ensureWriteSession()||_currentUserId!==identity))throw Error('본인 프로필 인증을 다시 확인해 주세요.');
-  const response=await fetch('/api/db/halloween-cards',{method:'POST',credentials:'include',headers:{'Content-Type':'application/json',...(admin?{'x-admin-token':localStorage.getItem('admin_token_v1')??''}:{})},body:JSON.stringify({...data,...(!admin?{requesterId:identity,sessionToken:_sessionBearerToken}:{})}),signal:AbortSignal.timeout(20000)});
+  if(signal.aborted)throw Error('연결이 지연되고 있습니다. 다시 확인해 주세요.');
+  const send=()=>fetch('/api/db/halloween-cards',{method:'POST',credentials:'include',headers:{'Content-Type':'application/json',...(admin?{'x-admin-token':localStorage.getItem('admin_token_v1')??''}:{})},body:JSON.stringify({...data,...(!admin?{requesterId:identity,sessionToken:_sessionBearerToken}:{})}),signal});
+  let response=await send();
+  if(response.status===401&&!admin&&identity&&_currentUserId===identity){
+    if(await loginSession(identity)){
+      if(signal.aborted||_currentUserId!==identity)throw Error('본인 프로필 인증을 다시 확인해 주세요.');
+      response=await send();
+    }
+  }
   const value=await response.json();if(!admin&&_currentUserId!==identity)throw Error('프로필이 바뀌었습니다. 현재 카드 결과를 다시 확인해 주세요.');if(!response.ok)throw Error(value.error?.message??'카드 결과를 확인하지 못했습니다.');return value as T;
+ });
 }

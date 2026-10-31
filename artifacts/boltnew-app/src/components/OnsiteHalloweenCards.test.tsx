@@ -24,6 +24,24 @@ it('does not apply a late draw or retry response to another profile',async()=>{
 it('keeps a committed result when an older realtime reload arrives later',async()=>{
  request.mockResolvedValueOnce({...state,revision:0}).mockResolvedValueOnce({...state,revision:1,cards:[{id:'new-card',prize:'ring',prizeLabel:'반지'}]}).mockResolvedValueOnce({...state,revision:0});
  render(<OnsiteHalloweenCards userId="self"/>);fireEvent.click(await screen.findByRole('button',{name:'카드 1 열기'}));await screen.findByText('🎁 반지');
- await act(async()=>{bus.refresh?.();await new Promise(r=>setTimeout(r,180));});
+ await act(async()=>{bus.refresh?.();await new Promise(r=>setTimeout(r,1800));});
  expect(screen.getByText('🎁 반지')).toBeTruthy();expect(request).toHaveBeenCalledTimes(3);
+});
+it('coalesces a burst of realtime/resume events while the current card request is pending',async()=>{
+ let finish!:(v:unknown)=>void;
+ request.mockImplementationOnce(()=>new Promise(resolve=>{finish=resolve;})).mockResolvedValue(state);
+ render(<OnsiteHalloweenCards userId="self"/>);
+ await waitFor(()=>expect(request).toHaveBeenCalledTimes(1));
+ act(()=>{for(let i=0;i<30;i++){bus.refresh?.();window.dispatchEvent(new Event('online'));}});
+ expect(request).toHaveBeenCalledTimes(1);
+ await act(async()=>finish(state));
+ await waitFor(()=>expect(request).toHaveBeenCalledTimes(2),{timeout:2500});
+ expect(screen.getByRole('button',{name:'카드 1 열기'})).toBeTruthy();
+});
+it('shows a retry instead of an indefinite loading message and restores the saved result',async()=>{
+ request.mockRejectedValueOnce(new Error('연결 지연')).mockResolvedValueOnce({...state,cards:[{id:'saved-card',prize:'ring',prizeLabel:'반지'}]});
+ render(<OnsiteHalloweenCards userId="self"/>);
+ await screen.findByRole('alert');expect(screen.queryByText('카드 확인 중…')).toBeNull();
+ fireEvent.click(screen.getByRole('button',{name:'다시 확인'}));await screen.findByText('🎁 반지');
+ expect(request.mock.calls.every(([body])=>body.action==='state')).toBe(true);
 });

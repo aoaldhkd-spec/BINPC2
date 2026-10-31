@@ -28,6 +28,7 @@ export class OnsiteHalloweenService{
   const profile=rows.find(r=>r.table_name==='profiles')?.data;
   const settings=rows.find(r=>r.table_name==='app_settings')?.data;
   const now=this.now();
+  await tx.prefetch([{kind:'settings',id:'global'},{kind:'settings',id:todayConfig},{kind:'settings',id:prefix+todayId+':'+userId}]);
   const events=(await tx.all<HubEvent>('event')).filter(e=>e.type==='halloween'&&!e.bossTestOnly&&e.campaign?.kind!=='tour');
   const app=profile?.event_hub_application?await tx.get<HubApplication>('application',String(profile.event_hub_application)):undefined;
   const candidates=events.filter(e=>eventId?e.id===eventId:app?e.id===app.eventId:now.getTime()>=Date.parse(e.date+'T17:00:00+09:00')&&now.getTime()<eventExpiryAt(e));
@@ -54,7 +55,7 @@ export class OnsiteHalloweenService{
   const reason=!event?'운영자가 할로윈 행사를 준비 중입니다.':!profile||!String(profile.nickname??'').trim()||!String(profile.pin_code??'').trim()||profile.boss_test_event?'현장 프로필로 입장해 주세요.':!sameCycle?'현재 현장 행사에서만 뽑을 수 있습니다.':policy.paused||!parseModuleFlags(flags).event_hub||!drawModuleEnabled(event,policy)?'할로윈 뽑기가 꺼져 있습니다.':eventEnded(event,now)?'신규 뽑기가 종료되었습니다.':linked&&!paymentSatisfied(linked)?'참가 권한을 운영자에게 확인해 주세요.':null;
   return {profile,settings,event,record,linked,reason,now};
  }
- async state(userId:string,eventId?:string):Promise<OnsiteHalloweenState>{return this.store.transaction(async tx=>{const c=await this.context(tx,userId,eventId);return view(c.event,c.linked??c.record,c.now,c.reason);});}
+ async state(userId:string,eventId?:string):Promise<OnsiteHalloweenState>{return this.store.readOnly(async tx=>{const c=await this.context(tx,userId,eventId);return view(c.event,c.linked??c.record,c.now,c.reason);});}
  async draw(userId:string,eventId:string,slot:number){
   let changed=false;
   const saved=await this.store.transaction(async tx=>{
@@ -84,18 +85,20 @@ export class OnsiteHalloweenService{
   });
   if(changed){try{this.notify();}catch{/* A notification cannot undo a committed draw. */}}return saved;
  }
- async results(){return this.store.transaction(async tx=>{
-  const rows=(await tx.db.query("SELECT id FROM event_hub_records WHERE kind='settings' AND id LIKE 'onsite-halloween:%' ORDER BY id")).rows;
-  const results:Array<RecordData & {nickname:string}>=[];for(const row of rows){const value=await tx.get<RecordData>('settings',row.id);if(value){const p=(await tx.db.query("SELECT data->>'nickname' AS nickname FROM app_kv_rows WHERE table_name='profiles' AND row_id=$1",[value.profileId])).rows[0];results.push({...value,nickname:p?.nickname??'종료된 현장 참가자'});}}
+ async results(){return this.store.readOnly(async tx=>{
+  const records=await tx.byPrefix<RecordData>('settings',prefix);
+  const rows=(await tx.db.query("SELECT table_name,data FROM app_kv_rows WHERE table_name IN ('profiles','app_settings') ORDER BY updated_at DESC")).rows;
+  const profiles=rows.filter(row=>row.table_name==='profiles').map(row=>row.data);
+  const names=new Map(profiles.map(profile=>[String(profile.id),profile.nickname]));
+  const results:Array<RecordData & {nickname:string}>=records.map(value=>({...value,nickname:names.get(value.profileId)??'종료된 현장 참가자'}));
   // Show current onsite participants even before they open their first card.
   // This is a read-only projection; handover creates the durable receipt.
-  const settings=(await tx.db.query("SELECT data FROM app_kv_rows WHERE table_name='app_settings' ORDER BY updated_at DESC LIMIT 1")).rows[0]?.data;
+  const settings=rows.find(row=>row.table_name==='app_settings')?.data;
   const started=Date.parse(String(settings?.event_cycle_started_at??''));
   if(settings?.event_cycle_archive_id&&!settings.event_cycle_reset_complete&&Number.isFinite(started)){
     const events=(await tx.all<HubEvent>('event')).filter(e=>e.type==='halloween'&&!e.bossTestOnly&&started>=Date.parse(e.date+'T17:00:00+09:00')&&started<eventExpiryAt(e));
     if(todayHeartNowSession(settings,this.now())&&!events.some(e=>e.date==='2026-10-31'))events.push(todayEvent());
-    const profiles=(await tx.db.query("SELECT data FROM app_kv_rows WHERE table_name='profiles'")).rows;
-    for(const event of events)for(const {data:p} of profiles)if(p.id&&p.nickname&&p.pin_code&&!p.boss_test_event&&!p.event_hub_application&&!results.some(r=>r.eventId===event.id&&r.profileId===p.id))results.push({eventId:event.id,profileId:String(p.id),owner:String(p.id),cycleId:String(settings.event_cycle_archive_id),rank:0,benefitExcluded:true,cards:[],prizesGiven:[],createdAt:String(p.created_at??this.now().toISOString()),nickname:String(p.nickname)});
+    for(const event of events)for(const p of profiles)if(p.id&&p.nickname&&p.pin_code&&!p.boss_test_event&&!p.event_hub_application&&!results.some(r=>r.eventId===event.id&&r.profileId===p.id))results.push({eventId:event.id,profileId:String(p.id),owner:String(p.id),cycleId:String(settings.event_cycle_archive_id),rank:0,benefitExcluded:true,cards:[],prizesGiven:[],createdAt:String(p.created_at??this.now().toISOString()),nickname:String(p.nickname)});
   }
   return results;
  });}

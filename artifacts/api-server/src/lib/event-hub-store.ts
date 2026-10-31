@@ -223,6 +223,12 @@ export class HubTx {
       )
     ).rows.map((r) => this.decode<T>(kind, r.id, r.data));
   }
+  async byPrefix<T>(kind: string, prefix: string): Promise<T[]> {
+    const rows = (await this.db.query(
+      "SELECT id,data FROM event_hub_records WHERE kind=$1 AND starts_with(id,$2) ORDER BY id", [kind,prefix],
+    )).rows;
+    return rows.map(row => this.decode<T>(kind,row.id,row.data));
+  }
   /** Owner routing metadata is already stored beside encrypted application data.
    * Filter before decrypting so one participant does not load every other application.
    * The caller still checks authenticated payload ownership after decoding.
@@ -362,6 +368,32 @@ export class HubStore {
     secret = process.env.SESSION_SECRET,
   ) {
     this.key = eventHubEncryptionKey(secret);
+  }
+  /** Concurrent reads share reset protection, never the global mutation queue.
+   * PostgreSQL READ ONLY enforces that this path cannot draw or change stock.
+   * Keep READ COMMITTED so the sentinel/profile read starts after any reset wait.
+   */
+  async readOnly<T>(fn: (tx: HubTx) => Promise<T>): Promise<T> {
+    const c = await this.pool.connect();
+    try {
+      const opening: unknown = await c.query(`BEGIN READ ONLY; SET LOCAL lock_timeout='6000ms';
+        SET LOCAL statement_timeout='8000ms';
+        SELECT pg_advisory_xact_lock_shared(hashtext('${EVENT_RESET_LOCK_KEY}'));
+        ${LEDGER_SENTINEL_SQL};`);
+      const commands = ['BEGIN','SET','SET','SELECT','SELECT'];
+      if (!Array.isArray(opening) || opening.length !== commands.length ||
+        commands.some((command,index) => opening[index]?.command !== command)) ledgerKeyUnavailable();
+      const sentinel = opening[4];
+      if (!Array.isArray(sentinel.rows) || sentinel.rowCount !== sentinel.rows.length) ledgerKeyUnavailable();
+      const tx = new HubTx(c,this.key);
+      await tx.assertLedgerReadable(sentinel.rows);
+      const result = await fn(tx);
+      await c.query('COMMIT');
+      return result;
+    } catch (error) {
+      try { await c.query('ROLLBACK'); } catch { /* fail closed */ }
+      throw error;
+    } finally { c.release(); }
   }
   async transaction<T>(fn: (tx: HubTx) => Promise<T>): Promise<T> {
     const previous = hubTurns.get(this.pool) ?? Promise.resolve();

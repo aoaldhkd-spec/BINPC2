@@ -104,6 +104,37 @@ describe('[Realtime] long-session stability', () => {
     expect(localdbSrc).toMatch(/FORBIDDEN: 만료 EventSource/);
     expect(localdbSrc).toMatch(/refreshSseTokenIfStale\(\)/);
   });
+  it('refreshes an expired card session once using the same verified device identity', async () => {
+    const fallback = globalThis.fetch; let logins=0; const sent: Record<string,unknown>[]=[];
+    vi.stubGlobal('fetch',vi.fn(async(input:RequestInfo|URL,init?:RequestInit)=>{
+      const url=String(input);
+      if(url.includes('/auth/login')) { logins++; return {ok:true,status:200,json:async()=>({sessionToken:'session-'+logins,sessionExpiresAt:Math.floor(Date.now()/1000)+86400})}; }
+      if(url.endsWith('/halloween-cards')) {
+        sent.push(JSON.parse(String(init?.body)));
+        return sent.length===1?{ok:false,status:401,json:async()=>({error:{message:'expired'}})}:{ok:true,status:200,json:async()=>({cards:[{id:'saved-card'}]})};
+      }
+      return fallback(input,init);
+    }));
+    const db=await import('../lib/localdb');db.setLocalDbUserId('same-owner');await vi.advanceTimersByTimeAsync(0);
+    const result=await db.onsiteHalloweenRequest<{cards:{id:string}[]}>({action:'state'});
+    expect(logins).toBe(2);expect(sent).toHaveLength(2);
+    expect(sent[0].requesterId).toBe('same-owner');expect(sent[1].requesterId).toBe('same-owner');
+    expect(sent[0].sessionToken).toBe('session-1');expect(sent[1].sessionToken).toBe('session-2');
+    expect(result.cards[0].id).toBe('saved-card');
+  });
+  it('ends a card request when pre-fetch authentication never responds, without sending a late draw',async()=>{
+    const fallback=globalThis.fetch;const writes=vi.fn();let finish!:(value:unknown)=>void;
+    vi.stubGlobal('fetch',vi.fn((input:RequestInfo|URL,init?:RequestInit)=>{
+      if(String(input).includes('/auth/login'))return new Promise(resolve=>{finish=resolve;});
+      if(String(input).endsWith('/halloween-cards'))writes();
+      return fallback(input,init);
+    }));
+    const db=await import('../lib/localdb');db.setLocalDbUserId('same-owner');
+    const pending=db.onsiteHalloweenRequest({action:'draw',eventId:'today',slot:0});
+    const rejected=expect(pending).rejects.toThrow('연결이 지연');await vi.advanceTimersByTimeAsync(20000);await rejected;
+    finish({ok:true,status:200,json:async()=>({sessionToken:'late-session',sessionExpiresAt:Math.floor(Date.now()/1000)+86400})});
+    await vi.advanceTimersByTimeAsync(0);expect(writes).not.toHaveBeenCalled();
+  });
 
   it('source: fetchSseToken cache restore schedules proactive refresh timer', () => {
     expect(localdbSrc).toMatch(/scheduleSseTokenRefresh/);

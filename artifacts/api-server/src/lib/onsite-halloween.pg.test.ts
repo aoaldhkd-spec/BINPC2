@@ -7,6 +7,7 @@ import {HubStore} from './event-hub-store';
 import {OnsiteHalloweenService} from './onsite-halloween';
 import {campaignAction,type CampaignStock} from './event-campaign-service';
 import {isolatedFixtureDatabase} from './event-hub-isolation';
+import {EVENT_RESET_LOCK_KEY} from './db-event-reset-transaction';
 const url=process.env.HUB_TEST_DATABASE_URL;
 describe.skipIf(!url)('onsite Halloween without application — actual PostgreSQL',()=>{
  const schema='onsite_cards_'+randomUUID().replaceAll('-','');const control=new pg.Pool({connectionString:url,max:1});
@@ -19,6 +20,38 @@ describe.skipIf(!url)('onsite Halloween without application — actual PostgreSQ
   await pool.query("INSERT INTO app_kv_rows(table_name,row_id,data) VALUES('app_settings','1',$1),('profiles',$2,$3)",[JSON.stringify({session_active:true,event_cycle_started_at:'2026-10-31T13:00:00Z',event_cycle_reset_complete:false,event_cycle_archive_id:'cycle-saturday',module_flags:{event_hub:true}}),userId,JSON.stringify({id:userId,nickname:'격리참가자',pin_code:'4321'})]);
  });
  const remaining=()=>store.transaction(async tx=>(await tx.stocksForEvent<CampaignStock>(eventId)).reduce((n,s)=>n+s.remaining,0));
+ it('serves concurrent read-only snapshots without serializing them in the mutation queue',async()=>{
+  let active=0,maxActive=0;
+  await Promise.all(Array.from({length:16},()=>store.readOnly(async tx=>{
+   active++;maxActive=Math.max(maxActive,active);
+   try{await tx.db.query('SELECT pg_sleep(0.03)');await tx.all('event');}finally{active--;}
+  })));
+  expect(maxActive).toBeGreaterThan(1);
+  await expect(store.readOnly(tx=>tx.put('settings','must-not-write',{}))).rejects.toMatchObject({code:'25006'});
+  expect(await store.transaction(tx=>tx.get('settings','must-not-write'))).toBeUndefined();
+  await expect(new HubStore(pool,'different-key').readOnly(async()=>true)).rejects.toMatchObject({code:'LEDGER_KEY_UNAVAILABLE'});
+ });
+ it('keeps reset exclusion and observes the committed post-reset session state',async()=>{
+  const reset=await pool.connect();let resolved=false;
+  await reset.query('BEGIN');await reset.query('SELECT pg_advisory_xact_lock(hashtext($1))',[EVENT_RESET_LOCK_KEY]);
+  const pending=service.state(userId).then(value=>{resolved=true;return value;});
+  try{
+   await new Promise(resolve=>setTimeout(resolve,50));expect(resolved).toBe(false);
+   await reset.query("UPDATE app_kv_rows SET data=jsonb_set(data,'{session_active}','false') WHERE table_name='app_settings'");
+   await reset.query('COMMIT');
+  }finally{await reset.query('ROLLBACK');reset.release();}
+  expect((await pending).blockedReason).toContain('현재 현장');
+ });
+ it('handles 150 simultaneous state reads and repeated draws without duplicate results or inventory loss',async()=>{
+  now=new Date('2026-10-31T14:01:00Z');const before=await remaining();
+  const reads=Array.from({length:150},()=>service.state(userId));
+  const draws=Array.from({length:15},()=>service.draw(userId,eventId,0));
+  await Promise.all(reads);const saved=await Promise.all(draws);
+  expect(new Set(saved.map(value=>value.cards[0].id)).size).toBe(1);
+  expect(await remaining()).toBe(before-1);
+  expect((await service.state(userId)).cards).toHaveLength(1);
+  expect((await service.results()).find(row=>row.profileId===userId)?.cards[0].id).toBe(saved[0].cards[0].id);
+ },30000);
  it('keeps three cards locked at boundaries, then draws once per slot under concurrent replay and restart',async()=>{
   let notifications=0;service=new OnsiteHalloweenService(store,()=>now,()=>0,()=>{notifications++;});
   expect(await remaining()).toBe(49);expect((await service.state(userId)).cards).toHaveLength(0);
