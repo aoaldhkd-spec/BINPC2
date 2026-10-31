@@ -907,7 +907,7 @@ export function MainScreen({
             </div>
             {mySubTab === 'status' && (
           <div className="space-y-4">
-            {!heartNowPublic && (profiles.find(p => p.id === currentUserId) as { event_hub_application?: string } | undefined)?.event_hub_application && (
+            {(profiles.find(p => p.id === currentUserId) as { event_hub_application?: string } | undefined)?.event_hub_application && (
               <a href="/events/cards" className={`block rounded-2xl border p-4 font-bold text-center ${darkMode ? 'bg-slate-800 border-slate-600 text-white' : 'bg-white border-slate-200 text-slate-900'}`}>🎁 행사 카드 · 내 뽑기·지급 결과</a>
             )}
             {/* ── 내 프로필 카드 ── */}

@@ -148,7 +148,7 @@
   "localPassed": {
     "apiUnit": 677,
     "uiUnit": 1028,
-    "actualPostgres": 156,
+    "actualPostgres": 157,
     "physicalDevices": "UNKNOWN",
     "backgroundPush": "UNKNOWN"
   },
@@ -180,5 +180,6 @@
     "repeatNavigationAndReloadResultPreserved": true,
     "operatingRequests": 0,
     "checkedAt": "2026-10-31T06:27:03.792Z"
-  }
+  },
+  "tourAndHalloweenScopeSeparated": true
 }

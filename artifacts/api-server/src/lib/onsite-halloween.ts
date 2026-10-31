@@ -26,7 +26,8 @@ export class OnsiteHalloweenService{
   const event=candidates[0];
   const record=event?await tx.get<RecordData>('settings',prefix+event.id+':'+userId):undefined;
   if(record&&(record.profileId!==userId||record.eventId!==event!.id))fail('AUTH','본인 결과만 확인할 수 있습니다.',403);
-  if(app&&(app.profileId!==userId||app.owner!==profile.event_hub_owner||app.eventId!==event?.id))fail('AUTH','본인 행사 연결을 확인해 주세요.',403);
+  if(app&&(app.profileId!==userId||app.owner!==profile.event_hub_owner))fail('AUTH','본인 행사 연결을 확인해 주세요.',403);
+  if(app&&event&&app.eventId!==event.id)fail('EVENT_SCOPE','해당 현장 프로필의 행사만 이용할 수 있습니다.',403);
   const linked=app&&event?.id===app.eventId?app:undefined;
   if(linked&&record)fail('CARD_IDENTITY_CONFLICT','기존 카드 기록을 운영자에게 확인해 주세요. 다시 뽑지 마세요.',409);
   let flags=settings?.module_flags;try{if(typeof flags==='string')flags=JSON.parse(flags);}catch{flags={};}

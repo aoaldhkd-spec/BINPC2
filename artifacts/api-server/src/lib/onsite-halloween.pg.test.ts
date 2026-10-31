@@ -50,6 +50,16 @@ describe.skipIf(!url)('onsite Halloween without application — actual PostgreSQ
   expect((await pool.query("SELECT id FROM event_hub_records WHERE kind='settings' AND id LIKE 'onsite-halloween:%'")).rows).toHaveLength(0);
   await store.transaction(async tx=>{const a=(await tx.get<HubApplication>('application',application.id))!;a.approvalRevokedAt=now.toISOString();await tx.put('application',a.id,a);});await expect(service.draw(userId,eventId,1)).rejects.toMatchObject({code:'CARDS_UNAVAILABLE'});expect((await service.state(userId)).cards).toHaveLength(1);
  });
+ it('preserves a tour-linked profile and refuses a second Halloween entitlement',async()=>{
+  const owner=randomUUID(),preset=campaignPresets().find(p=>p.event.campaign.kind==='tour')!;
+  const tour={...HubEventInput.parse(preset.event),id:'tour-owned',revision:1,recruitment:false,nextRank:0,history:[]} as HubEvent;
+  const app:HubApplication={id:'tour-app',owner,eventId:tour.id,profileId:userId,cards:[],prizesGiven:[],revision:1,stage:4,rank:20,basic:{nickname:'격리참가자',birthYear:1995,location:'부산'},payment:'approved',attendance:'confirmed',checkin:true,profile:{lastStep:4},history:[],updatedAt:now.toISOString()};
+  await store.transaction(async tx=>{await tx.put('event',tour.id,tour);await tx.put('application',app.id,app);});
+  await pool.query("UPDATE app_kv_rows SET data=data||$2::jsonb WHERE table_name='profiles' AND row_id=$1",[userId,JSON.stringify({event_hub_application:app.id,event_hub_owner:owner})]);
+  expect((await service.state(userId)).event).toBeNull();
+  await expect(service.draw(userId,eventId,0)).rejects.toMatchObject({code:'EVENT_SCOPE'});
+  expect(await remaining()).toBe(49);expect((await store.transaction(tx=>tx.get<HubApplication>('application',app.id)))?.cards).toHaveLength(0);
+ });
  it('allows the operator to hand over one Haribo before the first card unlock without creating an application',async()=>{
   const stock=await remaining();expect((await service.results()).find(r=>r.profileId===userId)?.cards).toHaveLength(0);expect((await pool.query("SELECT id FROM event_hub_records WHERE kind='settings' AND id LIKE 'onsite-halloween:%'")).rows).toHaveLength(0);await Promise.all([service.give(eventId,userId),service.give(eventId,userId)]);
   const given=await service.state(userId);expect(given.cards).toHaveLength(0);expect(given.candyGivenAt).toBe(now.toISOString());expect(await remaining()).toBe(stock);
