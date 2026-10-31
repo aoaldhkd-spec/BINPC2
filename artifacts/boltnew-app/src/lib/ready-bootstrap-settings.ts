@@ -142,3 +142,27 @@ export function raceFirstNonNullSettings(
   });
 }
 
+/** Fast /ready avoids another query; slow/failed /ready retains the independent SELECT race. */
+export function raceSettingsWithDelayedFallback(
+  primary: Promise<Record<string, unknown> | null>,
+  fallback: () => PromiseLike<Record<string, unknown> | null>,
+  hedgeMs = 500,
+): Promise<Record<string, unknown> | null> {
+  let startFallback: () => void;
+  let started = false;
+  const secondary = new Promise<Record<string, unknown> | null>(resolve => {
+    startFallback = () => {
+      if (started) return;
+      started = true;
+      void Promise.resolve().then(fallback).then(resolve, () => resolve(null));
+    };
+  });
+  const timer = setTimeout(() => startFallback(), hedgeMs);
+  const checkedPrimary = primary.catch(() => null).then(value => {
+    if (value) clearTimeout(timer);
+    else startFallback();
+    return value;
+  });
+  return raceFirstNonNullSettings([checkedPrimary, secondary]).finally(() => clearTimeout(timer));
+}
+

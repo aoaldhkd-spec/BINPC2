@@ -34,7 +34,7 @@ describe('mobile profile refresh request ordering',()=>{
       .mockResolvedValueOnce({data:[{...me,nickname:'최신'}],error:null});
     const {result}=mount();
     let older!:Promise<Profile[]>;
-    await act(async()=>{older=result.current.loadProfiles(); await result.current.loadProfiles();});
+    await act(async()=>{older=result.current.loadProfiles(); await result.current.loadProfiles(true);});
     await act(async()=>{resolveOld({data:[{...me,nickname:'과거',pin_code:''}],error:null});await older;});
     expect(result.current.profiles[0].nickname).toBe('최신');
     expect(result.current.profiles[0].pin_code).toBe('123456');

@@ -114,12 +114,6 @@ function App() {
   const [connStatus, setConnStatus] = useState<NetUiStatus>('ok');
   // 네트워크 UI는 net-health 단일 소스 — 순간 단절 모달 폭풍 방지
   useEffect(() => subscribeNetUi(setConnStatus), []);
-  // 스플래시 동안 메인/채팅 청크 미리 받아 화면 넘김 지연 제거
-  useEffect(() => {
-    void loadMainScreen();
-    void loadChatScreen();
-  }, []);
-
   // Participant-only History trap: Android Back / iOS swipe close overlays, not the SPA.
   useEffect(() => {
     const nav = participantNav;
@@ -144,6 +138,16 @@ function App() {
       return Boolean(ls.getItem(MATCHING_USER_KEY) || readProfileSetupDraft().lastStep);
     }
   });
+  // Keep optional screens off the first-visit network/CPU critical path.
+  // Once profile setup begins, warm the participant screen before registration.
+  useEffect(() => {
+    if (!currentUserId && !shownWaiting) return;
+    const timer = setTimeout(() => {
+      void loadMainScreen().catch(() => {});
+      if (currentUserId) void loadChatScreen().catch(() => {});
+    }, 150);
+    return () => clearTimeout(timer);
+  }, [currentUserId, shownWaiting]);
   const [profiles, setProfiles] = useState<Profile[]>(() => {
     try {
       const cached = ls.getItem(MATCHING_PROFILES_CACHE_KEY);

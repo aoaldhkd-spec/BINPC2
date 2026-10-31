@@ -38,8 +38,14 @@
     <!-- JS 번들 로드 전 Render API 워밍 — 콜드스타트·재배포 직후 채팅/하트 첫 요청 지연 완화 -->
     <script>
       try {
-        fetch('/api/healthz', { cache: 'no-store' });
-        fetch('/api/db/ready', { cache: 'no-store', credentials: 'include' });
+        window.__binpcReadyBootstrap = {
+          startedAt: Date.now(),
+          promise: fetch('/api/db/ready', {
+            cache: 'no-store', credentials: 'include', signal: AbortSignal.timeout(8000)
+          }).then(function (response) {
+            return response.ok ? response.json() : null;
+          }).catch(function () { return null; })
+        };
       } catch (_) {}
     </script>
   </head>

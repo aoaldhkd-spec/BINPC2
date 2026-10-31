@@ -1,6 +1,7 @@
 import { useEffect, useState, type ReactNode } from 'react';
 import { useLandingHalloween } from '../lib/landing-season';
 import { parseModuleFlags } from '../lib/module-flags';
+import { readBootstrapReady } from '../lib/bootstrap-ready';
 import './halloween.css';
 
 export const SEASONAL_SKIN_CHANGED = 'binpc-seasonal-skin-changed';
@@ -13,15 +14,16 @@ export function SeasonalSkin({ children }: { children: ReactNode }) {
   useEffect(() => {
     let disposed = false;
     let request: AbortController | undefined;
-    const sync = async () => {
+    const sync = async (bootstrap = false) => {
       request?.abort();
       const current = new AbortController();
       request = current;
       const timeout = window.setTimeout(() => current.abort(), 5000);
       try {
-        const response = await fetch('/api/db/ready', { signal: current.signal });
-        if (!response.ok) return;
-        const body = await response.json();
+        const body = bootstrap ? await readBootstrapReady() : await (async () => {
+          const response = await fetch('/api/db/ready', { signal: current.signal });
+          return response.ok ? response.json() : null;
+        })();
         if (!disposed && request === current && !current.signal.aborted
           && body?.settings && Object.hasOwn(body.settings, 'module_flags')) {
           setEnabled(parseModuleFlags(body.settings.module_flags).seasonal_landing);
@@ -37,7 +39,7 @@ export function SeasonalSkin({ children }: { children: ReactNode }) {
         setEnabled(value);
       }
     };
-    void sync();
+    void sync(true);
     const timer = window.setInterval(resume, 60000);
     window.addEventListener('focus', resume);
     document.addEventListener('visibilitychange', resume);

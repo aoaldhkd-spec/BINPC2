@@ -46,7 +46,7 @@ export function useProfileBootMachine(args: UseProfileBootMachineArgs): void {
       return false;
     };
 
-    tryEnterMainFromCache();
+    if (tryEnterMainFromCache()) return;
     const pollId = setInterval(() => {
       if (cancelled) return;
       if (tryEnterMainFromCache()) clearInterval(pollId);

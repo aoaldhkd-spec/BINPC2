@@ -3,6 +3,7 @@ import { act, cleanup, render, screen, fireEvent, waitFor } from '@testing-libra
 import { afterEach, expect, it, vi, beforeEach } from 'vitest';
 import { useState, useEffect } from 'react';
 import { SeasonalSkin, SEASONAL_SKIN_CHANGED } from './SeasonalSkin';
+vi.mock('../lib/bootstrap-ready', () => ({ readBootstrapReady: () => fetch('/api/db/ready').then(r => r.ok ? r.json() : null).catch(() => null) }));
 const mounts=vi.fn();
 function ExistingForm() {
   const [value,setValue]=useState('작성 중 프로필');

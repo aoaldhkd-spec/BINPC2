@@ -4,9 +4,9 @@
  */
 import { useEffect, useRef } from 'react';
 import { supabase, isSseHealthy } from '../lib/supabase';
+import { readBootstrapReady } from '../lib/bootstrap-ready';
 import { shouldRunSettingsReadyPoll } from '../lib/settings-ready-poll';
 import {
-  READY_BOOTSTRAP_FETCH_MS,
   READY_BOOTSTRAP_POLL_FETCH_MS,
   READY_BOOTSTRAP_POLL_MS,
   READY_BOOTSTRAP_SAFETY_MS,
@@ -15,7 +15,7 @@ import {
   planReadyBootstrapExhausted,
   planReadyBootstrapRetry,
   planReadyBootstrapSafety,
-  raceFirstNonNullSettings,
+  raceSettingsWithDelayedFallback,
   type ReadyBootstrapApplyPlan,
 } from '../lib/ready-bootstrap-settings';
 import { eventScheduleRealtimeSeqValue, fetchedScheduleIsCurrent } from '../lib/event-schedule';
@@ -101,21 +101,13 @@ export function useSessionReadyBootstrap(args: UseSessionReadyBootstrapArgs): vo
 
     async function loadSettings(attempt = 0): Promise<void> {
       const a = argsRef.current;
-      // Race /ready with SELECT — first success unblocks entry gate (no serial fallback wait).
-      const readySettings = fetch('/api/db/ready', {
-        signal: AbortSignal.timeout(READY_BOOTSTRAP_FETCH_MS),
-      })
-        .then(async (resp) => {
-          if (!resp.ok) return null;
-          const json = await resp.json() as {
-            ready?: boolean;
-            settings?: Record<string, unknown>;
-          };
-          return pickReadyBootstrapSettings(json, 'bootstrap');
-        })
+      // Reuse the head-started public read. Hedge a slow/failed response without
+      // making every first visit send the same settings query three times.
+      const readySettings = readBootstrapReady()
+        .then(json => pickReadyBootstrapSettings(json, 'bootstrap'))
         .catch(() => null);
 
-      const selectSettings = supabase
+      const selectSettings = () => supabase
         .from('app_settings')
         .select('session_active, timer_end_at, timer_label, event_schedule, reset_signal, functions_locked, sulbun_event, module_flags, event_cycle_started_at, event_cycle_reset_complete, event_cycle_archive_id, npc_heart_refill')
         .eq('id', 1)
@@ -126,7 +118,7 @@ export function useSessionReadyBootstrap(args: UseSessionReadyBootstrapArgs): vo
         })
         .catch(() => null);
 
-      const settings = await raceFirstNonNullSettings([readySettings, selectSettings]);
+      const settings = await raceSettingsWithDelayedFallback(readySettings, selectSettings);
       if (cancelled) return;
       if (settings) {
         a.setAppLoading(false);

@@ -44,9 +44,12 @@ export function useProfilePrivacyLoaders(args: UseProfilePrivacyLoadersArgs) {
   } = args;
 
   const readSequence = useRef(0);
-  const loadProfiles = useCallback(async () => {
-    const sequence = ++readSequence.current;
+  const inFlight = useRef<{ owner: string | null; promise: Promise<Profile[]> } | null>(null);
+  const loadProfiles = useCallback((force = false) => {
     const owner = userIdRef.current;
+    if (!force && inFlight.current?.owner === owner) return inFlight.current.promise;
+    const sequence = ++readSequence.current;
+    const promise = (async () => {
     const { data, error } = await supabase.from('profiles').select(PROFILE_ROW_SELECT).order('created_at', { ascending: false });
     if (sequence !== readSequence.current || owner !== userIdRef.current) return profilesRef.current;
     if (error) throw new Error('PROFILE_READ_UNAVAILABLE');
@@ -63,6 +66,12 @@ export function useProfilePrivacyLoaders(args: UseProfilePrivacyLoadersArgs) {
       return mergeProfileRefresh(profilesRef.current, visible, owner);
     }
     throw new Error('PROFILE_READ_UNAVAILABLE');
+    })();
+    const entry = { owner, promise: promise.finally(() => {
+      if (inFlight.current === entry) inFlight.current = null;
+    }) };
+    inFlight.current = entry;
+    return entry.promise;
   }, [setProfiles, userIdRef, profilesRef]);
 
   // loading-main 지수 백오프 재시도에서 항상 최신 함수 참조 유지
@@ -80,7 +89,7 @@ export function useProfilePrivacyLoaders(args: UseProfilePrivacyLoadersArgs) {
   }, [setUserSignals]);
 
   const refreshProfilesTab = useCallback(() => {
-    void loadProfiles();
+    void loadProfiles(true);
     loadUserSignals();
   }, [loadProfiles, loadUserSignals]);
 
