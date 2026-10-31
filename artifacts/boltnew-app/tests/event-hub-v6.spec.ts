@@ -2099,8 +2099,10 @@ test("test mode real browser: isolated campaigns, durable restore, global reset 
     await expect(admin.getByText("시험실을 사용하려면 테스트 모드를 ON으로 전환하세요.", { exact: true })).toBeVisible();
     expect((await readLaboratory()).mode.enabled).toBe(false);
     expect((await readLaboratory()).mode.publicAdmissionOpen).toBe(false);
-    await page.reload();
-    await expect(page.getByRole("button", { name: "술번개 신청", exact: true })).toBeDisabled();
+    await page.goto("/");
+    await expect(page.getByRole("button", { name: "입장하기", exact: true })).toBeVisible();
+    await expect(page.getByRole("link", { name: "술번개 신청", exact: true })).toHaveCount(0);
+    await expect(page.getByRole("button", { name: "술번개 신청", exact: true })).toHaveCount(0);
     await page.goto("/events");
     await expect(page.getByText(/웹·오픈채팅 모두 접수 전/).first()).toBeVisible();
     const blocked = await request.post("/api/event-hub/mutate", {
