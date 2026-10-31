@@ -10,7 +10,7 @@ import { useState, useEffect, useRef, useCallback, useMemo, memo, type ReactNode
  */
 import {
   Heart, Users, ChevronDown, CheckCircle,
-  Eye, X, HelpCircle, Settings,
+  Eye, X, HelpCircle, Settings, Gift,
   Camera, LayoutGrid, Grid2x2, Grid3x3,
 } from 'lucide-react';
 import { supabase } from '../lib/supabase';
@@ -784,7 +784,7 @@ export function MainScreen({
           mainTab === 'profiles' ? 'pt-1 min-[390px]:pt-1.5' : 'py-4 min-[390px]:py-6'
         }`}
       >
-        {heartNowPublic && mainTab === 'profiles' && <button type="button" onClick={()=>{handleTabChange('my');setMySubTab('status');}} className="mb-3 rounded-xl border border-orange-400 bg-slate-900 px-4 py-3 font-black text-orange-200">🎃 할로윈 카드 3장</button>}
+        {heartNowPublic && mainTab === 'event' && currentUserId && <div className="mx-auto w-full max-w-xl"><OnsiteHalloweenCards userId={currentUserId}/></div>}
 
         {chatSearchLockToast && (
           <div className="fixed top-24 left-0 right-0 z-[80] flex justify-center pointer-events-none">
@@ -907,8 +907,8 @@ export function MainScreen({
             </div>
             {mySubTab === 'status' && (
           <div className="space-y-4">
-            {(heartNowPublic || (profiles.find(p => p.id === currentUserId) as { event_hub_application?: string } | undefined)?.event_hub_application) && (
-              heartNowPublic && currentUserId ? <OnsiteHalloweenCards userId={currentUserId} /> : <a href="/events/cards" className={`block rounded-2xl border p-4 font-bold text-center ${darkMode ? 'bg-slate-800 border-slate-600 text-white' : 'bg-white border-slate-200 text-slate-900'}`}>🎁 행사 카드 · 내 뽑기·지급 결과</a>
+            {!heartNowPublic && (profiles.find(p => p.id === currentUserId) as { event_hub_application?: string } | undefined)?.event_hub_application && (
+              <a href="/events/cards" className={`block rounded-2xl border p-4 font-bold text-center ${darkMode ? 'bg-slate-800 border-slate-600 text-white' : 'bg-white border-slate-200 text-slate-900'}`}>🎁 행사 카드 · 내 뽑기·지급 결과</a>
             )}
             {/* ── 내 프로필 카드 ── */}
             {(() => {
@@ -2213,6 +2213,7 @@ export function MainScreen({
             return ([
               { id: 'profiles' as MainTab, icon: '👥', label: '참여자', badge: seenProfilesCount < 0 ? 0 : Math.max(0, profiles.length - seenProfilesCount) },
               { id: 'my' as MainTab, icon: '💝', label: '하트, 채팅', heartBadge: heartsBadge, chatBadge: chatUnreadTotal },
+              ...(heartNowPublic ? [{ id: 'event' as MainTab, icon: <Gift size={20} aria-hidden="true"/>, label: '이벤트' }] : []),
               ...(moduleFlags.stats ? [{ id: 'stats' as MainTab, icon: '📊', label: '통계' }] : []),
               ...(moduleFlags.ranking ? [{ id: 'ranking' as MainTab, icon: '🏆', label: '랭킹' }] : []),
               { id: 'settings' as MainTab, icon: <Settings size={20} aria-hidden="true" />, label: '설정' },

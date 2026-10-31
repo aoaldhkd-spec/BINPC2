@@ -159,7 +159,7 @@ export function useSocialLockGuards(args: UseSocialLockGuardsArgs) {
     }
     // Coach must finish participant tips before hearts/chat (or other tabs) can take focus.
     // After home advances, sequential coach (and the user) may open other tabs.
-    if (t !== 'profiles' && isHomeCoachPending()) {
+    if (t !== 'profiles' && t !== 'event' && isHomeCoachPending()) {
       setMainTab('profiles');
       return;
     }

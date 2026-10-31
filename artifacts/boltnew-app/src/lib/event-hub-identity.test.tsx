@@ -168,18 +168,29 @@ it('remounts the actual same-event form after confirmed owner change even when R
   const next = structuredClone(initial);
   next.basicDrafts![event.id].basic.nickname = '새로운본인';
   let current = initial;
-  vi.spyOn(globalThis, 'fetch').mockImplementation(async path => {
-    if (String(path).endsWith('/session')) { current = next; return response({ ok: true }); }
+  vi.spyOn(globalThis, 'fetch').mockImplementation(async (path, options) => {
+    if (String(path).endsWith('/session')) {
+      if (JSON.parse(String(options?.body ?? '{}')).recoveryCode === bCode) current = next;
+      return response({ ok: true });
+    }
     return response(current);
   });
-  render(<EventHubPage path={`/events/e/${event.id}`} />);
+  // Finish the mocked bootstrap before retaining any DOM references. Under CI
+  // scheduling an intermediate content mount can otherwise detach the button.
+  await act(async () => { render(<EventHubPage path={`/events/e/${event.id}`} />); });
   fireEvent.click(await screen.findByRole('button', { name: '신청하기' }));
+  // An existing solo draft legitimately bypasses the party picker. Wait for
+  // either completed transition instead of inspecting the intermediate render.
+  await waitFor(() => expect(screen.queryByLabelText('닉네임') || screen.queryByRole('dialog', { name: '누구와 신청하시나요?' })).toBeTruthy());
   if (screen.queryByRole('dialog', { name: '누구와 신청하시나요?' })) fireEvent.click(screen.getByRole('button', { name: '혼자 신청' }));
   const nickname = await screen.findByLabelText('닉네임');
   fireEvent.change(nickname, { target: { value: '이전미저장' } });
   await act(async () => { await recoverHub(bCode); });
   await waitFor(() => expect(screen.queryByDisplayValue('이전미저장')).toBeNull());
   fireEvent.click(await screen.findByRole('button', { name: '신청하기' }));
+  // An existing solo draft legitimately bypasses the party picker. Wait for
+  // either completed transition instead of inspecting the intermediate render.
+  await waitFor(() => expect(screen.queryByLabelText('닉네임') || screen.queryByRole('dialog', { name: '누구와 신청하시나요?' })).toBeTruthy());
   if (screen.queryByRole('dialog', { name: '누구와 신청하시나요?' })) fireEvent.click(screen.getByRole('button', { name: '혼자 신청' }));
   expect((await screen.findByLabelText('닉네임') as HTMLInputElement).value).toBe('새로운본인');
   expect(document.body.textContent).not.toContain(aCode);

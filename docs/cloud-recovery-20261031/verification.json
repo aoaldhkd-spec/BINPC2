@@ -147,9 +147,38 @@
   },
   "localPassed": {
     "apiUnit": 677,
-    "uiUnit": 1027,
+    "uiUnit": 1028,
     "actualPostgres": 156,
     "physicalDevices": "UNKNOWN",
     "backgroundPush": "UNKNOWN"
+  },
+  "currentAutomaticDeployment": {
+    "netlify": "ON — user explicitly restored and asked to keep it",
+    "render": "OFF",
+    "mainChanged": false
+  },
+  "ciFailurePreserved": {
+    "sourceSha": "19b6b46cf7eeaa5b54c02f890e50d6eef05bfb75",
+    "run": 41175425604,
+    "failedUiTests": 1,
+    "apiAndPgPassed": 833,
+    "fixtureRegressionRepeated": 10,
+    "fixtureRepeatedRunsPassed": 10
+  },
+  "eventTab": {
+    "status": "PASS",
+    "viewports": [
+      320,
+      390,
+      768,
+      1440
+    ],
+    "visibleEventTab": true,
+    "originalHeartsChatsTabPreserved": true,
+    "settingsSvgPreserved": true,
+    "applicationRouteVisited": false,
+    "repeatNavigationAndReloadResultPreserved": true,
+    "operatingRequests": 0,
+    "checkedAt": "2026-10-31T06:27:03.792Z"
   }
 }

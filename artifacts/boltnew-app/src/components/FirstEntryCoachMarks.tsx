@@ -1,3 +1,4 @@
+import type {MainTab} from '../types/app';
 import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import {
   hasCompletedFirstEntryCoach,
@@ -108,7 +109,7 @@ export function FirstEntryCoachMarks({
 }: {
   isSubScreen: boolean;
   suspended?: boolean;
-  mainTab: CoachTab;
+  mainTab: MainTab;
   replayToken?: number;
   onForceParticipants?: () => void;
   /** Bypass social-lock tab gate so the sequential tour can open enabled tabs. */

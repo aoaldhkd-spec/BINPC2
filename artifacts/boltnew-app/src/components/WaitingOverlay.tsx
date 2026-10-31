@@ -18,6 +18,7 @@ export function WaitingOverlay({ landingThemeEnabled = true, sessionActive, even
   const halloween = useLandingHalloween(landingThemeEnabled);
   const bossTest = useBossTestAccess();
   const heartNowPublic = useHeartNowPublicAccess();
+  const bossOnlyTest = bossTest && !heartNowPublic;
   const testMode = usePublicTestMode(bossTest, heartNowPublic);
   // Use a single boundary timer rather than polling: stale session_active
   // must not leave the new-entry button enabled after the exact 01:00 cutoff.
@@ -276,11 +277,11 @@ export function WaitingOverlay({ landingThemeEnabled = true, sessionActive, even
             <a href={"/events/waiting"} className="min-h-16 flex gap-3 items-center justify-center rounded-xl border border-blue-300/60 bg-gradient-to-br from-blue-500 to-blue-800 px-4 py-4 text-lg font-bold text-white shadow-lg shadow-blue-900/30 hover:brightness-110 active:scale-[.98] transition-all"><List size={24} aria-hidden="true"/>신청대기방</a>
           </div>
           <button
-            onClick={() => { if (bossTest) { window.history.pushState({}, '', '/events/waiting'); window.dispatchEvent(new PopStateEvent('popstate')); } else setShowConsentModal(true); }}
-            disabled={!bossTest && !isActive}
+            onClick={() => { if (bossOnlyTest) { window.history.pushState({}, '', '/events/waiting'); window.dispatchEvent(new PopStateEvent('popstate')); } else setShowConsentModal(true); }}
+            disabled={!bossOnlyTest && !isActive}
             className="w-[88%] min-h-16 flex items-center justify-center gap-3 py-4 border border-amber-200/70 bg-gradient-to-b from-stone-800 to-stone-950 text-amber-100 disabled:border-slate-600 disabled:bg-slate-800 disabled:text-slate-400 disabled:cursor-not-allowed font-black text-lg rounded-xl shadow-lg transition-all active:scale-[.98] disabled:active:scale-100"
-          >{bossTest || isActive ? <DoorOpen size={24} aria-hidden="true"/> : <LockKeyhole size={22} aria-hidden="true"/>}입장하기</button>
-          {!bossTest && !isActive && <p role="status" className="text-xs text-slate-400 my-1">{sessionActive === null ? '시작 여부 확인 중…' : !eventCycleResetComplete && closeAt && Date.now() >= closeAt && Date.now() < closeAt + 16*3600000 ? '신규 입장 마감 · 기존 프로필 복구 가능' : '술번개 시작 후 입장할 수 있습니다'}</p>}
+          >{bossOnlyTest || isActive ? <DoorOpen size={24} aria-hidden="true"/> : <LockKeyhole size={22} aria-hidden="true"/>}입장하기</button>
+          {!bossOnlyTest && !isActive && <p role="status" className="text-xs text-slate-400 my-1">{sessionActive === null ? '시작 여부 확인 중…' : !eventCycleResetComplete && closeAt && Date.now() >= closeAt && Date.now() < closeAt + 16*3600000 ? '신규 입장 마감 · 기존 프로필 복구 가능' : '술번개 시작 후 입장할 수 있습니다'}</p>}
           {/* 2단: 프로필 복구 — 65% 너비 */}
           <button
             onClick={() => { setShowPinRecovery(true); setPinDigits(['','','','']); setPinError(''); setPinStep('pin'); }}
@@ -312,7 +313,7 @@ export function WaitingOverlay({ landingThemeEnabled = true, sessionActive, even
                 <div className="flex flex-col gap-3">
                   <button
                     onClick={() => { if (!isActive) return; setShowConsentModal(false); onEnter(); }}
-                    disabled={!bossTest && !isActive}
+                    disabled={!bossOnlyTest && !isActive}
                     className="w-full py-4 bg-gradient-to-r from-teal-500 to-cyan-500 hover:from-teal-400 hover:to-cyan-400 text-white font-black text-base rounded-2xl shadow-lg shadow-teal-500/30 transition-all active:scale-98"
                   >
                     안내 확인 · 프로필 설정

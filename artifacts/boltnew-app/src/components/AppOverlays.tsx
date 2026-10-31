@@ -203,7 +203,7 @@ export function AppOverlays(p: AppOverlaysProps) {
       <FirstEntryCoachMarks
         isSubScreen={isSubScreen}
         mainTab={mainTab}
-        suspended={showTutorialModal}
+        suspended={showTutorialModal || mainTab === 'event'}
         replayToken={coachReplayToken}
         onForceParticipants={onForceCoachParticipants}
         onNavigateTab={onNavigateCoachTab}
