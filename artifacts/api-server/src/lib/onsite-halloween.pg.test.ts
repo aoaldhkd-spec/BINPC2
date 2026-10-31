@@ -71,4 +71,22 @@ describe.skipIf(!url)('onsite Halloween without application — actual PostgreSQ
   const given=await service.state(userId);expect(given.prizesGiven).toEqual([state.cards[0].id]);expect(given.candyGivenAt).toBe(now.toISOString());expect(await remaining()).toBe(stock);
   expect((await service.results())[0].history).toHaveLength(2);
  });
+ it('carries unused Friday stock once under concurrent requests, preserving IDs and Saturday card limits',async()=>{
+  const friday=await store.transaction(tx=>campaignAction(tx,{action:'campaign.prepare',target:'halloween-2026-10-30',data:{}},true,now.toISOString()));
+  const source=friday.id!;const before=await store.transaction(tx=>tx.stocksForEvent<CampaignStock>(source));
+  await Promise.all(Array.from({length:15},()=>store.transaction(tx=>campaignAction(tx,{action:'campaign.stock.carry',target:eventId,data:{sourceEventId:source}},true,now.toISOString()))));
+  expect(await remaining()).toBe(72);const donors=await store.transaction(tx=>tx.stocksForEvent<CampaignStock>(source));expect(donors.map(s=>s.id)).toEqual(before.map(s=>s.id));expect(donors.every(s=>s.remaining===0&&s.history.length===2)).toBe(true);
+  const totals=await store.transaction(async tx=>Object.fromEntries((await tx.stocksForEvent<CampaignStock>(eventId)).map(s=>[s.label,s.remaining])));expect(totals).toEqual({'LED 반지':40,'할로윈 키링':24,'LED 목걸이':6,'LED 밴드':2});
+  now=new Date('2026-10-31T15:30:00Z');await Promise.all(Array.from({length:10},()=>service.draw(userId,eventId,0)));await service.draw(userId,eventId,1);await service.draw(userId,eventId,2);expect((await service.state(userId)).cards).toHaveLength(3);await expect(service.draw(userId,eventId,3)).rejects.toBeTruthy();expect(await remaining()).toBe(69);
+ });
+ it('moves only remaining Friday inventory and rejects unprivileged or mixed test/operating transfers',async()=>{
+  const friday=await store.transaction(tx=>campaignAction(tx,{action:'campaign.prepare',target:'halloween-2026-10-30',data:{}},true,now.toISOString()));const source=friday.id!;
+  await store.transaction(async tx=>{const stock=(await tx.stocksForEvent<CampaignStock>(source)).find(s=>s.label==='LED 반지')!;stock.remaining--;stock.history.push({at:now.toISOString(),actor:'system',action:'draw.reserve',reason:'existing-result-preserved'});await tx.put('stock',stock.id,stock);});
+  const command={action:'campaign.stock.carry',target:eventId,data:{sourceEventId:source}};
+  await expect(store.transaction(tx=>campaignAction(tx,command,false,now.toISOString()))).rejects.toMatchObject({code:'ADMIN'});expect(await remaining()).toBe(49);
+  await store.transaction(tx=>campaignAction(tx,command,true,now.toISOString()));expect(await remaining()).toBe(71);
+  const donor=await store.transaction(async tx=>(await tx.stocksForEvent<CampaignStock>(source)).find(s=>s.label==='LED 반지'));expect(donor!.history.some(h=>h.reason==='existing-result-preserved')).toBe(true);
+  const boss=await store.transaction(tx=>campaignAction(tx,{action:'campaign.prepare',target:'halloween-2026-10-30',data:{}},true,now.toISOString(),true));await expect(store.transaction(tx=>campaignAction(tx,{...command,data:{sourceEventId:boss.id}},true,now.toISOString()))).rejects.toMatchObject({code:'STOCK_SCOPE'});expect(await remaining()).toBe(71);
+ });
+
 });

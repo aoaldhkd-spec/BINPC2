@@ -9,6 +9,7 @@ import {
   type HubEvent,
 } from "@workspace/api-zod";
 import { type HubTx, fail } from "./event-hub-store.js";
+import { eventEnded } from '../../../../lib/api-zod/src/event-hub-modules.js';
 export type CampaignStock = {
   id: string;
   eventId: string;
@@ -31,6 +32,29 @@ export async function campaignAction(
   bossTestOnly = false,
 ) {
   if (!admin) fail("ADMIN", "관리자만 처리할 수 있습니다.", 403);
+  if(m.action==='campaign.stock.carry'){
+    const source=await tx.get<HubEvent>('event',String(m.data.sourceEventId??''));
+    const target=await tx.get<HubEvent>('event',m.target);
+    if(!source||!target||source.date!=='2026-10-30'||target.date!=='2026-10-31'||source.campaign?.kind!=='halloween-friday'||target.campaign?.kind!=='halloween-saturday'||!!source.bossTestOnly!==!!target.bossTestOnly)fail('STOCK_SCOPE','같은 운영 범위의 금요일·토요일 할로윈만 합칠 수 있습니다.',409);
+    const key=`halloween-stock-carry:${source.id}:${target.id}`;
+    const saved=await tx.get<Record<string,unknown>>('settings',key);
+    if(saved)return {...saved,reused:true};
+    if(!eventEnded(source,new Date(now))||eventEnded(target,new Date(now)))fail('STOCK_TIME','금요일 종료 후 토요일 종료 전에만 합칠 수 있습니다.',409);
+    if(m.revision!==undefined&&m.revision!==target.revision)fail('REVISION','최신 행사 재고를 확인해 주세요.',409);
+    const from=await tx.stocksForEvent<CampaignStock>(source.id),to=await tx.stocksForEvent<CampaignStock>(target.id);
+    const labels=Object.keys(HALLOWEEN_STOCK['2026-10-30']);
+    if(from.length!==labels.length||to.length!==labels.length||labels.some(label=>from.filter(s=>s.label===label).length!==1||to.filter(s=>s.label===label).length!==1))fail('STOCK_SHAPE','기존 경품 구성을 먼저 확인해 주세요. 재고를 초기화하지 않았습니다.',409);
+    const moved:Record<string,number>={};
+    for(const label of labels){
+      const donor=from.find(s=>s.label===label)!,recipient=to.find(s=>s.label===label)!;
+      if(!Number.isSafeInteger(donor.remaining)||donor.remaining<0||!Number.isSafeInteger(recipient.remaining)||recipient.remaining<0)fail('STOCK_AMOUNT','재고 수량을 확인해 주세요.',409);
+      const amount=donor.remaining;moved[label]=amount;donor.remaining=0;recipient.remaining+=amount;
+      donor.history.push({at:now,actor:'admin',action:'stock.carry.out',reason:`${target.id}:${amount}`});recipient.history.push({at:now,actor:'admin',action:'stock.carry.in',reason:`${source.id}:${amount}`});
+      await tx.put('stock',donor.id,donor);await tx.put('stock',recipient.id,recipient);
+    }
+    const result={id:target.id,sourceEventId:source.id,moved,at:now};
+    await tx.put('settings',key,result);return result;
+  }
   if (m.action === "campaign.prepare") {
     const preset = campaignPresets().find((p) => p.key === m.target);
     if (!preset) fail("CAMPAIGN", "행사 초안을 선택해 주세요.");

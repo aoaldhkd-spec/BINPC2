@@ -51,13 +51,13 @@ test("V12 staged basic draft: failed save stays put, reload resumes, lost final 
   await page.getByRole("button", { name: "다음", exact: true }).click();
   await expect(page.getByRole("alert")).toBeVisible();
   await expect(page.getByLabel("닉네임", { exact: true })).toHaveValue(nickname);
-  await expect(page.getByLabel("태어난 년도", { exact: true })).toHaveCount(0);
+  await expect(page.getByRole("group", { name: "태어난 년도", exact: true })).toHaveCount(0);
   await page.unroute("**/api/event-hub/mutate");
   await page.getByRole("button", { name: "다음", exact: true }).click();
-  await expect(page.getByLabel("태어난 년도", { exact: true })).toBeVisible();
+  await expect(page.getByRole("group", { name: "태어난 년도", exact: true })).toBeVisible();
   await page.reload();
   await page.getByRole("button", { name: "신청하기", exact: true }).click();
-  await expect(page.getByLabel("태어난 년도", { exact: true })).toBeVisible();
+  await expect(page.getByRole("group", { name: "태어난 년도", exact: true })).toBeVisible();
   await expect(page.getByRole('dialog', { name: '누구와 신청하시나요?' })).toHaveCount(0);
   await page.getByRole('button', { name: '1995년생', exact: true }).click();
   await page.getByRole("button", { name: "다음", exact: true }).click();
