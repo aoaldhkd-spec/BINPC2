@@ -1,0 +1,63 @@
+{
+  "actualReactExpressPostgres": true,
+  "manualEventCreation": false,
+  "environmentOptIn": false,
+  "operatingWrites": 0,
+  "physicalPhones": "UNKNOWN",
+  "status": "PASS",
+  "users": 2,
+  "cards": 6,
+  "duplicateReplayRequests": 90,
+  "initialInventory": 72,
+  "remainingInventory": 67,
+  "reservedSpecialInventory": 8,
+  "newEventRecords": 0,
+  "allResultsSurviveReload": true,
+  "resultsDoNotFlipBack": true,
+  "applicationsRemainClosed": true,
+  "administratorTodayPanelConnected": true,
+  "checkedAt": "2026-10-31T08:15:21.265Z",
+  "originalSessionControl": {
+    "status": "PASS",
+    "existingSessionStartStop": true,
+    "noNewSwitch": true,
+    "sameCyclePreserved": true,
+    "legacyAccessIndependentOfApplication": true,
+    "operatingWrites": 0
+  },
+  "restartUi": {
+    "status": "PASS",
+    "viewports": [
+      320,
+      390,
+      768,
+      1440
+    ],
+    "visibleEventTab": true,
+    "originalHeartsChatsTabPreserved": true,
+    "settingsSvgPreserved": true,
+    "applicationRouteVisited": false,
+    "repeatNavigationAndReloadResultPreserved": true,
+    "operatingRequests": 0,
+    "alreadyDrawnCardsStayRevealed": true,
+    "resultClickDrawRequests": 0,
+    "actualServerResultSurvivesReload": true,
+    "checkedAt": "2026-10-31T08:28:31.055Z"
+  },
+  "restartStorage": {
+    "status": "PASS",
+    "sameLedgerHash": true,
+    "rows": 87,
+    "recordsAndInventoryPreserved": true,
+    "operatingWrites": 0
+  },
+  "fixtureCorrection": {
+    "isolatedOnly": true,
+    "existingKeyChanged": false,
+    "cardResultsUnchanged": true,
+    "canonicalCycleIdentifier": true,
+    "operatingWrites": 0
+  },
+  "sourceBase": "3e8d1276026ced14ec3481521bdd50e66ada0b14",
+  "sourceScope": "reviewed working tree today-only changes"
+}

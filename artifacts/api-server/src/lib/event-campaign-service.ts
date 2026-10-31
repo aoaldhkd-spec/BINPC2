@@ -59,6 +59,7 @@ export async function campaignAction(
     const preset = campaignPresets().find((p) => p.key === m.target);
     if (!preset) fail("CAMPAIGN", "행사 초안을 선택해 주세요.");
     const id = `${bossTestOnly ? 'boss-test' : 'campaign'}-${preset.key}`;
+    if(!bossTestOnly&&preset.key==='halloween-2026-10-31'&&await tx.get('settings','onsite-live-halloween-config-2026-10-31'))fail('ONSITE_TODAY_ONLY','오늘 현장 뽑기 원장을 사용 중입니다. 별도 재고를 생성하지 않았습니다.',409);
     const existing = await tx.get<HubEvent>("event", id);
     const others = (await tx.all<HubEvent>("event")).filter(e => Boolean(e.bossTestOnly) === bossTestOnly);
     const daegu = preset.event.campaign.kind === "tour" && preset.event.area === "대구";

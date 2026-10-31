@@ -89,4 +89,20 @@ describe.skipIf(!url)('onsite Halloween without application — actual PostgreSQ
   const boss=await store.transaction(tx=>campaignAction(tx,{action:'campaign.prepare',target:'halloween-2026-10-30',data:{}},true,now.toISOString(),true));await expect(store.transaction(tx=>campaignAction(tx,{...command,data:{sourceEventId:boss.id}},true,now.toISOString()))).rejects.toMatchObject({code:'STOCK_SCOPE'});expect(await remaining()).toBe(71);
  });
 
+ it('uses the existing Saturday cycle without event registration and initializes the 72-item ledger exactly once',async()=>{
+  await pool.query("DELETE FROM event_hub_records WHERE kind IN ('event','stock')");
+  const preview=await service.state(userId);expect(preview.event?.id).toBe('onsite-live-halloween-2026-10-31');expect(preview.cards).toHaveLength(0);expect((await pool.query("SELECT id FROM event_hub_records WHERE kind='stock'")).rowCount).toBe(0);
+  now=new Date('2026-10-31T14:00:00Z');await Promise.all(Array.from({length:15},()=>service.draw(userId,preview.event!.id,0)));
+  const stocks=await store.transaction(tx=>tx.stocksForEvent<CampaignStock>(preview.event!.id));expect(stocks.reduce((n,s)=>n+s.remaining,0)).toBe(71);expect(stocks.filter(s=>s.special).reduce((n,s)=>n+s.remaining,0)).toBe(8);
+  service=new OnsiteHalloweenService(new HubStore(pool),()=>now,()=>0);const restored=await service.state(userId);expect(restored.cards).toHaveLength(1);expect(restored.cards[0].id).toBe((await service.draw(userId,preview.event!.id,0)).cards[0].id);
+  await expect(store.transaction(tx=>campaignAction(tx,{action:'campaign.prepare',target:'halloween-2026-10-31',data:{}},true,now.toISOString()))).rejects.toMatchObject({code:'ONSITE_TODAY_ONLY'});
+  await expect(service.draw(userId,'another-halloween',0)).rejects.toMatchObject({code:'EVENT_SCOPE'});
+  now=new Date('2026-10-31T15:30:00Z');await service.draw(userId,preview.event!.id,1);await service.draw(userId,preview.event!.id,2);expect((await service.state(userId)).cards).toHaveLength(3);expect((await pool.query("SELECT id FROM event_hub_records WHERE kind IN ('event','application')")).rowCount).toBe(0);
+  now=new Date('2026-10-31T16:00:00Z');expect((await service.state(userId)).cards).toHaveLength(3);await expect(service.draw(userId,preview.event!.id,3)).rejects.toBeTruthy();
+ });
+ it('refuses duplicate physical stock initialization when a previous normal ledger is present',async()=>{
+  await pool.query("DELETE FROM event_hub_records WHERE kind='event'");now=new Date('2026-10-31T14:00:00Z');
+  const preview=await service.state(userId);await expect(service.draw(userId,preview.event!.id,0)).rejects.toMatchObject({code:'STOCK_CONFLICT'});expect(await remaining()).toBe(49);expect((await service.state(userId)).cards).toHaveLength(0);
+ });
+
 });

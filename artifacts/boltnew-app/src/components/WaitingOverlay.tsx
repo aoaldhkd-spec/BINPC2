@@ -271,11 +271,11 @@ export function WaitingOverlay({ landingThemeEnabled = true, sessionActive, even
 
         {/* 피라미드형 버튼 그룹 */}
         <div className="season-home-actions w-full flex flex-col items-center gap-2 mb-2">
-          <div className="season-home-apply-links flex flex-col gap-3 w-[88%] mb-1">
+          {(!heartNowPublic||bossTest)&&<div className="season-home-apply-links flex flex-col gap-3 w-[88%] mb-1">
             {testMode && !bossTest ? <button type="button" disabled className="min-h-16 flex gap-3 items-center justify-center rounded-xl border border-pink-300/40 bg-gradient-to-br from-pink-500 to-pink-800 px-4 py-4 text-lg font-bold text-white opacity-50 cursor-not-allowed"><Wine size={24} aria-hidden="true"/>술번개 신청</button> : <a href={"/events"} className="min-h-16 flex gap-3 items-center justify-center rounded-xl border border-pink-300/60 bg-gradient-to-br from-pink-500 to-pink-800 px-4 py-4 text-lg font-bold text-white shadow-lg shadow-pink-900/30 hover:brightness-110 active:scale-[.98] transition-all"><Wine size={24} aria-hidden="true"/>술번개 신청</a>}
             {testMode && !bossTest && <a href="/events" className="text-center text-sm text-amber-100 underline">행사 공지 · 관리자 문의</a>}
             <a href={"/events/waiting"} className="min-h-16 flex gap-3 items-center justify-center rounded-xl border border-blue-300/60 bg-gradient-to-br from-blue-500 to-blue-800 px-4 py-4 text-lg font-bold text-white shadow-lg shadow-blue-900/30 hover:brightness-110 active:scale-[.98] transition-all"><List size={24} aria-hidden="true"/>신청대기방</a>
-          </div>
+          </div>}
           <button
             onClick={() => { if (bossOnlyTest) { window.history.pushState({}, '', '/events/waiting'); window.dispatchEvent(new PopStateEvent('popstate')); } else setShowConsentModal(true); }}
             disabled={!bossOnlyTest && !isActive}

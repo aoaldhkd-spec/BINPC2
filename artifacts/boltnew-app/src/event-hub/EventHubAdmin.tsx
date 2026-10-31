@@ -1,4 +1,5 @@
 import "./admin-compact.css";
+import { OnsiteHalloweenAdmin } from './OnsiteHalloweenAdmin';
 import { CompanionAdminGroups, CompanionLinkRequests } from "./CompanionAdmin";
 import { halloweenPrizeLabel } from "../../../../lib/api-zod/src/event-policy-halloween";
 import { VenueDirectoryEditor } from "./VenueDirectoryEditor";
@@ -208,6 +209,7 @@ export default function EventHubAdmin({ active = true }: { active?: boolean }) {
         </aside>
         <div className="hub-admin-workspace space-y-4">
           <TestModePanel controller={testMode} />
+          {s.onsiteTodayActive&&<OnsiteHalloweenAdmin eventId="onsite-live-halloween-2026-10-31" refreshKey={s.serverNow} stocks={(s.stocks??[]).filter(stock=>stock.eventId==='onsite-live-halloween-2026-10-31')}/>}
           <div className="hub-admin-context">
             <h3>{tab}</h3>
             <p>

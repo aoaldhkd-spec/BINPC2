@@ -1,5 +1,6 @@
 import { VenueAddressInput, type VenueDirectory } from "../../../../lib/api-zod/src/event-venue-directory.js";
 import { bossParticipationAllowed } from './boss-participation.js';
+import { todayHeartNowSession } from './heartnow-access.js';
 import { companionCommand, companionDraftViews, type CompanionGroup } from './companion-records.js';
 import { companionApplicationViews, companionSubmissionCommand, type CompanionLinkRequest } from './companion-submission.js';
 import {participantLinkRequest} from './companion-links.js';
@@ -538,6 +539,7 @@ export class EventHubService {
         members,
         serverNow: this.now().toISOString(),
         errors,
+        onsiteTodayActive: todayHeartNowSession(inputs.appSettings??{},this.now()),
         enabled: enabled || boss,
         events: safeEvents,
         applications: safeApps,

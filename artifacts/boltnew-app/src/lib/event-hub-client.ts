@@ -98,6 +98,7 @@ export type HubState = {
   companionAccounts?: Record<string, NonNullable<HubApplication['paymentAccount']>[]>;
   companionLinkRequests?: CompanionLinkRequest[];
   bossParticipationAllowed?: boolean;
+  onsiteTodayActive?: boolean;
   venueDirectory?: import("../../../../lib/api-zod/src/event-venue-directory").VenueDirectory;
   basicDrafts?: Record<string, import("../../../../lib/api-zod/src/event-hub").HubBasicDraft>;
   testMode?: PublicEventTestMode;

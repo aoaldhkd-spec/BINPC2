@@ -5,12 +5,12 @@ import session, { type SessionData } from 'express-session';
 import { deriveAdminToken } from './db-panel-tokens.js';
 import { isDefaultPanelPassword } from './db-panel-secrets.js';
 import { withVerifiedBossParticipation } from './boss-participation.js';
-import { heartNowPublicAccess, isHeartNowPublicRequest } from './heartnow-access.js';
+import { heartNowPublicAccess, isHeartNowPublicRequest, configureHeartNowSession } from './heartnow-access.js';
 
 type Grant = { fingerprint: string; expires: number; nonce: string };
 declare module 'express-session' { interface SessionData { bossAccessId?: string; bossGrant?: Grant } }
 let ownerSettings: () => Record<string, unknown> = () => ({});
-export function configureBossAccess(read: typeof ownerSettings) { ownerSettings = read; }
+export function configureBossAccess(read: typeof ownerSettings) { ownerSettings = read; configureHeartNowSession(read); }
 export function bossOnlyLocked() {
   // No relationship to test mode, theme, schedules or the 17:00 reset.
   return process.env.BOSS_ONLY_LOCK === '1' ||
