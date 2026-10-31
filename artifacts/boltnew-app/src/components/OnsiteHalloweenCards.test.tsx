@@ -1,7 +1,9 @@
 // @vitest-environment happy-dom
 import {afterEach,expect,it,vi} from 'vitest';
 import {act,cleanup,fireEvent,render,screen,waitFor} from '@testing-library/react';
-const request=vi.hoisted(()=>vi.fn());vi.mock('../lib/localdb',()=>({onsiteHalloweenRequest:request}));
+const request=vi.hoisted(()=>vi.fn());
+const bus=vi.hoisted(()=>({refresh:null as null|(()=>void)}));vi.mock('../lib/localdb',()=>({onsiteHalloweenRequest:request}));
+vi.mock('../lib/supabase',()=>({supabase:{channel:()=>({on(_kind:unknown,_filter:unknown,callback:()=>void){bus.refresh=callback;return this;},subscribe(){return this;}}),removeChannel:vi.fn()}}));
 import {OnsiteHalloweenCards} from './OnsiteHalloweenCards';
 const state={event:{id:'friday',title:'금요일',date:'2026-10-30',start:'22:30',end:'01:00',type:'halloween',campaign:{kind:'halloween-friday',round:1,secondRoundLink:''},cardsEnabled:true},cards:[],serverNow:'2026-10-30T14:00:00Z',blockedReason:null,prizesGiven:[]};
 afterEach(()=>{cleanup();request.mockReset();});
@@ -17,4 +19,11 @@ it('does not apply a late draw or retry response to another profile',async()=>{
  const view=render(<OnsiteHalloweenCards userId="first"/>);fireEvent.click(await screen.findByRole('button',{name:'카드 1 열기'}));
  view.rerender(<OnsiteHalloweenCards userId="second"/>);await waitFor(()=>expect(request).toHaveBeenCalledTimes(3));
  await act(async()=>late({...state,cards:[{id:'private-first',prize:'ring',prizeLabel:'이전 사람 상품'}]}));expect(screen.queryByText(/이전 사람 상품/)).toBeNull();
+});
+
+it('keeps a committed result when an older realtime reload arrives later',async()=>{
+ request.mockResolvedValueOnce({...state,revision:0}).mockResolvedValueOnce({...state,revision:1,cards:[{id:'new-card',prize:'ring',prizeLabel:'반지'}]}).mockResolvedValueOnce({...state,revision:0});
+ render(<OnsiteHalloweenCards userId="self"/>);fireEvent.click(await screen.findByRole('button',{name:'카드 1 열기'}));await screen.findByText('🎁 반지');
+ await act(async()=>{bus.refresh?.();await new Promise(r=>setTimeout(r,180));});
+ expect(screen.getByText('🎁 반지')).toBeTruthy();expect(request).toHaveBeenCalledTimes(3);
 });

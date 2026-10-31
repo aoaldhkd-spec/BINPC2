@@ -57,7 +57,7 @@
     "physicalDevices": "UNKNOWN",
     "backgroundPush": "UNKNOWN",
     "status": "PASS",
-    "checkedAt": "2026-10-31T05:50:02.440Z"
+    "checkedAt": "2026-10-31T06:07:43.965Z"
   },
   "cards-verification": {
     "actualApplication": true,
@@ -94,10 +94,10 @@
     "duplicateReplayRequests": 54,
     "uiDraws": 3,
     "totalCards": 6,
-    "stockInitial": 21,
-    "stockReserved": 2,
+    "stockInitial": 19,
+    "stockReserved": 5,
     "status": "PASS",
-    "checkedAt": "2026-10-31T05:50:48.144Z"
+    "checkedAt": "2026-10-31T06:07:51.374Z"
   },
   "settings-ui-verification": {
     "environment": "actual app and isolated PostgreSQL",
@@ -130,5 +130,26 @@
     "sha256": "fea43679b098410842c68d743bd4e4e6d09f0241e730b6b90132ef4db1ac3aea"
   },
   "checkedAt": "2026-10-31T05:57:02.317981+00:00",
-  "productionDeploymentExecuted": false
+  "productionDeploymentExecuted": false,
+  "cards-realtime-verification": {
+    "status": "PASS",
+    "actualBrowserContexts": 2,
+    "viewports": [
+      390,
+      1440
+    ],
+    "sameProfileWithoutApplication": true,
+    "saveMs": 11,
+    "bothScreensReflectedMs": 290,
+    "reloadNeeded": false,
+    "operatingRequests": 0,
+    "checkedAt": "2026-10-31T06:06:54.035Z"
+  },
+  "localPassed": {
+    "apiUnit": 677,
+    "uiUnit": 1027,
+    "actualPostgres": 156,
+    "physicalDevices": "UNKNOWN",
+    "backgroundPush": "UNKNOWN"
+  }
 }

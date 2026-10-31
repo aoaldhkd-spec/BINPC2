@@ -4402,7 +4402,7 @@ router.post('/op', async (req: Request, res: Response) => {
 
 // ─── RPC allowlist: ../lib/db-rpc-allowlist.ts ─────────────────────────────────
 // ─── RPC endpoint ─────────────────────────────────────────────────────────────
-const onsiteHalloween = new OnsiteHalloweenService(registrationModeStore);
+const onsiteHalloween = new OnsiteHalloweenService(registrationModeStore,undefined,undefined,eventHubChanged);
 router.post('/halloween-cards',async(req:Request,res:Response)=>{
   res.setHeader('Cache-Control','private, no-store');
   try {

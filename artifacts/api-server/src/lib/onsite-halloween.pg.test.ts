@@ -20,13 +20,14 @@ describe.skipIf(!url)('onsite Halloween without application — actual PostgreSQ
  });
  const remaining=()=>store.transaction(async tx=>(await tx.stocksForEvent<CampaignStock>(eventId)).reduce((n,s)=>n+s.remaining,0));
  it('keeps three cards locked at boundaries, then draws once per slot under concurrent replay and restart',async()=>{
+  let notifications=0;service=new OnsiteHalloweenService(store,()=>now,()=>0,()=>{notifications++;});
   expect(await remaining()).toBe(49);expect((await service.state(userId)).cards).toHaveLength(0);
   await expect(service.draw(userId,eventId,0)).rejects.toMatchObject({code:'CARD_LOCKED'});
   for(const [slot,at]of ['2026-10-31T14:00:00Z','2026-10-31T15:00:00Z','2026-10-31T15:30:00Z'].entries()){
    now=new Date(at);if(slot>0){now=new Date(Date.parse(at)-1);await expect(service.draw(userId,eventId,slot)).rejects.toMatchObject({code:'CARD_LOCKED'});now=new Date(at);}
    const before=await remaining();const results=await Promise.all(Array.from({length:15},()=>service.draw(userId,eventId,slot)));
    expect(new Set(results.map(r=>r.cards[slot].id)).size).toBe(1);expect(before-await remaining()).toBe(1);
-   service=new OnsiteHalloweenService(new HubStore(pool),()=>now,()=>0);expect((await service.state(userId)).cards).toHaveLength(slot+1);
+   expect(notifications).toBe(slot+1);service=new OnsiteHalloweenService(new HubStore(pool),()=>now,()=>0,()=>{notifications++;});expect((await service.state(userId)).cards).toHaveLength(slot+1);
   }
   const saved=(await service.state(userId)).cards;now=new Date('2026-10-31T16:00:00Z');expect((await service.draw(userId,eventId,2)).cards).toEqual(saved);
   const rows=await pool.query("SELECT count(*)::int AS n FROM event_hub_records WHERE kind='application'");expect(rows.rows[0].n).toBe(0);

@@ -7,12 +7,13 @@ import {drawHalloween} from './event-policy-halloween-server.js';
 import {parseModuleFlags} from './db-module-flags.js';
 import {assertOnsiteSocialWrite} from './event-onsite-access.js';
 
-type RecordData={eventId:string;profileId:string;cycleId:string;owner:string;rank:number;benefitExcluded:true;cards:HubApplication['cards'];prizesGiven:string[];candyGivenAt?:string;prizeGivenAt?:Record<string,string>;history?:{at:string;actor:string;action:string;reason?:string}[];createdAt:string};
+type RecordData={revision?:number;eventId:string;profileId:string;cycleId:string;owner:string;rank:number;benefitExcluded:true;cards:HubApplication['cards'];prizesGiven:string[];candyGivenAt?:string;prizeGivenAt?:Record<string,string>;history?:{at:string;actor:string;action:string;reason?:string}[];createdAt:string};
 const prefix='onsite-halloween:';
 function publicEvent(e:HubEvent):HalloweenCardEvent{const {id,title,date,start,end,type,campaign,cardsEnabled,theme,themeEnabled}=e;return {id,title,date,start,end,type,campaign,cardsEnabled,theme,themeEnabled};}
+function view(event:HubEvent|undefined,own:{cards:HubApplication['cards'];prizesGiven:string[];revision?:number;candyGivenAt?:string}|undefined,now:Date,reason:string|null):OnsiteHalloweenState{return {event:event?publicEvent(event):null,cards:own?.cards??[],revision:own?.revision??0,serverNow:now.toISOString(),blockedReason:reason,prizesGiven:own?.prizesGiven??[],...(own?.candyGivenAt?{candyGivenAt:own.candyGivenAt}:{})};}
 /** No application, payment approval, admission rank or new inventory is fabricated. */
 export class OnsiteHalloweenService{
- constructor(private store:HubStore,private now=()=>new Date(),private pick=(max:number)=>randomInt(max)){}
+ constructor(private store:HubStore,private now=()=>new Date(),private pick=(max:number)=>randomInt(max),private notify=()=>{}){}
  private async context(tx:HubTx,userId:string,eventId?:string){
   const rows=(await tx.db.query("SELECT table_name,data FROM app_kv_rows WHERE (table_name='profiles' AND row_id=$1) OR table_name='app_settings' ORDER BY updated_at DESC",[userId])).rows;
   const profile=rows.find(r=>r.table_name==='profiles')?.data;
@@ -35,21 +36,24 @@ export class OnsiteHalloweenService{
   const reason=!event?'운영자가 할로윈 행사를 준비 중입니다.':!profile||!String(profile.nickname??'').trim()||!String(profile.pin_code??'').trim()||profile.boss_test_event?'현장 프로필로 입장해 주세요.':!sameCycle?'현재 현장 행사에서만 뽑을 수 있습니다.':policy.paused||!parseModuleFlags(flags).event_hub||!drawModuleEnabled(event,policy)?'할로윈 뽑기가 꺼져 있습니다.':eventEnded(event,now)?'신규 뽑기가 종료되었습니다.':linked&&!paymentSatisfied(linked)?'참가 권한을 운영자에게 확인해 주세요.':null;
   return {profile,settings,event,record,linked,reason,now};
  }
- async state(userId:string,eventId?:string):Promise<OnsiteHalloweenState>{return this.store.transaction(async tx=>{const c=await this.context(tx,userId,eventId);const own=c.linked??c.record;return {event:c.event?publicEvent(c.event):null,cards:own?.cards??[],serverNow:c.now.toISOString(),blockedReason:c.reason,prizesGiven:own?.prizesGiven??[],...(!c.linked&&c.record?.candyGivenAt?{candyGivenAt:c.record.candyGivenAt}:{})};});}
+ async state(userId:string,eventId?:string):Promise<OnsiteHalloweenState>{return this.store.transaction(async tx=>{const c=await this.context(tx,userId,eventId);return view(c.event,c.linked??c.record,c.now,c.reason);});}
  async draw(userId:string,eventId:string,slot:number){
-  await this.store.transaction(async tx=>{
+  let changed=false;
+  const saved=await this.store.transaction(async tx=>{
    const c=await this.context(tx,userId,eventId);const old=c.linked??c.record;
    // A repeated slot returns its durable result without another decrement.
-   if(old?.cards[slot])return;
+   if(old?.cards[slot])return view(c.event,old,c.now,c.reason);
    if(c.reason||!c.event)fail('CARDS_UNAVAILABLE',c.reason??'행사를 확인해 주세요.',403);
    await assertOnsiteSocialWrite(tx,userId);
-   const a=old??{eventId,profileId:userId,owner:userId,cycleId:String(c.settings?.event_cycle_archive_id??''),rank:0,benefitExcluded:true as const,cards:[],prizesGiven:[],createdAt:c.now.toISOString()};
+   const a=old??{revision:0,eventId,profileId:userId,owner:userId,cycleId:String(c.settings?.event_cycle_archive_id??''),rank:0,benefitExcluded:true as const,cards:[],prizesGiven:[],createdAt:c.now.toISOString()};
    if(slot!==a.cards.length||slot>=3)fail('CARD_SLOT','이미 사용했거나 아직 차례가 아닌 카드입니다.',409);
    if(!cardSlotAvailable(c.event,slot,c.now))fail('CARD_LOCKED','아직 카드 해제 시각이 아닙니다.',403);
    await drawHalloween(tx,c.event,a,c.now.toISOString(),this.pick);
    if(c.linked){c.linked.revision++;c.linked.updatedAt=c.now.toISOString();c.linked.history.push({at:c.now.toISOString(),actor:userId,action:'onsite.halloween.draw'});await tx.put('application',c.linked.id,c.linked);}
-   else await tx.put('settings',prefix+eventId+':'+userId,a);
-  });return this.state(userId,eventId);
+   else {a.revision=(c.record?.revision??0)+1;await tx.put('settings',prefix+eventId+':'+userId,a);}
+   changed=true;return view(c.event,a,c.now,c.reason);
+  });
+  if(changed){try{this.notify();}catch{/* A notification cannot undo a committed draw. */}}return saved;
  }
  async results(){return this.store.transaction(async tx=>{
   const rows=(await tx.db.query("SELECT id FROM event_hub_records WHERE kind='settings' AND id LIKE 'onsite-halloween:%' ORDER BY id")).rows;
@@ -65,7 +69,7 @@ export class OnsiteHalloweenService{
   }
   return results;
  });}
- async give(eventId:string,profileId:string,cardId?:string){return this.store.transaction(async tx=>{
+ async give(eventId:string,profileId:string,cardId?:string){let changed=false;const saved=await this.store.transaction(async tx=>{
   const key=prefix+eventId+':'+profileId;let record=await tx.get<RecordData>('settings',key);
   if(!record&&!cardId){
     const c=await this.context(tx,profileId,eventId);const start=Date.parse(String(c.settings?.event_cycle_started_at??''));
@@ -73,8 +77,8 @@ export class OnsiteHalloweenService{
     record={eventId,profileId,owner:profileId,cycleId:String(c.settings.event_cycle_archive_id),rank:0,benefitExcluded:true,cards:[],prizesGiven:[],createdAt:this.now().toISOString()};
   }
   if(!record)fail('RESULT','해당 결과가 없습니다.',404);
-  if(cardId){const card=record.cards.find(c=>c.id===cardId);if(!card||card.prize==='다음 기회에')fail('RESULT','당첨 상품만 지급 처리할 수 있습니다.');if(!record.prizesGiven.includes(cardId)){record.prizesGiven.push(cardId);(record.prizeGivenAt??={})[cardId]=this.now().toISOString();(record.history??=[]).push({at:this.now().toISOString(),actor:'admin',action:'prize.given',reason:cardId});}}
-  else if(!record.candyGivenAt){record.candyGivenAt=this.now().toISOString();(record.history??=[]).push({at:record.candyGivenAt,actor:'admin',action:'candy.given'});}
-  await tx.put('settings',key,record);return {saved:true};
- });}
+  if(cardId){const card=record.cards.find(c=>c.id===cardId);if(!card||card.prize==='다음 기회에')fail('RESULT','당첨 상품만 지급 처리할 수 있습니다.');if(!record.prizesGiven.includes(cardId)){changed=true;record.prizesGiven.push(cardId);(record.prizeGivenAt??={})[cardId]=this.now().toISOString();(record.history??=[]).push({at:this.now().toISOString(),actor:'admin',action:'prize.given',reason:cardId});}}
+  else if(!record.candyGivenAt){changed=true;record.candyGivenAt=this.now().toISOString();(record.history??=[]).push({at:record.candyGivenAt,actor:'admin',action:'candy.given'});}
+  if(changed){record.revision=(record.revision??0)+1;await tx.put('settings',key,record);}return {saved:true};
+ });if(changed){try{this.notify();}catch{/* Durable handover remains saved. */}}return saved;}
 }
