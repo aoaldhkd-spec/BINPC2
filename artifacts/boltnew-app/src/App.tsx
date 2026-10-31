@@ -1,6 +1,7 @@
 import { preserveDraftForEarlierReset, readProfileSetupDraft } from './lib/profile-setup-draft';
 import { RainbowUnlockGuide } from './components/RainbowUnlockGuide';
 import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
+import { testerRequestScope } from './lib/admin-request-scope';
 import { supabase, setLocalDbUserId, fetchAndSetSseToken, ensureWriteSession, onSseReconnect } from './lib/supabase';
 import { useParticipantSoTResync } from './hooks/useParticipantSoTResync';
 import { useSseFallbackPoll } from './hooks/useSseFallbackPoll';
@@ -138,7 +139,7 @@ function App() {
   // New users go straight to nickname setup — no waiting overlay.
   const [shownWaiting, setShownWaiting] = useState(() => {
     try {
-      return Boolean(ls.getItem(MATCHING_USER_KEY) || readProfileSetupDraft().lastStep || localStorage.getItem('test_token_v1'));
+      return Boolean(ls.getItem(MATCHING_USER_KEY) || readProfileSetupDraft().lastStep || (testerRequestScope(window.location.pathname, import.meta.env.BASE_URL) && ls.getItem('test_token_v1')));
     } catch {
       return Boolean(ls.getItem(MATCHING_USER_KEY) || readProfileSetupDraft().lastStep);
     }
@@ -1119,7 +1120,7 @@ function App() {
 
   // 신규 방문자만 참여자 대기 랜딩. 더미/복구/재방문(userId 있음)은 loading-main → 메인
   const isTester = (() => {
-    try { return Boolean(localStorage.getItem('test_token_v1')); } catch { return false; }
+    try { return testerRequestScope(window.location.pathname, import.meta.env.BASE_URL) && Boolean(ls.getItem('test_token_v1')); } catch { return false; }
   })();
   const showWaiting = profileBoot !== "checking" && shouldShowWaitingOverlay({
     shownWaiting,

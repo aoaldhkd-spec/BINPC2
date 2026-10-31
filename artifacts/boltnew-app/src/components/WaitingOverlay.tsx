@@ -232,7 +232,7 @@ export function WaitingOverlay({ landingThemeEnabled = true, sessionActive, even
 
       <div className="season-home-content relative z-10 text-center max-w-sm w-full flex flex-col items-center">
         {/* 로고 → 테스터(/test) / 범일NPC → 관리자 / 술번개 → 게이트 없음 */}
-        <button
+        {!heartNowPublic && <button
           type="button"
           data-gate="waiting-logo-tester"
           onClick={() => { setTestPw(''); setTestErr(''); setTestOpen(true); }}
@@ -241,7 +241,7 @@ export function WaitingOverlay({ landingThemeEnabled = true, sessionActive, even
           className="season-home-logo-gate relative inline-flex items-center justify-center mb-5 active:scale-95 transition-transform"
         >
           <Users size={18} aria-hidden="true" />
-        </button>
+        </button>}
         <div className="season-home-heading mb-3 text-center">
           {halloween && <p className="text-[10px] font-bold tracking-[.25em] text-orange-200 mb-3">HALLOWEEN 2026</p>}
           <button

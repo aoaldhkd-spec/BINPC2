@@ -1,4 +1,4 @@
-import { adminRequestScope } from './admin-request-scope';
+import { adminRequestScope, testerRequestScope } from './admin-request-scope';
 import { bossSseTicket } from "./boss-access-client";
 import { ls } from './storage';
 /**
@@ -363,7 +363,7 @@ class QueryBuilder {
   private async _runAsync(): Promise<DbResult<unknown>> {
     const hasUser = Boolean(_currentUserId);
     const needsAuth = tableNeedsSession(this._table, this._op, hasUser);
-    const testTok = typeof localStorage !== 'undefined' ? (localStorage.getItem('test_token_v1') ?? '') : '';
+    const testTok = readTesterTokenFromStorage();
     if (needsAuth && !testTok) {
       const sessionOk = await _waitForSession();
       if (!sessionOk) {
@@ -388,7 +388,7 @@ class QueryBuilder {
       requesterId: (_sessionReady && _currentUserId) ? _currentUserId : null,
       sessionToken: (_sessionReady && _sessionBearerToken) ? _sessionBearerToken : undefined,
       adminToken: readAdminTokenFromStorage() ?? undefined,
-      testToken: localStorage.getItem('test_token_v1') ?? undefined,
+      testToken: testTok ?? undefined,
     }) as Promise<DbResult<unknown>>;
   }
 }
@@ -680,6 +680,15 @@ function readAdminTokenFromStorage(): string | null {
     if (!adminRequestScope(window.location.pathname, import.meta.env.BASE_URL)) return null;
     const t = localStorage.getItem('admin_token_v1');
     return t && t.length > 0 ? t : null;
+  } catch {
+    return null;
+  }
+}
+
+function readTesterTokenFromStorage(): string | null {
+  try {
+    if (!testerRequestScope(window.location.pathname, import.meta.env.BASE_URL)) return null;
+    return localStorage.getItem('test_token_v1') || null;
   } catch {
     return null;
   }
@@ -1452,6 +1461,7 @@ function loginSession(userId: string): Promise<boolean> {
 async function _loginSessionAttempt(userId: string, attempt: number): Promise<boolean> {
   try {
     const deviceSecret = getDeviceSecret(userId);
+    const testToken = readTesterTokenFromStorage();
     const resp = await fetch(`${API}/auth/login`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -1459,9 +1469,7 @@ async function _loginSessionAttempt(userId: string, attempt: number): Promise<bo
         userId,
         deviceSecret,
         ...( _pendingPinCode ? { pinCode: _pendingPinCode } : {}),
-        ...(typeof localStorage !== 'undefined' && localStorage.getItem('test_token_v1')
-          ? { testToken: localStorage.getItem('test_token_v1') }
-          : {}),
+        ...(testToken ? { testToken } : {}),
       }),
       credentials: 'include',
     });

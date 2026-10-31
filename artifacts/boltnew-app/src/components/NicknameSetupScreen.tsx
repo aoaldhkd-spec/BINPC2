@@ -630,6 +630,19 @@ export function NicknameSetupScreen({ onSubmit, loading, registrationError, onRe
           {/* ─── Step 6: 이상형 · 나는 어떤 사람인가요? (선택) ─── */}
           {step === 6 && (
             <div className="space-y-5">
+              {(!hasRequiredConsent(privacyConsent) || pushDecision === null) && (
+                <RegistrationConsentRows value={privacyConsent} onChange={setPrivacyConsent}>
+                  <div className="flex flex-wrap gap-2">
+                    <button type="button" onClick={() => {
+                      setPushOptIn(true); setPushDecision('enable');
+                      if (!eventDraft) void requestPushPermissionFromClick().then(setPushStatus);
+                    }} className="rounded-lg border px-3 py-2 text-sm font-bold">알림 받기</button>
+                    <button type="button" aria-label="알림 없이 계속" onClick={() => {
+                      setPushOptIn(false); setPushDecision('skip'); setPushStatus(null);
+                    }} className="rounded-lg border px-3 py-2 text-sm font-bold">알림 없이 계속</button>
+                  </div>
+                </RegistrationConsentRows>
+              )}
               <div className="text-center pt-1 pb-0.5">
                 <p className="text-gray-500 text-sm">원하면 지금 채우고, 나중에 설정 탭에서도 바꿀 수 있어요</p>
                 <span className="inline-block mt-2 text-xs font-semibold text-gray-400 bg-gray-100 px-2.5 py-0.5 rounded-full">선택 · 건너뛰기 가능</span>
