@@ -549,10 +549,11 @@ test("actual browser + API + PostgreSQL: saved stages, payment recovery, private
   await page.context().setOffline(true);
   const disconnected=await page.evaluate(async()=>{window.dispatchEvent(new Event('focus'));window.dispatchEvent(new Event('offline'));document.dispatchEvent(new Event('visibilitychange'));const {supabase}=await import('/src/lib/supabase.ts');const r=await supabase.from('profiles').select('*');return !!r.error;});expect(disconnected).toBe(true);
   expect(await page.evaluate(()=>localStorage.getItem('matching_app_user_id'))).toBe(originalIdentity);
-  // The full-site access check hides cached private screens offline without clearing profile state.
-  await expect(page.getByRole('group',{name:'내 고유번호',exact:true,includeHidden:true})).toBeAttached();
-  await expect(page.getByRole('group',{name:'내 고유번호',exact:true,includeHidden:true})).toBeHidden();
-  await expect(page.getByText('접근 권한을 확인하지 못했습니다.')).toBeVisible();
+  // A failed owner lookup must not cover the already authenticated ordinary
+  // profile. Offline reads still fail; stored identity and social data survive.
+  await expect(page.getByRole('group',{name:'내 고유번호',exact:true,includeHidden:true})).toBeVisible();
+  await expect(page.getByText('접근 권한을 확인하지 못했습니다.',{exact:true})).toHaveCount(0);
+  await expect(page.getByText('접근 권한 확인 중…',{exact:true})).toHaveCount(0);
   await page.context().setOffline(false);await page.reload();
   await expect(page.getByRole('navigation',{name:'참여자 메뉴'})).toBeVisible();
   expect(await page.evaluate(()=>localStorage.getItem('matching_app_user_id'))).toBe(originalIdentity);
@@ -2006,10 +2007,13 @@ test("test mode real browser: isolated campaigns, durable restore, global reset 
     await expect(admin.getByRole("switch", { name: "테스트 모드 OFF", exact: true })).toBeDisabled();
     await page.setViewportSize({ width: 390, height: 844 });
     await page.goto("/");
+    await expect(page.getByRole("button", { name: "입장하기", exact: true })).toBeVisible();
+    await expect(page.getByRole("link", { name: "술번개 신청", exact: true })).toHaveCount(0);
+    await expect(page.getByRole("link", { name: "신청대기방", exact: true })).toHaveCount(0);
+    await expect(page.getByText("접근 권한 확인 중…", { exact: true })).toHaveCount(0);
+    await capture(page, "01-public-test-mode.png", "Ordinary HeartNow remains separate from the protected application and laboratory routes.");
+    await page.goto("/events");
     await expect(page.getByText(banner, { exact: true })).toBeVisible();
-    await expect(page.getByRole("button", { name: "술번개 신청", exact: true })).toBeDisabled();
-    await expect(page.getByRole("link", { name: "행사 공지 · 관리자 문의", exact: true })).toBeVisible();
-    await capture(page, "01-public-test-mode.png", "Public homepage: exact maintenance banner, disabled application, notices and inquiries available.");
     await capture(admin, "02-admin-test-mode-on.png", "Authenticated administrator: test mode ON and empty isolated workspace.");
 
     const scenarios = [
@@ -2120,11 +2124,21 @@ test("test mode real browser: isolated campaigns, durable restore, global reset 
     await savedAction("admission", () => open.click());
     expect((await readLaboratory()).mode.publicAdmissionOpen).toBe(true);
     await page.goto("/");
-    await expect(page.getByRole("link", { name: "술번개 신청", exact: true })).toHaveAttribute("href", "/events");
+    await expect(page.getByRole("link", { name: "술번개 신청", exact: true })).toHaveCount(0);
+    await page.goto("/events");
+    const publicMode = await (await request.get("/api/event-hub/test-mode")).json();
+    expect(publicMode).toMatchObject({ enabled: false, publicAdmissionOpen: true });
+    await expect(page.getByText(banner, { exact: true })).toHaveCount(0);
     await savedAction("admission", () => admin.getByRole("button", { name: "실제 신규 접수 중지", exact: true }).click());
     expect((await readLaboratory()).mode.publicAdmissionOpen).toBe(false);
     await page.reload();
-    await expect(page.getByRole("button", { name: "술번개 신청", exact: true })).toBeDisabled();
+    await expect(page.getByText(/웹·오픈채팅 모두 접수 전/).first()).toBeVisible();
+    const closedAgain = await request.post("/api/event-hub/mutate", {
+      headers: adminHeaders,
+      data: { action: "application.basic", target: eventId, data: {}, requestId: randomUUID() },
+    });
+    expect(closedAgain.status()).toBe(423);
+    expect((await closedAgain.json()).code).toBe("PUBLIC_ADMISSION_CLOSED");
     expect(nonLaboratoryWrites).toEqual([]);
     expect(await operationalRecords()).toEqual(before);
     writeFileSync(resolve(directory, "README.md"), [
