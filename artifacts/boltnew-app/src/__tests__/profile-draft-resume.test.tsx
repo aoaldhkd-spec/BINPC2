@@ -23,9 +23,9 @@ it('restores the unfinished actual profile screen and entered MBTI after unmount
 it('lets a restored final-step draft confirm required consent and notification choice without losing its profile',async()=>{
  saveProfileSetupDraft({lastStep:6,nickname:'정상복구',mbti:'ENFP',birthYear:1995,location:'부산',interests:['영화','음악'],personalityScore:50});
  const onSubmit=vi.fn();render(<NicknameSetupScreen onSubmit={onSubmit} loading={false} onReset={vi.fn()}/>);
- const enter=screen.getByRole('button',{name:'입장하기',exact:true});expect(enter.hasAttribute('disabled')).toBe(true);
- fireEvent.click(screen.getByRole('button',{name:'필수 약관 모두 동의',exact:true}));
- fireEvent.click(screen.getByRole('button',{name:'알림 없이 계속',exact:true}));
+ const enter=screen.getByRole('button',{name:'입장하기'});expect(enter.hasAttribute('disabled')).toBe(true);
+ fireEvent.click(screen.getByRole('button',{name:'필수 약관 모두 동의'}));
+ fireEvent.click(screen.getByRole('button',{name:'알림 없이 계속'}));
  await waitFor(()=>expect(enter.hasAttribute('disabled')).toBe(false));fireEvent.click(enter);
  expect(onSubmit).toHaveBeenCalledWith(expect.objectContaining({nickname:'정상복구',mbti:'ENFP',birthYear:1995,location:'부산',pushOptIn:false,privacyConsent:expect.objectContaining({collection:true,sharing:true})}));
 });
